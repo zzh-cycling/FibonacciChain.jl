@@ -1,5 +1,9 @@
 module FibonacciChain
 
-# Write your package code here.
+using BitBasis, LinearAlgebra
+
+export Fibonacci_Ham, rdm_Fibo
+
+include("basis.jl")
 
 end
