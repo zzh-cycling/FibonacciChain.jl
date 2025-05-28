@@ -13,18 +13,64 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
+function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
+    # Generate basis for PXP model, return both decimal and binary form, where we both consider PBC and OBC
+    if pbc
+        basis=Fibonacci_chain_PBC(T)
+    else
+        basis=Fibonacci_chain_OBC(T)
+    end
+    sorted_basis=sort(basis)
+    return sorted_basis
+end
+Fibonacci_basis(N::Int, pbc::Bool=true) = Fibonacci_basis(BitStr{N, Int}, pbc)
+
+function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
+    # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
+    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+
+    X(state,i) = flip(state, fl >> (i-1))
+    Z(state, i) = (state & (1 << (N-i))) == 0 ? 1 : -1
+
+    if (state & (1 << (N-i))) == 0
+        return state, X(state,i), 1/ϕ, -1/ϕ^(3/2)
+    else
+        return state, X(state,i),-1/ϕ^(3/2), 1/ϕ^2
+    end
+end
+
 function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
-    # Here need to note that the order of the bitstr is from right to left, which is different from the normal order.
+    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
     mask=bmask(T, N, N-2)
-    fl=bmask(T, N-1)
+    fl=bmask(T, N)
     # output = [flip(state, fl >> (i-1)) for i in 1:N-2 if state & (mask >> (i-1)) == 0] 
-    output = map(i -> flip(state, fl >> (i-1)), filter(i -> state & (mask >> (i-1)) == 0, 1:N-2)) # faster
+    ϕ = (1+√5)/2
+    X(state,i) = flip(state, fl >> (i-1))
+    Z(state, i) = (state & (1 << (N-i))) == 0 ? 1 : -1
+    Q(state,i) = (1-z)/(2ϕ^2) - (X(state, i))/(ϕ^(3/2)) + (1 -X(state, i)*Z*X(state, i))/(2ϕ) 
+ 
+    output = map(i -> Q(state, i-1), filter(i -> state & (mask >> (i-1)) == 0, 1:N-2)) # faster
+    stateslis = BitStr{N}[]
+    weightslis = Float64[]
 
+    # start from 2 site to N-1 site, because the first and last bits are not considered
+    for i in 2:N-1 
+        if state & (mask >> (i-2)) == 0
+            state1, state2, weight1, weight2 = Qmap(T, state, i)
+            push!(stateslis, state1, state2)
+            push!(weightslis, weight1, weight2)
+        end
+    end
+    
     if pbc
         if state[2]==0 && state[N]==0
             flip_str=flip(state,bmask(T, 1))
+            phase_str=
             push!(output,flip_str)
         end
         if state[1]==0 && state[N-1]==0
@@ -44,26 +90,14 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     return output
 end
 
-function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate basis for PXP model, return both decimal and binary form, where we both consider PBC and OBC
-    if pbc
-        basis=Fibonacci_chain_PBC(T)
-    else
-        basis=Fibonacci_chain_OBC(T)
-    end
-    sorted_basis=sort(basis)
-    return sorted_basis
-end
-Fibonacci_basis(N::Int, pbc::Bool=true) = Fibonacci_basis(BitStr{N, Int}, pbc)
-
 function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for PXP model, automotically contain pbc or obc
-    basis=basis(T,pbc)
+    basis=Fibonacci_basis(T,pbc)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingH_PXP(T, basis[i], pbc) 
+        output=actingHam(T, basis[i], pbc) 
         for m in output 
             j=searchsortedfirst(basis,m)
             H[i, j] += 1
