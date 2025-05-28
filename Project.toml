@@ -1,0 +1,13 @@
+name = "FibonacciChain"
+uuid = "1d4145e4-32a1-4f27-ab5f-4bf470d9d7e4"
+authors = ["Zhaohui Zhi"]
+version = "1.0.0-DEV"
+
+[compat]
+julia = "1"
+
+[extras]
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[targets]
+test = ["Test"]
