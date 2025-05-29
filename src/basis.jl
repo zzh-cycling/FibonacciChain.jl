@@ -1,5 +1,5 @@
 function Fibonacci_chain_OBC(::Type{T}) where {N, T <: BitStr{N}}
-    # Generate Fibonacci chain for PXP model with open boundary condition
+    # Generate Fibonacci chain for Fibonacci model with open boundary condition
     fib_chain=[[T(0), T(1)],[T(0), T(1), T(2)]]
     for i in 3:N
         push!(fib_chain,vcat([s << 1 for s in fib_chain[i-1]],[(s << 2 | T(1)) for s in fib_chain[i-2]]))
@@ -9,12 +9,12 @@ function Fibonacci_chain_OBC(::Type{T}) where {N, T <: BitStr{N}}
 end
 
 function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
-    # Generate Fibonacci chain  for PXP model with periodic boundary condition
+    # Generate Fibonacci chain  for Fibonacci model with periodic boundary condition
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
 function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate basis for PXP model, return both decimal and binary form, where we both consider PBC and OBC
+    # Generate basis for Fibonacci model, return both decimal and binary form, where we both consider PBC and OBC
     if pbc
         basis=Fibonacci_chain_PBC(T)
     else
@@ -33,12 +33,11 @@ function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     fl=bmask(T, N)
 
     X(state,i) = flip(state, fl >> (i-1))
-    Z(state, i) = (state & (1 << (N-i))) == 0 ? 1 : -1
 
     if (state & (1 << (N-i))) == 0
-        return state, X(state,i), 1/ϕ, -1/ϕ^(3/2)
+        return state, X(state,i), -1/ϕ, 1/ϕ^(3/2)
     else
-        return state, X(state,i),-1/ϕ^(3/2), 1/ϕ^2
+        return state, X(state,i), -1/ϕ^2, 1/ϕ^(3/2)
     end
 end
 
@@ -51,16 +50,13 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     # output = [flip(state, fl >> (i-1)) for i in 1:N-2 if state & (mask >> (i-1)) == 0] 
     ϕ = (1+√5)/2
     X(state,i) = flip(state, fl >> (i-1))
-    Z(state, i) = (state & (1 << (N-i))) == 0 ? 1 : -1
-    Q(state,i) = (1-z)/(2ϕ^2) - (X(state, i))/(ϕ^(3/2)) + (1 -X(state, i)*Z*X(state, i))/(2ϕ) 
- 
-    output = map(i -> Q(state, i-1), filter(i -> state & (mask >> (i-1)) == 0, 1:N-2)) # faster
-    stateslis = BitStr{N}[]
+
+    stateslis = T[]
     weightslis = Float64[]
 
     # start from 2 site to N-1 site, because the first and last bits are not considered
     for i in 2:N-1 
-        if state & (mask >> (i-2)) == 0
+        if state & (mask >> (i-2)) == 1
             state1, state2, weight1, weight2 = Qmap(T, state, i)
             push!(stateslis, state1, state2)
             push!(weightslis, weight1, weight2)
@@ -68,39 +64,44 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     end
     
     if pbc
-        if state[2]==0 && state[N]==0
-            flip_str=flip(state,bmask(T, 1))
-            phase_str=
-            push!(output,flip_str)
-        end
+        # 1 site
         if state[1]==0 && state[N-1]==0
-            flip_str=flip(state,bmask(T, N))
-            push!(output,flip_str)
+            state1, state2, weight1, weight2 = Qmap(T, state, 1)
+            push!(stateslis, state1, state2)
+            push!(weightslis, weight1, weight2)
+        end
+        # N site
+        if state[2]==0 && state[N]==0
+            state1, state2, weight1, weight2 = Qmap(T, state, N)
+            push!(stateslis, state1, state2)
+            push!(weightslis, weight1, weight2)
         end
     else
         if state[N-1]==0
-            flip_str=flip(state,bmask(T, N))
-            push!(output,flip_str)
+            state1, state2, weight1, weight2 = Qmap(T, state, 1)
+            push!(stateslis, state1, state2)
+            push!(weightslis, weight1, weight2)
         end
         if state[2]==0
-            flip_str=flip(state,bmask(T, 1))
-            push!(output,flip_str)
+            state1, state2, weight1, weight2 = Qmap(T, state, N)
+            push!(stateslis, state1, state2)
+            push!(weightslis, weight1, weight2)
         end
     end
-    return output
+    return stateslis, weightslis
 end
 
 function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate Hamiltonian for PXP model, automotically contain pbc or obc
+    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=Fibonacci_basis(T,pbc)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(T, basis[i], pbc) 
-        for m in output 
-            j=searchsortedfirst(basis,m)
-            H[i, j] += 1
+        states, weights=actingHam(T, basis[i], pbc) 
+        for m in eachindex(states)
+            j=searchsortedfirst(basis,states[m])
+            H[i, j] += weights[m]
         end
     end
 
@@ -113,9 +114,9 @@ function process_join(a, b)
     return vec([join(b, a) for a in a, b in b])
 end
 
-# create pxp basis composed of multiple disjoint sub-chains
-function joint_pxp_basis(lengthlis::Vector{Int})
-    return sort(mapreduce(len -> PXP_basis(len, false), process_join, lengthlis))
+# create Fibonacci basis composed of multiple disjoint sub-chains
+function joint_Fibo_basis(lengthlis::Vector{Int})
+    return sort(mapreduce(len -> Fibonacci_basis(len, false), process_join, lengthlis))
 end
 
 function connected_components(v::Vector{Int})
@@ -168,7 +169,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = unsorted_basis[order], state[order]
     
-    reduced_basis = move_subsystem.(T, joint_pxp_basis(lengthlis), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
