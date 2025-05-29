@@ -20,7 +20,7 @@ function fitCCEntEntScal(
         cent /= 2.0
         cent_err/= 2.0
     end
-    @show cent ± cent_err
+    println("cent ± cent_err is $(cent) ± $(cent_err)")
 
     # plot scaling
     fig = scatter(1:L-1, SvN_list, ylabel=L"S_{vN}", xlabel=L"l", frame=:box, yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1))
