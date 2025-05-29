@@ -76,10 +76,10 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
 
     # count 101, 100, 001
     output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
-    
+
     # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
     for i in 2:N-1 
-        if state & (mask >> (i-2)) == 1
+        if state & (mask >> (i-2)) == 0
             state1, state2, weight1, weight2 = Qmap(T, state, i)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
@@ -87,17 +87,25 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     end
 
     if pbc
-        # 1 site
+        # 1 site Qmap
         if state[1]==0 && state[N-1]==0
             state1, state2, weight1, weight2 = Qmap(T, state, 1)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
-        # N site
+        # N site Qmap
         if state[2]==0 && state[N]==0
             state1, state2, weight1, weight2 = Qmap(T, state, N)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # 1 site 111 fusion
+        if state[1]==1 || state[N-1]==1
+            output[state] = get(output, state, 0.0) + 1
+        end
+        # N site 111 fusion
+        if state[2]==1 || state[N]==1
+            output[state] = get(output, state, 0.0) + 1
         end
     else
         if state[N-1]==0
@@ -111,7 +119,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
             output[state2] = get(output, state2, 0.0) + weight2
         end
     end
-    return stateslis, weightslis
+    return output
 end
 
 function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
@@ -121,10 +129,11 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        states, weights=actingHam(T, basis[i], pbc) 
-        for m in eachindex(states)
-            j=searchsortedfirst(basis,states[m])
-            H[i, j] += weights[m]
+        output=actingHam(T, basis[i], pbc) 
+        states, weights = keys(output), values(output)
+        for m in states
+            j=searchsortedfirst(basis, m)
+            H[i, j] += output[m]
         end
     end
 

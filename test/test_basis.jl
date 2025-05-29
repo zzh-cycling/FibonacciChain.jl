@@ -1,11 +1,12 @@
 using FibonacciChain
 using Test
+using BitBasis
 using LinearAlgebra 
 
 @testset "Qmap" begin
     ϕ = (1+√5)/2
-    @test FibonacciChain.Qmap(BitStr{3}, bit"000", 2) == (bit"000", bit"010", 1/ϕ, -1/ϕ^(3/2))
-    @test FibonacciChain.Qmap(BitStr{3}, bit"010", 2) == (bit"010", bit"000", 1/ϕ^2, -1/ϕ^(3/2))
+    @test FibonacciChain.Qmap(BitStr{3}, bit"000", 2) == (bit"000", bit"010", 1-2/ϕ, 2/ϕ^(3/2))
+    @test FibonacciChain.Qmap(BitStr{3}, bit"010", 2) == (bit"010", bit"000", 2/ϕ-1, 2/ϕ^(3/2))
 end
 
 @testset "count_subBitStr" begin
@@ -19,12 +20,14 @@ end
 
 @testset "actingHam" begin
     ϕ = (1+√5)/2
-    states, weights = FibonacciChain.actingHam(BitStr{3}, bit"000") 
-    @test states== BitStr{3}.([bit"000", bit"010", bit"000", bit"100", bit"000", bit"001"])
-    @test weights ≈ [1/ϕ, -1/ϕ^(3/2), 1/ϕ, -1/ϕ^(3/2), 1/ϕ, -1/ϕ^(3/2)]
-    states, weights = FibonacciChain.actingHam(BitStr{3}, bit"010")
-    @test states == BitStr{3}.([bit"010", bit"000"])
-    @test weights ≈  [1/ϕ^2, -1/ϕ^(3/2)]
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000") 
+    states, weights = keys(output1), values(output1)
+    @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
+    @test [weights...] ≈ [3*(1-2/ϕ), 2/ϕ^(3/2), 2/ϕ^(3/2), 2/ϕ^(3/2)]
+    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000")
+    states, weights = keys(output), values(output)
+    @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
+    @test [weights...] ≈  [4+2(1-2/ϕ), 2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2), 2/ϕ^(3/2)]
 end
 
 @testset "basis.jl" begin
