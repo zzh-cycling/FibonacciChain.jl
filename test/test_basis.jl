@@ -8,6 +8,15 @@ using LinearAlgebra
     @test FibonacciChain.Qmap(BitStr{3}, bit"010", 2) == (bit"010", bit"000", 1/ϕ^2, -1/ϕ^(3/2))
 end
 
+@testset "count_subBitStr" begin
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00000") == 0
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10000") == 1
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10100") == 2
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00100") == 2
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10101") == 2
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00101") == 2
+end
+
 @testset "actingHam" begin
     ϕ = (1+√5)/2
     states, weights = FibonacciChain.actingHam(BitStr{3}, bit"000") 

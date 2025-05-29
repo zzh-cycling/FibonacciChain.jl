@@ -35,10 +35,31 @@ function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     X(state,i) = flip(state, fl >> (i-1))
 
     if (state & (1 << (N-i))) == 0
-        return state, X(state,i), -1/ϕ, 1/ϕ^(3/2)
+        return state, X(state,i), 1-2/ϕ, 2/ϕ^(3/2)
     else
-        return state, X(state,i), -1/ϕ^2, 1/ϕ^(3/2)
+        return state, X(state,i), 2/ϕ-1, 2/ϕ^(3/2)
     end
+end
+
+function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
+    n = length(state)
+    n < 3 && return 0  # 字符串长度小于3时直接返回0
+    
+    str100, str101, str001 = T(4), T(5), T(1) # 100, 101, 001
+    num=0
+    
+    mask=bmask(T, 1, 2, 3)
+    for i in 1:(n-2) # start from string right to left
+        substr = state & (mask << (i-1))  # 提取当前子串
+        if substr == str100 || substr == str101 || substr == str001
+            num+= 1
+        end
+        str100 <<= 1
+        str101 <<= 1
+        str001 <<= 1
+    end
+    
+    return num
 end
 
 function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
@@ -51,41 +72,43 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     ϕ = (1+√5)/2
     X(state,i) = flip(state, fl >> (i-1))
 
-    stateslis = T[]
-    weightslis = Float64[]
+    output = Dict{T, Float64}()
 
-    # start from 2 site to N-1 site, because the first and last bits are not considered
+    # count 101, 100, 001
+    output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
+    
+    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
     for i in 2:N-1 
         if state & (mask >> (i-2)) == 1
             state1, state2, weight1, weight2 = Qmap(T, state, i)
-            push!(stateslis, state1, state2)
-            push!(weightslis, weight1, weight2)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
     end
-    
+
     if pbc
         # 1 site
         if state[1]==0 && state[N-1]==0
             state1, state2, weight1, weight2 = Qmap(T, state, 1)
-            push!(stateslis, state1, state2)
-            push!(weightslis, weight1, weight2)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
         # N site
         if state[2]==0 && state[N]==0
             state1, state2, weight1, weight2 = Qmap(T, state, N)
-            push!(stateslis, state1, state2)
-            push!(weightslis, weight1, weight2)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
     else
         if state[N-1]==0
             state1, state2, weight1, weight2 = Qmap(T, state, 1)
-            push!(stateslis, state1, state2)
-            push!(weightslis, weight1, weight2)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
         if state[2]==0
             state1, state2, weight1, weight2 = Qmap(T, state, N)
-            push!(stateslis, state1, state2)
-            push!(weightslis, weight1, weight2)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
     end
     return stateslis, weightslis
