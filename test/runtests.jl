@@ -1,6 +1,6 @@
 using FibonacciChain
 using Test
 
-@testset "FibonacciChain.jl" begin
-    # Write your tests here.
+@testset "basis.jl" begin
+    include("./test_basis.jl")
 end

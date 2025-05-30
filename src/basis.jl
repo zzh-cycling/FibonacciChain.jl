@@ -1,5 +1,5 @@
 function Fibonacci_chain_OBC(::Type{T}) where {N, T <: BitStr{N}}
-    # Generate Fibonacci chain for PXP model with open boundary condition
+    # Generate Fibonacci chain for Fibonacci model with open boundary condition
     fib_chain=[[T(0), T(1)],[T(0), T(1), T(2)]]
     for i in 3:N
         push!(fib_chain,vcat([s << 1 for s in fib_chain[i-1]],[(s << 2 | T(1)) for s in fib_chain[i-2]]))
@@ -9,43 +9,12 @@ function Fibonacci_chain_OBC(::Type{T}) where {N, T <: BitStr{N}}
 end
 
 function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
-    # Generate Fibonacci chain  for PXP model with periodic boundary condition
+    # Generate Fibonacci chain  for Fibonacci model with periodic boundary condition
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
-    # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
-    # Here need to note that the order of the bitstr is from right to left, which is different from the normal order.
-    mask=bmask(T, N, N-2)
-    fl=bmask(T, N-1)
-    # output = [flip(state, fl >> (i-1)) for i in 1:N-2 if state & (mask >> (i-1)) == 0] 
-    output = map(i -> flip(state, fl >> (i-1)), filter(i -> state & (mask >> (i-1)) == 0, 1:N-2)) # faster
-
-    if pbc
-        if state[2]==0 && state[N]==0
-            flip_str=flip(state,bmask(T, 1))
-            push!(output,flip_str)
-        end
-        if state[1]==0 && state[N-1]==0
-            flip_str=flip(state,bmask(T, N))
-            push!(output,flip_str)
-        end
-    else
-        if state[N-1]==0
-            flip_str=flip(state,bmask(T, N))
-            push!(output,flip_str)
-        end
-        if state[2]==0
-            flip_str=flip(state,bmask(T, 1))
-            push!(output,flip_str)
-        end
-    end
-    return output
-end
-
 function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate basis for PXP model, return both decimal and binary form, where we both consider PBC and OBC
+    # Generate basis for Fibonacci model, return both decimal and binary form, where we both consider PBC and OBC
     if pbc
         basis=Fibonacci_chain_PBC(T)
     else
@@ -56,17 +25,162 @@ function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
 end
 Fibonacci_basis(N::Int, pbc::Bool=true) = Fibonacci_basis(BitStr{N, Int}, pbc)
 
+function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
+    # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
+    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if (state & (1 << (N-i))) == 0
+        return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
+    else
+        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
+    end
+end
+
+function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if (state & (1 << (N-i))) == 0
+        return state, X(state,i), ϕ^(-1), ϕ^(-3/2)
+    else
+        return state, X(state,i), ϕ^(-2), ϕ^(-3/2)
+    end
+end
+
+function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
+    n = length(state)
+    n < 3 && return 0  # 字符串长度小于3时直接返回0
+    
+    str100, str101, str001 = T(4), T(5), T(1) # 100, 101, 001
+    num=0
+    
+    mask=bmask(T, 1, 2, 3)
+    for i in 1:(n-2) # start from string right to left
+        substr = state & (mask << (i-1))  # 提取当前子串
+        # if substr == str100 || substr == str101 || substr == str001
+        if substr == str101
+            num+= 1
+        end
+        # str100 <<= 1
+        str101 <<= 1
+        # str001 <<= 1
+    end
+    
+    return num
+end
+
+function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
+    # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
+    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    mask=bmask(T, N, N-2)
+    fl=bmask(T, N)
+    ϕ = (1+√5)/2
+    X(state,i) = flip(state, fl >> (i-1))
+
+    output = Dict{T, Float64}()
+
+    # count 101, 100, 001
+    output[state] = get(output, state, 0.0) - count_subBitStr(T, state)
+
+    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
+    for i in 2:N-1 
+        if state & (mask >> (i-2)) == 0
+            state1, state2, weight1, weight2 = antimap(T, state, i)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+    end
+
+    if pbc
+        # 1 site antimap
+        if state[1]==0 && state[N-1]==0
+            state1, state2, weight1, weight2 = antimap(T, state, 1)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # N site antimap
+        if state[2]==0 && state[N]==0
+            state1, state2, weight1, weight2 = antimap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # 1 site 111 fusion
+        if state[1]==1 || state[N-1]==1
+            output[state] = get(output, state, 0.0) - 1
+        end
+        # N site 111 fusion
+        if state[2]==1 || state[N]==1
+            output[state] = get(output, state, 0.0) - 1
+        end
+    end
+    return output
+end
+
+function ferroactingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+    mask=bmask(T, N, N-2)
+    fl=bmask(T, N)
+    ϕ = (1+√5)/2
+    X(state,i) = flip(state, fl >> (i-1))
+
+    output = Dict{T, Float64}()
+
+    # count 101, 100, 001
+    output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
+
+    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
+    for i in 2:N-1 
+        if state & (mask >> (i-2)) == 0
+            state1, state2, weight1, weight2 = ferromap(T, state, i)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+    end
+
+    if pbc
+        # 1 site ferromap
+        if state[1]==0 && state[N-1]==0
+            state1, state2, weight1, weight2 = ferromap(T, state, 1)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # N site ferromap
+        if state[2]==0 && state[N]==0
+            state1, state2, weight1, weight2 = ferromap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # 1 site 111 fusion
+        if state[1]==1 || state[N-1]==1
+            output[state] = get(output, state, 0.0) + 1
+        end
+        # N site 111 fusion
+        if state[2]==1 || state[N]==1
+            output[state] = get(output, state, 0.0) + 1
+        end
+    end
+    return output
+end
+
 function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate Hamiltonian for PXP model, automotically contain pbc or obc
-    basis=basis(T,pbc)
+    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
+    basis=Fibonacci_basis(T,pbc)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingH_PXP(T, basis[i], pbc) 
-        for m in output 
-            j=searchsortedfirst(basis,m)
-            H[i, j] += 1
+        output=actingHam(T, basis[i], pbc) 
+        states, weights = keys(output), values(output)
+        for m in states
+            j=searchsortedfirst(basis, m)
+            H[i, j] += output[m]
         end
     end
 
@@ -74,14 +188,33 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
 end
 Fibonacci_Ham(N::Int, pbc::Bool=true) = Fibonacci_Ham(BitStr{N, Int}, pbc)
 
+function Fibonacci_ferroHam(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
+    basis=Fibonacci_basis(T,pbc)
+
+    l=length(basis)
+    H=zeros(Float64,(l,l))
+    for i in 1:l
+        output=ferroactingHam(T, basis[i], pbc) 
+        states, weights = keys(output), values(output)
+        for m in states
+            j=searchsortedfirst(basis, m)
+            H[i, j] += output[m]
+        end
+    end
+
+    return H
+end
+Fibonacci_ferroHam(N::Int, pbc::Bool=true) = Fibonacci_ferroHam(BitStr{N, Int}, pbc)
+
 # join two lists of basis by make a product of two lists
 function process_join(a, b)
     return vec([join(b, a) for a in a, b in b])
 end
 
-# create pxp basis composed of multiple disjoint sub-chains
-function joint_pxp_basis(lengthlis::Vector{Int})
-    return sort(mapreduce(len -> PXP_basis(len, false), process_join, lengthlis))
+# create Fibonacci basis composed of multiple disjoint sub-chains
+function joint_Fibo_basis(lengthlis::Vector{Int})
+    return sort(mapreduce(len -> Fibonacci_basis(len, false), process_join, lengthlis))
 end
 
 function connected_components(v::Vector{Int})
@@ -134,7 +267,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = unsorted_basis[order], state[order]
     
-    reduced_basis = move_subsystem.(T, joint_pxp_basis(lengthlis), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
