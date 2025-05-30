@@ -22,14 +22,14 @@ function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, pbc::Bool=
     return cent, fig
 end
 
-energy, states = eigen(Fibonacci_Ham(18))
+energy, states = eigen(Fibonacci_Ham(14))
 GS= states[:, end]
-cent, fig = ee_Fibo_scaling_fig(18, GS, "CC")
+cent, fig = ee_Fibo_scaling_fig(14, GS, "CC")
 
 display(fig)
 
-energy, states = eigen(Fibonacci_ferroHam(16))
+energy, states = eigen(Fibonacci_ferroHam(18))
 GS= states[:, end]
-cent, fig = ee_Fibo_scaling_fig(16, GS, "CC")
+cent, fig = ee_Fibo_scaling_fig(18, GS, "CC")
 
 display(fig)
