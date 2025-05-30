@@ -56,21 +56,18 @@ end
 
 function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     n = length(state)
-    n < 3 && return 0  # 字符串长度小于3时直接返回0
+    n < 3 && return 0 
     
     str100, str101, str001 = T(4), T(5), T(1) # 100, 101, 001
     num=0
     
     mask=bmask(T, 1, 2, 3)
     for i in 1:(n-2) # start from string right to left
-        substr = state & (mask << (i-1))  # 提取当前子串
-        # if substr == str100 || substr == str101 || substr == str001
+        substr = state & (mask << (i-1))  
         if substr == str101
             num+= 1
         end
-        # str100 <<= 1
         str101 <<= 1
-        # str001 <<= 1
     end
     
     return num
@@ -112,12 +109,14 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
+        mask1= bmask(T, N, 2)
+        mask2= bmask(T, N-1, 1)
         # 1 site 111 fusion
-        if state[1]==1 || state[N-1]==1
+        if state & mask1 == mask1
             output[state] = get(output, state, 0.0) - 1
         end
         # N site 111 fusion
-        if state[2]==1 || state[N]==1
+        if state & mask2 == mask2
             output[state] = get(output, state, 0.0) - 1
         end
     end
@@ -157,12 +156,14 @@ function ferroactingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitS
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
+        mask1= bmask(T, N, 2)
+        mask2= bmask(T, N-1, 1)
         # 1 site 111 fusion
-        if state[1]==1 || state[N-1]==1
+        if state & mask1 == mask1
             output[state] = get(output, state, 0.0) + 1
         end
         # N site 111 fusion
-        if state[2]==1 || state[N]==1
+        if state & mask2 == mask2
             output[state] = get(output, state, 0.0) + 1
         end
     end
