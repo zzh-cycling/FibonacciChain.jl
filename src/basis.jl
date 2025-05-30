@@ -35,9 +35,9 @@ function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     X(state,i) = flip(state, fl >> (i-1))
 
     if (state & (1 << (N-i))) == 0
-        return state, X(state,i), 1-2/ϕ, 2/ϕ^(3/2)
+        return state, X(state,i), -(ϕ^(-3)+ϕ^(-2)), -ϕ^(-3/2)
     else
-        return state, X(state,i), 2/ϕ-1, 2/ϕ^(3/2)
+        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
     end
 end
 
@@ -51,12 +51,13 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     mask=bmask(T, 1, 2, 3)
     for i in 1:(n-2) # start from string right to left
         substr = state & (mask << (i-1))  # 提取当前子串
-        if substr == str100 || substr == str101 || substr == str001
+        # if substr == str100 || substr == str101 || substr == str001
+        if substr ==  str101
             num+= 1
         end
-        str100 <<= 1
+        # str100 <<= 1
         str101 <<= 1
-        str001 <<= 1
+        # str001 <<= 1
     end
     
     return num
