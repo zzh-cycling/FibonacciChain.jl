@@ -25,7 +25,7 @@ function Fibonacci_basis(::Type{T},pbc::Bool=true) where {N, T <: BitStr{N}}
 end
 Fibonacci_basis(N::Int, pbc::Bool=true) = Fibonacci_basis(BitStr{N, Int}, pbc)
 
-function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -35,9 +35,22 @@ function Qmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     X(state,i) = flip(state, fl >> (i-1))
 
     if (state & (1 << (N-i))) == 0
-        return state, X(state,i), 1-2/ϕ, 2/ϕ^(3/2)
+        return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
     else
-        return state, X(state,i), 2/ϕ-1, 2/ϕ^(3/2)
+        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
+    end
+end
+
+function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if (state & (1 << (N-i))) == 0
+        return state, X(state,i), ϕ^(-1), ϕ^(-3/2)
+    else
+        return state, X(state,i), ϕ^(-2), ϕ^(-3/2)
     end
 end
 
@@ -51,12 +64,13 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     mask=bmask(T, 1, 2, 3)
     for i in 1:(n-2) # start from string right to left
         substr = state & (mask << (i-1))  # 提取当前子串
-        if substr == str100 || substr == str101 || substr == str001
+        # if substr == str100 || substr == str101 || substr == str001
+        if substr == str101
             num+= 1
         end
-        str100 <<= 1
+        # str100 <<= 1
         str101 <<= 1
-        str001 <<= 1
+        # str001 <<= 1
     end
     
     return num
@@ -68,7 +82,51 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
     mask=bmask(T, N, N-2)
     fl=bmask(T, N)
-    # output = [flip(state, fl >> (i-1)) for i in 1:N-2 if state & (mask >> (i-1)) == 0] 
+    ϕ = (1+√5)/2
+    X(state,i) = flip(state, fl >> (i-1))
+
+    output = Dict{T, Float64}()
+
+    # count 101, 100, 001
+    output[state] = get(output, state, 0.0) - count_subBitStr(T, state)
+
+    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
+    for i in 2:N-1 
+        if state & (mask >> (i-2)) == 0
+            state1, state2, weight1, weight2 = antimap(T, state, i)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+    end
+
+    if pbc
+        # 1 site antimap
+        if state[1]==0 && state[N-1]==0
+            state1, state2, weight1, weight2 = antimap(T, state, 1)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # N site antimap
+        if state[2]==0 && state[N]==0
+            state1, state2, weight1, weight2 = antimap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+        # 1 site 111 fusion
+        if state[1]==1 || state[N-1]==1
+            output[state] = get(output, state, 0.0) - 1
+        end
+        # N site 111 fusion
+        if state[2]==1 || state[N]==1
+            output[state] = get(output, state, 0.0) - 1
+        end
+    end
+    return output
+end
+
+function ferroactingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+    mask=bmask(T, N, N-2)
+    fl=bmask(T, N)
     ϕ = (1+√5)/2
     X(state,i) = flip(state, fl >> (i-1))
 
@@ -80,22 +138,22 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
     # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
     for i in 2:N-1 
         if state & (mask >> (i-2)) == 0
-            state1, state2, weight1, weight2 = Qmap(T, state, i)
+            state1, state2, weight1, weight2 = ferromap(T, state, i)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
     end
 
     if pbc
-        # 1 site Qmap
+        # 1 site ferromap
         if state[1]==0 && state[N-1]==0
-            state1, state2, weight1, weight2 = Qmap(T, state, 1)
+            state1, state2, weight1, weight2 = ferromap(T, state, 1)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
-        # N site Qmap
+        # N site ferromap
         if state[2]==0 && state[N]==0
-            state1, state2, weight1, weight2 = Qmap(T, state, N)
+            state1, state2, weight1, weight2 = ferromap(T, state, N)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
@@ -106,17 +164,6 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
         # N site 111 fusion
         if state[2]==1 || state[N]==1
             output[state] = get(output, state, 0.0) + 1
-        end
-    else
-        if state[N-1]==0
-            state1, state2, weight1, weight2 = Qmap(T, state, 1)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-        if state[2]==0
-            state1, state2, weight1, weight2 = Qmap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
         end
     end
     return output
@@ -140,6 +187,25 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     return H
 end
 Fibonacci_Ham(N::Int, pbc::Bool=true) = Fibonacci_Ham(BitStr{N, Int}, pbc)
+
+function Fibonacci_ferroHam(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
+    basis=Fibonacci_basis(T,pbc)
+
+    l=length(basis)
+    H=zeros(Float64,(l,l))
+    for i in 1:l
+        output=ferroactingHam(T, basis[i], pbc) 
+        states, weights = keys(output), values(output)
+        for m in states
+            j=searchsortedfirst(basis, m)
+            H[i, j] += output[m]
+        end
+    end
+
+    return H
+end
+Fibonacci_ferroHam(N::Int, pbc::Bool=true) = Fibonacci_ferroHam(BitStr{N, Int}, pbc)
 
 # join two lists of basis by make a product of two lists
 function process_join(a, b)
