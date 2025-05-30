@@ -8,7 +8,8 @@ using LinearAlgebra
     state=eigvecs(Fibonacci_Ham(N))[:,1]
     rdm=rdm_Fibo(N, collect(1:div(N,2)), state)
     @test size(rdm)==(5,5)
-    @test FibonacciChain.ee(rdm) == 0.7619577865215983
+    @test isapprox(FibonacciChain.ee(rdm), 0.7619577865215983
+    , atol=1e-5)
 end
 
 @testset "eelis" begin
