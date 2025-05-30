@@ -3,31 +3,68 @@ using Test
 using BitBasis
 using LinearAlgebra 
 
-@testset "Qmap" begin
+@testset "antimap" begin
     ϕ = (1+√5)/2
-    @test FibonacciChain.Qmap(BitStr{3}, bit"000", 2) == (bit"000", bit"010", 1-2/ϕ, 2/ϕ^(3/2))
-    @test FibonacciChain.Qmap(BitStr{3}, bit"010", 2) == (bit"010", bit"000", 2/ϕ-1, 2/ϕ^(3/2))
+    @test FibonacciChain.antimap(BitStr{3}, bit"000", 2) == (bit"000", bit"010", -ϕ^(-1), -ϕ^(-3/2))
+    @test FibonacciChain.antimap(BitStr{3}, bit"010", 2) == (bit"010", bit"000",  -ϕ^(-2), -ϕ^(-3/2))
 end
 
 @testset "count_subBitStr" begin
     @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00000") == 0
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10000") == 1
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10100") == 2
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00100") == 2
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10000") == 0
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10100") == 1
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00100") == 0
     @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10101") == 2
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00101") == 2
+    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00101") == 1
+    @test FibonacciChain.count_subBitStr(BitStr{6}, bit"010101") == 2 # Such config will be added additionally in PBC
 end
 
-@testset "actingHam" begin
+@testset "actingHamobc" begin
+    ϕ = (1+√5)/2
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000",false) 
+    states, weights = keys(output1), values(output1)
+    @test [states...]== BitStr{3}.([bit"000", bit"010"])
+    @test [weights...] ≈ [-ϕ^(-1), -ϕ^(-3/2)]
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false) 
+    states, weights = keys(output2), values(output2)
+    @test [states...]== BitStr{3}.([bit"000", bit"010"])
+    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false) 
+    states, weights = keys(output3), values(output3)
+    @test [states...]== BitStr{3}.([bit"001"])
+    @test [weights...] ≈ [0.0]
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false) 
+    states, weights = keys(output4), values(output4)
+    @test [states...]== BitStr{3}.([bit"100"])
+    @test [weights...] ≈ [0.0]
+    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false)
+    states, weights = keys(output), values(output)
+    @test [states...]== BitStr{3}.([bit"101"])
+    @test [weights...] ≈ [-1.0]
+end
+
+@testset "actingHampbc" begin
     ϕ = (1+√5)/2
     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000") 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
-    @test [weights...] ≈ [3*(1-2/ϕ), 2/ϕ^(3/2), 2/ϕ^(3/2), 2/ϕ^(3/2)]
+    @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010") 
+    states, weights = keys(output2), values(output2)
+    @test [states...]== BitStr{3}.([bit"000", bit"010"])
+    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001") 
+    states, weights = keys(output3), values(output3)
+    @test [states...]== BitStr{3}.([bit"000", bit"001"])
+    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100") 
+    states, weights = keys(output4), values(output4)
+    @test [states...]== BitStr{3}.([bit"000",bit"100"])
+    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
     output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000")
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
-    @test [weights...] ≈  [4+2(1-2/ϕ), 2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2),2/ϕ^(3/2), 2/ϕ^(3/2)]
+    @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
 end
 
 @testset "basis.jl" begin
@@ -41,11 +78,12 @@ end
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
+    @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
+    @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
     # Test the reduced density matrix function
     # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
     # @test size(rdm) == (2, 2)
 
-    # Additional tests can be added here
 end
 
 @testset "process_join" begin
