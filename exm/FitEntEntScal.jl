@@ -70,7 +70,7 @@ function new_fitCCEntEntScal(
         cent /= 2.0
         cent_err/= 2.0
     end
-    @show cent ± cent_err
+    println("cent ± cent_err is $(cent) ± $(cent_err)")
 
     # plot rescaled
     plot!(subplot=2, framestyle=:box,
