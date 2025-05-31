@@ -13,6 +13,18 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
+function topological_charge(state::T) where {N, T <: BitStr{N}}
+    # compute the topological charge of a given state in the Fibonacci model.
+    bit_vector = digits(state, base=2, pad=N)  # 将整数状态转换为位数组，顺序可能需调整
+    if sum(bit_vector) % 2 == 0  # 假设1的数量为偶时 y=1, 但并非普适！需依据模型调整
+        return 1  # 或 :trivial
+    else
+        return 2  # 或 :nontrivial
+    end
+
+    # 文章提到: "operator Y has two eigenvalues, S_{yτ}/S_{y1} = φ, -φ^{-1}"，因此 y 可以从特征值推导。
+end
+
 function Fibonacci_basis(::Type{T},pbc::Bool=true, Y=nothing) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
@@ -30,32 +42,10 @@ function Fibonacci_basis(::Type{T},pbc::Bool=true, Y=nothing) where {N, T <: Bit
         # Filter basis by topological charge
         sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
     end
-    
+
     return sorted_basis
 end
 Fibonacci_basis(N::Int, pbc::Bool=true, Y=nothing) = Fibonacci_basis(BitStr{N, Int}, pbc, Y)
-
-function topological_charge(state::T) where {N, T <: BitStr{N}}
-    # 计算给定状态下的拓扑电荷 y。
-    # 输入: state (BitStr{N}) - 状态位串，假设每个位代表位置的状态 (e.g., 0 = vacuum-like, 1 = τ-like)。
-    # 输出: Int 或 Symbol - 例如，1 表示 y=1, 2 表示 y=τ；或使用 :trivial / :nontrivial。
-    
-    # 实现逻辑 (需要您基于模型完成):
-    # 文章未给出精确方法，因此这依赖于您的状态编码。例如:
-    # - 方式1: 基于序列特征（如位串的奇偶性）。在Fibonacci链中，拓扑电荷可能取决于序列的权重或首尾连接。
-    # - 方式2: 如果状态表示融合树路径，计算全局融合输出（类似 "closing the diagram"）。
-    # 简化示例（仅示意，您必须修改）:
-    bit_vector = digits(state, base=2, pad=N)  # 将整数状态转换为位数组，顺序可能需调整
-    if sum(bit_vector) % 2 == 0  # 假设1的数量为偶时 y=1, 但并非普适！需依据模型调整
-        return 1  # 或 :trivial
-    else
-        return 2  # 或 :nontrivial
-    end
-
-    # 实际实现可能涉及黄金比例 φ 或 Temperley-Lieb 代数（参考文章）。
-    # 文章提到: "operator Y has two eigenvalues, S_{yτ}/S_{y1} = φ, -φ^{-1}"，因此 y 可以从特征值推导。
-    # 注意: 对于周期性边界，所有平移相关状态具有相同 y（平移不改变全局拓扑电荷）。
-end
 
 function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing

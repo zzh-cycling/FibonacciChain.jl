@@ -69,12 +69,12 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = FibonacciChain.Fibonacci_basis(5)
+    fib_basis = Fibonacci_basis(5)
     @test length(fib_basis) == 11
-    fib_basis = FibonacciChain.Fibonacci_basis(5,false)
+    fib_basis = Fibonacci_basis(5,false)
     @test length(fib_basis) == 13
     # Test the Fibonacci Hamiltonian
-    fib_ham = FibonacciChain.Fibonacci_Ham(5)
+    fib_ham = Fibonacci_Ham(5)
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
