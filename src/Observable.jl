@@ -22,4 +22,35 @@ function eelis_Fibo_state(N::Int64,splitlis::Vector{Int64},state::Vector{ET},pbc
     return EE_lis
 end
 
+function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
+    basis=Fibonacci_basis(T)  
+    Mat=zeros(Float64,(length(basis),length(basis)))
+    for (i,n) in enumerate(basis)
+        m=cyclebits(n)
+        j=searchsortedfirst(basis, m)
+        Mat[i,j]=1.0
+    end
+    
+    return Mat
+end
+translation_matrix(N::Int) = translation_matrix(BitStr{N, Int})
 
+function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
+    basis=Fibonacci_basis(T)
+    l=length(basis)
+    Imatrix=zeros((l,l))
+    # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
+    reversed_basis=similar(basis)
+    for i in eachindex(basis)
+        reversed_basis[i]=breflect(basis[i])
+    end
+    # Imatrix[CartesianIndex.(collect(1:length(basis)),searchsortedfirst.(Ref(basis), reversed_basis))].+=1.0
+    for i in eachindex(basis)
+        output=reversed_basis[i]
+        j=searchsortedfirst(basis,output)
+        Imatrix[i,j]+=1.0
+    end
+   
+    return Imatrix
+end
+inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
