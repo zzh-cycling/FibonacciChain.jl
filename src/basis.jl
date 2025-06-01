@@ -499,9 +499,17 @@ end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
 function ladderChoi(::Type{T}, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
-    unsorted_basis = Fibonacci_basis(T, pbc)
-    unsorted_basis2 = Fibonacci_basis(T, pbc)
-    @assert length(unsorted_basis)^2 == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
+    @assert 0 <= probability <= 1 "probability is expected to be in [0, 1], but got $probability"
+    @assert iseven(N) "N is expected to be even, but got $N"
+    basis = Fibonacci_basis(T, pbc)
+    basis2 = Fibonacci_basis(T, pbc)
+    @assert length(basis)^2 == length(state) "state length is expected to be length$(length(basis)), but got $(length(state))"
+
+    for i in 1:2:N
+        state=braiding(T, state, i)
+    end
+
+    return state
 end
 
 function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
@@ -509,7 +517,9 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc)
     unsorted_basis2 = Fibonacci_basis(T, pbc)
-    @assert length(unsorted_basis)^2 == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
+    lenubasis = length(unsorted_basis)
+    newbasis = reshape([join(i,j) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
+    @assert lenubasis^2 == length(state) "state length is expected to be $(lenubasis), but got $(length(state))"
     
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)

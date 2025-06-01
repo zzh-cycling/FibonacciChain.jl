@@ -55,7 +55,20 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
-function braiding(::Type{T}, idx::Int) where {N, T <: BitStr{N}}
+function braidingmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if (state & (1 << (N-i))) == 0
+        return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
+    else
+        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
+    end
+end
+
+function braiding(::Type{T}, state::Vector{ET}, idx::Int) where {N, T <: BitStr{N}, ET}
     basis=Fibonacci_basis(T)
     l=length(basis)
     Bmatrix=zeros((l,l))
