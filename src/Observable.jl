@@ -54,3 +54,17 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
     return Imatrix
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
+
+function braiding(::Type{T}, idx::Int) where {N, T <: BitStr{N}}
+    basis=Fibonacci_basis(T)
+    l=length(basis)
+    Bmatrix=zeros((l,l))
+    for i in eachindex(basis)
+        output=braidbits(basis[i], idx)
+        j=searchsortedfirst(basis, output)
+        Bmatrix[i,j]+=1.0
+    end
+    
+    return Bmatrix
+end
+
