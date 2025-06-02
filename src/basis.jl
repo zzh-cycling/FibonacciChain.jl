@@ -168,11 +168,11 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}
         end
         mask1= bmask(T, N, 2)
         mask2= bmask(T, N-1, 1)
-        # 1 site 111 fusion
+        # 1 site 111 fusion, check if is 1xxxx01
         if state & mask1 == mask1
             output[state] = get(output, state, 0.0) - 1
         end
-        # N site 111 fusion
+        # N site 111 fusion, check if is 01xxxx1
         if state & mask2 == mask2
             output[state] = get(output, state, 0.0) - 1
         end

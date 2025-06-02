@@ -55,27 +55,79 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
-function braidingmap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+function braidingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # default for PBC system
+    @assert 1 <= i <= N "Index i must be in the range [1, N]"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
-
     X(state,i) = flip(state, fl >> (i-1))
-
-    if (state & (1 << (N-i))) == 0
-        return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
-    else
-        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
+    
+    if 2<= i <= N-1
+        mask=bmask(T,1,2,3) << (N-i-1)
+        str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
+        if state & mask == str000
+            return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+        elseif state & mask == str001
+            return state, exp(-6im*π/5)
+        elseif state & mask == str010
+            return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+        elseif state & mask == str100
+            return state, exp(-6im*π/5)
+        elseif state & mask == str101
+            return state, exp(-2im*π/5)
+        end
+    end
+    if pbc
+        if i == 1 #count from the left
+        mask=bmask(T, N, N-1,1)
+        str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
+            if state & mask == str000
+                return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            elseif state & mask == str001
+                return state, exp(-6im*π/5)
+            elseif state & mask == str010
+                return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            elseif state & mask == str100
+                return state, exp(-6im*π/5)
+            elseif state & mask == str101
+                return state, exp(-2im*π/5)
+            end
+        elseif i == N #count from the left
+        mask=bmask(T, N, 2, 1)
+        str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
+            if state & mask == str000
+                return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            elseif state & mask == str001
+                return state, exp(-6im*π/5)
+            elseif state & mask == str010
+                return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            elseif state & mask == str100
+                return state, exp(-6im*π/5)
+            elseif state & mask == str101
+                return state, exp(-2im*π/5)
+            end
+        end
     end
 end
 
-function braiding(::Type{T}, state::Vector{ET}, idx::Int) where {N, T <: BitStr{N}, ET}
-    basis=Fibonacci_basis(T)
+function braiding(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+
+    basis=Fibonacci_basis(T, pbc)
     l=length(basis)
-    Bmatrix=zeros((l,l))
-    for i in eachindex(basis)
-        output=braidbits(basis[i], idx)
-        j=searchsortedfirst(basis, output)
-        Bmatrix[i,j]+=1.0
+    Bmatrix=zeros(ComplexF64, (l,l))
+    for i in 1:l
+        if length(braidingmap(T, basis[i], idx, pbc)) == 4
+            outputstate1, outputstate2, output1, output2=braidingmap(T, basis[i], idx, pbc)
+            j1=searchsortedfirst(basis, outputstate1)
+            j2=searchsortedfirst(basis, outputstate2)
+            Bmatrix[i,j2]+=output2
+            Bmatrix[i,j1]+=output1
+        else
+            outputstate, output=braidingmap(T, basis[i], idx, pbc)
+            j=searchsortedfirst(basis, outputstate)
+            Bmatrix[i,j]+=output
+        end
     end
     
     return Bmatrix
