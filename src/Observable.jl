@@ -139,21 +139,73 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
-    mapped_state = similar(state)
+    mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
         if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
             outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
             j1=searchsortedfirst(basis, outputstate1)
             j2=searchsortedfirst(basis, outputstate2)
-            Bmatrix[i,j2]+=output2
-            Bmatrix[i,j1]+=output1
+            mapped_state[j1]+=output1*state[i]
+            mapped_state[j2]+=output2*state[i]
         else
             outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
             j=searchsortedfirst(basis, outputstate)
-            Bmatrix[i,j]+=output
+            mapped_state[j]+=output*state[i]
         end
     end
     
-    return Bmatrix
+    return mapped_state
 end
+braidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingmap(BitStr{N, Int}, state, idx, pbc)
 
+function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
+    # input a superposition state, and output the braided state
+    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+
+    basis=Fibonacci_basis(T, pbc)
+    len=length(basis)
+    newT = BitStr{2N, Int} # double the length of the basis
+    doublebasis = reshape([join(i,j) for i in basis,j in basis], len^2)
+    @assert len^2 == length(state) "state length is expected to be $(len), but got $(length(state))"
+    
+    mapped_state = zeros(ComplexF64, length(state))
+    for i in 1:len
+        for j in 1:len
+            if length(braiding_basismap(T, basis[i], idx, pbc)) == 4 && length(braiding_basismap(T, basis[j], idx, pbc)) == 4
+                basisi1, basisi2, coefi1, coefi2=braiding_basismap(T, basis[i], idx, pbc)
+                basisj1, basisj2, coefj1, coefj2=braiding_basismap(T, basis[j], idx, pbc)
+                i1=searchsortedfirst(basis, basisi1)
+                i2=searchsortedfirst(basis, basisi2)
+                j1=searchsortedfirst(basis, basisj1)
+                j2=searchsortedfirst(basis, basisj2)
+                mapped_state[i1*j1]+=output1*state[i]
+                mapped_state[i1*j2]+=output2*state[i]
+                mapped_state[i2*j1]+=output1*state[i]
+                mapped_state[i2*j2]+=output2*state[i]
+            elseif length(braiding_basismap(T, basis[i], idx, pbc)) == 4 && length(braiding_basismap(T, basis[j], idx, pbc)) == 2
+                basisi1, basisi2, coefi1, coefi2=braiding_basismap(T, basis[i], idx, pbc)
+                basisj, coefj=braiding_basismap(T, basis[j], idx, pbc)
+                i1=searchsortedfirst(basis, basisi1)
+                i2=searchsortedfirst(basis, basisi2)        
+                outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
+                j=searchsortedfirst(basis, outputstate)
+                mapped_state[j]+=output*state[i]
+            elseif length(braiding_basismap(T, basis[i], idx, pbc)) == 2 && length(braiding_basismap(T, basis[j], idx, pbc)) == 4
+                basisi, coefi=braiding_basismap(T, basis[i], idx, pbc)
+                basisj1, basisj2, coefj1, coefj2=braiding_basismap(T, basis[j], idx, pbc)
+                i=searchsortedfirst(basis, basisi)
+                j1=searchsortedfirst(basis, basisj1)
+                j2=searchsortedfirst(basis, basisj2)
+                mapped_state[i*j1]+=output1*state[i]
+                mapped_state[i*j2]+=output2*state[i]
+            else
+                outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
+                j=searchsortedfirst(basis, outputstate)
+                mapped_state[j]+=output*state[i]
+            end
+        end
+    end
+    
+    return mapped_state
+end
+ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
