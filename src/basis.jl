@@ -501,12 +501,12 @@ rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) wher
 function ladderChoi(::Type{T}, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
     @assert 0 <= probability <= 1 "probability is expected to be in [0, 1], but got $probability"
     @assert iseven(N) "N is expected to be even, but got $N"
-    basis = Fibonacci_basis(T, pbc)
-    basis2 = Fibonacci_basis(T, pbc)
     @assert length(basis)^2 == length(state) "state length is expected to be length$(length(basis)), but got $(length(state))"
 
+    basis = Fibonacci_basis(T, pbc)
+
     for i in 1:2:N
-        state=braiding(T, state, i)
+        state=braidingmap(T, state, i, pbc)
     end
 
     return state
@@ -516,21 +516,21 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc)
-    unsorted_basis2 = Fibonacci_basis(T, pbc)
     lenubasis = length(unsorted_basis)
-    newbasis = reshape([join(i,j) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
+    newT = BitStr{2N, Int} # double the length of the basis
+    doublebasis = reshape([join(i,j) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
     @assert lenubasis^2 == length(state) "state length is expected to be $(lenubasis), but got $(length(state))"
     
+    subsystems = vcat(subsystems, subsystems .+ N) # add the second half of the system to the subsystems
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    mask = bmask(T, subsystems...)
+    mask = bmask(newT, subsystems...)
 
     
-    order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
-    basis, state = unsorted_basis[order], state[order]
-    
-    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis), Ref(subsystems))
+    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
+    basis, state = doublebasis[order], state[order]
+    reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))

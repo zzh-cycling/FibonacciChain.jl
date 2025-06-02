@@ -1,3 +1,6 @@
+using Plots
+using LaTeXStrings
+using LsqFit
 function fitCCEntEntScal(
     SvN_list::Vector{Float64};
     err::Vector{Float64}=0.0SvN_list,

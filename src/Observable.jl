@@ -55,7 +55,7 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
-function braidingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function braiding_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     ϕ = (1+√5)/2
@@ -110,21 +110,45 @@ function braidingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <:
     end
 end
 
-function braiding(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function braiding_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        if length(braidingmap(T, basis[i], idx, pbc)) == 4
-            outputstate1, outputstate2, output1, output2=braidingmap(T, basis[i], idx, pbc)
+        if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
+            outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
             j1=searchsortedfirst(basis, outputstate1)
             j2=searchsortedfirst(basis, outputstate2)
             Bmatrix[i,j2]+=output2
             Bmatrix[i,j1]+=output1
         else
-            outputstate, output=braidingmap(T, basis[i], idx, pbc)
+            outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
+            j=searchsortedfirst(basis, outputstate)
+            Bmatrix[i,j]+=output
+        end
+    end
+    
+    return Bmatrix
+end
+
+function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    # input a superposition state, and output the braided state
+    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+
+    basis=Fibonacci_basis(T, pbc)
+    l=length(basis)
+    mapped_state = similar(state)
+    for i in 1:l
+        if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
+            outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
+            j1=searchsortedfirst(basis, outputstate1)
+            j2=searchsortedfirst(basis, outputstate2)
+            Bmatrix[i,j2]+=output2
+            Bmatrix[i,j1]+=output1
+        else
+            outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
             j=searchsortedfirst(basis, outputstate)
             Bmatrix[i,j]+=output
         end

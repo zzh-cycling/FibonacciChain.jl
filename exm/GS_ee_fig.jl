@@ -1,7 +1,4 @@
 using FibonacciChain
-using Plots
-using LaTeXStrings
-using LsqFit
 using LinearAlgebra
 using JLD
 include("FitEntEntScal.jl")
