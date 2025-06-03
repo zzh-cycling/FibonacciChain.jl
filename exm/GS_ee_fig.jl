@@ -21,7 +21,6 @@ function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::In
     return cent, fig
 end
 
-
 N=20
 energy, states = eigen(Fibonacci_Ham(20))
 antiGS= states[:, 1]

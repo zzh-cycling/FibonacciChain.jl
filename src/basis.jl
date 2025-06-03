@@ -502,7 +502,7 @@ function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) wh
     @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
 
     if pbc
-        for i in 1:2:N
+        for i in 2:2:N
             state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
             state/=norm(state) # normalize the state after each braiding
         end

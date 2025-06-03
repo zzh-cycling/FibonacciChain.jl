@@ -23,12 +23,13 @@ function eelis_Fibo_state(N::Int64,splitlis::Vector{Int64},state::Vector{ET},pbc
 end
 
 function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
-    basis=Fibonacci_basis(T)  
-    Mat=zeros(Float64,(length(basis),length(basis)))
-    for (i,n) in enumerate(basis)
-        m=cyclebits(n)
-        j=searchsortedfirst(basis, m)
-        Mat[i,j]=1.0
+    basis=Fibonacci_basis(T) 
+    l = length(basis) 
+    Mat=zeros(Float64,(l,l))
+    translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
+    order = searchsortedfirst.(Ref(basis), translated_basis) # Find the indices of the translated basis in the original basis
+    for i in 1:l
+        Mat[i, order[i]] += 1.0
     end
     
     return Mat
@@ -40,15 +41,11 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
     l=length(basis)
     Imatrix=zeros((l,l))
     # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
-    reversed_basis=similar(basis)
-    for i in eachindex(basis)
-        reversed_basis[i]=breflect(basis[i])
-    end
+    reversed_basis=breflect.(basis)
+    order = searchsortedfirst.(Ref(basis), reversed_basis) # Find the indices of the reversed basis in the original basis
     # Imatrix[CartesianIndex.(collect(1:length(basis)),searchsortedfirst.(Ref(basis), reversed_basis))].+=1.0
-    for i in eachindex(basis)
-        output=reversed_basis[i]
-        j=searchsortedfirst(basis,output)
-        Imatrix[i,j]+=1.0
+    for i in 1:l
+        Imatrix[i,order[i]]+=1.0
     end
    
     return Imatrix
@@ -202,3 +199,23 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
     return mapped_state
 end
 ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
+
+function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} 
+    # input a superposition state, and output the translated state
+    basis=Fibonacci_basis(T)
+    l=length(basis)
+    @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
+    
+    translated_basis = cyclebits.(basis) 
+    order = searchsortedfirst.(Ref(basis), translated_basis) 
+    
+    mapped_state = zeros(ComplexF64, length(state))
+    for i in 1:l
+        for j in 1:l
+           mapped_state[(i-1)*l+j] = state[(order[i]-1)*l+order[j]]
+        end
+    end
+    
+    return mapped_state
+end
+laddertranslationmap(N::Int, state::Vector{ET}) where {ET} = laddertranslationmap(BitStr{N, Int}, state)

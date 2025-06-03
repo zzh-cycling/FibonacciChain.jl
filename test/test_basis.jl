@@ -138,8 +138,10 @@ end
     T = BitStr{N, Int}
     state = collect(1:4)
     state = reshape(state*state', 4^2)
-    @test ladderChoi(N, 0.0, state) ≈ ComplexF64[state...]
-
+    @test Float64.(ladderChoi(N, 0.0, state)) ≈ state/norm(state)
+    
+    ϕ = (1+√5)/2
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    @test ladderChoi(N, 1.0, state) ≈ reshape(onechain_state*transpose(onechain_state), 16)
+    st = reshape(onechain_state*transpose(onechain_state), 16)
+    @test ladderChoi(N, 1.0, state) ≈ st/norm(st)
 end

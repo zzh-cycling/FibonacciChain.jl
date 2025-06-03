@@ -11,6 +11,7 @@ len= length(antiGS)
 vecGS = reshape(antiGS*antiGS', len^2)
 splitlis=Vector(1:N-1)
 
+
 EE_lis=zeros(length(splitlis))
 for m in eachindex(EE_lis)
     subrho=ladderrdm(N, collect(1:splitlis[m]), vecGS)
@@ -18,10 +19,10 @@ for m in eachindex(EE_lis)
 end
 
 cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
-savefig(fig, "./exm/double_Fibo_ee_scaling_10.pdf")
+savefig(fig, "./exm/double_Fibo_ee_scaling_$(N).pdf")
 display(fig)
 
-
+###==varied p==###
 probabilitylis=collect(0.0:0.05:1.0)
 centlis=similar(probabilitylis)
 for (idx, i) in enumerate(probabilitylis)
