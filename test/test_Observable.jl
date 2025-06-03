@@ -41,6 +41,7 @@ end
     T = BitStr{N, Int}
 
     state=T(bit"010")
+    ϕ = (1+√5)/2
     @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010"),exp(-6im*π/5))
     @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010"), T(bit"000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
     @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010"), exp(-6im*π/5))
