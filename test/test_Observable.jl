@@ -69,6 +69,7 @@ end
 @testset "braiding_matrix" begin
     N=3
     T = BitStr{N, Int}
+    ϕ = (1+√5)/2
     @test FibonacciChain.braiding_matrix(T, 2, false) ≈  ComplexF64[
     exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) 0.0 (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0;
     0.0 exp(-6im*π/5) 0.0 0.0 0.0; 
