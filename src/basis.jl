@@ -498,19 +498,23 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
-function ladderChoi(::Type{T}, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
-    @assert 0 <= probability <= 1 "probability is expected to be in [0, 1], but got $probability"
-    @assert iseven(N) "N is expected to be even, but got $N"
-    @assert length(basis)^2 == length(state) "state length is expected to be length$(length(basis)), but got $(length(state))"
+function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
+    @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
 
-    basis = Fibonacci_basis(T, pbc)
-
-    for i in 1:2:N
-        state=braidingmap(T, state, i, pbc)
+    if pbc
+        for i in 1:2:N
+            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
+            state/=norm(state) # normalize the state after each braiding
+        end
+    else
+        for i in 2:2:N
+            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
+        end
     end
 
     return state
 end
+ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc)
 
 function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.

@@ -134,14 +134,12 @@ end
 end
 
 @testset "ladderChoi" begin
-    N=4
+    N=3
     T = BitStr{N, Int}
-    state = collect(1:5)
-    state = reshape(state*state', 25)
-    @test ladderChoi(T, 0.5, state) ≈ ComplexF64[
-        0.25 0.0 0.0 0.0 0.0; 
-        0.0 0.25 0.0 0.0 0.0; 
-        0.0 0.0 0.25 0.0 0.0; 
-        0.0 0.0 0.0 0.25 0.5; 
-        0.5 0.5 1.5 1.5 2.5]
+    state = collect(1:4)
+    state = reshape(state*state', 4^2)
+    @test ladderChoi(N, 0.0, state) ≈ ComplexF64[state...]
+
+    onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
+    @test ladderChoi(N, 1.0, state) ≈ reshape(onechain_state*transpose(onechain_state), 16)
 end
