@@ -141,16 +141,15 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
     l=length(basis)
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
-        if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
-            outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
-            j1=searchsortedfirst(basis, outputstate1)
+        output = braiding_basismap(T, basis[i], idx, pbc)
+        if length(output) == 4
+            outputstate1, outputstate2, output1, output2=output
             j2=searchsortedfirst(basis, outputstate2)
-            mapped_state[j1]+=output1*state[i]
+            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
         else
-            outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
-            j=searchsortedfirst(basis, outputstate)
-            mapped_state[j]+=output*state[i]
+            outputstate, output1=output # outputstate is the same as basis[i]
+            mapped_state[i]+=output1*state[i]
         end
     end
     
@@ -164,44 +163,38 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
 
     basis=Fibonacci_basis(T, pbc)
     len=length(basis)
-    newT = BitStr{2N, Int} # double the length of the basis
-    doublebasis = reshape([join(i,j) for i in basis,j in basis], len^2)
-    @assert len^2 == length(state) "state length is expected to be $(len), but got $(length(state))"
+    @assert len^2 == length(state) "state length is expected to be $(len^2), but got $(length(state))"
     
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:len
         for j in 1:len
-            if length(braiding_basismap(T, basis[i], idx, pbc)) == 4 && length(braiding_basismap(T, basis[j], idx, pbc)) == 4
-                basisi1, basisi2, coefi1, coefi2=braiding_basismap(T, basis[i], idx, pbc)
-                basisj1, basisj2, coefj1, coefj2=braiding_basismap(T, basis[j], idx, pbc)
-                i1=searchsortedfirst(basis, basisi1)
+            output1 = braiding_basismap(T, basis[i], idx, pbc)
+            output2 = braiding_basismap(T, basis[j], idx, pbc)
+            if length(output1) == 4 && length(output2) == 4
+                basisi1, basisi2, coefi1, coefi2=output1
+                basisj1, basisj2, coefj1, coefj2=output2
                 i2=searchsortedfirst(basis, basisi2)
-                j1=searchsortedfirst(basis, basisj1)
                 j2=searchsortedfirst(basis, basisj2)
-                mapped_state[i1*j1]+=output1*state[i]
-                mapped_state[i1*j2]+=output2*state[i]
-                mapped_state[i2*j1]+=output1*state[i]
-                mapped_state[i2*j2]+=output2*state[i]
-            elseif length(braiding_basismap(T, basis[i], idx, pbc)) == 4 && length(braiding_basismap(T, basis[j], idx, pbc)) == 2
-                basisi1, basisi2, coefi1, coefi2=braiding_basismap(T, basis[i], idx, pbc)
-                basisj, coefj=braiding_basismap(T, basis[j], idx, pbc)
-                i1=searchsortedfirst(basis, basisi1)
-                i2=searchsortedfirst(basis, basisi2)        
-                outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
-                j=searchsortedfirst(basis, outputstate)
-                mapped_state[j]+=output*state[i]
-            elseif length(braiding_basismap(T, basis[i], idx, pbc)) == 2 && length(braiding_basismap(T, basis[j], idx, pbc)) == 4
-                basisi, coefi=braiding_basismap(T, basis[i], idx, pbc)
-                basisj1, basisj2, coefj1, coefj2=braiding_basismap(T, basis[j], idx, pbc)
-                i=searchsortedfirst(basis, basisi)
-                j1=searchsortedfirst(basis, basisj1)
+                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj1
+                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi1*coefj2
+                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj1
+                mapped_state[(i2-1)*len+j2]+=state[i]*state[j]*coefi2*coefj2
+            elseif length(output1) == 4 && length(output2) == 2
+                basisi1, basisi2, coefi1, coefi2=output1
+                basisj, coefj=output2
+                i2=searchsortedfirst(basis, basisi2)  
+                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj
+                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj
+            elseif length(output1) == 2 && length(output2) == 4
+                basisi, coefi=output1
+                basisj1, basisj2, coefj1, coefj2=output2
                 j2=searchsortedfirst(basis, basisj2)
-                mapped_state[i*j1]+=output1*state[i]
-                mapped_state[i*j2]+=output2*state[i]
+                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj1
+                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi*coefj2
             else
-                outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
-                j=searchsortedfirst(basis, outputstate)
-                mapped_state[j]+=output*state[i]
+                basisi, coefi=output1
+                basisj, coefj=output2
+                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj
             end
         end
     end
