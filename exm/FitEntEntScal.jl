@@ -1,3 +1,6 @@
+using Plots
+using LaTeXStrings
+using LsqFit
 function fitCCEntEntScal(
     SvN_list::Vector{Float64};
     err::Vector{Float64}=0.0SvN_list,
@@ -70,7 +73,7 @@ function new_fitCCEntEntScal(
         cent /= 2.0
         cent_err/= 2.0
     end
-    @show cent ± cent_err
+    println("cent ± cent_err is $(cent) ± $(cent_err)")
 
     # plot rescaled
     plot!(subplot=2, framestyle=:box,
