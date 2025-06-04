@@ -144,4 +144,30 @@ end
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
     st = reshape(onechain_state*transpose(onechain_state), 16)
     @test ladderChoi(N, 1.0, state) ≈ st/norm(st)
+ 
+    # At least for N = 4, the ladder Choi state is invariant under the ladder translation map twice.
+    N=4
+    energy, states = eigen(Fibonacci_Ham(N))
+    antiGS= states[:, 1]
+    len= length(antiGS)
+    vecGS = reshape(antiGS*antiGS', len^2)
+    plis = collect(0.0:0.1:1.0)
+    for p in plis
+        state = ladderChoi(N, p, vecGS)
+        @show p
+        @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
+        # @show isapprox(laddertranslationmap(N, laddertranslationmap(N, state)), state, atol=1e-10)
+    end
+    
+    N=6
+    energy, states = eigen(Fibonacci_Ham(N))
+    antiGS= states[:, 1]
+    len= length(antiGS)
+    state = reshape(antiGS*antiGS', len^2)
+
+    p=0.5
+    for i in 2:2:N
+        state=(1-p)*state+p*ladderbraidingmap(N, state, i)
+        state/=norm(state) # normalize the state after each braiding
+    end
 end

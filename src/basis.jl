@@ -507,7 +507,7 @@ function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) wh
             state/=norm(state) # normalize the state after each braiding
         end
     else
-        for i in 2:2:N
+        for i in 2:2:N-1
             state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
         end
     end
