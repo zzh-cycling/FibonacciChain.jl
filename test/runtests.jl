@@ -8,3 +8,7 @@ end
 @testset "basis.jl" begin
     include("./test_Observable.jl")
 end
+
+@testset "ladderFibo.jl" begin
+    include("./test_LadderFibo.jl")
+end

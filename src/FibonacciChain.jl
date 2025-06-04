@@ -2,9 +2,11 @@ module FibonacciChain
 
 using BitBasis, LinearAlgebra
 
-export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo, ladderChoi, ladderrdm
-export ee, eelis_Fibo_state, translation_matrix, inversion_matrix, braidingmap, ladderbraidingmap, laddertranslationmap
+export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
+export ee, eelis_Fibo_state, translation_matrix, inversion_matrix, braidingmap
+export ladderChoi, ladderrdm, ladderbraidingmap, laddertranslationmap
 
 include("basis.jl")
 include("Observable.jl")
+include("ladderFibo.jl")
 end

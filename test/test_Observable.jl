@@ -85,29 +85,3 @@ end
     @test braidingmap(N, state, 1) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+4(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), 3exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+4(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1))]
     @test braidingmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
 end
-
-@testset "ladderbraidingmap" begin
-    N=3
-    state = collect(1:4)
-    ϕ = (1+√5)/2
-    onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    @test ladderbraidingmap(N, reshape(state*state',16), 2) ≈ reshape(onechain_state*transpose(onechain_state), 16)
-
-    # translation invariance test
-    N = 4
-    state = fill(1,7)
-    order = [1, 3, 4, 6, 7, 2, 5]
-    onechain_state = braidingmap(N, braidingmap(N, state, 2),4)
-    onechain_state[order][order] == onechain_state
-    
-    twochain_state = ladderbraidingmap(N, ladderbraidingmap(N, reshape(state*state',49), 2),4)
-    @test laddertranslationmap(N, laddertranslationmap(N, twochain_state)) ≈ twochain_state
-end
-
-@testset "laddertranslationmap" begin
-    N=3
-    state = collect(1:4)
-    order = [1, 3, 4, 2]
-    ϕ = (1+√5)/2
-    @test Int64.(laddertranslationmap(N, reshape(state*state',16))) ≈ reshape(state[order]*transpose(state[order]), 16)
-end
