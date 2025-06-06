@@ -42,8 +42,8 @@ end
     for p in plis
         state = ladderChoi(N, p, vecGS)
         @show p
-        @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
-        # @show isapprox(laddertranslationmap(N, laddertranslationmap(N, state)), state, atol=1e-10)
+        # @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
+        @show isapprox(laddertranslationmap(N, laddertranslationmap(N, state)), state, atol=1e-10)
     end
     
     N=6

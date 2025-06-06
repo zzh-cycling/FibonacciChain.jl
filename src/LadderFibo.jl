@@ -1,4 +1,6 @@
 function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
+    # The PBC anyon relation with basis like:
+    #  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
     @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
 
     if pbc
@@ -65,7 +67,7 @@ end
 ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
 
 function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
-    # input a superposition state, and output the braided state
+    # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
