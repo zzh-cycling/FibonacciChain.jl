@@ -36,7 +36,7 @@ end
     @test isapprox(Mat*Mat,I,atol=1e-5) 
 end 
 
-@testset "braiding_basismap" begin
+@testset "braiding_basismapN3" begin
     N=3
     T = BitStr{N, Int}
 
@@ -75,6 +75,20 @@ end
     0.0 exp(-6im*π/5) 0.0 0.0 0.0; 
     (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1) 0.0 0.0; 
     0.0 0.0 0.0 exp(-6im*π/5) 0.0; 0.0 0.0 0.0 0.0 exp(-2im*π/5)]
+
+    B=[exp(4*π*im/5) 0 0 0 0;
+    0 exp(-3*π*im/5) 0 0 0;
+    0 0 exp(-3*π*im/5) 0 0;
+    0 0 0 exp(-4*π*im/5)*ϕ^(-1) -exp(-2*π*im/5)*ϕ^(-1/2);
+    0 0 0 -exp(-2*π*im/5)*ϕ^(-1/2) -ϕ^(-1)]
+
+    U = [0 0 0 0 1;
+        0 1 0 0 0;
+        0 0 0 1 0;
+        0 0 1 0 0;
+        1 0 0 0 0]
+
+    @test FibonacciChain.braiding_matrix(T, 2, false) ≈ U' * B^2 * U
 end
 
 @testset "braidingmap" begin
@@ -84,4 +98,173 @@ end
     @test braidingmap(N, state, 2) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
     @test braidingmap(N, state, 1) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+4(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), 3exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+4(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1))]
     @test braidingmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
+end
+
+
+@testset "braiding_basismapN6" begin
+    N=6
+    T = BitStr{N, Int}
+    ϕ = (1+√5)/2
+    ## state 1 ###
+    state =T(bit"000000")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"000000"), T(bit"100000"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"000000"), T(bit"010000"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000000"), T(bit"001000"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"000000"), T(bit"000100"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"000000"), T(bit"000010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"000000"), T(bit"000001"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 2 ###
+    state =T(bit"000001")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"000001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"000001"), T(bit"010001"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000001"), T(bit"001001"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"000001"),  T(bit"000101"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"000001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"000001"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 3 ###
+    state=T(bit"000010")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"000010"), T(bit"100010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"000010"), T(bit"010010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000010"), T(bit"001010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"000010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"000010"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"000010"), exp(-6im*π/5))
+
+    ## state 4 ###
+    state =T(bit"000100")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"000100"), T(bit"100100"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"000100"), T(bit"010100"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"000100"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"000100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"000100"), T(bit"000101"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 5 ###
+    state =T(bit"000101")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"000101"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"000101"), T(bit"010101"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000101"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"000101"), T(bit"000001"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"000101"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"000101"), T(bit"000100"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    
+    ## state 6 ###
+    state =T(bit"001000")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"001000"), T(bit"101000"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"001000"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"001000"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"001000"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"001000"), T(bit"001010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"001000"), T(bit"001001"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 7 ###
+    state =T(bit"001001")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"001001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"001001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"001001"), T(bit"000001"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"001001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"001001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"001001"), T(bit"001000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 8 ###
+    state =T(bit"001010")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"001010"), T(bit"101010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"001010"),exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"001010"), T(bit"000010"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"001010"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"001010"), T(bit"001000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"001010"), exp(-6im*π/5))
+
+    ## state 9 ###
+    state =T(bit"010000")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010000"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010000"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010000"),exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"010000"), T(bit"010100"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"010000"), T(bit"010010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"010000"),(bit"010001"),  exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 10 ###
+    state =T(bit"010001")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010001"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010001"), T(bit"000001"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"010001"), T(bit"010101"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"010001"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"010001"), T(bit"010000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 11 ###
+    state =T(bit"010010")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010010"), T(bit"000010"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"010010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"010010"), T(bit"010000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"010010"),exp(-6im*π/5))
+
+    ## state 12 ###
+    state =T(bit"010100")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010100"), T(bit"000100"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010100"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"010100"), T(bit"010000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"010100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"010100"), T(bit"010101"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    
+    ## state 13 ###
+    state =T(bit"010101")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"010101"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"010101"), T(bit"000101"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"010101"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"010101"), T(bit"010001"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"010101"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"010101"), T(bit"010100"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+
+    ## state 14 ###
+    state =T(bit"100000")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"100000"), T(bit"000000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"100000"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"100000"), T(bit"101000"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"100000"), T(bit"100100"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"100000"), T(bit"100010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"100000"), exp(-6im*π/5))
+
+    ## state 15 ###
+    state =T(bit"100010")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"100010"), T(bit"000010"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"100010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"100010"), T(bit"101010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"100010"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"100010"), T(bit"100000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"100010"), exp(-2im*π/5))
+
+    ## state 16 ###
+    state =T(bit"100100")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"100100"), T(bit"000100"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"100100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"100100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"100100"), T(bit"100000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"100100"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"100100"),exp(-6im*π/5))
+
+    ## state 17 ###
+    state =T(bit"101000")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"101000"), T(bit"001000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"101000"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"101000"), T(bit"100000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"101000"), exp(-6im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"101000"), T(bit"101010"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"101000"),exp(-6im*π/5))
+
+    ## state 18 ###
+    state =T(bit"101010")
+    @test FibonacciChain.braiding_basismap(T, state, 1) == (T(bit"101010"), T(bit"001010"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 2) == (T(bit"101010"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"101010"), T(bit"100010"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 4) == (T(bit"101010"), exp(-2im*π/5))
+    @test FibonacciChain.braiding_basismap(T, state, 5) == (T(bit"101010"), T(bit"101000"), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
+    @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"101010"), exp(-2im*π/5))
+
 end
