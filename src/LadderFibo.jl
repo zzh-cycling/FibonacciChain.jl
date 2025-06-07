@@ -3,13 +3,13 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
-    len=length(basis)
-    @assert len^2 == length(state) "state length is expected to be $(len^2), but got $(length(state))"
+    l=length(basis)
+    @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     
     mapped_state = zeros(ComplexF64, length(state))
-    for j in 1:len
+    for i in 1:l
         # NOTING that in julia the matrix is column-major order, so we reshape a reduced density matrix to vector, its element will be like a0b0, a1b0, a2b0,,,
-        for i in 1:len
+        for j in 1:l
             output1 = braiding_basismap(T, basis[i], idx, pbc)
             output2 = braiding_basismap(T, basis[j], idx, pbc)
             if length(output1) == 4 && length(output2) == 4
@@ -18,26 +18,26 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
                 i2=searchsortedfirst(basis, basisi2)
                 j2=searchsortedfirst(basis, basisj2)
                 # Here noting that the state is a vertorizing density matrix, so the index is i+(j-1)*len, not state[i], state[j]
-                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi1*coefj1
-                mapped_state[i+(j2-1)*len]+=state[i+(j-1)*len]*coefi1*coefj2
-                mapped_state[i2+(j-1)*len]+=state[i+(j-1)*len]*coefi2*coefj1
-                mapped_state[i2+(j2-1)*len]+=state[i+(j-1)*len]*coefi2*coefj2
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj1
+                mapped_state[(i-1)*l+j2]+=state[(i-1)*l+j]*coefi1*coefj2
+                mapped_state[(i2-1)*l+j]+=state[(i-1)*l+j]*coefi2*coefj1
+                mapped_state[(i2-1)*l+j2]+=state[(i-1)*l+j]*coefi2*coefj2
             elseif length(output1) == 4 && length(output2) == 2
                 basisi1, basisi2, coefi1, coefi2=output1
                 basisj, coefj=output2
                 i2=searchsortedfirst(basis, basisi2)  
-                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi1*coefj
-                mapped_state[i2+(j-1)*len]+=state[i+(j-1)*len]*coefi2*coefj
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj
+                mapped_state[(i2-1)*l+j]+=state[(i-1)*l+j]*coefi2*coefj
             elseif length(output1) == 2 && length(output2) == 4
                 basisi, coefi=output1
                 basisj1, basisj2, coefj1, coefj2=output2
                 j2=searchsortedfirst(basis, basisj2)
-                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi*coefj1
-                mapped_state[i+(j2-1)*len]+=state[i+(j-1)*len]*coefi*coefj2
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi*coefj1
+                mapped_state[(i-1)*l+j2]+=state[(i-1)*l+j]*coefi*coefj2
             else
                 basisi, coefi=output1
                 basisj, coefj=output2
-                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi*coefj
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi*coefj
             end
         end
     end
@@ -86,6 +86,7 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
     basis, state = doublebasis[order], state[order]
     reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
+    @show reduced_basis, length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
 
@@ -125,9 +126,9 @@ function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitSt
     order = searchsortedfirst.(Ref(basis), translated_basis) 
     
     mapped_state = zeros(ComplexF64, length(state))
-    for j in 1:l
-        for i in 1:l
-           mapped_state[i + (j-1)*l] = state[order[i]+(order[j]-1)*l]
+    for i in 1:l
+        for j in 1:l
+           mapped_state[(i-1)*l+j] = state[(order[i]-1)*l+order[j]]
         end
     end
     

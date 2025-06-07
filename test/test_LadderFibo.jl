@@ -7,15 +7,14 @@ using LinearAlgebra
     N=2
     T = BitStr{N, Int}
     state = collect(1:3)
-    vec = reshape(state*state', 9)
-    rdm = ladderrdm(T, Int[1], vec)
-    len = length(Fibonacci_basis(1, true))
+    vec1 = kron(state, state)
+    rdm = ladderrdm(T, Int[1], vec1)
     @test size(rdm) == (4, 4)
     @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
 
     # Test the ladder_rdm with a different basis
-    vec/=norm(vec)
-    rdm2 = FibonacciChain.ladderrdm(T, Int[1], vec)
+    vec1/=norm(vec1)
+    rdm2 = FibonacciChain.ladderrdm(T, Int[1], vec1)
     @test ishermitian(rdm2)
     @test tr(rdm2) ≈ 1.0 atol=1e-6
     @test sum(eigvals(rdm2)) ≈ 1.0 atol=1e-6
@@ -26,7 +25,7 @@ using LinearAlgebra
 
     N = 6
     # st1 = collect(1:18); st2 = collect(19:36)
-    # vec1 = reshape(st1*st2', 18^2)
+    # vec1 = kron(st1, st2)
     # rdm = ladderrdm(BitStr{N, Int}, Int[1,2,3], vec1)
     # len = length(Fibonacci_basis(div(N, 2), false))^2
     # @test size(rdm) == (len, len)
@@ -37,7 +36,7 @@ using LinearAlgebra
     splitlis = collect(1:3)
     rdm1 = rdm_Fibo(N, splitlis, st1)
     rdm2 = rdm_Fibo(N, splitlis, st2)
-    rdm = ladderrdm(N, splitlis, reshape(st1*st2', 18^2))
+    rdm = ladderrdm(N, splitlis, kron(st1, st2))
     @test kron(rdm1,rdm2) == rdm
 
     st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1)
@@ -45,7 +44,7 @@ using LinearAlgebra
     splitlis = collect(1:3)
     rdm1 = rdm_Fibo(N, splitlis, st1)
     rdm2 = rdm_Fibo(N, splitlis, st2)
-    rdm = ladderrdm(N, splitlis, reshape(st1*st2', 18^2))
+    rdm = ladderrdm(N, splitlis, kron(st1, st2))
     @test kron(rdm1,rdm2) == rdm
 end 
 
@@ -53,12 +52,12 @@ end
     N=3
     T = BitStr{N, Int}
     state = collect(1:4)
-    state = reshape(state*state', 4^2)
+    state = kron(state, state)
     @test Float64.(ladderChoi(N, 0.0, state)) ≈ state/norm(state)
     
     ϕ = (1+√5)/2
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    st = reshape(onechain_state*transpose(onechain_state), 16)
+    st = kron(onechain_state, onechain_state)
     @test ladderChoi(N, 1.0, state) ≈ st/norm(st)
  
     # At least for N = 4, the ladder Choi state is invariant under the ladder translation map twice.
@@ -66,7 +65,7 @@ end
     energy, states = eigen(Fibonacci_Ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
-    vecGS = reshape(antiGS*antiGS', len^2)
+    vecGS = kron(antiGS, antiGS)
     plis = collect(0.0:0.1:1.0)
     for p in plis
         state = ladderChoi(N, p, vecGS)
@@ -77,7 +76,7 @@ end
     energy, states = eigen(Fibonacci_Ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
-    vecGS = reshape(antiGS*antiGS', len^2)
+    vecGS = kron(antiGS, antiGS)
     plis = collect(0.0:0.1:1.0)
     for p in plis
         state = ladderChoi(N, p, vecGS)
@@ -91,14 +90,14 @@ end
     state = collect(1:4)
     ϕ = (1+√5)/2
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    @test ladderbraidingmap(N, reshape(state*state',16), 2) ≈ reshape(onechain_state*transpose(onechain_state), 16)
+    @test ladderbraidingmap(N, kron(state, state), 2) ≈ kron(onechain_state, onechain_state)
 
     st1= collect(1:4);st2= collect(5:8)
     st1map = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
     st2map = [5*(exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2))+7(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 6exp(-6im*π/5), 5(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+7(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 8exp(-6im*π/5)]
     @test braidingmap(N, st1, 2) ≈ st1map
     @test braidingmap(N, st2, 2) ≈  st2map
-    @test ladderbraidingmap(N, reshape(st1*st2',16), 2) ≈ reshape(st1map*transpose(st2map), 16)
+    @test ladderbraidingmap(N, kron(st1, st2), 2) ≈ kron(st1map, st2map)
 
     # translation invariance test
     N = 4
@@ -107,7 +106,7 @@ end
     onechain_state = braidingmap(N, braidingmap(N, state, 2),4)
     @test onechain_state[order][order] ≈ onechain_state
     
-    twochain_state = ladderbraidingmap(N, ladderbraidingmap(N, reshape(state*state',49), 2),4)
+    twochain_state = ladderbraidingmap(N, ladderbraidingmap(N, kron(state, state), 2),4)
     @test laddertranslationmap(N, laddertranslationmap(N, twochain_state)) ≈ twochain_state
 
 end
@@ -117,8 +116,8 @@ end
     state = collect(1:4)
     order = [1, 3, 4, 2]
     ϕ = (1+√5)/2
-    @test Int64.(laddertranslationmap(N, reshape(state*state',16))) ≈ reshape(state[order]*transpose(state[order]), 16)
+    @test Int64.(laddertranslationmap(N, kron(state, state))) ≈ kron(state[order], state[order])
 
     st1= collect(1:4);st2= collect(5:8)
-    @test Int64.(laddertranslationmap(N, reshape(st1*st2',16))) ≈ reshape(st1[order]*transpose(st2[order]), 16)
+    @test Int64.(laddertranslationmap(N, kron(st1, st2))) ≈ kron(st1[order], st2[order])
 end
