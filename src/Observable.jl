@@ -114,16 +114,15 @@ function braiding_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: Bit
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
-            outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
-            j1=searchsortedfirst(basis, outputstate1)
+        outcome = braiding_basismap(T, basis[i], idx, pbc)
+        if length(outcome) == 4
+            outputstate1, outputstate2, output1, output2=outcome
             j2=searchsortedfirst(basis, outputstate2)
+            Bmatrix[i,i]+=output1
             Bmatrix[i,j2]+=output2
-            Bmatrix[i,j1]+=output1
         else
-            outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
-            j=searchsortedfirst(basis, outputstate)
-            Bmatrix[i,j]+=output
+            outputstate, output=outcome
+            Bmatrix[i,i]+=output
         end
     end
     

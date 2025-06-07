@@ -66,41 +66,6 @@ end
     @test FibonacciChain.braiding_basismap(T, state, 3) == (T(bit"000"), T(bit"001"), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2))
 end
 
-@testset "braiding_matrix" begin
-    N=3
-    T = BitStr{N, Int}
-    ϕ = (1+√5)/2
-    @test FibonacciChain.braiding_matrix(T, 2, false) ≈  ComplexF64[
-    exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) 0.0 (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0;
-    0.0 exp(-6im*π/5) 0.0 0.0 0.0; 
-    (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1) 0.0 0.0; 
-    0.0 0.0 0.0 exp(-6im*π/5) 0.0; 0.0 0.0 0.0 0.0 exp(-2im*π/5)]
-
-    B=[exp(4*π*im/5) 0 0 0 0;
-    0 exp(-3*π*im/5) 0 0 0;
-    0 0 exp(-3*π*im/5) 0 0;
-    0 0 0 exp(-4*π*im/5)*ϕ^(-1) -exp(-2*π*im/5)*ϕ^(-1/2);
-    0 0 0 -exp(-2*π*im/5)*ϕ^(-1/2) -ϕ^(-1)]
-
-    U = [0 0 0 0 1;
-        0 1 0 0 0;
-        0 0 0 1 0;
-        0 0 1 0 0;
-        1 0 0 0 0]
-
-    @test FibonacciChain.braiding_matrix(T, 2, false) ≈ U' * B^2 * U
-end
-
-@testset "braidingmap" begin
-    N=3
-    state = collect(1:4)
-    ϕ = (1+√5)/2
-    @test braidingmap(N, state, 2) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    @test braidingmap(N, state, 1) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+4(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), 3exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+4(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1))]
-    @test braidingmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
-end
-
-
 @testset "braiding_basismapN6" begin
     N=6
     T = BitStr{N, Int}
@@ -268,3 +233,52 @@ end
     @test FibonacciChain.braiding_basismap(T, state, 6) == (T(bit"101010"), exp(-2im*π/5))
 
 end
+
+@testset "braiding_matrix" begin
+    N=3
+    T = BitStr{N, Int}
+    ϕ = (1+√5)/2
+    @test FibonacciChain.braiding_matrix(T, 2, false) ≈  ComplexF64[
+    exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) 0.0 (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0;
+    0.0 exp(-6im*π/5) 0.0 0.0 0.0; 
+    (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1) 0.0 0.0; 
+    0.0 0.0 0.0 exp(-6im*π/5) 0.0; 0.0 0.0 0.0 0.0 exp(-2im*π/5)]
+
+    B=[exp(4*π*im/5) 0 0 0 0;
+    0 exp(-3*π*im/5) 0 0 0;
+    0 0 exp(-3*π*im/5) 0 0;
+    0 0 0 exp(-4*π*im/5)*ϕ^(-1) -exp(-2*π*im/5)*ϕ^(-1/2);
+    0 0 0 -exp(-2*π*im/5)*ϕ^(-1/2) -ϕ^(-1)]
+
+    U = [0 0 0 0 1;
+        0 1 0 0 0;
+        0 0 0 1 0;
+        0 0 1 0 0;
+        1 0 0 0 0]
+
+    @test FibonacciChain.braiding_matrix(T, 2, false) ≈ U' * B^2 * U
+    @test FibonacciChain.braiding_matrix(T, 2) ≈ (U' * B^2 * U)[1:4, 1:4]
+
+    @test FibonacciChain.braiding_matrix(T, 1) ≈ ComplexF64[
+    exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) 0.0 0.0 (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2);
+    0.0 exp(-6im*π/5) 0.0 0.0; 
+    0.0 0.0  exp(-6im*π/5) 0.0; 
+    (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0 exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)]
+
+    @test FibonacciChain.braiding_matrix(T, 3) ≈ ComplexF64[
+    exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0;
+    (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1) 0.0 0.0;
+    0.0 0.0 exp(-6im*π/5) 0.0; 
+    0.0 0.0 0.0 exp(-6im*π/5)]
+end
+
+@testset "braidingmap" begin
+    N=3
+    state = collect(1:4)
+    ϕ = (1+√5)/2
+    @test braidingmap(N, state, 2) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
+    @test braidingmap(N, state, 1) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+4(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), 3exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+4(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1))]
+    @test braidingmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
+end
+
+
