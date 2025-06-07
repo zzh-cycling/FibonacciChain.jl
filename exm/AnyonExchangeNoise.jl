@@ -27,6 +27,7 @@ probabilitylis=collect(0.0:0.05:1.0)
 centlis=similar(probabilitylis)
 for (idx, i) in enumerate(probabilitylis)
     state = ladderChoi(N, i, vecGS)
+    @show laddertranslationmap(N, laddertranslationmap(N, state)) ≈ state
     EE_lis=zeros(length(splitlis))
     # save("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld", "state", state, "EE_lis", EE_lis)
     for m in eachindex(EE_lis)

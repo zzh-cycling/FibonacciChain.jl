@@ -363,7 +363,7 @@ end
 function move_subsystem(::Type{BitStr{M, INT}}, basis::BitStr{N, INT}, subsystems::Vector{Int}) where {M, N, INT}
     @assert length(subsystems) == N "subsystems length is expected to be $N, but got $(length(subsystems))"
     @assert M >= N "total length is expected to be greater than or equal to $N, but got $M"
-    return sum(i -> BitStr{M}(readbit(basis.buf, i) << (subsystems[i] - 1)), 1:N)
+    return sum(i -> BitStr{M}(readbit(basis.buf, i) << (M - subsystems[N-i+1])), 1:N)
 end
 
 # take environment part of a basis
@@ -380,7 +380,8 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    mask = bmask(T, subsystems...)
+    # mask = bmask(T, subsystems...)
+    mask = bmask(T, (N .-subsystems .+1)...)
 
     
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.

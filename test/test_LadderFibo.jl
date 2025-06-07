@@ -24,27 +24,32 @@ using LinearAlgebra
     rdm = ladderrdm(N, Int[1, 2], state)
 
     N = 6
-    # st1 = collect(1:18); st2 = collect(19:36)
-    # vec1 = kron(st1, st2)
-    # rdm = ladderrdm(BitStr{N, Int}, Int[1,2,3], vec1)
-    # len = length(Fibonacci_basis(div(N, 2), false))^2
-    # @test size(rdm) == (len, len)
-    # @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
+    st1 = collect(1:18); st2 = collect(19:36)
+    vec1 = kron(st1, st2)
+    rdm = ladderrdm(6, Int[1,2,3], vec1)
+    len = length(Fibonacci_basis(div(6, 2), false))^2
+    @test size(rdm) == (len, len)
+    @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
 
-    st1 = zeros(18); st1[end] = 1.0
-    st2 = zeros(18); st2[13] = 1.0
+    st1 = zeros(18); st1[end] = 1.0 # |101010> state
+    st2 = zeros(18); st2[13] = 1.0 # |010101> state
     splitlis = collect(1:3)
-    rdm1 = rdm_Fibo(N, splitlis, st1)
+    rdm1 = rdm_Fibo(N, splitlis, st1) # |101><101|
     rdm2 = rdm_Fibo(N, splitlis, st2)
-    rdm = ladderrdm(N, splitlis, kron(st1, st2))
+    # |010><010|
+    rdm = ladderrdm(N, splitlis, kron(st1, st2)) # |101010><101010|
     @test kron(rdm1,rdm2) == rdm
-
-    st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1)
+     
+    # rdm basis 15 is 010101, 23 is 101010
+    st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1) # |000101>+|000010> state
     st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2)
-    splitlis = collect(1:3)
+    splitlis = collect(1:3) # |101000>+|101010> state
     rdm1 = rdm_Fibo(N, splitlis, st1)
+    # |000><000|
     rdm2 = rdm_Fibo(N, splitlis, st2)
+    # |101><101|
     rdm = ladderrdm(N, splitlis, kron(st1, st2))
+    # |000101><000101|
     @test kron(rdm1,rdm2) == rdm
 end 
 

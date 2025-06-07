@@ -72,21 +72,22 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
     unsorted_basis = Fibonacci_basis(T, pbc)
     lenubasis = length(unsorted_basis)
     newT = BitStr{2N, Int} # double the length of the basis
-    doublebasis = reshape([join(i,j) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
+    doublebasis = reshape([join(j,i) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
     @assert lenubasis^2 == length(state) "state length is expected to be $(lenubasis), but got $(length(state))"
     
     subsystems = vcat(subsystems, subsystems .+ N) # add the second half of the system to the subsystems
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    mask = bmask(newT, subsystems...)
+    # mask = bmask(newT, subsystems...)
+    mask = bmask(newT, (2N .-subsystems .+1)...)
 
     
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
     basis, state = doublebasis[order], state[order]
     reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
-    @show reduced_basis, length(reduced_basis)
+    
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
 
