@@ -107,7 +107,7 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
         range = result_indices[i]:result_indices[i+1]-1         
         # Get indices in the reduced basis
         indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
+        view(reduced_dm, indices, indices) .+= view(state, range) .* transpose(view(state, range))
     end
 
     return reduced_dm

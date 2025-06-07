@@ -31,6 +31,7 @@ for (idx, i) in enumerate(probabilitylis)
     # save("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld", "state", state, "EE_lis", EE_lis)
     for m in eachindex(EE_lis)
         subrho=ladderrdm(N, collect(1:splitlis[m]), state)
+        @show subrho
         EE_lis[m]=ee(subrho)
     end
     cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
