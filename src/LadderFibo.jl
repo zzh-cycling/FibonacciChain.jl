@@ -1,3 +1,51 @@
+function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
+    # input a superposition of basis, and output the braided state
+    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+
+    basis=Fibonacci_basis(T, pbc)
+    len=length(basis)
+    @assert len^2 == length(state) "state length is expected to be $(len^2), but got $(length(state))"
+    
+    mapped_state = zeros(ComplexF64, length(state))
+    for j in 1:len
+        # NOTING that in julia the matrix is column-major order, so we reshape a reduced density matrix to vector, its element will be like a0b0, a1b0, a2b0,,,
+        for i in 1:len
+            output1 = braiding_basismap(T, basis[i], idx, pbc)
+            output2 = braiding_basismap(T, basis[j], idx, pbc)
+            if length(output1) == 4 && length(output2) == 4
+                basisi1, basisi2, coefi1, coefi2=output1
+                basisj1, basisj2, coefj1, coefj2=output2
+                i2=searchsortedfirst(basis, basisi2)
+                j2=searchsortedfirst(basis, basisj2)
+                # Here noting that the state is a vertorizing density matrix, so the index is i+(j-1)*len, not state[i], state[j]
+                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi1*coefj1
+                mapped_state[i+(j2-1)*len]+=state[i+(j-1)*len]*coefi1*coefj2
+                mapped_state[i2+(j-1)*len]+=state[i+(j-1)*len]*coefi2*coefj1
+                mapped_state[i2+(j2-1)*len]+=state[i+(j-1)*len]*coefi2*coefj2
+            elseif length(output1) == 4 && length(output2) == 2
+                basisi1, basisi2, coefi1, coefi2=output1
+                basisj, coefj=output2
+                i2=searchsortedfirst(basis, basisi2)  
+                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi1*coefj
+                mapped_state[i2+(j-1)*len]+=state[i+(j-1)*len]*coefi2*coefj
+            elseif length(output1) == 2 && length(output2) == 4
+                basisi, coefi=output1
+                basisj1, basisj2, coefj1, coefj2=output2
+                j2=searchsortedfirst(basis, basisj2)
+                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi*coefj1
+                mapped_state[i+(j2-1)*len]+=state[i+(j-1)*len]*coefi*coefj2
+            else
+                basisi, coefi=output1
+                basisj, coefj=output2
+                mapped_state[i+(j-1)*len]+=state[i+(j-1)*len]*coefi*coefj
+            end
+        end
+    end
+    
+    return mapped_state
+end
+ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
+
 function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
     # The PBC anyon relation with basis like:
     #  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
@@ -66,51 +114,6 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
 end
 ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
 
-function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
-    # input a superposition of basis, and output the braided state
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
-
-    basis=Fibonacci_basis(T, pbc)
-    len=length(basis)
-    @assert len^2 == length(state) "state length is expected to be $(len^2), but got $(length(state))"
-    
-    mapped_state = zeros(ComplexF64, length(state))
-    for i in 1:len
-        for j in 1:len
-            output1 = braiding_basismap(T, basis[i], idx, pbc)
-            output2 = braiding_basismap(T, basis[j], idx, pbc)
-            if length(output1) == 4 && length(output2) == 4
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj1, basisj2, coefj1, coefj2=output2
-                i2=searchsortedfirst(basis, basisi2)
-                j2=searchsortedfirst(basis, basisj2)
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj1
-                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi1*coefj2
-                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj1
-                mapped_state[(i2-1)*len+j2]+=state[i]*state[j]*coefi2*coefj2
-            elseif length(output1) == 4 && length(output2) == 2
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj, coefj=output2
-                i2=searchsortedfirst(basis, basisi2)  
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj
-                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj
-            elseif length(output1) == 2 && length(output2) == 4
-                basisi, coefi=output1
-                basisj1, basisj2, coefj1, coefj2=output2
-                j2=searchsortedfirst(basis, basisj2)
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj1
-                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi*coefj2
-            else
-                basisi, coefi=output1
-                basisj, coefj=output2
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj
-            end
-        end
-    end
-    
-    return mapped_state
-end
-ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
 
 function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} 
     # input a superposition state, and output the translated state
@@ -122,9 +125,9 @@ function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitSt
     order = searchsortedfirst.(Ref(basis), translated_basis) 
     
     mapped_state = zeros(ComplexF64, length(state))
-    for i in 1:l
-        for j in 1:l
-           mapped_state[(i-1)*l+j] = state[(order[i]-1)*l+order[j]]
+    for j in 1:l
+        for i in 1:l
+           mapped_state[i + (j-1)*l] = state[order[i]+(order[j]-1)*l]
         end
     end
     

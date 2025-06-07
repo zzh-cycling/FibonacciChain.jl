@@ -18,6 +18,12 @@ using LinearAlgebra
     @test ishermitian(rdm2)
     @test tr(rdm2) ≈ 1.0 atol=1e-6
     @test sum(eigvals(rdm2)) ≈ 1.0 atol=1e-6
+
+    # st1 = collect(1:3); st2 = collect(4:6)
+    # vec = reshape(st1*st2', 9)
+    # rdm = ladderrdm(T, Int[1], vec)
+    # @test size(rdm) == (4, 4)
+    # @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
 end
 
 @testset "ladderChoi" begin
@@ -41,21 +47,18 @@ end
     plis = collect(0.0:0.1:1.0)
     for p in plis
         state = ladderChoi(N, p, vecGS)
-        @show p
-        # @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
-        @show isapprox(laddertranslationmap(N, laddertranslationmap(N, state)), state, atol=1e-10)
+        @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
     end
     
     N=6
     energy, states = eigen(Fibonacci_Ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
-    state = reshape(antiGS*antiGS', len^2)
-
-    p=0.5
-    for i in 2:2:N
-        state=(1-p)*state+p*ladderbraidingmap(N, state, i)
-        state/=norm(state) # normalize the state after each braiding
+    vecGS = reshape(antiGS*antiGS', len^2)
+    plis = collect(0.0:0.1:1.0)
+    for p in plis
+        state = ladderChoi(N, p, vecGS)
+        @test isapprox(reduce((x, _) -> laddertranslationmap(N, x), 1:2; init=state),state, atol=1e-10)
     end
 end
 
@@ -67,15 +70,23 @@ end
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
     @test ladderbraidingmap(N, reshape(state*state',16), 2) ≈ reshape(onechain_state*transpose(onechain_state), 16)
 
+    st1= collect(1:4);st2= collect(5:8)
+    st1map = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
+    st2map = [5*(exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2))+7(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 6exp(-6im*π/5), 5(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+7(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 8exp(-6im*π/5)]
+    @test braidingmap(N, st1, 2) ≈ st1map
+    @test braidingmap(N, st2, 2) ≈  st2map
+    @test ladderbraidingmap(N, reshape(st1*st2',16), 2) ≈ reshape(st1map*transpose(st2map), 16)
+
     # translation invariance test
     N = 4
     state = fill(1,7)
     order = [1, 3, 4, 6, 7, 2, 5]
     onechain_state = braidingmap(N, braidingmap(N, state, 2),4)
-    onechain_state[order][order] == onechain_state
+    @test onechain_state[order][order] ≈ onechain_state
     
     twochain_state = ladderbraidingmap(N, ladderbraidingmap(N, reshape(state*state',49), 2),4)
     @test laddertranslationmap(N, laddertranslationmap(N, twochain_state)) ≈ twochain_state
+
 end
 
 @testset "laddertranslationmap" begin
@@ -84,4 +95,7 @@ end
     order = [1, 3, 4, 2]
     ϕ = (1+√5)/2
     @test Int64.(laddertranslationmap(N, reshape(state*state',16))) ≈ reshape(state[order]*transpose(state[order]), 16)
+
+    st1= collect(1:4);st2= collect(5:8)
+    @test Int64.(laddertranslationmap(N, reshape(st1*st2',16))) ≈ reshape(st1[order]*transpose(st2[order]), 16)
 end
