@@ -20,16 +20,28 @@ using LinearAlgebra
     @test tr(rdm2) ≈ 1.0 atol=1e-6
     @test sum(eigvals(rdm2)) ≈ 1.0 atol=1e-6
 
+    N = 4
+    state = collect(1:49)
+    rdm = ladderrdm(N, Int[1, 2], state)
+
     N = 6
-    st1 = collect(1:18); st2 = collect(19:36)
-    vec1 = reshape(st1*st2', 18^2)
-    rdm = ladderrdm(BitStr{N, Int}, Int[1,2,3], vec1)
-    len = length(Fibonacci_basis(div(N, 2), false))^2
-    @test size(rdm) == (len, len)
-    @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
+    # st1 = collect(1:18); st2 = collect(19:36)
+    # vec1 = reshape(st1*st2', 18^2)
+    # rdm = ladderrdm(BitStr{N, Int}, Int[1,2,3], vec1)
+    # len = length(Fibonacci_basis(div(N, 2), false))^2
+    # @test size(rdm) == (len, len)
+    # @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
 
     st1 = zeros(18); st1[end] = 1.0
     st2 = zeros(18); st2[13] = 1.0
+    splitlis = collect(1:3)
+    rdm1 = rdm_Fibo(N, splitlis, st1)
+    rdm2 = rdm_Fibo(N, splitlis, st2)
+    rdm = ladderrdm(N, splitlis, reshape(st1*st2', 18^2))
+    @test kron(rdm1,rdm2) == rdm
+
+    st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1)
+    st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2)
     splitlis = collect(1:3)
     rdm1 = rdm_Fibo(N, splitlis, st1)
     rdm2 = rdm_Fibo(N, splitlis, st2)
