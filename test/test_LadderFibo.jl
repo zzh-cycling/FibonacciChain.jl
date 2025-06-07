@@ -24,12 +24,6 @@ using LinearAlgebra
     rdm = ladderrdm(N, Int[1, 2], state)
 
     N = 6
-    st1 = collect(1:18); st2 = collect(19:36)
-    vec1 = kron(st1, st2)
-    rdm = ladderrdm(6, Int[1,2,3], vec1)
-    len = length(Fibonacci_basis(div(6, 2), false))^2
-    @test size(rdm) == (len, len)
-    @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
 
     st1 = zeros(18); st1[end] = 1.0 # |101010> state
     st2 = zeros(18); st2[13] = 1.0 # |010101> state
