@@ -27,4 +27,6 @@ end
 fig = plot(probabilitylis, centlis, xlabel=L"p", ylabel=L"c_{cent}", label=L"c_{total}", marker=:circle)
 plot!(fig, probabilitylis, centlisL, label=L"c_{L}", marker=:circle)
 plot!(fig, probabilitylis, centlisR, label=L"c_{R}", marker=:circle)
+plot!(fig, [0.01, 0.99], √2*[1,1],  c=:Gray, label=false, linestyle=:dash, linewidth=2)
+            
 savefig(fig, "./exm/fig/double_Fibo_10_pvscent.pdf")

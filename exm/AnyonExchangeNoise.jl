@@ -4,11 +4,17 @@ using BitBasis
 using JLD
 include("FitEntEntScal.jl")
 
-N=10
+N=18
 energy, states = eigen(Fibonacci_Ham(N))
 antiGS= states[:, 1]
 vecGS = kron(antiGS, antiGS)
 splitlis=Vector(1:N-1)
+
+EE_lis=zeros(length(splitlis))
+for m in eachindex(EE_lis)
+    subrho=rdm_Fibo(N, collect(1:splitlis[m]), antiGS)
+    @time EE_lis[m]=ee(subrho)
+end
 
 EE_lis=zeros(length(splitlis))
 for m in eachindex(EE_lis)
