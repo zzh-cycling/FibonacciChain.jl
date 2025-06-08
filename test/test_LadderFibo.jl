@@ -10,7 +10,7 @@ using LinearAlgebra
     vec1 = kron(state, state)
     rdm = ladderrdm(T, Int[1], vec1)
     @test size(rdm) == (4, 4)
-    @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
+    @test rdm == [25 15 15 9; 15 45 9 27; 15 9 45 27; 9 27 27 81]
 
     # Test the ladder_rdm with a different basis
     vec1/=norm(vec1)
