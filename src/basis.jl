@@ -417,6 +417,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
 end
 rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc)
 
+
 function iso_tot2sec(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
     #Function to map the total basis to the given symmetric sector Hilbert space basis, actually is the isometry, defined as W'*W=I, W*W'=P, P^2=P
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
