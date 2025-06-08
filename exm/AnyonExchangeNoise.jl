@@ -11,6 +11,18 @@ len= length(antiGS)
 vecGS = kron(antiGS, antiGS)
 splitlis=Vector(1:N-1)
 
+ 
+for i in 2:2:N
+    antiGS = braidingmap(N, antiGS, i)
+    antiGS/= norm(antiGS)
+end
+T = translation_matrix(N)
+
+T^2 * antiGS ≈ antiGS # Check if the translation matrix is correct
+Inv = inversion_matrix(N)
+
+Choistate = ladderChoi(N, 1.0, vecGS)
+@test Choistate ≈ kron(antiGS, antiGS) 
 
 EE_lis=zeros(length(splitlis))
 for m in eachindex(EE_lis)
