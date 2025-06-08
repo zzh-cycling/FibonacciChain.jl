@@ -114,16 +114,15 @@ function braiding_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: Bit
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        if length(braiding_basismap(T, basis[i], idx, pbc)) == 4
-            outputstate1, outputstate2, output1, output2=braiding_basismap(T, basis[i], idx, pbc)
-            j1=searchsortedfirst(basis, outputstate1)
+        outcome = braiding_basismap(T, basis[i], idx, pbc)
+        if length(outcome) == 4
+            outputstate1, outputstate2, output1, output2=outcome
             j2=searchsortedfirst(basis, outputstate2)
+            Bmatrix[i,i]+=output1
             Bmatrix[i,j2]+=output2
-            Bmatrix[i,j1]+=output1
         else
-            outputstate, output=braiding_basismap(T, basis[i], idx, pbc)
-            j=searchsortedfirst(basis, outputstate)
-            Bmatrix[i,j]+=output
+            outputstate, output=outcome
+            Bmatrix[i,i]+=output
         end
     end
     
@@ -136,6 +135,7 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
+    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
         output = braiding_basismap(T, basis[i], idx, pbc)
@@ -153,69 +153,3 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
     return mapped_state
 end
 braidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingmap(BitStr{N, Int}, state, idx, pbc)
-
-function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
-    # input a superposition state, and output the braided state
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
-
-    basis=Fibonacci_basis(T, pbc)
-    len=length(basis)
-    @assert len^2 == length(state) "state length is expected to be $(len^2), but got $(length(state))"
-    
-    mapped_state = zeros(ComplexF64, length(state))
-    for i in 1:len
-        for j in 1:len
-            output1 = braiding_basismap(T, basis[i], idx, pbc)
-            output2 = braiding_basismap(T, basis[j], idx, pbc)
-            if length(output1) == 4 && length(output2) == 4
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj1, basisj2, coefj1, coefj2=output2
-                i2=searchsortedfirst(basis, basisi2)
-                j2=searchsortedfirst(basis, basisj2)
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj1
-                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi1*coefj2
-                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj1
-                mapped_state[(i2-1)*len+j2]+=state[i]*state[j]*coefi2*coefj2
-            elseif length(output1) == 4 && length(output2) == 2
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj, coefj=output2
-                i2=searchsortedfirst(basis, basisi2)  
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi1*coefj
-                mapped_state[(i2-1)*len+j]+=state[i]*state[j]*coefi2*coefj
-            elseif length(output1) == 2 && length(output2) == 4
-                basisi, coefi=output1
-                basisj1, basisj2, coefj1, coefj2=output2
-                j2=searchsortedfirst(basis, basisj2)
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj1
-                mapped_state[(i-1)*len+j2]+=state[i]*state[j]*coefi*coefj2
-            else
-                basisi, coefi=output1
-                basisj, coefj=output2
-                mapped_state[(i-1)*len+j]+=state[i]*state[j]*coefi*coefj
-            end
-        end
-    end
-    
-    return mapped_state
-end
-ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
-
-function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} 
-    # input a superposition state, and output the translated state
-    basis=Fibonacci_basis(T)
-    l=length(basis)
-    @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
-    
-    translated_basis = cyclebits.(basis) 
-    order = searchsortedfirst.(Ref(basis), translated_basis) 
-    
-    mapped_state = zeros(ComplexF64, length(state))
-    for i in 1:l
-        for j in 1:l
-           mapped_state[(i-1)*l+j] = state[(order[i]-1)*l+order[j]]
-        end
-    end
-    
-    return mapped_state
-end
-laddertranslationmap(N::Int, state::Vector{ET}) where {ET} = laddertranslationmap(BitStr{N, Int}, state)

@@ -114,34 +114,3 @@ end
     @test FibonacciChain.connected_components(v) == [[1, 2], [4, 5], [7]]
     @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
 end
-
-@testset "ladderrdm" begin
-    # Test the ladder_rdm function
-    N=2
-    T = BitStr{N, Int}
-    state = collect(1:3)
-    vec = reshape(state*state', 9)
-    rdm = ladderrdm(T, Int[1], vec)
-    @test size(rdm) == (4, 4)
-    @test rdm == [100 20 20 4; 20 40 4 8; 20 4 40 8; 4 8 8 16]
-
-    # Test the ladder_rdm with a different basis
-    vec/=norm(vec)
-    rdm2 = FibonacciChain.ladderrdm(T, Int[1], vec)
-    @test ishermitian(rdm2)
-    @test tr(rdm2) ≈ 1.0 atol=1e-6
-    @test sum(eigvals(rdm2)) ≈ 1.0 atol=1e-6
-end
-
-@testset "ladderChoi" begin
-    N=3
-    T = BitStr{N, Int}
-    state = collect(1:4)
-    state = reshape(state*state', 4^2)
-    @test Float64.(ladderChoi(N, 0.0, state)) ≈ state/norm(state)
-    
-    ϕ = (1+√5)/2
-    onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    st = reshape(onechain_state*transpose(onechain_state), 16)
-    @test ladderChoi(N, 1.0, state) ≈ st/norm(st)
-end

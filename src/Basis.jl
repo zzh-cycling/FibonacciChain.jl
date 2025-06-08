@@ -363,7 +363,7 @@ end
 function move_subsystem(::Type{BitStr{M, INT}}, basis::BitStr{N, INT}, subsystems::Vector{Int}) where {M, N, INT}
     @assert length(subsystems) == N "subsystems length is expected to be $N, but got $(length(subsystems))"
     @assert M >= N "total length is expected to be greater than or equal to $N, but got $M"
-    return sum(i -> BitStr{M}(readbit(basis.buf, i) << (subsystems[i] - 1)), 1:N)
+    return sum(i -> BitStr{M}(readbit(basis.buf, i) << (M - subsystems[N-i+1])), 1:N)
 end
 
 # take environment part of a basis
@@ -380,7 +380,8 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    mask = bmask(T, subsystems...)
+    # mask = bmask(T, subsystems...)
+    mask = bmask(T, (N .-subsystems .+1)...)
 
     
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
@@ -415,6 +416,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     return reduced_dm
 end
 rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc)
+
 
 function iso_tot2sec(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
     #Function to map the total basis to the given symmetric sector Hilbert space basis, actually is the isometry, defined as W'*W=I, W*W'=P, P^2=P
@@ -498,68 +500,3 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
-function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
-    @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
-
-    if pbc
-        for i in 2:2:N
-            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
-            state/=norm(state) # normalize the state after each braiding
-        end
-    else
-        for i in 2:2:N
-            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
-        end
-    end
-
-    return state
-end
-ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc)
-
-function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
-    # Usually subsystem indices count from the right of binary string.
-    # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    unsorted_basis = Fibonacci_basis(T, pbc)
-    lenubasis = length(unsorted_basis)
-    newT = BitStr{2N, Int} # double the length of the basis
-    doublebasis = reshape([join(i,j) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
-    @assert lenubasis^2 == length(state) "state length is expected to be $(lenubasis), but got $(length(state))"
-    
-    subsystems = vcat(subsystems, subsystems .+ N) # add the second half of the system to the subsystems
-    subsystems=connected_components(subsystems)
-    lengthlis=length.(subsystems)
-    subsystems=vcat(subsystems...)
-    mask = bmask(newT, subsystems...)
-
-    
-    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
-    basis, state = doublebasis[order], state[order]
-    reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
-    len = length(reduced_basis)
-    # Initialize the reduced density matrix
-    reduced_dm = zeros(ET, (len, len))
-
-    # Keep track of indices where the key changes
-    result_indices = Int[]
-    current_key = -1
-    for (idx, i) in enumerate(basis)
-        key = takeenviron(i, mask)  # Get environment l bits
-        if key != current_key
-            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
-            push!(result_indices, idx)
-            current_key = key
-        end
-    end
-    # Add the final index to get complete ranges
-    push!(result_indices, length(basis) + 1)
-
-    for i in 1:length(result_indices)-1
-        range = result_indices[i]:result_indices[i+1]-1         
-        # Get indices in the reduced basis
-        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
-    end
-
-    return reduced_dm
-end
-ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
