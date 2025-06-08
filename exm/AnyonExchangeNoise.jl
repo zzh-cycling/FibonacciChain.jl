@@ -8,7 +8,7 @@ N=8
 energy, states = eigen(Fibonacci_Ham(N))
 antiGS= states[:, 1]
 len= length(antiGS)
-vecGS = reshape(antiGS*antiGS', len^2)
+vecGS = kron(antiGS, antiGS)
 splitlis=Vector(1:N-1)
 
 
