@@ -135,6 +135,7 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
+    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
         output = braiding_basismap(T, basis[i], idx, pbc)

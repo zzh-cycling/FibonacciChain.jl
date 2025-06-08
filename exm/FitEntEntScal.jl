@@ -51,6 +51,76 @@ function fitCCEntEntScal(
     return cent, fig
 end
 
+function fitpart(
+    SvN_list::Vector{Float64};
+    err::Vector{Float64}=0.0SvN_list,
+    mincut::Int=1,
+    pbc::Bool=false, part::Symbol)
+    
+    @assert part in [:L, :R] "part should be either :L or :R, but got $(part)"
+    # log of chord length / 6 for open boundary
+    logChord(l, L) = @. log(sin(π * l /L))/6
+    lm(x,p) = @. p[1] * x + p[2]
+
+    L = length(SvN_list) + 1
+    idx = div(L, 2)
+    if part == :L
+        xdata = logChord(collect(1:idx),L); #log.(sin.(π .* [1:L-1;] ./L))./6
+        SvN_list = SvN_list[1:idx]
+        fit = curve_fit(lm, xdata[mincut:end], SvN_list[mincut:end], [0.5, 0.0])
+        fitparam = fit.param
+        cent = fitparam[1]
+        cent_err = stderror(fit)[1]
+        if pbc
+            cent /= 2.0
+            cent_err/= 2.0
+        end
+        println("cent ± cent_err is $(cent) ± $(cent_err)")
+    else
+        xdata = logChord(collect(idx:L-1),L); #log.(sin.(π .* [1:L-1;] ./L))./6
+        SvN_list = SvN_list[idx:L-1]
+        fit = curve_fit(lm, xdata[1:end-mincut+1], SvN_list[1:end-mincut+1], [0.5, 0.0])
+        fitparam = fit.param
+        cent = fitparam[1]
+        cent_err = stderror(fit)[1]
+        if pbc
+            cent /= 2.0
+            cent_err/= 2.0
+        end
+        println("cent ± cent_err is $(cent) ± $(cent_err)")
+    end
+    
+
+    # fit scaling
+    
+   
+
+    # plot scaling
+    fig = scatter(1:L-1, SvN_list, ylabel=L"S_{vN}", xlabel=L"l", frame=:box, yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1))
+    plot!(1:L-1, fitparam[1] .* logChord([1:L-1;], L) .+ fitparam[2], label=false)
+
+    # plot rescaled
+    plot!(subplot=2, framestyle=:box,
+    inset = (1, bbox(0.3, 0.2, 0.4, 0.45, :bottom)))
+    xdata = LinRange(xdata[1], 0, 25)
+    ydata = fit.param[1] * xdata .+ fit.param[2]
+
+    if pbc
+        scatter!(subplot=2, lw=2,
+        log.(sin.(π .*[1:L-1;]./L)) ./3, SvN_list,
+        xlabel=L"\frac{1}{3}\ln\sin(π l/L)",
+        yerror=err, marker=:circle, label=false)
+        plot!(subplot=2, 2xdata, ydata, lw=2,label=(latexstring("c = $(round(cent, digits=2)) \\ ±\\ $(round(cent_err, digits=2))")))
+    else
+        scatter!(subplot=2, lw=2,
+        log.(sin.(π .*[1:L-1;]./L)) ./6, SvN_list,
+        xlabel=L"\frac{1}{6}\ln\sin(π l/L)",
+        yerror=err, marker=:circle, label=false)
+        plot!(subplot=2, xdata, ydata, lw=2,label=(latexstring("c = $(round(cent, digits=2)) \\ ±\\ $(round(cent_err, digits=2))")))
+    end
+    return cent, fig
+end
+
 function new_fitCCEntEntScal(
     SvN_list::Vector{Float64};
     err::Vector{Float64}=0.0SvN_list,
