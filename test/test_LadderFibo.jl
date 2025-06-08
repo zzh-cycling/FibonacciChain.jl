@@ -36,8 +36,8 @@ using LinearAlgebra
      
     # rdm basis 15 is 010101, 23 is 101010
     st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1) # |000101>+|000010> state
-    st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2)
-    splitlis = collect(1:3) # |101000>+|101010> state
+    st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2) # |101000>+|101010> state
+    splitlis = collect(1:3) 
     rdm1 = rdm_Fibo(N, splitlis, st1)
     # |000><000|
     rdm2 = rdm_Fibo(N, splitlis, st2)
@@ -45,6 +45,40 @@ using LinearAlgebra
     rdm = ladderrdm(N, splitlis, kron(st1, st2))
     # |000101><000101|
     @test kron(rdm1,rdm2) == rdm
+
+    st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1) # |000101>+|000010> state
+    st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2) # |101000>+|101010> state
+    splitlis = collect(4:6) 
+    rdm1 = rdm_Fibo(N, splitlis, st1)
+    # 1/2(|101><101|+|010><010|)
+    rdm2 = rdm_Fibo(N, splitlis, st2)
+    # 1/2(|000><000|+|010><010|)
+    rdm = ladderrdm(N, splitlis, kron(st1, st2))
+    # 1/4（|101000><101000|+|101010><101010|+|010000><010000|+|010010><010010|） 
+    # 11, 13, 21, 23 is 010000, 010010, 101000, 101010
+    @test kron(rdm1,rdm2) == rdm
+
+    # test whether the ladderChoi is product state of two mapped anti-GS states
+    N=6
+    energy, states = eigen(Fibonacci_Ham(N))
+    antiGS= states[:, 1]
+    len= length(antiGS)
+    vecGS = kron(antiGS, antiGS)
+    for i in 2:2:N
+        antiGS = braidingmap(N, antiGS, i)
+        antiGS/= norm(antiGS)
+    end
+    Choistate = ladderChoi(N, 1.0, vecGS)
+    @test Choistate ≈ kron(antiGS, antiGS) 
+    
+
+    splitlis = collect(1:N-1)
+    for m in eachindex(splitlis)
+        subrho=ladderrdm(N, collect(1:splitlis[m]), Choistate)
+        rdm_antiGS = rdm_Fibo(N, collect(1:splitlis[m]), antiGS)
+        @test subrho ≈ kron(rdm_antiGS, rdm_antiGS)
+    end
+    
 end 
 
 @testset "ladderChoi" begin
