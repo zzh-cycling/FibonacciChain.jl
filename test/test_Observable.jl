@@ -270,6 +270,25 @@ end
     (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1) 0.0 0.0;
     0.0 0.0 exp(-6im*π/5) 0.0; 
     0.0 0.0 0.0 exp(-6im*π/5)]
+
+    ⊗(A,B) = kron(A,B)
+    idx = [i.buf+1 for i in Fibonacci_basis(3,false)]
+    Z=[1 0;0 -1]
+    X=[0 1;1 0]
+    P0=[1 0;0 0]
+    P1=[0 0;0 1]
+    σ2t = (1-2ϕ^(-1)) * Z +2ϕ^(-3/2) * X
+    σt = ϕ^(-1)*Z +2ϕ^(-1/2) * X
+
+    F = P0 ⊗ I(2) ⊗ P1 + P1 ⊗ I(2) ⊗ P0 + P1 ⊗ X ⊗ P1 + P0 ⊗ σt ⊗ P0
+    Fc = U'*F[idx, idx]*U
+    B1 = exp(1im*π/10)*(P0 ⊗ exp(-7im*π/10 .* Z) ⊗ P1 + P1 ⊗ exp(-7im*π/10 .* Z) ⊗ P0 + P1 ⊗ exp(+7im*π/10 .* Z) ⊗ P1 + P0 ⊗ exp(-7im*π/10 .* σ2t) ⊗ P0)
+    Bc=B1[idx, idx]
+     (U'*(exp(1im*π/10)*F'*(I(2)⊗exp(-7im*π/10 .* Z)⊗I(2))*F)[idx,idx])*U
+    exp(1im*π/10)*F'*(I(2)⊗exp(-7im*π/10 .* Z)⊗I(2))*F ≈ Bc
+    # @test U'*Bc^2*U ≈ FibonacciChain.braiding_matrix(T, 2, false)
+    @test U'*Bc*U ≈ B
+    Bc^2
 end
 
 @testset "braidingmap" begin
