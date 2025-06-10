@@ -52,7 +52,7 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
-function braiding_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     ϕ = (1+√5)/2
@@ -107,14 +107,14 @@ function braiding_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N
     end
 end
 
-function braiding_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        outcome = braiding_basismap(T, basis[i], idx, pbc)
+        outcome = braidingsq_basismap(T, basis[i], idx, pbc)
         if length(outcome) == 4
             outputstate1, outputstate2, output1, output2=outcome
             j2=searchsortedfirst(basis, outputstate2)
@@ -129,7 +129,7 @@ function braiding_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: Bit
     return Bmatrix
 end
 
-function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
@@ -138,7 +138,7 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
-        output = braiding_basismap(T, basis[i], idx, pbc)
+        output = braidingsq_basismap(T, basis[i], idx, pbc)
         if length(output) == 4
             outputstate1, outputstate2, output1, output2=output
             j2=searchsortedfirst(basis, outputstate2)
@@ -152,4 +152,4 @@ function braidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) whe
     
     return mapped_state
 end
-braidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingmap(BitStr{N, Int}, state, idx, pbc)
+braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)

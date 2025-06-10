@@ -65,7 +65,7 @@ using LinearAlgebra
     len= length(antiGS)
     vecGS = kron(antiGS, antiGS)
     for i in 2:2:N
-        antiGS = braidingmap(N, antiGS, i)
+        antiGS = braidingsqmap(N, antiGS, i)
         antiGS/= norm(antiGS)
     end
     Choistate = ladderChoi(N, 1.0, vecGS)
@@ -118,28 +118,28 @@ end
 end
 
 
-@testset "ladderbraidingmap" begin
+@testset "ladderbraidingsqmap" begin
     N=3
     state = collect(1:4)
     ϕ = (1+√5)/2
     onechain_state = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
-    @test ladderbraidingmap(N, kron(state, state), 2) ≈ kron(onechain_state, onechain_state)
+    @test ladderbraidingsqmap(N, kron(state, state), 2) ≈ kron(onechain_state, onechain_state)
 
     st1= collect(1:4);st2= collect(5:8)
     st1map = [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+3(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 2exp(-6im*π/5), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+3(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 4exp(-6im*π/5)]
     st2map = [5*(exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2))+7(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), 6exp(-6im*π/5), 5(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+7(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 8exp(-6im*π/5)]
-    @test braidingmap(N, st1, 2) ≈ st1map
-    @test braidingmap(N, st2, 2) ≈  st2map
-    @test ladderbraidingmap(N, kron(st1, st2), 2) ≈ kron(st1map, st2map)
+    @test braidingsqmap(N, st1, 2) ≈ st1map
+    @test braidingsqmap(N, st2, 2) ≈  st2map
+    @test ladderbraidingsqmap(N, kron(st1, st2), 2) ≈ kron(st1map, st2map)
 
     # translation invariance test
     N = 4
     state = fill(1,7)
     order = [1, 3, 4, 6, 7, 2, 5]
-    onechain_state = braidingmap(N, braidingmap(N, state, 2),4)
+    onechain_state = braidingsqmap(N, braidingsqmap(N, state, 2),4)
     @test onechain_state[order][order] ≈ onechain_state
     
-    twochain_state = ladderbraidingmap(N, ladderbraidingmap(N, kron(state, state), 2),4)
+    twochain_state = ladderbraidingsqmap(N, ladderbraidingsqmap(N, kron(state, state), 2),4)
     @test laddertranslationmap(N, laddertranslationmap(N, twochain_state)) ≈ twochain_state
 
 end
