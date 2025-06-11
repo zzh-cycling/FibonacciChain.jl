@@ -1,4 +1,4 @@
-function measure_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true, sign::Symbol) where {N, T <: BitStr{N}}
+function measure_basismap(::Type{T}, τ:Float64, state::T, i::Int, pbc::Bool=true, sign::Symbol) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (:p, :m) "sign must be either :p the plus or :m the minus"
@@ -55,7 +55,7 @@ function measure_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true, sign::Sym
 end
 
 
-function measure_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function measure_matrix(::Type{T}, τ:Float64, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
@@ -77,7 +77,7 @@ function measure_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitS
     return Bmatrix
 end
 
-function measuremap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function measuremap(::Type{T}, τ:Float64, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
