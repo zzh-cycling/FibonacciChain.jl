@@ -238,6 +238,7 @@ end
     N=3
     T = BitStr{N, Int}
     ϕ = (1+√5)/2
+    # Test braidingsq_matrix = the formulas of B^2 or not
     @test FibonacciChain.braidingsq_matrix(T, 2, false) ≈  ComplexF64[
     exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2) 0.0 (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2) 0.0 0.0;
     0.0 exp(-6im*π/5) 0.0 0.0 0.0; 
@@ -256,6 +257,7 @@ end
         0 0 1 0 0;
         1 0 0 0 0]
 
+    # Test that the braidingsq_matrix is equal to U' * B^2 * U
     @test FibonacciChain.braidingsq_matrix(T, 2, false) ≈ U' * B^2 * U
     @test FibonacciChain.braidingsq_matrix(T, 2) ≈ (U' * B^2 * U)[1:4, 1:4]
 
@@ -277,18 +279,29 @@ end
     X=[0 1;1 0]
     P0=[1 0;0 0]
     P1=[0 0;0 1]
-    σ2t = (1-2ϕ^(-1)) * Z +2ϕ^(-3/2) * X
-    σt = ϕ^(-1)*Z +2ϕ^(-1/2) * X
+    σ2t = (1-2ϕ^(-1)) * Z - 2ϕ^(-3/2) * X
+    σt = -ϕ^(-1)*Z +ϕ^(-1/2) * X
 
-    # F = P0 ⊗ I(2) ⊗ P1 + P1 ⊗ I(2) ⊗ P0 + P1 ⊗ X ⊗ P1 + P0 ⊗ σt ⊗ P0
-    # Fc = U'*F[idx, idx]*U
-    # B1 = exp(1im*π/10)*(P0 ⊗ exp(-7im*π/10 .* Z) ⊗ P1 + P1 ⊗ exp(-7im*π/10 .* Z) ⊗ P0 + P1 ⊗ exp(+7im*π/10 .* Z) ⊗ P1 + P0 ⊗ exp(-7im*π/10 .* σ2t) ⊗ P0)
-    # Bc=B1[idx, idx]
-    #  (U'*(exp(1im*π/10)*F'*(I(2)⊗exp(-7im*π/10 .* Z)⊗I(2))*F)[idx,idx])*U
-    # exp(1im*π/10)*F'*(I(2)⊗exp(-7im*π/10 .* Z)⊗I(2))*F ≈ Bc
-    # @test U'*Bc^2*U ≈ FibonacciChain.braidingsq_matrix(T, 2, false)
-    # @test U'*Bc*U ≈ B
-    # Bc^2
+    pesudoF = [
+        0 0 0 0 0
+        0 1 0 0 0;
+        0 0 1 0 0;
+        0 0 0 ϕ^(-1) ϕ^(-1/2);
+        0 0 0 ϕ^(-1/2) -ϕ^(-1)]
+    F = [
+        1 0 0 0 0
+        0 1 0 0 0;
+        0 0 1 0 0;
+        0 0 0 ϕ^(-1) ϕ^(-1/2);
+        0 0 0 ϕ^(-1/2) -ϕ^(-1)]
+    # Zhu's formulas
+    Fz = P0 ⊗ I(2) ⊗ P1 + P1 ⊗ I(2) ⊗ P0 + P1 ⊗ X ⊗ P1 + P0 ⊗ σt ⊗ P0
+    Fc = U'*Fz[idx, idx]*U
+    @test pesudoF ≈ Fc
+    Bz = exp(1im*π/10)*(P0 ⊗ exp(-7im*π/10 .* Z) ⊗ P1 + P1 ⊗ exp(-7im*π/10 .* Z) ⊗ P0 + P1 ⊗ exp(+7im*π/10 .* Z) ⊗ P1 + P0 ⊗ exp(-7im*π/10 .* σ2t) ⊗ P0)
+    Bc=U'*Bz[idx, idx]*U
+    @test Bc ≈ B
+
 end
 
 @testset "braidingsqmap" begin
