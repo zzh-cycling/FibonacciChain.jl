@@ -243,8 +243,8 @@ end
 
     state = fill(1.0,16)
     output = laddermeasuremap(T, τ, state, idx, sign)  
-    onchain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
-    @test output == kron()
+    onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
+    @test output == kron(onechain_st, onechain_st)
     
     sign = :m
     coef = (1-exp(1))/2√(exp(2)+1)
