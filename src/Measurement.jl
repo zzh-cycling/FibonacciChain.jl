@@ -115,7 +115,7 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
 
     basis=Fibonacci_basis(T, pbc)
     l=length(basis)
-    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
+    @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
         for j in 1:l

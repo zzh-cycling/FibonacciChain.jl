@@ -232,7 +232,35 @@ end
 end
 
 @testset "laddermeasuremap" begin
+    N = 3
+    T = BitStr{N, Int}
+    τ = 1.0
+    idx = 2
+    sign = :p
+    cstτ = (exp(1)+1)/2√(exp(2)+1)
+    coef = (exp(1)-1)/2√(exp(2)+1)
+    ϕ = (1 + √5) / 2
+
+    state = fill(1.0,16)
+    output = laddermeasuremap(T, τ, state, idx, sign)  
+    onchain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
+    @test output == kron()
     
+    sign = :m
+    coef = (1-exp(1))/2√(exp(2)+1)
+    output = measuremap(T, τ, state, idx, sign)  
+    @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
+
+    # Test with a different state
+    state = collect(1.0:4)
+    output = measuremap(T, τ, state, idx, sign) 
+    @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef)]
+
+    # Try with obc
+    pbc = false
+    state = collect(1.0:5)
+    output = measuremap(T, τ, state, idx, sign, pbc)
+    @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef), 5(cstτ-coef)]
 end
 
 @testset "Sampling" begin
