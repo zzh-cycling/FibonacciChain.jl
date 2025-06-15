@@ -223,8 +223,7 @@ measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurem
 measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc)
 
 
-function measurement_tree_visualization(trajectories::Vector{Vector{Symbol}}, 
-                                      probabilities::Vector{Float64})
+function measurement_tree_visualization(trajectories::Vector{Vector{Symbol}}, probabilities::Vector{Float64})
     """
     visualize measurement tree
     """
@@ -234,7 +233,6 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Symbol}},
     println("Measurement Tree Visualization:")
     println("==============================")
     
-    # 按轨迹长度分组
     max_length = maximum(length.(trajectories))
     
     for traj_length in 0:max_length
@@ -256,82 +254,6 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Symbol}},
     end
 end
 
-function analyze_measurement_tree(::Type{T}, τ::Float64, initial_state::Vector{ET}, 
-                                measurement_sites::Vector{Int}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
-    """
-    分析完整的测量树结构
-    """
-    final_states, trajectories, probabilities = complete_measurement_enumeration(
-        T, τ, initial_state, measurement_sites, pbc)
-    
-    num_final_states = length(final_states)
-    println("Total number of final states: $(num_final_states)")
-    println("Expected number: $(2^length(measurement_sites))")
-    
-    # 验证概率归一化
-    total_prob = sum(probabilities)
-    println("Total probability: $(total_prob)")
-    
-    # 计算每个轨迹的纠缠熵
-    entropies = Vector{Float64}(undef, num_final_states)
-    for i in 1:num_final_states
-        entropies[i] = ee(ladderrdm(N, collect(1:N-1), final_states[i], pbc))
-    end
-    
-    # 计算Born平均纠缠熵
-    avg_entropy = sum(probabilities .* entropies) / total_prob
-    println("Born-averaged entanglement entropy: $(avg_entropy)")
-    
-    # 显示一些代表性轨迹
-    println("\nSome representative trajectories:")
-    sorted_indices = sortperm(probabilities, rev=true)
-    for i in 1:min(8, num_final_states)
-        idx = sorted_indices[i]
-        println("Trajectory $(trajectories[idx]): probability = $(probabilities[idx]/total_prob)")
-        println("  Entanglement entropy = $(entropies[idx])")
-    end
-    
-    return final_states, trajectories, probabilities, entropies, avg_entropy
-end
-
-# function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Symbol, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
-#     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
-#     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-
-#     basis=Fibonacci_basis(T, pbc)
-#     l=length(basis)
-#     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
-#     mapped_state = zeros(ET, length(state))
-
-#     measurement_sites = collect(2:2:N) 
-#     Problis = zeros(length(measurement_sites))
-#     num_sites = length(measurement_sites)
-    
-#     samples = Vector{Vector{Symbol}}(undef, num_samples)
-
-#     current_state = copy(state)
-#     for (site_idx, measurement_site) in enumerate(measurement_sites)
-#             state_after_p = laddermeasuremap(T, τ, current_state, measurement_site, :p, pbc)
-            
-#             state_after_m = laddermeasuremap(T, τ, current_state, measurement_site, :m, pbc)
-            
-           
-#             prob_p = state_after_p'*state_after_p
-#             prob_m = state_after_m'*state_after_m
-            
-        
-#             # Normalize state
-#             state_after_m /= sqrt(prob_m)
-#             state_after_p /= sqrt(prob_p)
-           
-
-#         end
-        
-#         # 存储采样结果
-#         samples[sample_idx] = current_sequence
-#         sample_weights[sample_idx] = total_weight
-# end
-# Sampling(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Symbol, pbc::Bool=true) where {ET} = Sampling(BitStr{N, Int}, τ, state, idx, sign, pbc)
 
 # function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
 #     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
