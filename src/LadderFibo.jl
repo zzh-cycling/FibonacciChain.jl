@@ -1,4 +1,4 @@
-function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
+function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
     # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
@@ -10,8 +10,8 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
     for i in 1:l
         # NOTING that in julia the matrix is column-major order, so we reshape a reduced density matrix to vector, its element will be like a0b0, a1b0, a2b0,,,
         for j in 1:l
-            output1 = braiding_basismap(T, basis[i], idx, pbc)
-            output2 = braiding_basismap(T, basis[j], idx, pbc)
+            output1 = braidingsq_basismap(T, basis[i], idx, pbc)
+            output2 = braidingsq_basismap(T, basis[j], idx, pbc)
             if length(output1) == 4 && length(output2) == 4
                 basisi1, basisi2, coefi1, coefi2=output1
                 basisj1, basisj2, coefj1, coefj2=output2
@@ -44,7 +44,7 @@ function ladderbraidingmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=tru
     
     return mapped_state
 end
-ladderbraidingmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingmap(BitStr{N, Int}, state, idx, pbc)
+ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
 function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
     # The PBC anyon relation with basis like:
@@ -53,12 +53,12 @@ function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) wh
 
     if pbc
         for i in 2:2:N
-            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc)
             state/=norm(state) # normalize the state after each braiding
         end
     else
         for i in 2:2:N-1
-            state=(1-p)*state+p*ladderbraidingmap(T, state, i, pbc)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc)
         end
     end
 
