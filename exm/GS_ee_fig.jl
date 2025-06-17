@@ -22,7 +22,7 @@ function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::In
 end
 
 N=20
-energy, states = eigen(Fibonacci_Ham(20))
+energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 antiGS= states[:, 1]
 save("./exm/Fibo_antiGS_20.jld", "antiGS", antiGS)
 EElis=eelis_Fibo_state(N, antiGS)
@@ -30,7 +30,7 @@ cent, fig = fitCCEntEntScal(EElis; mincut=4,pbc=true)
 savefig(fig, "./exm/Fibo_ee_scaling_20.pdf")
 display(fig)
 
-energy, states = eigen(Fibonacci_ferroHam(20))
+energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 ferroGS= states[:, 1]
 save("./exm/Fibo_ferroGS_20.jld", "ferroGS", ferroGS)
 EElis=eelis_Fibo_state(N, ferroGS)

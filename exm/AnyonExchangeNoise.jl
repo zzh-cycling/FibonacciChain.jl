@@ -2,36 +2,28 @@ using FibonacciChain
 using LinearAlgebra
 using BitBasis
 using JLD
-using Plots
+# using Plots
+using Arpack
+using SparseArrays
 include("FitEntEntScal.jl")
 
 # one pure Fibonacci chain #
 
 N=18
-energy, states = eigen(Fibonacci_Ham(N))
+energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 antiGS= states[:, 1]
-vecGS = kron(antiGS, antiGS)
-splitlis=Vector(1:N-1)
-
-EE_lis=zeros(length(splitlis))
-for m in eachindex(EE_lis)
-    subrho=rdm_Fibo(N, collect(1:splitlis[m]), antiGS)
-    @time EE_lis[m]=ee(subrho)
-end
-
-
+EE_lis=eelis_Fibo_state(N, state)
 
 cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
 # savefig(fig, "./exm/fig/antiferro_Fibo_ee_scaling_$(N).pdf")
 display(fig)
 
-### two noisy Fibonacci chain with varied p
+## two noisy Fibonacci chain with varied p
 
-N=12
-energy, states = eigen(Fibonacci_Ham(N))
+N=16
+energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 antiGS= states[:, 1]
 vecGS = kron(antiGS, antiGS)
-splitlis=Vector(1:N-1)
 
 ###==varied p==###
 probabilitylis=collect(0.0:0.05:1.0)
@@ -40,19 +32,15 @@ centlis=similar(probabilitylis)
 for (idx, i) in enumerate(probabilitylis)
     @show i
     state = ladderChoi(N, i, vecGS)
-    EE_lis=zeros(length(splitlis))
-    for m in eachindex(EE_lis)
-        @show m
-        subrho=ladderrdm(N, collect(1:splitlis[m]), state)
-        @time EE_lis[m]=ee(subrho)
-    end
-    save("./exm/data/double_Fibo_ee_scaling_$(N)_prob_$(i).jld", "EE_lis", EE_lis)
+    
+    @time EE_lis=eelis_Fiboladder_state(N, state)
+    save("./exm/data/double_Fibo_ee_scaling_$(N)_prob_$(i).jld", "state", state, "EE_lis", EE_lis)
 end
 
-## one Noisy chain##
+# one Noisy chain##
 
-N=12
-energy, states = eigen(Fibonacci_Ham(N))
+N=32
+energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 antiGS= states[:, 1]
 splitlis=Vector(1:N-1)
 
@@ -61,13 +49,10 @@ for i in 2:2:N
     antiGS/= norm(antiGS)
 end
 
-EE_lis=zeros(length(splitlis))
-for m in eachindex(EE_lis)
-    subrho=rdm_Fibo(N, collect(1:splitlis[m]), antiGS)
-    EE_lis[m]=ee(subrho)
-end
+EE_lis=eelis_Fibo_state(N, antiGS)
 # save("./exm/data/single_Fibo_ee_scaling_$(N).jld", "state", antiGS, "EE_lis", EE_lis)
 cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
+save("./exm/data/single_Fibo_ee_scaling_$(N).jld", "EE_lis", EE_lis)
 savefig(fig, "./exm/fig/single_Fibo_ee_scaling_$(N).pdf")
 display(fig)
 
