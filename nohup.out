@@ -1,0 +1,70 @@
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+ERROR: LoadError: UndefVarError: `Born_Sampling_ee_tau_lis` not defined in `Main`
+Stacktrace:
+ [1] top-level scope
+   @ ~/FibonacciChain.jl/exm/ImportantSampling/Sampling.jl:14
+in expression starting at /home/zhaohuizhi/FibonacciChain.jl/exm/ImportantSampling/Sampling.jl:8
+Received argument: 22
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+Received argument: 22
+  1.568201 seconds (2.67 M allocations: 232.655 MiB, 9.26% gc time, 76.58% compilation time)
+N = 22, τ = 0.0
+
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+Received argument: 24
+  2.324992 seconds (3.13 M allocations: 463.560 MiB, 13.66% gc time, 59.43% compilation time)
+N = 24, τ = 0.0
+
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
+Received argument: 26
+  5.695979 seconds (4.30 M allocations: 966.691 MiB, 8.03% gc time, 24.53% compilation time)
+N = 26, τ = 0.0
+
+Received argument: 28
+ 13.610479 seconds (7.38 M allocations: 2.606 GiB, 7.07% gc time, 12.24% compilation time)
+N = 28, τ = 0.0
+
+Received argument: 30
+ 43.992742 seconds (15.42 M allocations: 6.925 GiB, 3.94% gc time, 4.08% compilation time)
+N = 30, τ = 0.0
+
+Received argument: 32
+118.284971 seconds (36.50 M allocations: 20.524 GiB, 3.08% gc time, 2.00% compilation time)
+N = 32, τ = 0.0
+
+The latest version of Julia in the `release` channel is 1.11.5+0.x64.linux.gnu. You currently have `1.11.3+0.x64.linux.gnu` installed. Run:
+
+  juliaup update
+
+in your terminal shell to install Julia 1.11.5+0.x64.linux.gnu and update the `release` channel to that version.
