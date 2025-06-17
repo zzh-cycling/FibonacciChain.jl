@@ -27,4 +27,5 @@ for (idx, τ) in enumerate(τlis)
     # display(fig)
 end
 
-save("./exm/Born_Sampling_eelis_N$(N).jld", "average_EE_tau_lis", average_EE_tau_lis)
+save("./exm/data/Born_Sampling_ee_tau_lis_N$(N).jld", "average_EE_tau_lis", average_EE_tau_lis)
+
