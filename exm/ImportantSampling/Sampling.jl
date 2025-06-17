@@ -76,38 +76,3 @@ legend_foreground_color=nothing,
 label=L_list',c= cgrad(:blues, length(L_list)), marker_z=L_list',line_z=L_list',colorbar=false, lw=2)
 annotate!(fig, [(0.115, 0.42, text(L"L=", 10, :black))])
 savefig(fig, "./exm/fig/Born_eeliscc_scaling.pdf")
-
-
-N=20
-trajectorieslis=Vector{Vector{Vector{Symbol}}}(undef, length(τlis))
-probabilitieslis=Vector{Vector{Float64}}(undef, length(τlis))
-entropieslis=Vector{Vector{Vector{Float64}}}(undef, length(τlis))
-for (idx,i) in enumerate(τlis)
-    data = load("./exm/data/Born_eelis_N$(N)_τ$(i).jld")
-    trajectories = data["trajectories"]
-    probabilities = data["probabilities"]
-    entropies = data["entropies"]
-    
-    trajectorieslis[idx] = trajectories
-    probabilitieslis[idx] = probabilities
-    entropieslis[idx] = entropies
-end
-
-save("./exm/data/Born_enumed_eelis_N$(N).jld", "trajectorieslis", trajectorieslis, 
-     "probabilitieslis", probabilitieslis, "entropieslis", entropieslis)
-
-L_cent_tau_lis = Vector{Vector{Float64}}(undef, length(L_list))
-for (idx,i) in enumerate(L_list)
-    data = load("./exm/data/Born_eeliscc_N$(i).jld", "centlis")
-    L_cent_tau_lis[idx] = data
-end
-
-save("./exm/data/Born_enumedcc_tau_N1020.jld", "L_cent_tau_lis", L_cent_tau_lis, "τlis", τlis)
-probabilitylis=collect(0.0:0.05:1.0)
-EE_lislis=Vector{Vector{Float64}}(undef, length(probabilitylis))
-for (idx,i) in enumerate(probabilitylis)
-    data=load("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld","EE_lis")
-    EE_lislis[idx] = data
-end 
-
-save("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld","EE_plis",EE_lislis)
