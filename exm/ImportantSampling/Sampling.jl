@@ -56,8 +56,7 @@ for (idx, τ) in enumerate(τlis)
     measurement_sites = collect(2:2:N)
     @time final_states, trajectories, probabilities, entropies = Born_eelis(N, τ, antiGS, measurement_sites)
     
-    save("./exm/data/Born_eelis_N$(N)_τ$(τ).jld", "final_states", final_states, 
-         "trajectories", trajectories, "probabilities", probabilities, "entropies", entropies)
+    save("./exm/data/Born_eelis_N$(N)_τ$(τ).jld", "trajectories", trajectories, "probabilities", probabilities, "entropies", entropies)
 
     EE_lis= sum(probabilities.*entropies)
     cent, fig = fitCCEntEntScal(EE_lis; mincut=2, pbc=true)
@@ -69,14 +68,8 @@ end
 save("./exm/data/Born_eeliscc_N$(N).jld", "centlis", centlis, "τlis", τlis)
 
 
-L_list = [10, 12, 14, 16, 18, 20]
-centlis10=load("./exm/data/Born_eeliscc_N10.jld", "centlis")
-centlis12=load("./exm/data/Born_eeliscc_N12.jld", "centlis")
-centlis14=load("./exm/data/Born_eeliscc_N14.jld", "centlis")
-centlis16=load("./exm/data/Born_eeliscc_N16.jld", "centlis")
-centlis18=load("./exm/data/Born_eeliscc_N18.jld", "centlis")
-centlis20=load("./exm/data/Born_eeliscc_N20.jld", "centlis")
-totalcentlis = hcat(centlis10, centlis12, centlis14, centlis16, centlis18, centlis20)
+L_list = collect(10:2:20)
+totalcentlis = load("./exm/data/Born_enumedcc_tau_N1020.jld", "L_cent_tau_lis")
 
 fig = plot(γlis, totalcentlis, marker=:o, xlabel=L"\gamma=\tanh(\tau)", ylabel=L"c_{cent}",   legend_background_color=nothing,
 legend_foreground_color=nothing, 
@@ -110,3 +103,11 @@ for (idx,i) in enumerate(L_list)
 end
 
 save("./exm/data/Born_enumedcc_tau_N1020.jld", "L_cent_tau_lis", L_cent_tau_lis, "τlis", τlis)
+probabilitylis=collect(0.0:0.05:1.0)
+EE_lislis=Vector{Vector{Float64}}(undef, length(probabilitylis))
+for (idx,i) in enumerate(probabilitylis)
+    data=load("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld","EE_lis")
+    EE_lislis[idx] = data
+end 
+
+save("./exm/data/double_Fibo_ee_scaling_10_prob_$(i).jld","EE_plis",EE_lislis)

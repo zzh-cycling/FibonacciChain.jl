@@ -46,7 +46,7 @@ for (idx, i) in enumerate(probabilitylis)
         subrho=ladderrdm(N, collect(1:splitlis[m]), state)
         @time EE_lis[m]=ee(subrho)
     end
-    save("./exm/data/double_Fibo_ee_scaling_$(N)_prob_$(i).jld", "state", state, "EE_lis", EE_lis)
+    save("./exm/data/double_Fibo_ee_scaling_$(N)_prob_$(i).jld", "EE_lis", EE_lis)
 end
 
 ## one Noisy chain##
