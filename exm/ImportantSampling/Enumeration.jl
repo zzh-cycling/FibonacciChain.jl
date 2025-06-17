@@ -48,22 +48,26 @@ display(fig)
 
 γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
 τlis = atanh.(γlis)
+
 centlis = zeros(length(τlis))
-
-
+entropieslis = Vector{Vector{Vector{Float64}}}(undef, length(τlis))
+probabilitieslis = Vector{Vector{Float64}}(undef, length(τlis))
+trajectorieslis = Vector{Vector{Symbol}}(undef, length(τlis))
 for (idx, τ) in enumerate(τlis)
     println("τ = $τ")
     measurement_sites = collect(2:2:N)
     @time final_states, trajectories, probabilities, entropies = Born_eelis(N, τ, antiGS, measurement_sites)
     
-    save("./exm/data/Born_eelis_N$(N)_τ$(τ).jld", "trajectories", trajectories, "probabilities", probabilities, "entropies", entropies)
-
     EE_lis= sum(probabilities.*entropies)
     cent, fig = fitCCEntEntScal(EE_lis; mincut=2, pbc=true)
     centlis[idx] = cent
-    display(fig)
-    # savefig(fig, "./exm/fig/Born_eeliscc_N$(N)_τ$(τ).pdf")
+    entropieslis[idx] = entropies
+    probabilitieslis[idx] = probabilities
+    trajectorieslis[idx] = trajectories
+    # display(fig)
 end
+
+save("./exm/data/Born_enumed_eelis_N$(N).jld", "entropieslis", entropieslis, "probabilitieslis", probabilitieslis, "trajectorieslis", "trajectorieslis")
 
 save("./exm/data/Born_eeliscc_N$(N).jld", "centlis", centlis, "τlis", τlis)
 
