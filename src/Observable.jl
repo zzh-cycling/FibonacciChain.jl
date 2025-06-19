@@ -13,11 +13,34 @@ function ee(subrm::Matrix{ET}) where {ET}
     return EE
 end
 
-function eelis_Fibo_state(N::Int64,splitlis::Vector{Int64},state::Vector{ET},pbc::Bool=true) where {ET}
+function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
+    # Generate ee list for a given state from the left to the right
+    splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
-        subrho=rdm_Fibo(N, collect(1:splitlis[m]), state, pbc)
-        EE_lis[m]=ee(subrho)
+        if m<= div(N,2)
+            subrho=rdm_Fibo(N, collect(1:m), state, pbc)
+            EE_lis[m]=ee(subrho)
+        else
+            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc)
+            EE_lis[m]=ee(subrho)
+        end
+    end
+    return EE_lis
+end
+
+function eelis_Fiboladder_state(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
+    # Generate ee list for a given state from the left to the right
+    splitlis=Vector(1:N-1)
+    EE_lis=zeros(length(splitlis))
+    for m in eachindex(EE_lis)
+        if m<= div(N,2)
+            subrho=ladderrdm(N, collect(1:m), state, pbc)
+            EE_lis[m]=ee(subrho)
+        else
+            subrho=ladderrdm(N, collect(m+1:N), state, pbc)
+            EE_lis[m]=ee(subrho)
+        end
     end
     return EE_lis
 end

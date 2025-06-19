@@ -15,7 +15,15 @@ end
 @testset "eelis" begin
     N=6
     state=eigvecs(Fibonacci_Ham(N))[:,1]
-    EE_lis=eelis_Fibo_state(N,collect(1:N-1),state)
+    EE_lis=eelis_Fibo_state(N,state)
+    @test length(EE_lis)==length(collect(1:N-1))
+    @test all(EE_lis .> 0)
+end
+
+@testset "ee_Fiboladder_lis" begin
+    N=3
+    state=eigvecs(Fibonacci_Ham(N))[:,1]
+    EE_lis=eelis_Fiboladder_state(N, kron(state, state))
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
 end

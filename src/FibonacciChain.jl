@@ -1,14 +1,16 @@
 module FibonacciChain
 
-using BitBasis, LinearAlgebra
+using BitBasis, LinearAlgebra, SparseArrays, Arpack
 
 export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
-export ee, eelis_Fibo_state, translation_matrix, inversion_matrix, braidingsqmap
+export ee, eelis_Fibo_state, eelis_Fiboladder_state, translation_matrix, inversion_matrix, braidingsqmap
 export ladderChoi, ladderrdm, ladderbraidingsqmap, laddertranslationmap
-export measure_basismap, measuremap, laddermeasuremap, Sampling
+export measure_basismap, measuremap, laddermeasuremap, Sampling, measurement_enumeration, measurement_tree_visualization
+export Fibonacci_Ham_sparse
 
-include("Basis.jl")
+include("Basis.jl") 
 include("Observable.jl")
 include("LadderFibo.jl")
 include("Measurement.jl")
+include("FiboSparse.jl")
 end

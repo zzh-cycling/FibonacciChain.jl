@@ -1,10 +1,11 @@
 using FibonacciChain
 using Test
 using LinearAlgebra
+using BitBasis
 
 @testset "measure_basismap" begin
-    N = 3
-    ϕ = (1 + √5) / 2
+N = 3
+ϕ = (1 + √5) / 2
     T = BitStr{N, Int}
     state = T(0b000)
     idx = 2
@@ -250,6 +251,35 @@ end
     @test output ≈ kron(onechain_st, onechain_st)
 end
 
-@testset "Sampling" begin
+@testset "measurement_enumeration" begin
+    N=6
+    energy, states = eigen(Fibonacci_Ham(N))
+    antiGS= states[:, 1]
+
+    τ = 1.0
+    measurement_sites = collect(2:2:N)
+    
+    final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
+
+    num_final_states = length(final_states)
+    @test num_final_states == 2^length(measurement_sites)
+
+    total_prob = sum(probabilities)
+    @test isapprox(total_prob, 1.0, atol=1e-6)
+end
+
+@testset "Sample" begin
+    N=6
+    energy, states = eigen(Fibonacci_Ham(N))
+    antiGS= states[:, 1]
+    τ = 1.0
+    measurement_sites = collect(2:2:N)
+    
+    sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
+
+    num_final_states = length(sample_measured_states)
+    @test num_final_states == 1000
+
+    @test [:m for i in 2:2:N] in samples
     
 end
