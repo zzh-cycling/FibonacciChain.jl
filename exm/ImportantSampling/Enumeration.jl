@@ -72,11 +72,3 @@ save("./exm/data/Born_enumed_eelis_N$(N).jld", "entropieslis", entropieslis, "pr
 save("./exm/data/Born_eeliscc_N$(N).jld", "centlis", centlis, "τlis", τlis)
 
 
-L_list = collect(10:2:20)
-totalcentlis = load("./exm/data/Born_enumedcc_tau_N1020.jld", "L_cent_tau_lis")
-
-fig = plot(γlis, totalcentlis, marker=:o, xlabel=L"\gamma=\tanh(\tau)", ylabel=L"c_{cent}",   legend_background_color=nothing,
-legend_foreground_color=nothing, 
-label=L_list',c= cgrad(:blues, length(L_list)), marker_z=L_list',line_z=L_list',colorbar=false, lw=2)
-annotate!(fig, [(0.115, 0.42, text(L"L=", 10, :black))])
-savefig(fig, "./exm/fig/Born_eeliscc_scaling.pdf")
