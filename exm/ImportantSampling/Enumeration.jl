@@ -61,7 +61,8 @@ function Born_FENlis(N, pbc::Bool=true) where {ET}
         FE_lis[idx] = temp / num_final_states
     end
 
-    return FE_lis
+    save("./exm/data/Born_enumed_FENlis_N$(N).jld", "FE_lis", FE_lis)
+    # return FE_lis
 end
 
 if length(ARGS) == 0
