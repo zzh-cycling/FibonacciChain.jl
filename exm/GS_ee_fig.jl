@@ -26,15 +26,15 @@ N=34
 energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 antiGS= states[:, 1]
 EElis=eelis_Fibo_state(N, antiGS)
-save("./exm/Fibo_antiGS_N$(N).jld", "antiGS", antiGS, "EElis", EElis)
+save("./exm/Fibo_antiGS_N$(N)_EElis.jld", "antiGS", antiGS, "EElis", EElis)
 # cent, fig = fitCCEntEntScal(EElis; mincut=4,pbc=true)
 # savefig(fig, "./exm/Fibo_ee_scaling_N$(N).pdf")
 # display(fig)
 
-energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
-ferroGS= states[:, 1]
-EElis=eelis_Fibo_state(N, ferroGS)
-save("./exm/Fibo_ferroGS_N$(N)_EElis.jld", "ferroGS", ferroGS, "EElis", EElis)
+# energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR) # Noting here sparse is for anti, not ferro
+# ferroGS= states[:, 1]
+# EElis=eelis_Fibo_state(N, ferroGS)
+# save("./exm/Fibo_ferroGS_N$(N)_EElis.jld", "ferroGS", ferroGS, "EElis", EElis)
 # cent, fig = fitCCEntEntScal(EElis; mincut=2,pbc=true)
 # savefig(fig, "./exm/ferroFibo_ee_scaling_N$(N).pdf")
 # display(fig)

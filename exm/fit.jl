@@ -3,7 +3,7 @@ include("FitEntEntScal.jl")
 using Plots
 using LaTeXStrings
 
-N = 12
+N = 16
 probabilitylis=collect(0.0:0.05:1.0)
 centlis=similar(probabilitylis)
 centlisL=similar(probabilitylis)
@@ -31,3 +31,10 @@ plot!(fig, probabilitylis, centlisR, label=L"c_{R}", marker=:circle)
 plot!(fig, [0.01, 0.99], √2*[1,1],  c=:Gray, label=false, linestyle=:dash, linewidth=2)
             
 savefig(fig, "./exm/fig/double_Fibo_$(N)_pvscent.pdf")
+
+# EE_plis=Vector{Vector{Float64}}(undef, length(probabilitylis))
+# N=14
+# for (idx, i) in enumerate(probabilitylis)
+#     EE_plis[idx] = load("exm/data/double_Fibo_ee_scaling_$(N)_prob_$(i).jld","EE_lis")
+# end
+# save("exm/data/double_Fibo_ee_scaling_$(N)_EE_plis.jld", "EE_plis", EE_plis)
