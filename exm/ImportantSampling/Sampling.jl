@@ -16,6 +16,8 @@ function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
     τlis = atanh.(γlis)
     average_EE_tau_lis=Vector{Vector{Float64}}(undef, length(τlis))
     variance_EE_tau_lis = Vector{Vector{Float64}}(undef, length(τlis))
+    average_FE_tau_lis = Vector{Float64}(undef, length(τlis))
+    variance_FE_tau_lis = Vector{Float64}(undef, length(τlis))
 
     @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
