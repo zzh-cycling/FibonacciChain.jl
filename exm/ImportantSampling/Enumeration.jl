@@ -38,7 +38,7 @@ function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measuremen
     return final_states, trajectories, probabilities, entropies
 end
 
-function Born_FENlis(N, pbc::Bool=true) where {ET}
+function Born_FENlis(N, pbc::Bool=true)
 
     γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
     τlis = atanh.(γlis)
