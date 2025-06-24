@@ -63,6 +63,18 @@ function Born_FENlis(N, pbc::Bool=true) where {ET}
 
     return FE_lis
 end
+
+if length(ARGS) == 0
+    println("No arguments provided.")
+else
+    for arg in ARGS
+        println("Received argument: $arg")
+        N=parse(Int64, arg)
+        # Born_Sampling_ee_tau_lis(N)
+        Born_FENlis(N)
+    end
+end
+
 # N=16
 # energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 # antiGS= states[:, 1]
