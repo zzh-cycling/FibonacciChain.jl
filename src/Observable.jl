@@ -176,3 +176,7 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
     return mapped_state
 end
 braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
+
+function free_energy(state::Vector{ET}) where {ET} 
+    return -log(state'*state)
+end

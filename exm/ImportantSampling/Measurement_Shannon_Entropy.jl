@@ -31,4 +31,9 @@ for (id, N) in enumerate(L_list)
     ShannonEnt_Llis[id] = SEntlis
 end
 
+fig = plot(γlis, ShannonEnt_Llis, marker=:o, xlabel=L"\gamma=\tanh(\tau)", ylabel=L"S_{measure}",   legend_background_color=nothing,
+legend_foreground_color=nothing, 
+label=L_list',c= cgrad(:blues, length(L_list)), marker_z=L_list',line_z=L_list',colorbar=false, lw=2, legend=:topright)
+annotate!(fig, [(0.95, 7.0, text(L"L=", 10, :black))])
 save("./exm/data/Born_enumedmeasure_ShannonEnt_N1020.jld", "ShannonEnt_Llis", ShannonEnt_Llis)
+savefig(fig, "./exm/fig/Born_enumedmeasure_ShannonEnt_scaling.pdf")

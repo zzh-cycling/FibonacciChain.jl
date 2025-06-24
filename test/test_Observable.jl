@@ -321,4 +321,9 @@ end
     @test braidingsqmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
 end
 
-
+@testset "free_energy" begin
+    state = collect(1:10)
+    state/=norm(state)
+    FE=free_energy(state)
+    @test FE ≈ 0.0
+end
