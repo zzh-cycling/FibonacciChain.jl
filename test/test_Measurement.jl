@@ -2,6 +2,7 @@ using FibonacciChain
 using Test
 using LinearAlgebra
 using BitBasis
+using Arpack
 
 @testset "measure_basismap" begin
 N = 3
@@ -270,9 +271,9 @@ end
 
 @testset "Sample" begin
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
-    τ = 1.0
+    τ = 3.802
     measurement_sites = collect(2:2:N)
     
     sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
@@ -283,3 +284,64 @@ end
     @test [:m for i in 2:2:N] in samples
     
 end
+@testset "Bulkpost_selection" begin
+end
+function test_post_selection()
+    L = 10
+    τ = 0.1
+    D = 30L
+    pbc = true
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    average_EElis=zeros(L-1)
+
+    EE_tlis = zeros(D)
+    sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, pbc)
+    for j in 1:D
+        state_t = sample_measured_states[j]
+        EE = eelis_Fibo_state(L, state_t)[5]
+        EE_tlis[j] = EE
+    end
+    final_state = sample_measured_states[end]
+    average_EElis = eelis_Fibo_state(L, final_state)
+
+    
+    return average_EElis, EE_tlis
+end
+
+@testset "Bulkmeasure" begin
+    
+end
+
+function cal()
+    L = 10
+    D = 300L
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    average_EElis=zeros(L-1)
+    
+    samples_num = 100
+
+    average_EE_tlis= zeros(D) 
+    for i in 1:samples_num
+        @show i
+        sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
+        EElis = zeros(D)
+        for j in 1:D
+            state_t = sample_measured_states[j]
+            EE = eelis_Fibo_state(L, state_t)[5]
+            EElis[j] = EE
+        end
+        final_state = sample_measured_states[end]
+        average_EElis .+= eelis_Fibo_state(L, final_state)
+        average_EE_tlis .+= EElis
+    end
+
+    average_EElis ./= samples_num
+    average_EE_tlis ./= samples_num
+    
+    return average_EElis, average_EE_tlis
+end
+
+plot(1:30*10, average_EE_tlis, label=false, xlabel=L"t", ylabel=L"S_{vN}")
+plot!([1, 30*10], 0.8933161189003952*[1,1],  c=:Gray, label=false, linestyle=:dash, linewidth=2)
