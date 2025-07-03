@@ -301,6 +301,30 @@ end
 
 Sampling(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Sampling(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
 
+function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Symbol, pbc::Bool=true) where {ET}
+    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+
+    num_sites = length(measurement_sites)
+
+    current_sequence = Vector{Symbol}(undef, num_sites)
+    current_state = copy(state)  
+    total_weight = 1.0
+    
+    # meaure from the left to the right
+    for (site_idx, measurement_site) in enumerate(measurement_sites)
+       
+        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc)
+
+        prob = state_after_measure' * state_after_measure
+
+        current_sequence[site_idx] = sign
+        current_state = state_after_measure ./ sqrt(prob)
+        total_weight *= prob
+    end
+    
+    return current_state, current_sequence, total_weight
+end
+
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
