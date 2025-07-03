@@ -37,7 +37,7 @@ using Arpack
 
 # one Noisy chain##
 
-N=16
+N=34
 energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
 global antiGS= states[:, 1]
 
