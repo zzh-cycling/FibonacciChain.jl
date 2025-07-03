@@ -7,8 +7,8 @@ function myprint(io::IO, xs...)
 end
 
 function Boundarypost_selection_scaling(N)
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
-    τlis = atanh.(γlis)
+    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
+    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     final_state_p_tau_lis = Vector{Vector{Float64}}(undef, length(τlis))
     final_state_m_tau_lis = Vector{Vector{Float64}}(undef, length(τlis))
     final_sequence_p_tau_lis = Vector{Vector{Symbol}}(undef, length(τlis))
@@ -49,7 +49,7 @@ function Boundarypost_selection_scaling(N)
 
     save("./exm/data/Boundary_postselection_N$(N).jld", "final_state_p_tau_lis", final_state_p_tau_lis, "final_state_m_tau_lis", final_state_m_tau_lis, "final_sequence_p_tau_lis", final_sequence_p_tau_lis, "final_sequence_m_tau_lis", final_sequence_m_tau_lis, "total_weight_p_tau_lis", total_weight_p_tau_lis, "total_weight_m_tau_lis", total_weight_m_tau_lis)
     save("./exm/data/Boundary_postselection__EE_FE_N$(N).jld", "EE_tau_lis_p", EE_tau_lis_p, "EE_tau_lis_m", EE_tau_lis_m, "FE_tau_lis_p", FE_tau_lis_p, "FE_tau_lis_m", FE_tau_lis_m)
-
+    
 end 
 
 if length(ARGS) == 0

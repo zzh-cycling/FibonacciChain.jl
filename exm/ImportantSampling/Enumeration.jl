@@ -40,8 +40,8 @@ end
 
 function Born_FENlis(N, pbc::Bool=true)
 
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
-    τlis = atanh.(γlis)
+    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
+    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     
     @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
     antiGS = states[:,1]

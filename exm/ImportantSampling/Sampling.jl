@@ -12,8 +12,8 @@ function myprint(io::IO, xs...)
 end
 
 function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
-    τlis = atanh.(γlis)
+    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
+    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     average_EE_tau_lis=Vector{Vector{Float64}}(undef, length(τlis))
     variance_EE_tau_lis = Vector{Vector{Float64}}(undef, length(τlis))
     average_FE_tau_lis = Vector{Float64}(undef, length(τlis))

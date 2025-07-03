@@ -5,8 +5,8 @@ using Arpack
 include("../FitEntEntScal.jl")
 
 L_list = collect(10:2:20)
-γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999])
-τlis = atanh.(γlis)
+γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
+τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
 
 ShannonEnt_Llis = Vector{Vector{Float64}}(undef, length(L_list))
 

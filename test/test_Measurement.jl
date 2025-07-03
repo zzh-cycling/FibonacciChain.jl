@@ -5,8 +5,8 @@ using BitBasis
 using Arpack
 
 @testset "measure_basismap" begin
-N = 3
-ϕ = (1 + √5) / 2
+    N = 3
+    ϕ = (1 + √5) / 2
     T = BitStr{N, Int}
     state = T(0b000)
     idx = 2
@@ -49,6 +49,18 @@ N = 3
     τ = 1.0
     sign = :m
     coef = (1-exp(τ))/2√(exp(2τ)+1)
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
+    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
+    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[5] == (T(bit"101"), cstτ-coef)
+
+    τ = 1e3
+    sign = :p
+    cstτ = 1/2
+    coef = 1/2
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
@@ -257,7 +269,7 @@ end
     energy, states = eigen(Fibonacci_Ham(N))
     antiGS= states[:, 1]
 
-    τ = 1.0
+    τ = 0.0
     measurement_sites = collect(2:2:N)
     
     final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
@@ -267,6 +279,8 @@ end
 
     total_prob = sum(probabilities)
     @test isapprox(total_prob, 1.0, atol=1e-6)
+
+    @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
 @testset "Sample" begin
@@ -284,8 +298,22 @@ end
     @test [:m for i in 2:2:N] in samples
     
 end
-@testset "Bulkpost_selection" begin
+
+@testset "Boundarypost_selection" begin
+    N = 10
+    τ = 1e3
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    measurement_sites = collect(2:2:N)
+    final_state_p, final_sequence_p, total_weight_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, :p)
+    
+    @test -log(total_weight_p) /5 ≈ 1.1136495433981064 
 end
+
+@testset "Bulkpost_selection" begin\
+
+end
+
 function test_post_selection()
     L = 10
     τ = 0.1

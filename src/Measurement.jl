@@ -5,11 +5,21 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Symbol
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
-    cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
-    if sign == :p
-        coef = (exp(τ)-1)/2√(exp(2τ)+1)
+    
+    if τ >= 1e2
+            cstτ = 0.5
+        if sign == :p
+            coef = 0.5
+        else
+            coef = -0.5
+        end
     else
-        coef = (1-exp(τ))/2√(exp(2τ)+1)
+        cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
+        if sign == :p
+            coef = (exp(τ)-1)/2√(exp(2τ)+1)
+        else
+            coef = (1-exp(τ))/2√(exp(2τ)+1)
+        end
     end
     if 2<= i <= N-1
         mask=bmask(T,1,2,3) << (N-i-1)
