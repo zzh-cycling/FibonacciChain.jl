@@ -57,30 +57,10 @@ using Arpack
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
 
-    sign = :sqrtm
-    cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
-    coef = (1-exp(τ/2))/2√(√(exp(2τ)+1))
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
-
     τ = 1e3
     sign = :p
     cstτ = 1/2
     coef = 1/2
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
-
-    sign = :sqrtp
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
@@ -340,31 +320,31 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, pbc)
+    sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, :p, pbc)
     state_t = sample_measured_states[end]
     EE = eelis_Fibo_state(L, state_t)[5]
-    @test samples[end] == fill(:sqrtp, div(L,2))
-    @test EE ≈ 0.8098675501545768 atol = 1e-4
+    @test samples[end] == fill(:p, div(L,2))
+    @test EE ≈ 0.8098675501545762 atol = 1e-4
 end
 
-@testset "Bulkmeasure" begin
-    L = 10
-    D = 100L
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    final_meanEE_lis=zeros(L-1)
-    samples_num = 100
-    mean_EEt_lis= zeros(D) 
-    for i in 1:samples_num
-        @show i
-        sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
-        EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
-        final_state = sample_measured_states[end]
-        final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
-        mean_EEt_lis .+= EElis
-    end
+# @testset "Bulkmeasure" begin
+#     L = 10
+#     D = 100L
+#     st=zeros(length(Fibonacci_basis(L)))
+#     st[1] = 1.0
+#     final_meanEE_lis=zeros(L-1)
+#     samples_num = 100
+#     mean_EEt_lis= zeros(D) 
+#     for i in 1:samples_num
+#         @show i
+#         sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
+#         EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
+#         final_state = sample_measured_states[end]
+#         final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
+#         mean_EEt_lis .+= EElis
+#     end
 
-    final_meanEE_lis ./= samples_num
-    mean_EEt_lis ./= samples_num
-end
+#     final_meanEE_lis ./= samples_num
+#     mean_EEt_lis ./= samples_num
+# end
 

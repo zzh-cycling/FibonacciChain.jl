@@ -1,31 +1,24 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Symbol, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
-    @assert sign in (:p, :m, :sqrtp, :sqrtm) "sign must be either :p the plus, :m the minus, :sqrtp the square root of plus or :sqrtm the square root of minus"
+    @assert sign in (:p, :m) "sign must be either :p the plus, :m the minus, :sqrtp the square root of plus or :sqrtm the square root of minus"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     
     if τ >= 1e2
             cstτ = 0.5
-        if sign == :p || sign == :sqrtp
+        if sign == :p
             coef = 0.5
         else
             coef = -0.5
         end
     else
+        cstτ = (exp(τ)+1)/2√(exp(2τ)+1) 
         if sign == :p
-            cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
             coef = (exp(τ)-1)/2√(exp(2τ)+1)
-        elseif sign == :m
-            cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
+        else
             coef = (1-exp(τ))/2√(exp(2τ)+1)
-        elseif sign == :sqrtp
-            cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
-            coef = (exp(τ/2)-1)/2√(√(exp(2τ)+1))
-        elseif sign == :sqrtm
-            cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
-            coef = (1-exp(τ/2))/2√(√(exp(2τ)+1))
         end
     end
     if 2<= i <= N-1
@@ -342,7 +335,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     return current_state, current_sequence, total_weight
 end
 
-function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Symbol, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     samples = Vector{Vector{Symbol}}(undef, D)
@@ -366,8 +359,8 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
                 # meaure from the left to the right
             for (site_idx, measurement_site) in enumerate(measurement_sites)
             
-                state_after_p = measuremap(N, τ, current_state, measurement_site, :sqrtp, pbc)
-                current_sequence[site_idx] = :sqrtp
+                state_after_p = measuremap(N, τ/2, current_state, measurement_site, sign, pbc)
+                current_sequence[site_idx] =  sign
                 prob_p = state_after_p' * state_after_p
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_weight += -log(prob_p)
@@ -380,8 +373,8 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
                 # meaure from the left to the right
             for (site_idx, measurement_site) in enumerate(measurement_sites)
             
-                state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
-                current_sequence[site_idx] = :p
+                state_after_p = measuremap(N, τ, current_state, measurement_site, sign, pbc)
+                current_sequence[site_idx] = sign
                 prob_p = state_after_p' * state_after_p
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_weight += -log(prob_p)
@@ -396,7 +389,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, samples, sample_weights
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Symbol, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     samples = Vector{Vector{Symbol}}(undef, D)
@@ -404,7 +397,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
     sample_measured_states = Vector{Vector{ET}}(undef, D)
 
     current_state = copy(state)  
-
+    
     for layer in 1:D
         current_sequence = Vector{Symbol}(undef, div(N,2))
         total_weight = 1.0
