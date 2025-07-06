@@ -348,6 +348,23 @@ end
 end
 
 @testset "Bulkmeasure" begin
-    
+    L = 10
+    D = 100L
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    final_meanEE_lis=zeros(L-1)
+    samples_num = 100
+    mean_EEt_lis= zeros(D) 
+    for i in 1:samples_num
+        @show i
+        sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
+        EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
+        final_state = sample_measured_states[end]
+        final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
+        mean_EEt_lis .+= EElis
+    end
+
+    final_meanEE_lis ./= samples_num
+    mean_EEt_lis ./= samples_num
 end
 

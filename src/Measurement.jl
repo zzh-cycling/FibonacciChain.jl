@@ -405,7 +405,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
 
     current_state = copy(state)  
 
-    for layer in 1:D-1
+    for layer in 1:D
         current_sequence = Vector{Symbol}(undef, div(N,2))
         total_weight = 1.0
         
