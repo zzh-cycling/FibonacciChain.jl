@@ -392,9 +392,10 @@ end
 function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc::Bool=true) where{T, ET}
     if ET == Symbol
         N = 2*length(samples)
-        measurement_site = collect(2:2:N)
+        measurement_sites = collect(2:2:N)
         for (idx, measurement_type) in enumerate(samples)
-            state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+            state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+            state ./= norm(state)  # normalize the state
         end
         return state
     elseif ET == Vector{Symbol}
@@ -407,7 +408,8 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc:
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
             for (idx, measurement_type) in enumerate(samples[layer])
-               state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                state ./= norm(state)  # normalize the state
             end
         end
         return state

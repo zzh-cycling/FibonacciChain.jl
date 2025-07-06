@@ -315,10 +315,19 @@ end
     τ = 1e3
     energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
+    measurement_sites = collect(2:2:N)
     
-    state = Generate_state(τ, antiGS, [:m, :m, :m, :m, :m])
-    
-    @test [0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.4897742139146272] ≈ eelis_Fibo_state(N, state)
+    sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites, 10)
+    state = Generate_state(τ, antiGS, samples[1])
+    @test state ≈ sample_measured_states[1]
+
+    st = zeros(length(Fibonacci_basis(N)))
+    st[1] = 1.0
+
+    sample_measured_states, samples, sample_weights = Bulkmeasure(L, τ, st, L)
+    state_t = Generate_state(τ, st, samples)
+    @test state_t ≈ sample_measured_states[end]
+
 end
 
 @testset "Bulkpost_selection" begin

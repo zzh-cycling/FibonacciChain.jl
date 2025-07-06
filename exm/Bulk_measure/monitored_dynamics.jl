@@ -7,7 +7,7 @@ include("../FitEntEntScal.jl")
 function samples_generate(L::Int64, τ::Float64, D::Int64=100)
     st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
-    samples_num = 10
+    samples_num = 10000
 
     samples_lis = Vector{Vector{Vector{Symbol}}}(undef, samples_num)
     sample_weights_lis = Vector{Vector{Float64}}(undef, samples_num)
@@ -34,8 +34,11 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=500L)
     all_EE_tlis= zeros(samples_num, D) 
     stderr_EElis = zeros(L-1)
     all_EElis = zeros(samples_num, L-1)
+
+    samples_lis, sample_weights_lis = load("./exm/data/Bulk_measure/monitored_dynamics_L$(L)_τ$(τ)_D$(D).jld", "samples_lis", "sample_weights_lis")
     for i in 1:samples_num
         @show i
+        sample_measured_states = Generate_state(τ, st, samples_lis[i])
         all_EE_tlis[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
         final_state = sample_measured_states[end]
         all_EElis[i, :] = eelis_Fibo_state(L, final_state)
@@ -89,3 +92,13 @@ end
 # fit_samples = scatter(range(0, D/2, D)[inds], all_EE_tlis'[inds,:], xlabel=L"t", ylabel=L"S_{vN}", legend = false, colors= cgrad(:blues, length(collect(1:100))), marker_z = collect(1:100)',  colorbar=false,  line_z = collect(1:100)', title=latexstring("N=$(L), τ=$(τ)"))
 # cent, fig = fitCCEntEntScal(average_EElis, mincut=1, pbc=true)
 # display(fig)
+
+if length(ARGS) == 0
+    println("No arguments provided.")
+else
+    for arg in ARGS
+        println("Received argument: $arg")
+        N=parse(Int64, arg)
+        samples_generate(N, τ)
+    end
+end
