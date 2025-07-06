@@ -1,24 +1,31 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Symbol, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
-    @assert sign in (:p, :m) "sign must be either :p the plus or :m the minus"
+    @assert sign in (:p, :m, :sqrtp, :sqrtm) "sign must be either :p the plus, :m the minus, :sqrtp the square root of plus or :sqrtm the square root of minus"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     
     if τ >= 1e2
             cstτ = 0.5
-        if sign == :p
+        if sign == :p || sign == :sqrtp
             coef = 0.5
         else
             coef = -0.5
         end
     else
-        cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
         if sign == :p
+            cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
             coef = (exp(τ)-1)/2√(exp(2τ)+1)
-        else
+        elseif sign == :m
+            cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
             coef = (1-exp(τ))/2√(exp(2τ)+1)
+        elseif sign == :sqrtp
+            cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
+            coef = (exp(τ/2)-1)/2√(√(exp(2τ)+1))
+        elseif sign == :sqrtm
+            cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
+            coef = (1-exp(τ/2))/2√(√(exp(2τ)+1))
         end
     end
     if 2<= i <= N-1
