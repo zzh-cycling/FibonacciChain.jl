@@ -57,10 +57,30 @@ using Arpack
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
 
+    sign = :sqrtm
+    cstτ = (exp(τ/2)+1)/2√(√(exp(2τ)+1))
+    coef = (1-exp(τ/2))/2√(√(exp(2τ)+1))
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
+    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
+    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[5] == (T(bit"101"), cstτ-coef)
+
     τ = 1e3
     sign = :p
     cstτ = 1/2
     coef = 1/2
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
+    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
+    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[5] == (T(bit"101"), cstτ-coef)
+
+    sign = :sqrtp
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
@@ -310,14 +330,10 @@ end
     @test -log(total_weight_p) /5 ≈ 1.1136495433981064 
 end
 
-@testset "Bulkpost_selection" begin\
-
-end
-
-function test_post_selection()
+@testset "Bulkpost_selection" begin
     L = 10
     τ = 0.1
-    D = 30L
+    D = 15L
     pbc = true
     st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
@@ -325,83 +341,13 @@ function test_post_selection()
 
     EE_tlis = zeros(D)
     sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, pbc)
-    for j in 1:D
-        state_t = sample_measured_states[j]
-        EE = eelis_Fibo_state(L, state_t)[5]
-        EE_tlis[j] = EE
-    end
-    final_state = sample_measured_states[end]
-    average_EElis = eelis_Fibo_state(L, final_state)
-
-    
-    return average_EElis, EE_tlis
+    state_t = sample_measured_states[end]
+    EE = eelis_Fibo_state(L, state_t)[5]
+    @test samples[end] == fill(:sqrtp, div(L,2))
+    @test EE ≈ 0.8098675501545768 atol = 1e-4
 end
 
 @testset "Bulkmeasure" begin
     
 end
-
-function cal()
-    L = 10
-    D = 300L
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    average_EElis=zeros(L-1)
-    
-    samples_num = 100
-
-    average_EE_tlis= zeros(D) 
-    for i in 1:samples_num
-        @show i
-        sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
-        EElis = zeros(D)
-        for j in 1:D
-            state_t = sample_measured_states[j]
-            EE = eelis_Fibo_state(L, state_t)[5]
-            EElis[j] = EE
-        end
-        final_state = sample_measured_states[end]
-        average_EElis .+= eelis_Fibo_state(L, final_state)
-        average_EE_tlis .+= EElis
-    end
-
-    average_EElis ./= samples_num
-    average_EE_tlis ./= samples_num
-    
-    return average_EElis, average_EE_tlis
-end
-
-plot(1:30*10, EE_tlis, label=false, xlabel=L"t", ylabel=L"S_{vN}")
-plot!([1, 30*10], 0.8933161189003952*[1,1],  c=:Gray, label=false, linestyle=:dash, linewidth=2)
-cent, fig = fitCCEntEntScal(average_EElis, mincut=2, pbc=true)
-
-sample_measured_states, samples10000, sample_weights = load("exm/data/Born_Samples_N10_τ1000.0.jld", "sample_measured_states",  "samples","sample_weights")
-
-sample_measured_states,  samples1000, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
-
-sample_measured_states,  samples100000, sample_weights = Sampling(N, τ, antiGS, measurement_sites, 100000)
-
-N=10
-energy, states = eigen(Fibonacci_Ham(N))
-antiGS= states[:, 1]
-τ = 1000.0
-measurement_sites = collect(2:2:N)
-
-final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
-
-binary_digits_enum = map.(symbol -> symbol == :p ? 0 : 1, trajectories)
-decimal_value_enum = [sum(d * 2^(length(j) - i) for (i, d) in enumerate(j)) for j in binary_digits_enum]
-
-binary_digits_samples10000 = map.(symbol -> symbol == :p ? 0 : 1, samples10000)
-decimal_value_samples10000 = [sum(d * 2^(length(j) - i) for(i, d) in enumerate(j)) for j in binary_digits_samples10000]
-count_lis10000 = [count(x->x==i, decimal_value_samples10000) for i in 0:31] ./10000
-
-binary_digits_samples1000 = map.(symbol -> symbol == :p ? 0 : 1, samples1000)
-decimal_value_samples1000 = [sum(d * 2^(length(j) - i) for(i, d) in enumerate(j)) for j in binary_digits_samples1000]
-count_lis1000 = [count(x->x==i, decimal_value_samples1000) for i in 0:31] ./1000
-
-
-binary_digits_samples100000 = map.(symbol -> symbol == :p ? 0 : 1, samples100000)
-decimal_value_samples100000 = [sum(d * 2^(length(j) - i) for(i, d) in enumerate(j)) for j in binary_digits_samples100000]
-count_lis100000 = [count(x->x==i, decimal_value_samples100000) for i in 0:31] ./100000
 

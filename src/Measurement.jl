@@ -352,6 +352,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     current_state = copy(state)  
 
     for layer in 1:D
+        @show layer
         current_sequence = Vector{Symbol}(undef, div(N,2))
         total_weight = 0.0
         # total_weight is the log probability of the sample (average free energy), so it should be initialized to 0.0
@@ -365,8 +366,8 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
                 # meaure from the left to the right
             for (site_idx, measurement_site) in enumerate(measurement_sites)
             
-                state_after_p = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
-                current_sequence[site_idx] = :p
+                state_after_p = measuremap(N, τ, current_state, measurement_site, :sqrtp, pbc)
+                current_sequence[site_idx] = :sqrtp
                 prob_p = state_after_p' * state_after_p
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_weight += -log(prob_p)
@@ -413,61 +414,58 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
         else
             measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
         end
-        # meaure from the left to the right
-        for (site_idx, measurement_site) in enumerate(measurement_sites)
-            # measure :p is Pi 0, measure :m is Pi 1
-            state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
-            state_after_m = measuremap(N, τ, current_state, measurement_site, :m, pbc)
-            
-            prob_p = state_after_p' * state_after_p
-            prob_m = state_after_m' * state_after_m
-            
 
-            random_number = rand()
-            if random_number < prob_p
-                current_sequence[site_idx] = :p
-                current_state = state_after_p ./ sqrt(prob_p)
-                total_weight += -log(prob_p)
-            else
-                current_sequence[site_idx] = :m
-                current_state = state_after_m ./ sqrt(prob_m)
-                total_weight += -log(prob_m)
+        if layer == D
+            # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_sqrtp = measuremap(N, τ, current_state, measurement_site, :sqrtp, pbc)
+                state_after_sqrtm = measuremap(N, τ, current_state, measurement_site, :sqrtm, pbc)
+                
+                prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
+                prob_sqrtm = state_after_sqrtm' * state_after_sqrtm
+                
+                random_number = rand()
+                if random_number < prob_sqrtp
+                    current_sequence[site_idx] = :sqrtp
+                    current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
+                    total_weight += -log(prob_sqrtp)
+                else
+                    current_sequence[site_idx] = :sqrtm
+                    current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
+                    total_weight += -log(prob_sqrtm)
+                end
             end
-        end
-        
-        sample_measured_states[layer] = current_state
-        samples[layer] = current_sequence
-        sample_weights[layer] = total_weight
-    end
-    
-    if D % 2 == 1
-        measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-    else
-        measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-    end
-    for (site_idx, measurement_site) in enumerate(measurement_sites)
-        # measure :p is Pi 0/tau, measure :m is Pi 1
-        state_after_p = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
-        state_after_m = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
-        
-        prob_p = state_after_p' * state_after_p
-        prob_m = state_after_m' * state_after_m
-        
-        random_number = rand()
-        if random_number < prob_p
-            current_sequence[site_idx] = :p
-            current_state = state_after_p ./ sqrt(prob_p)
-            total_weight += -log(prob_p)
-        else
-            current_sequence[site_idx] = :m
-            current_state = state_after_m ./ sqrt(prob_m)
-            total_weight += -log(prob_m)
-        end
-    end
 
-    sample_measured_states[D] = current_state
-    samples[D] = current_sequence
-    sample_weights[D] = total_weight
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+            continue
+        else
+            # measure :p is Pi 0/tau, measure :m is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_p = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
+                state_after_m = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
+                
+                prob_p = state_after_p' * state_after_p
+                prob_m = state_after_m' * state_after_m
+                
+                random_number = rand()
+                if random_number < prob_p
+                    current_sequence[site_idx] = :p
+                    current_state = state_after_p ./ sqrt(prob_p)
+                    total_weight += -log(prob_p)
+                else
+                    current_sequence[site_idx] = :m
+                    current_state = state_after_m ./ sqrt(prob_m)
+                    total_weight += -log(prob_m)
+                end
+            end
+
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+        end
+    end
 
     return sample_measured_states, samples, sample_weights
 end
