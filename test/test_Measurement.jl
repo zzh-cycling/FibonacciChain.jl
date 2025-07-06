@@ -310,6 +310,17 @@ end
     @test -log(total_weight_p) /5 ≈ 1.1136495433981064 
 end
 
+@testset "Generate_state" begin
+    N = 10
+    τ = 1e3
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    
+    state = Generate_state(τ, antiGS, [:m, :m, :m, :m, :m])
+    
+    @test [0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.4897742139146272] ≈ eelis_Fibo_state(N, state)
+end
+
 @testset "Bulkpost_selection" begin
     L = 10
     τ = 0.1

@@ -389,6 +389,31 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, samples, sample_weights
 end
 
+function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc::Bool=true) where{T, ET}
+    if ET == Symbol
+        N = 2*length(samples)
+        measurement_site = collect(2:2:N)
+        for (idx, measurement_type) in enumerate(samples)
+            state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+        end
+        return state
+    elseif ET == Vector{Symbol}
+        D = length(samples)
+        N = 2*length(samples[1])
+        for layer in 1:D
+            if layer % 2 == 1
+                measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+            else
+                measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+            end
+            for (idx, measurement_type) in enumerate(samples[layer])
+               state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+            end
+        end
+        return state
+    end
+end
+
 function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
@@ -400,7 +425,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
     
     for layer in 1:D
         current_sequence = Vector{Symbol}(undef, div(N,2))
-        total_weight = 1.0
+        total_weight = 0.0
         
         if layer % 2 == 1
             measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
@@ -415,7 +440,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
                 
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
-                prob_sqrtm = state_after_sqrtm' * state_after_sqrtm
+                prob_sqrtm = 1 - prob_sqrtp
 
                 random_number = rand()
                 if random_number < prob_sqrtp
@@ -436,11 +461,11 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
         else
             # measure :p is Pi 0/tau, measure :m is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_p = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
-                state_after_m = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
+                state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
+                state_after_m = measuremap(N, τ, current_state, measurement_site, :m, pbc)
                 
                 prob_p = state_after_p' * state_after_p
-                prob_m = state_after_m' * state_after_m
+                prob_m = 1 - prob_p
                 
                 random_number = rand()
                 if random_number < prob_p
