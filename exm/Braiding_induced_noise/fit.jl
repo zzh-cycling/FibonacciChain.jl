@@ -1,5 +1,5 @@
 using JLD
-include("FitEntEntScal.jl")
+include("../FitEntEntScal.jl")
 using Plots
 using LaTeXStrings
 

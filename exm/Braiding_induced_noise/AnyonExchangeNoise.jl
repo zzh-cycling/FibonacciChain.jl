@@ -2,7 +2,7 @@ using FibonacciChain
 using LinearAlgebra
 using JLD
 using Arpack
-# include("FitEntEntScal.jl")
+# include("../FitEntEntScal.jl")
 
 
 # one pure Fibonacci chain #

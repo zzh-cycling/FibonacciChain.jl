@@ -2,7 +2,7 @@ using FibonacciChain
 using LinearAlgebra
 using JLD
 using Arpack
-# include("FitEntEntScal.jl")
+# include("../FitEntEntScal.jl")
 
 function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::Int64=1, pbc::Bool=true) where {ET}
     splitlis=Vector(1:N-1)

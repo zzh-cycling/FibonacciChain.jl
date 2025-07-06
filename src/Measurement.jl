@@ -389,7 +389,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, samples, sample_weights
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Symbol, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     samples = Vector{Vector{Symbol}}(undef, D)
@@ -411,19 +411,19 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::S
         if layer == D
             # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_sqrtp = measuremap(N, τ, current_state, measurement_site, :sqrtp, pbc)
-                state_after_sqrtm = measuremap(N, τ, current_state, measurement_site, :sqrtm, pbc)
+                state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
+                state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
                 
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
                 prob_sqrtm = state_after_sqrtm' * state_after_sqrtm
-                
+
                 random_number = rand()
                 if random_number < prob_sqrtp
-                    current_sequence[site_idx] = :sqrtp
+                    current_sequence[site_idx] = :p
                     current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
                     total_weight += -log(prob_sqrtp)
                 else
-                    current_sequence[site_idx] = :sqrtm
+                    current_sequence[site_idx] = :m
                     current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
                     total_weight += -log(prob_sqrtm)
                 end
