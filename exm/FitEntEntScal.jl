@@ -27,7 +27,7 @@ function fitCCEntEntScal(
 
     # plot scaling
     fig = scatter(1:L-1, SvN_list, ylabel=L"S_{vN}", xlabel=L"l", frame=:box, yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1))
-    plot!(1:L-1, fitparam[1] .* logChord([1:L-1;], L) .+ fitparam[2], label=false)
+    plot!(range(1, L-1, 100), fitparam[1] .* logChord(range(1, L-1, 100), L) .+ fitparam[2], label=false)
 
     # plot rescaled
     plot!(subplot=2, framestyle=:box,

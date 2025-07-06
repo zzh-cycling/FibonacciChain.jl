@@ -1,15 +1,25 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Symbol, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
-    @assert sign in (:p, :m) "sign must be either :p the plus or :m the minus"
+    @assert sign in (:p, :m) "sign must be either :p the plus, :m the minus, :sqrtp the square root of plus or :sqrtm the square root of minus"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
-    cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
-    if sign == :p
-        coef = (exp(τ)-1)/2√(exp(2τ)+1)
+    
+    if τ >= 1e2
+            cstτ = 0.5
+        if sign == :p
+            coef = 0.5
+        else
+            coef = -0.5
+        end
     else
-        coef = (1-exp(τ))/2√(exp(2τ)+1)
+        cstτ = (exp(τ)+1)/2√(exp(2τ)+1) 
+        if sign == :p
+            coef = (exp(τ)-1)/2√(exp(2τ)+1)
+        else
+            coef = (1-exp(τ))/2√(exp(2τ)+1)
+        end
     end
     if 2<= i <= N-1
         mask=bmask(T,1,2,3) << (N-i-1)
@@ -184,7 +194,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
             state_after_p = measuremap(T, τ, state, site, :p, pbc)
             prob_p = state_after_p' * state_after_p  
             
-            if prob_p > 1e-12  
+            # if prob_p > 1e-12  
                 normalized_state_p = state_after_p / sqrt(prob_p)
                 new_trajectory_p = [current_trajectory; :p]
                 new_prob_p = current_prob * prob_p
@@ -192,12 +202,12 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
                 push!(next_level_states, normalized_state_p)
                 push!(next_level_trajectories, new_trajectory_p)
                 push!(next_level_probabilities, new_prob_p)
-            end
+            # end
             
             state_after_m = measuremap(T, τ, state, site, :m, pbc)
             prob_m = state_after_m' * state_after_m
             
-            if prob_m > 1e-12 
+            # if prob_m > 1e-12 
                 normalized_state_m = state_after_m / sqrt(prob_m)
                 new_trajectory_m = [current_trajectory; :m]
                 new_prob_m = current_prob * prob_m
@@ -205,7 +215,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
                 push!(next_level_states, normalized_state_m)
                 push!(next_level_trajectories, new_trajectory_m)
                 push!(next_level_probabilities, new_prob_m)
-            end
+            # end
         end
         
         current_level_states = next_level_states
@@ -264,7 +274,7 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
     sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
     samples = Vector{Vector{Symbol}}(undef, num_samples)
     sample_weights = Vector{Float64}(undef, num_samples)
-    
+
     for sample_idx in 1:num_samples
         current_sequence = Vector{Symbol}(undef, num_sites)
         current_state = copy(state)  
@@ -277,9 +287,8 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
             state_after_m = measuremap(T, τ, current_state, measurement_site, :m, pbc)
             
             prob_p = state_after_p' * state_after_p
-            prob_m = state_after_m' * state_after_m
+            prob_m = 1 - prob_p
             
-
             random_number = rand()
             if random_number < prob_p
                 current_sequence[site_idx] = :p
@@ -301,3 +310,180 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
 end
 
 Sampling(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Sampling(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
+
+function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Symbol, pbc::Bool=true) where {ET}
+    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+
+    num_sites = length(measurement_sites)
+
+    current_sequence = Vector{Symbol}(undef, num_sites)
+    current_state = copy(state)  
+    total_weight = 1.0
+    
+    # meaure from the left to the right
+    for (site_idx, measurement_site) in enumerate(measurement_sites)
+       
+        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc)
+
+        prob = state_after_measure' * state_after_measure
+
+        current_sequence[site_idx] = sign
+        current_state = state_after_measure ./ sqrt(prob)
+        total_weight *= prob
+    end
+    
+    return current_state, current_sequence, total_weight
+end
+
+function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Symbol, pbc::Bool=true) where {ET}
+    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
+    samples = Vector{Vector{Symbol}}(undef, D)
+    sample_weights = Vector{Float64}(undef, D)
+    sample_measured_states = Vector{Vector{ET}}(undef, D)
+
+    current_state = copy(state)  
+
+    for layer in 1:D
+        @show layer
+        current_sequence = Vector{Symbol}(undef, div(N,2))
+        total_weight = 0.0
+        # total_weight is the log probability of the sample (average free energy), so it should be initialized to 0.0
+        if layer % 2 == 1
+            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+        else
+            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+        end
+        
+        if layer == D
+                # meaure from the left to the right
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+            
+                state_after_p = measuremap(N, τ/2, current_state, measurement_site, sign, pbc)
+                current_sequence[site_idx] =  sign
+                prob_p = state_after_p' * state_after_p
+                current_state = state_after_p ./ sqrt(prob_p)
+                total_weight += -log(prob_p)
+            end
+
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+        else
+                # meaure from the left to the right
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+            
+                state_after_p = measuremap(N, τ, current_state, measurement_site, sign, pbc)
+                current_sequence[site_idx] = sign
+                prob_p = state_after_p' * state_after_p
+                current_state = state_after_p ./ sqrt(prob_p)
+                total_weight += -log(prob_p)
+            end
+
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+        end
+    end
+
+    return sample_measured_states, samples, sample_weights
+end
+
+function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc::Bool=true) where{T, ET}
+    if ET == Symbol
+        N = 2*length(samples)
+        measurement_site = collect(2:2:N)
+        for (idx, measurement_type) in enumerate(samples)
+            state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+        end
+        return state
+    elseif ET == Vector{Symbol}
+        D = length(samples)
+        N = 2*length(samples[1])
+        for layer in 1:D
+            if layer % 2 == 1
+                measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+            else
+                measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+            end
+            for (idx, measurement_type) in enumerate(samples[layer])
+               state = measuremap(N, τ, state, measurement_site[idx], measurement_type, pbc)
+            end
+        end
+        return state
+    end
+end
+
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
+    samples = Vector{Vector{Symbol}}(undef, D)
+    sample_weights = Vector{Float64}(undef, D)
+    sample_measured_states = Vector{Vector{ET}}(undef, D)
+
+    current_state = copy(state)  
+    
+    for layer in 1:D
+        current_sequence = Vector{Symbol}(undef, div(N,2))
+        total_weight = 0.0
+        
+        if layer % 2 == 1
+            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+        else
+            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+        end
+
+        if layer == D
+            # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
+                state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
+                
+                prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
+                prob_sqrtm = 1 - prob_sqrtp
+
+                random_number = rand()
+                if random_number < prob_sqrtp
+                    current_sequence[site_idx] = :p
+                    current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
+                    total_weight += -log(prob_sqrtp)
+                else
+                    current_sequence[site_idx] = :m
+                    current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
+                    total_weight += -log(prob_sqrtm)
+                end
+            end
+
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+            continue
+        else
+            # measure :p is Pi 0/tau, measure :m is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
+                state_after_m = measuremap(N, τ, current_state, measurement_site, :m, pbc)
+                
+                prob_p = state_after_p' * state_after_p
+                prob_m = 1 - prob_p
+                
+                random_number = rand()
+                if random_number < prob_p
+                    current_sequence[site_idx] = :p
+                    current_state = state_after_p ./ sqrt(prob_p)
+                    total_weight += -log(prob_p)
+                else
+                    current_sequence[site_idx] = :m
+                    current_state = state_after_m ./ sqrt(prob_m)
+                    total_weight += -log(prob_m)
+                end
+            end
+
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+        end
+    end
+
+    return sample_measured_states, samples, sample_weights
+end

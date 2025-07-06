@@ -2,10 +2,11 @@ using FibonacciChain
 using Test
 using LinearAlgebra
 using BitBasis
+using Arpack
 
 @testset "measure_basismap" begin
-N = 3
-ϕ = (1 + √5) / 2
+    N = 3
+    ϕ = (1 + √5) / 2
     T = BitStr{N, Int}
     state = T(0b000)
     idx = 2
@@ -48,6 +49,18 @@ N = 3
     τ = 1.0
     sign = :m
     coef = (1-exp(τ))/2√(exp(2τ)+1)
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
+    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
+    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[5] == (T(bit"101"), cstτ-coef)
+
+    τ = 1e3
+    sign = :p
+    cstτ = 1/2
+    coef = 1/2
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
@@ -256,7 +269,7 @@ end
     energy, states = eigen(Fibonacci_Ham(N))
     antiGS= states[:, 1]
 
-    τ = 1.0
+    τ = 0.0
     measurement_sites = collect(2:2:N)
     
     final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
@@ -266,13 +279,15 @@ end
 
     total_prob = sum(probabilities)
     @test isapprox(total_prob, 1.0, atol=1e-6)
+
+    @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
 @testset "Sample" begin
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
-    τ = 1.0
+    τ = 3.802
     measurement_sites = collect(2:2:N)
     
     sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
@@ -283,3 +298,64 @@ end
     @test [:m for i in 2:2:N] in samples
     
 end
+
+@testset "Boundarypost_selection" begin
+    N = 10
+    τ = 1e3
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    measurement_sites = collect(2:2:N)
+    final_state_p, final_sequence_p, total_weight_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, :p)
+    
+    @test -log(total_weight_p) /5 ≈ 1.1136495433981064 
+end
+
+@testset "Generate_state" begin
+    N = 10
+    τ = 1e3
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    
+    state = Generate_state(τ, antiGS, [:m, :m, :m, :m, :m])
+    
+    @test [0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.6435275493853525, 0.4897742139146272] ≈ eelis_Fibo_state(N, state)
+end
+
+@testset "Bulkpost_selection" begin
+    L = 10
+    τ = 0.1
+    D = 15L
+    pbc = true
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    average_EElis=zeros(L-1)
+
+    EE_tlis = zeros(D)
+    sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, :p, pbc)
+    state_t = sample_measured_states[end]
+    EE = eelis_Fibo_state(L, state_t)[5]
+    @test samples[end] == fill(:p, div(L,2))
+    @test EE ≈ 0.8098675501545762 atol = 1e-4
+end
+
+# @testset "Bulkmeasure" begin
+#     L = 10
+#     D = 100L
+#     st=zeros(length(Fibonacci_basis(L)))
+#     st[1] = 1.0
+#     final_meanEE_lis=zeros(L-1)
+#     samples_num = 100
+#     mean_EEt_lis= zeros(D) 
+#     for i in 1:samples_num
+#         @show i
+#         sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
+#         EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
+#         final_state = sample_measured_states[end]
+#         final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
+#         mean_EEt_lis .+= EElis
+#     end
+
+#     final_meanEE_lis ./= samples_num
+#     mean_EEt_lis ./= samples_num
+# end
+
