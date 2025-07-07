@@ -2,7 +2,8 @@ using FibonacciChain
 using Plots
 using LaTeXStrings
 using JLD
-include("../FitEntEntScal.jl")
+using Statistics
+# include("../FitEntEntScal.jl")
 
 function samples_generate(L::Int64, τ::Float64, D::Int64=100L)
     st=zeros(length(Fibonacci_basis(L)))
