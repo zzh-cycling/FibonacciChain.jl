@@ -389,7 +389,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, samples, sample_weights
 end
 
-function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc::Bool=true) where{T, ET}
+function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, temp::Bool=false, pbc::Bool=true) where{T, ET}
     if ET == Symbol
         N = 2*length(samples)
         measurement_sites = collect(2:2:N)
@@ -398,7 +398,7 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc:
             state ./= norm(state)  # normalize the state
         end
         return state
-    elseif ET == Vector{Symbol}
+    elseif ET == Vector{Symbol} && !temp
         D = length(samples)
         N = 2*length(samples[1])
         for layer in 1:D
@@ -413,7 +413,26 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, pbc:
             end
         end
         return state
+    elseif ET == Vector{Symbol} && temp
+        # if ET is Vector{Symbol} and temp is true, we return temporary states.
+        D = length(samples)
+        N = 2*length(samples[1])
+        statelis = Vector{Vector{T}}(undef, D)
+        for layer in 1:D
+            if layer % 2 == 1
+                measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+            else
+                measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+            end
+            for (idx, measurement_type) in enumerate(samples[layer])
+                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                state ./= norm(state)  # normalize the state
+                statelis[layer]= state
+            end
+        end
+        return statelis
     end
+
 end
 
 function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}

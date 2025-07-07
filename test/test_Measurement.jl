@@ -324,8 +324,10 @@ end
     st = zeros(length(Fibonacci_basis(N)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_weights = Bulkmeasure(L, τ, st, L)
+    sample_measured_states, samples, sample_weights = Bulkmeasure(N, τ, st, N)
     state_t = Generate_state(τ, st, samples)
+    statelis = Generate_state(τ, st, samples, temp=true)
+    @test statelis ≈ sample_measured_states
     @test state_t ≈ sample_measured_states[end]
 
 end
