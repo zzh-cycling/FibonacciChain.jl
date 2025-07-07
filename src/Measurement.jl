@@ -407,9 +407,16 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::ET, temp::Bool=f
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            for (idx, measurement_type) in enumerate(samples[layer, :])
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
+            if layer == D
+                for (idx, measurement_type) in enumerate(samples[layer, :])
+                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                end
+            else
+                for (idx, measurement_type) in enumerate(samples[layer, :])
+                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                end
             end
         end
         return state
@@ -424,10 +431,18 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::ET, temp::Bool=f
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            for (idx, measurement_type) in enumerate(samples[layer, :])
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
-                statelis[layer]= state
+            if layer == D
+                for (idx, measurement_type) in enumerate(samples[layer, :])
+                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                    statelis[layer] = state
+                end
+            else
+                for (idx, measurement_type) in enumerate(samples[layer, :])
+                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                    statelis[layer] = state
+                end
             end
         end
         return statelis

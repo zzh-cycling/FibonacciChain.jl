@@ -330,6 +330,12 @@ end
     @test statelis ≈ sample_measured_states
     @test state_t ≈ sample_measured_states[end]
 
+    τ = 0.8
+    sample_measured_states, samples, sample_weights = Bulkmeasure(N, τ, st, N)
+    state_t = Generate_state(τ, st, samples)
+    statelis = Generate_state(τ, st, samples, true, true)
+    @test statelis ≈ sample_measured_states
+    @test state_t ≈ sample_measured_states[end]
 end
 
 @testset "Bulkpost_selection" begin
