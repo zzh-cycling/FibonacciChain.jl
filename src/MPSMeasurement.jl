@@ -1,68 +1,25 @@
-using ITensors
-using LinearAlgebra
-
 """
 MPS-based implementation for Fibonacci chain measurements using ITensor
 """
 
 """
-    fibonacci_mps_ground_state(N::Int; pbc::Bool=true) -> MPS
+    initial_mps(N::Int; pbc::Bool=true) -> MPS
 
-Generate the ground state of Fibonacci chain as an MPS.
+Generate the initial state of Fibonacci chain as an MPS.
 """
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
+function initial_mps(N::Int; pbc::Bool=true)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
-    sites = siteinds("Fermion", N; conserve_qns=true)
+    sites = siteinds("S=1/2", N)
     
     # Create initial product state (vacuum state)
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ₀ = randomMPS(sites, state)
+    ψ0 = randomMPS(sites, state)
     
-    # Create Fibonacci Hamiltonian
-    H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
-    
-    # Find ground state using DMRG
-    sweeps = Sweeps(10)
-    setmaxdim!(sweeps, 10, 20, 50, 100, 200)
-    setcutoff!(sweeps, 1E-10)
-    
-    energy, ψ = dmrg(H, ψ₀, sweeps)
-    
-    return ψ, energy
+    return ψ0
 end
 
-"""
-    fibonacci_hamiltonian_mps(sites; pbc::Bool=true) -> MPO
-
-Create Fibonacci chain Hamiltonian as an MPO using ITensor.
-"""
-function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
-    N = length(sites)
-    os = OpSum()
-    
-    # Golden ratio
-    ϕ = (1 + √5) / 2
-    
-    # Three-body interactions for Fibonacci chain
-    for i in 1:(N-2)
-        # Add three-body terms based on Fibonacci fusion rules
-        os += -1.0, "n", i, "n", i+1, "n", i+2
-        os += ϕ^(-1), "n", i, "n", i+2
-        os += ϕ^(-1), "n", i+1
-    end
-    
-    # Periodic boundary conditions
-    if pbc && N > 2
-        os += -1.0, "n", N-1, "n", N, "n", 1
-        os += -1.0, "n", N, "n", 1, "n", 2
-        os += ϕ^(-1), "n", N-1, "n", 1
-        os += ϕ^(-1), "n", N, "n", 2
-    end
-    
-    return MPO(os, sites)
-end
 
 """
     measurement_operator_mps(sites, i::Int, τ::Float64, sign::Symbol; pbc::Bool=true) -> MPO

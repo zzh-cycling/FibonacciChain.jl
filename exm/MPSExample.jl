@@ -1,5 +1,5 @@
 using FibonacciChain
-using ITensors
+using ITensorMPS
 
 """
 Example usage of MPS-based Fibonacci chain measurements

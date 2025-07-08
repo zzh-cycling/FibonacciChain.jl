@@ -1,7 +1,7 @@
 module FibonacciChain
 
 using BitBasis, LinearAlgebra, SparseArrays, Arpack
-using ITensors
+using ITensorMPS
 
 export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
 export ee, eelis_Fibo_state, eelis_Fiboladder_state, translation_matrix, inversion_matrix, braidingsqmap, free_energy
@@ -17,7 +17,7 @@ include("Observable.jl")
 include("LadderFibo.jl")
 include("Measurement.jl")
 include("FiboSparse.jl")
-include("MPS.jl")
+# include("MPS.jl")
 include("MPSMeasurement.jl")
 
 end
