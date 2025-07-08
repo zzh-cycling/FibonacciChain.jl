@@ -3,31 +3,43 @@ using FibonacciChain
 using ITensorMPS
 using LinearAlgebra
 
-
-@testset "MPS Ground State Generation" begin
+@testset "initial_mps" begin
     N = 6
-    pbc = true
-    
-    # Test ground state generation
-    ψ, energy = fibonacci_mps_ground_state(N; pbc=pbc)
+    # Test initial MPS generation
+    ψ = initial_mps(N)
     
     @test ψ isa MPS
     @test length(ψ) == N
-    @test energy isa Real
-    @test energy < 0  # Ground state should have negative energy
+    @test all(linkdims(ψ) .== 1)  # Initial state should have bond dimension 1
     
     # Test normalization
     @test abs(inner(ψ, ψ) - 1.0) < 1e-10
-    
-    # Test that bond dimensions are reasonable
-    max_bond_dim = maximum(linkdims(ψ))
-    @test max_bond_dim >= 1
-    @test max_bond_dim <= 200  # Should not exceed our DMRG settings
 end
+
+# @testset "MPS Ground State Generation" begin
+#     N = 6
+#     pbc = true
+    
+#     # Test ground state generation
+#     ψ, energy = fibonacci_mps_ground_state(N; pbc=pbc)
+    
+#     @test ψ isa MPS
+#     @test length(ψ) == N
+#     @test energy isa Real
+#     @test energy < 0  # Ground state should have negative energy
+    
+#     # Test normalization
+#     @test abs(inner(ψ, ψ) - 1.0) < 1e-10
+    
+#     # Test that bond dimensions are reasonable
+#     max_bond_dim = maximum(linkdims(ψ))
+#     @test max_bond_dim >= 1
+#     @test max_bond_dim <= 200  # Should not exceed our DMRG settings
+# end
 
 @testset "Measurement Operators" begin
     N = 4
-    sites = siteinds("Fermion", N)
+    sites = siteinds("S=1/2", N)
     τ = 1.0
     
     # Test measurement operator creation

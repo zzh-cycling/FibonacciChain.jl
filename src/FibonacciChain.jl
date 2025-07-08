@@ -10,7 +10,7 @@ export measure_basismap, measuremap, laddermeasuremap, Sampling, measurement_enu
 export Fibonacci_Ham_sparse
 # MPS-based functions
 export fibonacci_mps_ground_state, fibonacci_hamiltonian_mps, measurement_operator_mps, apply_measurement_mps
-export mps_sampling, mps_measurement_enumeration, mps_bulk_measurement, calculate_entanglement_entropy_mps
+export initial_mps, mps_sampling, mps_measurement_enumeration, mps_bulk_measurement, calculate_entanglement_entropy_mps
 
 include("Basis.jl") 
 include("Observable.jl")
