@@ -38,7 +38,11 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=30L)
     final_FElis = zeros(samples_num)
     for i in 1:samples_num
         @show i
+
+        # evolution by a measurement gate, Born's rule
         sample_measured_states, samples, sample_weights = Bulkmeasure(L, τ, st, D) 
+        # sample_weights = D-dimensional vector of (-ln conditional_P_of_each_layer) = free energy contributed by each layer of L/2 gates (PBC)
+
         all_EE_tlis[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
         final_state = sample_measured_states[end]
         final_EElis[i, :] = eelis_Fibo_state(L, final_state)
