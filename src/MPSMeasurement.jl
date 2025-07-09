@@ -56,19 +56,29 @@ function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
     ϕ = (1 + √5) / 2
     
     # Three-body interactions for Fibonacci chain
-    for i in 2:(N-2)
+    for i in 2:(N-1)
         # Add three-body terms based on Fibonacci fusion rules
-        os += 1.0, "n", i-1, "n", i+1
-        os += ϕ^(-1), "n", i, "n", i+1
-        os += ϕ^(-1), "n", i+1
+        os += 1.0, "n", i-1
+        os += 1.0, "n", i+1
+        os += (1.0+ϕ^(-2)), "n", i-1, "n", i+1
+        os += ϕ^(-3/2), "n", i-1, "Sx", i, "n", i+1
+        os += ϕ^(-3), "n", i-1, "n", i, "n", i+1
     end
     
     # Periodic boundary conditions
     if pbc && N > 2
-        os += -1.0, "n", N-1, "n", N, "n", 1
-        os += -1.0, "n", N, "n", 1, "n", 2
-        os += ϕ^(-1), "n", N-1, "n", 1
-        os += ϕ^(-1), "n", N, "n", 2
+        # H1 term
+        os += 1.0, "n", N
+        os += 1.0, "n", 2
+        os += (1.0+ϕ^(-2)), "n", N, "n", 2
+        os += ϕ^(-3/2), "n", N, "Sx", 2, "n", 1
+        os += ϕ^(-3), "n", N, "n", 2, "n", 1
+        # HN term (wrap around)
+        os += 1.0, "n", N-1
+        os += 1.0, "n", 1
+        os += (1.0+ϕ^(-2)), "n", N-1, "n", 1
+        os += ϕ^(-3/2), "n", N-1, "Sx", 1, "n", N
+        os += ϕ^(-3), "n", N-1, "n", 1, "n", N
     end
     
     return MPO(os, sites)
@@ -298,7 +308,7 @@ end
 
 Calculate entanglement entropy of MPS state with bipartition at bond b.
 """
-function calculate_entanglement_entropy_mps(ψ::MPS, b::Int)
+function ee_mps(ψ::MPS, b::Int)
     # Perform SVD at bond b
     orthogonalize!(ψ, b)
     U, S, V = svd(ψ[b], (linkind(ψ, b-1), siteind(ψ, b)))
@@ -313,4 +323,8 @@ function calculate_entanglement_entropy_mps(ψ::MPS, b::Int)
     end
     
     return SvN
+end
+
+function eelis_Fibo_mps()
+    
 end
