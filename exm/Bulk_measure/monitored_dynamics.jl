@@ -117,16 +117,10 @@ end
 if length(ARGS) == 0
     println("No arguments provided.")
 else
-    # for arg in ARGS
-    #     println("Received argument: $arg")
-    #     @show arg, typeof(arg), @show ARGS
-    #     # N=parse(Int64, arg)
-    #     # index=parse(Int64, arg)
-    #     # samples_generate(N, τ)
     #     # sample_calculate(N, τ)
-    # end
-    index=parse(Int64, ARGS[1])
-    seed=parse(Int64, ARGS[2])
-    println("Received argument: $index, $seed")
-    samples_generate(24, τ, index, seed)
+    N=parse(Int64, ARGS[1])
+    index=parse(Int64, ARGS[2])
+    seed=parse(Int64, ARGS[3])
+    println("Received argument: $N, $index, $seed")
+    samples_generate(N, τ, index, seed)
 end
