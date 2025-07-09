@@ -453,9 +453,8 @@ function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
 
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
-    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
@@ -481,7 +480,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
                 prob_sqrtm = 1 - prob_sqrtp
 
-                random_number = rand()
+                random_number = rand(rng)  
                 if random_number < prob_sqrtp
                     current_sequence[site_idx] = 0
                     current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
@@ -506,7 +505,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 prob_p = state_after_p' * state_after_p
                 prob_m = 1 - prob_p
                 
-                random_number = rand()
+                random_number = rand(rng)  
                 if random_number < prob_p
                     current_sequence[site_idx] = 0
                     current_state = state_after_p ./ sqrt(prob_p)

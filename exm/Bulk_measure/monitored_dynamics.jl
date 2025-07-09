@@ -1,38 +1,42 @@
 using FibonacciChain
 using JLD
 using Statistics
-# include("../FitEntEntScal.jl")
+using Random
 
-function samples_generate(L::Int64, τ::Float64, index::Int64, D::Int64=50L)
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    @time sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D) 
+function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=35L)
+    rng = MersenneTwister(seed)
     
-    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)_τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy)
+    st = zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    
+    @time sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng) 
+    
+    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
     # return sample_measured_states, samples, sample_free_energy
 end
 
-function samples_collect(L::Int64, τ::Float64, D::Int64=50L)
-    samples_num = 3000
+function samples_collect(L::Int64, τ::Float64, D::Int64=35L)
+    samples_num = 2000
     ensemble = Vector{Matrix{Int}}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-
+    ensemble_seed = Vector{Int64}(undef, samples_num)
      for i in 1:samples_num
         @show i
-        @time sample, sample_free_energy = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)_τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy")
+        @time sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy", "seed")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
+        ensemble_seed[i] = sample_free_energy["seed"]
     end
 
-    save("exm/data/Bulk_measure/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", sensemble_free_energy)
+    save("exm/data/Bulk_measure/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", sensemble_free_energy, "ensemble_seed", ensemble_seed)
 end
 
-function ensemble_calculate(L::Int64, τ::Float64, D::Int64=50L)
+function ensemble_calculate(L::Int64, τ::Float64, D::Int64=35L)
     st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
     bulk_meanEElis=zeros(L-1)
     
-    samples_num = 5000
+    samples_num = 2000
 
     ensemble_EE_dynamics= zeros(samples_num, D) 
     final_EElis = zeros(samples_num, L-1)
@@ -61,7 +65,7 @@ function ensemble_calculate(L::Int64, τ::Float64, D::Int64=50L)
     save("exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy)
 end
 
-function monitored_dynamics(L::Int64, τ::Float64, D::Int64=40L)
+function monitored_dynamics(L::Int64, τ::Float64, D::Int64=35L)
     st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
     bulk_meanEElis=zeros(L-1)
@@ -113,10 +117,16 @@ end
 if length(ARGS) == 0
     println("No arguments provided.")
 else
-    for arg in ARGS
-        println("Received argument: $arg")
-        N=parse(Int64, arg)
-        # samples_generate(N, τ)
-        sample_calculate(N, τ)
-    end
+    # for arg in ARGS
+    #     println("Received argument: $arg")
+    #     @show arg, typeof(arg), @show ARGS
+    #     # N=parse(Int64, arg)
+    #     # index=parse(Int64, arg)
+    #     # samples_generate(N, τ)
+    #     # sample_calculate(N, τ)
+    # end
+    index=parse(Int64, ARGS[1])
+    seed=parse(Int64, ARGS[2])
+    println("Received argument: $index, $seed")
+    samples_generate(24, τ, index, seed)
 end

@@ -1,6 +1,6 @@
 module FibonacciChain
 
-using BitBasis, LinearAlgebra, SparseArrays, Arpack
+using BitBasis, LinearAlgebra, SparseArrays, Arpack, Random
 using ITensorMPS
 
 export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
