@@ -453,7 +453,7 @@ function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
 
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
