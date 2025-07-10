@@ -162,16 +162,15 @@ end
 
 Perform sampling measurements on MPS state.
 """
-function mps_sampling(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
-                     num_samples::Int=1000, pbc::Bool=true)
+function mps_sampling(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true)
     num_sites = length(measurement_sites)
     samples = Vector{Vector{Symbol}}(undef, num_samples)
-    sample_weights = Vector{Float64}(undef, num_samples)
+    sample_free_energy = Vector{Float64}(undef, num_samples)
     
     for sample_idx in 1:num_samples
         current_sequence = Vector{Symbol}(undef, num_sites)
         current_state = copy(ψ)
-        total_weight = 1.0
+        total_free_energy = 1.0
         
         # Measure from left to right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
@@ -180,24 +179,24 @@ function mps_sampling(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float6
             prob_m = 1 - prob_p
             
             # Sample based on probabilities
-            random_number = rand()
+            random_number = rand(rng)
             if random_number < prob_p
                 current_sequence[site_idx] = :p
                 current_state = ψ_p
-                total_weight *= prob_p
+                total_free_energy *= prob_p
             else
                 ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, :m, pbc)
                 current_sequence[site_idx] = :m
                 current_state = ψ_m
-                total_weight *= prob_m
+                total_free_energy *= prob_m
             end
         end
         
         samples[sample_idx] = current_sequence
-        sample_weights[sample_idx] = total_weight
+        sample_free_energy[sample_idx] = total_free_energy
     end
     
-    return samples, sample_weights
+    return samples, sample_free_energy
 end
 
 """
@@ -207,7 +206,7 @@ end
 Enumerate all possible measurement trajectories on MPS state.
 """
 function mps_measurement_enumeration(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
-                                   pbc::Bool=true)
+pbc::Bool=true)
     # Initialize with single initial state
     current_level_states = [copy(ψ)]
     current_level_trajectories = [Symbol[]]
@@ -257,16 +256,16 @@ end
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; pbc::Bool=true)
+function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true)
     samples = Vector{Vector{Symbol}}(undef, D)
-    sample_weights = Vector{Float64}(undef, D)
+    sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{MPS}(undef, D)
     
     current_state = copy(ψ)
     
     for layer in 1:D
         current_sequence = Vector{Symbol}(undef, div(N, 2))
-        total_weight = 0.0
+        total_free_energy = 0.0
         
         # Alternating measurement pattern
         if layer % 2 == 1
@@ -282,25 +281,25 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; pbc::
             prob_m = 1 - prob_p
             
             # Sample measurement outcome
-            random_number = rand()
+            random_number = rand(rng)
             if random_number < prob_p
                 current_sequence[site_idx] = :p
                 current_state = ψ_p
-                total_weight += -log(prob_p)
+                total_free_energy += -log(prob_p)
             else
                 ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, :m, pbc)
                 current_sequence[site_idx] = :m
                 current_state = ψ_m
-                total_weight += -log(prob_m)
+                total_free_energy += -log(prob_m)
             end
         end
         
         sample_measured_states[layer] = current_state
         samples[layer] = current_sequence
-        sample_weights[layer] = total_weight
+        sample_free_energy[layer] = total_free_energy
     end
     
-    return sample_measured_states, samples, sample_weights
+    return sample_measured_states, samples, sample_free_energy
 end
 
 """
