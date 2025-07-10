@@ -58,27 +58,27 @@ function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
     # Three-body interactions for Fibonacci chain
     for i in 2:(N-1)
         # Add three-body terms based on Fibonacci fusion rules
-        os += 1.0, "n", i-1
-        os += 1.0, "n", i+1
-        os += (1.0+ϕ^(-2)), "n", i-1, "n", i+1
-        os += ϕ^(-3/2), "n", i-1, "Sx", i, "n", i+1
-        os += ϕ^(-3), "n", i-1, "n", i, "n", i+1
+        os += 1.0, "ProjDn", i-1
+        os += 1.0, "ProjDn", i+1
+        os += (1.0+ϕ^(-2)), "ProjDn", i-1, "ProjDn", i+1
+        os += ϕ^(-3/2), "ProjDn", i-1, "Sx", i, "ProjDn", i+1
+        os += ϕ^(-3), "ProjDn", i-1, "ProjDn", i, "ProjDn", i+1
     end
     
     # Periodic boundary conditions
     if pbc && N > 2
         # H1 term
-        os += 1.0, "n", N
-        os += 1.0, "n", 2
-        os += (1.0+ϕ^(-2)), "n", N, "n", 2
-        os += ϕ^(-3/2), "n", N, "Sx", 2, "n", 1
-        os += ϕ^(-3), "n", N, "n", 2, "n", 1
+        os += 1.0, "ProjDn", N
+        os += 1.0, "ProjDn", 2
+        os += (1.0+ϕ^(-2)), "ProjDn", N, "ProjDn", 2
+        os += ϕ^(-3/2), "ProjDn", N, "Sx", 2, "ProjDn", 1
+        os += ϕ^(-3), "ProjDn", N, "ProjDn", 2, "ProjDn", 1
         # HN term (wrap around)
-        os += 1.0, "n", N-1
-        os += 1.0, "n", 1
-        os += (1.0+ϕ^(-2)), "n", N-1, "n", 1
-        os += ϕ^(-3/2), "n", N-1, "Sx", 1, "n", N
-        os += ϕ^(-3), "n", N-1, "n", 1, "n", N
+        os += 1.0, "ProjDn", N-1
+        os += 1.0, "ProjDn", 1
+        os += (1.0+ϕ^(-2)), "ProjDn", N-1, "ProjDn", 1
+        os += ϕ^(-3/2), "ProjDn", N-1, "Sx", 1, "ProjDn", N
+        os += ϕ^(-3), "ProjDn", N-1, "ProjDn", 1, "ProjDn", N
     end
     
     return MPO(os, sites)
@@ -325,6 +325,11 @@ function ee_mps(ψ::MPS, b::Int)
     return SvN
 end
 
-function eelis_Fibo_mps()
-    
+function eelis_Fibo_mps(N::Int64, ψ::MPS)
+    splitlis=Vector(1:N-1)
+    EE_lis=zeros(length(splitlis))
+    for m in eachindex(EE_lis)
+        EE_lis[m]=ee_mps(ψ, splitlis[m])
+    end
+    return EE_lis
 end
