@@ -11,8 +11,31 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     
     @time sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng) 
     
+    halfchain_EE_tlis = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_state(L, final_state)
+
+    
+    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+
     save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
     # return sample_measured_states, samples, sample_free_energy
+end
+
+function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=35L, additional_layers::Int64=15L)
+    rng = MersenneTwister(seed)
+    
+    sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
+    st = Generate_state(τ, st, sample, true, true) 
+    sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st[end-1],additional_layers, rng) 
+    halfchain_EE_tlis = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_state(L, final_state)
+
+    
+    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D+additional_layers,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+
+    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D+additional_layers,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
 end
 
 function samples_collect(L::Int64, τ::Float64, D::Int64=35L)
@@ -163,8 +186,8 @@ else
     index=parse(Int64, ARGS[2])
     seed=parse(Int64, ARGS[3])
     println("Received argument: $N, $index")
-    # samples_generate(N, τ, index, seed)
-    samples_calculate(N, τ, index)
+    samples_generate(N, τ, index, seed)
+    # samples_calculate(N, τ, index)
     # Observable_collect(N, τ)
     # samples_collect(N, τ)
 end
