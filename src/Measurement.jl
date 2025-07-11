@@ -257,7 +257,7 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
-function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
@@ -281,7 +281,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
             prob_p = state_after_p' * state_after_p
             prob_m = 1 - prob_p
             
-            random_number = rand()
+            random_number = rand(rng)
             if random_number < prob_p
                 current_sequence[site_idx] = 0
                 current_state = state_after_p ./ sqrt(prob_p)
@@ -302,7 +302,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
     return sample_measured_states, samples, sample_free_energy
 end
 
-Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc)
 
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -328,17 +328,16 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     return current_state, current_sequence, total_free_energy
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
-    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
-    samples = Vector{Vector{Int64}}(undef, D)
+    sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
-    
+
     current_state = copy(state)  
     
     for layer in 1:D
-        current_sequence = Vector{Int64}(undef, div(N,2))
+        current_sequence = zeros(Int, div(N,2))
         total_free_energy = 0.0
         
         if layer % 2 == 1
@@ -346,7 +345,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
         else
             measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
         end
-        
+
         if layer == D
             # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
@@ -354,8 +353,8 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
                 prob_sqrtm = 1 - prob_sqrtp
-                
-                random_number = rand()
+
+                random_number = rand(rng)  
                 if random_number < prob_sqrtp
                     current_sequence[site_idx] = 0
                     current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
@@ -367,19 +366,20 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                     total_free_energy += -log(prob_sqrtm)
                 end
             end
-            
+
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer, :] = current_sequence
             sample_free_energy[layer] = total_free_energy
             continue
         else
             # measure 0 is Pi 0/tau, measure 1 is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
                 state_after_p = measuremap(N, τ, current_state, measurement_site, 0, pbc)
+                
                 prob_p = state_after_p' * state_after_p
                 prob_m = 1 - prob_p
                 
-                random_number = rand()
+                random_number = rand(rng)  
                 if random_number < prob_p
                     current_sequence[site_idx] = 0
                     current_state = state_after_p ./ sqrt(prob_p)
@@ -391,20 +391,20 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                     total_free_energy += -log(prob_m)
                 end
             end
-            
+
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer, :] = current_sequence
             sample_free_energy[layer] = total_free_energy
         end
     end
-    
-    return sample_measured_states, samples, sample_free_energy
+
+    return sample_measured_states, sample, sample_free_energy
 end
 
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
-    samples = Vector{Vector{Int64}}(undef, D)
+    sample = Vector{Vector{Int64}}(undef, D)
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
 
@@ -432,7 +432,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             end
 
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer] = current_sequence
             sample_free_energy[layer] = total_free_energy
         else
                 # meaure from the left to the right
@@ -446,42 +446,50 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             end
 
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer] = current_sequence
             sample_free_energy[layer] = total_free_energy
         end
     end
 
-    return sample_measured_states, samples, sample_free_energy
+    return sample_measured_states, sample, sample_free_energy
 end
 
-function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, temp::Bool=false, pbc::Bool=true) where{T, ET}
-    if ET == Int64
-        N = 2*length(samples)
+function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}  
+    if ET == Vector{Int}
+        N = 2*length(sample)
         measurement_sites = collect(2:2:N)
-        for (idx, measurement_type) in enumerate(samples)
-            state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+        for (idx, measurement_type) in enumerate(sample)
+            sign = measurement_type == 0 ? 0 : 1
+            state = measuremap(N, τ, state, measurement_sites[idx], sign, pbc)
             state ./= norm(state)  # normalize the state
         end
         return state
-    elseif ET == Vector{Int64} && !temp
-        D = length(samples)
-        N = 2*length(samples[1])
+    elseif ET == Matrix{Int} && !temp
+        D = size(sample, 1)
+        N = 2*size(sample, 2)
         for layer in 1:D
             if layer % 2 == 1
                 measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            for (idx, measurement_type) in enumerate(samples[layer])
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
+            if layer == D
+                for (idx, measurement_type) in enumerate(sample[layer, :])
+                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                end
+            else
+                for (idx, measurement_type) in enumerate(sample[layer, :])
+                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                end
             end
         end
         return state
-    elseif ET == Vector{Int64} && temp
+    elseif ET == Matrix{Int} && temp
         # if ET is Vector{Int64} and temp is true, we return temporary states.
-        D = length(samples)
-        N = 2*length(samples[1])
+        D = size(sample, 1)
+        N = 2*size(sample, 2)
         statelis = Vector{Vector{T}}(undef, D)
         for layer in 1:D
             if layer % 2 == 1
@@ -489,13 +497,22 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, temp
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            for (idx, measurement_type) in enumerate(samples[layer])
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
-                statelis[layer]= state
+            if layer == D
+                for (idx, measurement_type) in enumerate(sample[layer, :])
+                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                    statelis[layer] = state
+                end
+            else
+                for (idx, measurement_type) in enumerate(sample[layer, :])
+                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+                    state ./= norm(state)  # normalize the state
+                    statelis[layer] = state
+                end
             end
         end
         return statelis
     end
+
 
 end
