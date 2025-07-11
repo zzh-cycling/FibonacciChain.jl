@@ -343,7 +343,7 @@ end
 @testset "Generate_state" begin
     N = 10
     τ = 1e3
-    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
     

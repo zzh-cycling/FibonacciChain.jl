@@ -257,7 +257,7 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
-function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000; rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
@@ -281,7 +281,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
             prob_p = state_after_p' * state_after_p
             prob_m = 1 - prob_p
             
-            random_number = rand()
+            random_number = rand(rng)
             if random_number < prob_p
                 current_sequence[site_idx] = 0
                 current_state = state_after_p ./ sqrt(prob_p)
@@ -302,7 +302,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
     return sample_measured_states, samples, sample_free_energy
 end
 
-Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000; rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples;rng, pbc)
 
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -328,7 +328,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     return current_state, current_sequence, total_free_energy
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64; rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     samples = Vector{Vector{Int64}}(undef, D)
@@ -355,7 +355,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
                 prob_sqrtm = 1 - prob_sqrtp
                 
-                random_number = rand()
+                random_number = rand(rng)
                 if random_number < prob_sqrtp
                     current_sequence[site_idx] = 0
                     current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
@@ -379,7 +379,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                 prob_p = state_after_p' * state_after_p
                 prob_m = 1 - prob_p
                 
-                random_number = rand()
+                random_number = rand(rng)
                 if random_number < prob_p
                     current_sequence[site_idx] = 0
                     current_state = state_after_p ./ sqrt(prob_p)
