@@ -292,12 +292,12 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
             if random_number < prob_p
                 current_sequence[site_idx] = 0
                 current_state = state_after_p ./ sqrt(prob_p)
-                total_free_energy *= prob_p
+                total_free_energy += -log(prob_p)
             else
                 state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc)
                 current_sequence[site_idx] = 1
                 current_state = state_after_m ./ sqrt(prob_m)
-                total_free_energy *= prob_m
+                total_free_energy += -log(prob_m)
             end
         end
         
@@ -318,7 +318,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 
     current_sequence = Vector{Int64}(undef, num_sites)
     current_state = copy(state)  
-    total_free_energy = 1.0
+    total_free_energy = 0.0
     
     # meaure from the left to the right
     for (site_idx, measurement_site) in enumerate(measurement_sites)
@@ -329,7 +329,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 
         current_sequence[site_idx] = sign
         current_state = state_after_measure ./ sqrt(prob)
-        total_free_energy *= prob
+        total_free_energy += -log(prob)
     end
     
     return current_state, current_sequence, total_free_energy
