@@ -28,7 +28,7 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ₀ = randomMPS(sites, state)
+    ψ0 = randomMPS(sites, state)
     
     # Create Fibonacci Hamiltonian
     H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
@@ -38,7 +38,7 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     setmaxdim!(sweeps, 10, 20, 50, 100, 200)
     setcutoff!(sweeps, 1E-10)
     
-    energy, ψ = dmrg(H, ψ₀, sweeps)
+    energy, ψ = dmrg(H, ψ0, sweeps)
     
     return ψ, energy
 end
@@ -112,16 +112,26 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
     if 2 <= i <= N-1
         # Identity term
         os += cstτ, "I", i
-        os += coef, "ProjUp", i-1, "Sz", i, "n", i+1
-        os += coef * (1 - 2 * ϕ^(-1)), "I", i-1, "X", i, "I", i+1
-        
+        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
     elseif pbc
         if i == 1
             os += cstτ, "I", i
-            os += coef, "n", N, "X", i, "n", 2
+            os += coef, "Proj0", N, "Z", i, "Proj1", i+1
+            os += coef, "Proj1", N, "Z", i, "Proj0", i+1
+            os += -coef, "Proj1", N, "Z", i, "Proj1", i+1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", i, "Proj0", i+1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", i, "Proj0", i+1
         elseif i == N
             os += cstτ, "I", i
-            os += coef, "n", N-1, "X", i, "n", 1
+            os += coef, "Proj0", i-1, "Z", i, "Proj1", 1
+            os += coef, "Proj1", i-1, "Z", i, "Proj0", 1
+            os += -coef, "Proj1", i-1, "Z", i, "Proj1", 1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", 1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", 1
         end
     end
     

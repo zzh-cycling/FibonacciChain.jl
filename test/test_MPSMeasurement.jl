@@ -1,6 +1,6 @@
 using Test
 using FibonacciChain
-using ITensorMPS
+using ITensorMPS, ITensors
 using LinearAlgebra
 
 @testset "initial_mps" begin

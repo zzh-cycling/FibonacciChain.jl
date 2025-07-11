@@ -1,7 +1,7 @@
 module FibonacciChain
 
 using BitBasis, LinearAlgebra, SparseArrays, Arpack, Random
-using ITensorMPS
+using ITensorMPS, ITensors
 
 export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
 export ee, eelis_Fibo_state, eelis_Fiboladder_state, translation_matrix, inversion_matrix, braidingsqmap, free_energy
