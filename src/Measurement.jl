@@ -392,7 +392,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                     current_state = state_after_p ./ sqrt(prob_p)
                     total_free_energy += -log(prob_p)
                 else
-                    state_after_p = measuremap(N, τ, current_state, measurement_site, 1, pbc)
+                    state_after_m = measuremap(N, τ, current_state, measurement_site, 1, pbc)
                     current_sequence[site_idx] = 1
                     current_state = state_after_m ./ sqrt(prob_m)
                     total_free_energy += -log(prob_m)
