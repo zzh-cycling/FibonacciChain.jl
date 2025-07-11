@@ -172,7 +172,6 @@ Enumerate all possible measurement trajectories on MPS state.
 function mps_measurement_enumeration(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
 pbc::Bool=true)
     # Initialize with single initial state
-    current_level_states = [copy(ψ)]
     current_level_trajectories = [Int64[]]
     current_level_probabilities = [1.0]
     
