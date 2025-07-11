@@ -1,133 +1,193 @@
 using FibonacciChain
-using Plots
-using LaTeXStrings
 using JLD
-include("../FitEntEntScal.jl")
+using Statistics
+using Random
 
-function samples_generate(L::Int64, τ::Float64, D::Int64=100L)
-    st=zeros(length(Fibonacci_basis(L)))
+function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=35L)
+    rng = MersenneTwister(seed)
+    
+    st = zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
-    samples_num = 10
-
-    samples_lis = Vector{Vector{Vector{Symbol}}}(undef, samples_num)
-    sample_weights_lis = Vector{Vector{Float64}}(undef, samples_num)
-    # sample_measured_states_lis = Vector{Vector{Float64}}(undef, samples_num)
-    for i in 1:samples_num
-        @show i
-        @time sample_measured_states, samples, sample_weights = Bulkmeasure(L, τ, st, D) 
-        samples_lis[i] = samples
-        sample_weights_lis[i] = sample_weights
-        # sample_measured_states_lis[i] = sample_measured_states
-    end
     
-    save("exm/data/Bulk_measure/monitored_dynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "samples_lis", samples_lis, "sample_weights_lis", sample_weights_lis)
-    # return sample_measured_states, samples, sample_weights
-end
-
-function monitored_dynamics(L::Int64, τ::Float64, D::Int64=500L)
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    average_EElis=zeros(L-1)
+    @time sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng) 
     
-    samples_num = 1000
-
-    all_EE_tlis= zeros(samples_num, D) 
-    stderr_EElis = zeros(L-1)
-    all_EElis = zeros(samples_num, L-1)
-
-    for i in 1:samples_num
-        @show i
-        sample_measured_states, samples, sample_weights = Bulkmeasure(L, τ, st, D) 
-        all_EE_tlis[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
-        final_state = sample_measured_states[end]
-        all_EElis[i, :] = eelis_Fibo_state(L, final_state)
-    end
-
-    average_EElis = mean(all_EElis, dims=1)[:]
-    average_EE_tlis = mean(all_EE_tlis, dims=1)[:]
-    stderr_EElis = (std(all_EElis, dims=1) ./ sqrt(samples_num))[:]
-    stderr_EE_tlis = (std(all_EE_tlis, dims=1) ./ sqrt(samples_num))[:]
-    
-    
-    return all_EE_tlis, average_EE_tlis, stderr_EE_tlis, all_EElis, average_EElis, stderr_EElis 
-end
-
-function sample_calculate(L::Int64, τ::Float64, D::Int64=100L)
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    average_EElis=zeros(L-1)
-    
-    samples_num = 10000
-
-    all_EE_tlis= zeros(samples_num, D) 
-    stderr_EElis = zeros(L-1)
-    all_EElis = zeros(samples_num, L-1)
-
-    samples_lis, sample_weights_lis = load("./exm/data/Bulk_measure/monitored_dynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "samples_lis", "sample_weights_lis")
-    for i in 1:samples_num
-        @show i
-        sample_measured_states = Generate_state(τ, st, samples_lis[i], true, true)
-        all_EE_tlis[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
-        final_state = sample_measured_states[end]
-        all_EElis[i, :] = eelis_Fibo_state(L, final_state)
-    end
-
-    average_EElis = mean(all_EElis, dims=1)[:]
-    average_EE_tlis = mean(all_EE_tlis, dims=1)[:]
-    stderr_EElis = (std(all_EElis, dims=1) ./ sqrt(samples_num))[:]
-    stderr_EE_tlis = (std(all_EE_tlis, dims=1) ./ sqrt(samples_num))[:]
-    
-    save("exm/data/Bulk_measure/monitored_EEdynamics_L$(L)_τ$(τ)_D$(D).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "average_EElis", average_EElis, "stderr_EElis", stderr_EElis)
-    # return all_EE_tlis, average_EE_tlis, stderr_EE_tlis, all_EElis, average_EElis, stderr_EElis 
-end
-
-function post_selection(L::Int64, τ::Float64, D::Int64, sign::Symbol=:m)
-    pbc = true
-    st=zeros(length(Fibonacci_basis(L)))
-    st[1] = 1.0
-    average_EElis=zeros(L-1)
-
-    @time sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, sign, pbc)
-    EE_tlis = [eelis_Fibo_state(L, state_t) for state_t in sample_measured_states]
+    halfchain_EE_tlis = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    average_EElis = eelis_Fibo_state(L, final_state)
+    final_EElis = eelis_Fibo_state(L, final_state)
 
     
-    return average_EElis, EE_tlis
+    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+
+    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
+    # return sample_measured_states, samples, sample_free_energy
 end
 
-# L = 10
-# τ = 0.1
-# D = 60L
-# average_EElis, EE_tlis = post_selection(L, τ, D, :m)
-# fig1=plot(range(0, D/2, D), EE_tlis, label=false, xlabel=L"t", ylabel=L"S_{vN}", title="Post-selection 0")
-# # plot!([1, 30*10], 0.8933161189003952*[1,1],  c=:Gray, label=false, linestyle=:dash, linewidth=2)
-# cent, fig = fitCCEntEntScal(average_EElis, mincut=2, pbc=true)
-# display(fig)
-# save("exm/data/monitored_dynamics.jld", "cent", cent, "fig", fig)
-# save("exm/data/monitored_dynamics.jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis)
-# savefig(fig, "/Users/cycling/Documents/projects/NoisyFibonacciChain/figs/Bulk_measure/monitored_dynamics_N28_D15_eescaling.pdf")
-# savefig(fig1, "/Users/cycling/Documents/projects/NoisyFibonacciChain/figs/Bulk_measure/monitored_dynamics_N28_D15_S.pdf")
+function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=35L, additional_layers::Int64=15L)
+    rng = MersenneTwister(seed)
+    
+    sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
+    st = Generate_state(τ, st, sample, true, true) 
+    sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st[end-1],additional_layers, rng) 
+    halfchain_EE_tlis = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_state(L, final_state)
+
+    
+    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D+additional_layers,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+
+    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D+additional_layers,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
+end
+
+function samples_collect(L::Int64, τ::Float64, D::Int64=35L)
+    samples_num = 2000
+    ensemble = Vector{Matrix{Int}}(undef, samples_num)
+    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
+    ensemble_seed = Vector{Int64}(undef, samples_num)
+     for i in 1:samples_num
+        @show i
+        @time sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed")
+        ensemble[i] = sample
+        ensemble_free_energy[i] = sample_free_energy
+        ensemble_seed[i] = seed
+    end
+
+    save("exm/data/Bulk_measure/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
+end
+
+function samples_calculate(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    
+    sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
+
+    # evolution by a measurement gate, Born's rule
+    sample_measured_states = Generate_state(τ, st, sample, true, true) 
+    # sample_free_energy = D-dimensional vector of (-ln conditional_P_of_each_layer) = free energy contributed by each layer of L/2 gates (PBC)
+    halfchain_EE_tlis = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_state(L, final_state)
+
+    
+    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+end
+
+function Observable_collect(L::Int64, τ::Float64, D::Int64=35L)
+    samples_num = 2000
+    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
+    ensemble_seed = Vector{Int64}(undef, samples_num)
+    ensemble_EE_dynamics= zeros(samples_num, D) 
+    ensemble_final_EElis = zeros(samples_num, L-1)
+
+    for i in 1:samples_num
+        @show i
+        halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)_D$(div(D,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
+
+        ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+        ensemble_final_EElis[i, :] = final_EElis
+        ensemble_seed[i] = seed
+        ensemble_free_energy[i] = sample_free_energy
+    end
+
+    bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
+    average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+    ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
+    stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+
+    
+    save("exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
+end
+
+function ensemble_calculate(L::Int64, τ::Float64, D::Int64=35L)
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    bulk_meanEElis=zeros(L-1)
+    
+    samples_num = 2000
+
+    ensemble_EE_dynamics= zeros(samples_num, D) 
+    final_EElis = zeros(samples_num, L-1)
+
+
+    ensemble, ensemble_free_energy = load("./exm/data/Bulk_measure/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", "ensemble_free_energy")
+
+    for i in 1:samples_num
+        @show i
+        # evolution by a measurement gate, Born's rule
+        sample_measured_states = Generate_state(τ, st, sample, true, true)  
+        # sample_free_energy = D-dimensional vector of (-ln conditional_P_of_each_layer) = free energy contributed by each layer of L/2 gates (PBC)
+
+        ensemble_EE_dynamics[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+        final_state = sample_measured_states[end]
+        final_EElis[i, :] = eelis_Fibo_state(L, final_state)
+    end
+
+    bulk_meanEElis = mean(final_EElis, dims=1)[:]
+    average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+    ensemble_stderr_EElis = (std(final_EElis, dims=1) ./ sqrt(samples_num))[:]
+    stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+
+    
+    save("exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy)
+end
+
+function monitored_dynamics(L::Int64, τ::Float64, D::Int64=35L)
+    st=zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    bulk_meanEElis=zeros(L-1)
+    
+    samples_num = 2000
+
+    ensemble_EE_dynamics= zeros(samples_num, D) 
+    ensemble_stderr_EElis = zeros(L-1)
+    final_EElis = zeros(samples_num, L-1)
+
+    all_FE_tlis = zeros(samples_num, D)
+    final_FElis = zeros(samples_num)
+    for i in 1:samples_num
+        @show i
+        sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D) 
+        ensemble_EE_dynamics[i, :] = [eelis_Fibo_state(L, j)[div(L,2)] for j in sample_measured_states]
+        final_state = sample_measured_states[end]
+        final_EElis[i, :] = eelis_Fibo_state(L, final_state)
+
+        all_FE_tlis[i, :] = sample_free_energy
+        final_FElis[i] = sample_free_energy[end]
+    end
+
+    bulk_meanEElis = mean(final_EElis, dims=1)[:]
+    average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+    ensemble_stderr_EElis = (std(final_EElis, dims=1) ./ sqrt(samples_num))[:]
+    stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+    
+    average_FE = mean(final_FElis)
+    stderr_FE = std(final_FElis) / sqrt(samples_num)
+    average_FE_tlis = mean(all_FE_tlis, dims=1)[:]
+    stderr_FE_tlis = (std(all_FE_tlis, dims=1) ./ sqrt(samples_num))[:]
+
+    
+    return average_EE_tlis, stderr_EE_tlis, bulk_meanEElis, ensemble_stderr_EElis, 
+           average_FE_tlis, stderr_FE_tlis, average_FE, stderr_FE
+end
+
+
+
 ## == monitored_dynamics == ##
-# L = 16
+# L = 10
 τ = log(1+√2)
 # D = 100L
-# inds = collect(1:10:D)
-# inds = vcat(collect())
-# inds = collect(1:6000)
-# all_EE_tlis, average_EE_tlis, stderr_EE_tlis, all_EElis, average_EElis, stderr_EElis = monitored_dynamics(L, τ, D)
-# fig_monitored_N8=plot(range(0, D/2, D)[inds], average_EE_tlis[:][inds], yerror=stderr_EE_tlis[inds], label=false, xlabel=L"t", ylabel=L"S_{vN}", title=latexstring("N=$(L), τ=$(τ)"))
-# fit_samples = scatter(range(0, D/2, D)[inds], all_EE_tlis'[inds,:], xlabel=L"t", ylabel=L"S_{vN}", legend = false, colors= cgrad(:blues, length(collect(1:100))), marker_z = collect(1:100)',  colorbar=false,  line_z = collect(1:100)', title=latexstring("N=$(L), τ=$(τ)"))
-# cent, fig = fitCCEntEntScal(average_EElis, mincut=1, pbc=true)
-# display(fig)
+
+# ensemble_EE_dynamics, average_EE_tlis, stderr_EE_tlis, all_EElis, bulk_meanEElis, ensemble_stderr_EElis = monitored_dynamics(L, τ, D)
+
 
 if length(ARGS) == 0
     println("No arguments provided.")
 else
-    for arg in ARGS
-        println("Received argument: $arg")
-        N=parse(Int64, arg)
-        # samples_generate(N, τ)
-        sample_calculate(N, τ)
-    end
+    N=parse(Int64, ARGS[1])
+    index=parse(Int64, ARGS[2])
+    seed=parse(Int64, ARGS[3])
+    println("Received argument: $N, $index")
+    samples_generate(N, τ, index, seed)
+    # samples_calculate(N, τ, index)
+    # Observable_collect(N, τ)
+    # samples_collect(N, τ)
 end
