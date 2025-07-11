@@ -283,14 +283,14 @@ end
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
-@testset "Sample" begin
+@testset "Boundary_measure" begin
     N=6
     energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     τ = 3.802
     measurement_sites = collect(2:2:N)
     
-    sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
+    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
@@ -305,31 +305,26 @@ end
     energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_weight_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, :p)
+    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, :p)
     
-    @test -log(total_weight_p) /5 ≈ 1.1136495433981064 
+    @test -log(total_free_energy_p) /5 ≈ 1.1136495433981064 
 end
 
-@testset "Generate_state" begin
-    N = 10
-    τ = 1e3
-    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
-    antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites, 10)
-    state = Generate_state(τ, antiGS, samples[1])
-    @test state ≈ sample_measured_states[1]
-
-    st = zeros(length(Fibonacci_basis(N)))
+@testset "Bulkmeasure" begin
+    L = 10
+    D = 2L
+    st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_weights = Bulkmeasure(N, τ, st, N)
-    state_t = Generate_state(τ, st, samples)
-    statelis = Generate_state(τ, st, samples, temp=true)
-    @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D) 
+    EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
+    mean_EEt_lis .+= EElis
 
+
+    final_meanEE_lis ./= samples_num
+    mean_EEt_lis ./= samples_num
 end
 
 @testset "Bulkpost_selection" begin
@@ -342,31 +337,34 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_weights = Bulkpost_selection(L, τ, st, D, :p, pbc)
+    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, :p, pbc)
     state_t = sample_measured_states[end]
     EE = eelis_Fibo_state(L, state_t)[5]
     @test samples[end] == fill(:p, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
 end
 
-# @testset "Bulkmeasure" begin
-#     L = 10
-#     D = 100L
-#     st=zeros(length(Fibonacci_basis(L)))
-#     st[1] = 1.0
-#     final_meanEE_lis=zeros(L-1)
-#     samples_num = 100
-#     mean_EEt_lis= zeros(D) 
-#     for i in 1:samples_num
-#         @show i
-#         sample_measured_states, samples, sample_weights = Bulkmeasure(L, 0.1, st, D) 
-#         EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
-#         final_state = sample_measured_states[end]
-#         final_meanEE_lis .+= eelis_Fibo_state(L, final_state)
-#         mean_EEt_lis .+= EElis
-#     end
+@testset "Generate_state" begin
+    N = 10
+    τ = 1e3
+    energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    measurement_sites = collect(2:2:N)
+    
+    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 10)
+    state = Generate_state(τ, antiGS, samples[1])
+    @test state ≈ sample_measured_states[1]
 
-#     final_meanEE_lis ./= samples_num
-#     mean_EEt_lis ./= samples_num
-# end
+    st = zeros(length(Fibonacci_basis(N)))
+    st[1] = 1.0
+
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
+    state_t = Generate_state(τ, st, samples)
+    statelis = Generate_state(τ, st, samples, temp=true)
+    @test statelis ≈ sample_measured_states
+    @test state_t ≈ sample_measured_states[end]
+
+end
+
+
 

@@ -265,7 +265,7 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Symbol}}, pr
 end
 
 
-function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
@@ -284,7 +284,7 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
         for (site_idx, measurement_site) in enumerate(measurement_sites)
            
             state_after_p = measuremap(T, τ, current_state, measurement_site, :p, pbc)
-            state_after_m = measuremap(T, τ, current_state, measurement_site, :m, pbc)
+            
             
             prob_p = state_after_p' * state_after_p
             prob_m = 1 - prob_p
@@ -295,6 +295,7 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_weight *= prob_p
             else
+                state_after_m = measuremap(T, τ, current_state, measurement_site, :m, pbc)
                 current_sequence[site_idx] = :m
                 current_state = state_after_m ./ sqrt(prob_m)
                 total_weight *= prob_m
@@ -309,7 +310,7 @@ function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::
     return sample_measured_states, samples, sample_weights
 end
 
-Sampling(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Sampling(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
 
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Symbol, pbc::Bool=true) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -333,6 +334,79 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     end
     
     return current_state, current_sequence, total_weight
+end
+
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
+    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
+    samples = Vector{Vector{Symbol}}(undef, D)
+    sample_weights = Vector{Float64}(undef, D)
+    sample_measured_states = Vector{Vector{ET}}(undef, D)
+    
+    current_state = copy(state)  
+    
+    for layer in 1:D
+        current_sequence = Vector{Symbol}(undef, div(N,2))
+        total_weight = 0.0
+        
+        if layer % 2 == 1
+            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+        else
+            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+        end
+        
+        if layer == D
+            # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
+                
+                prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
+                prob_sqrtm = 1 - prob_sqrtp
+                
+                random_number = rand()
+                if random_number < prob_sqrtp
+                    current_sequence[site_idx] = :p
+                    current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
+                    total_weight += -log(prob_sqrtp)
+                else
+                    state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
+                    current_sequence[site_idx] = :m
+                    current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
+                    total_weight += -log(prob_sqrtm)
+                end
+            end
+            
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+            continue
+        else
+            # measure :p is Pi 0/tau, measure :m is Pi 1
+            for (site_idx, measurement_site) in enumerate(measurement_sites)
+                state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
+                prob_p = state_after_p' * state_after_p
+                prob_m = 1 - prob_p
+                
+                random_number = rand()
+                if random_number < prob_p
+                    current_sequence[site_idx] = :p
+                    current_state = state_after_p ./ sqrt(prob_p)
+                    total_weight += -log(prob_p)
+                else
+                    state_after_p = measuremap(N, τ, current_state, measurement_site, :m, pbc)
+                    current_sequence[site_idx] = :m
+                    current_state = state_after_m ./ sqrt(prob_m)
+                    total_weight += -log(prob_m)
+                end
+            end
+            
+            sample_measured_states[layer] = current_state
+            samples[layer] = current_sequence
+            sample_weights[layer] = total_weight
+        end
+    end
+    
+    return sample_measured_states, samples, sample_weights
 end
 
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Symbol, pbc::Bool=true) where {ET}
@@ -389,6 +463,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, samples, sample_weights
 end
 
+
 function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, temp::Bool=false, pbc::Bool=true) where{T, ET}
     if ET == Symbol
         N = 2*length(samples)
@@ -433,77 +508,4 @@ function Generate_state(τ::Float64, state::Vector{T}, samples::Vector{ET}, temp
         return statelis
     end
 
-end
-
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bool=true) where {ET}
-    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
-    # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
-    samples = Vector{Vector{Symbol}}(undef, D)
-    sample_weights = Vector{Float64}(undef, D)
-    sample_measured_states = Vector{Vector{ET}}(undef, D)
-
-    current_state = copy(state)  
-    
-    for layer in 1:D
-        current_sequence = Vector{Symbol}(undef, div(N,2))
-        total_weight = 0.0
-        
-        if layer % 2 == 1
-            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-        else
-            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-        end
-
-        if layer == D
-            # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
-                
-                prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
-                prob_sqrtm = 1 - prob_sqrtp
-
-                random_number = rand()
-                if random_number < prob_sqrtp
-                    current_sequence[site_idx] = :p
-                    current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
-                    total_weight += -log(prob_sqrtp)
-                else
-                    state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
-                    current_sequence[site_idx] = :m
-                    current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
-                    total_weight += -log(prob_sqrtm)
-                end
-            end
-
-            sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
-            sample_weights[layer] = total_weight
-            continue
-        else
-            # measure :p is Pi 0/tau, measure :m is Pi 1
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-                
-                prob_p = state_after_p' * state_after_p
-                prob_m = 1 - prob_p
-                
-                random_number = rand()
-                if random_number < prob_p
-                    current_sequence[site_idx] = :p
-                    current_state = state_after_p ./ sqrt(prob_p)
-                    total_weight += -log(prob_p)
-                else
-                    state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
-                    current_sequence[site_idx] = :m
-                    current_state = state_after_m ./ sqrt(prob_m)
-                    total_weight += -log(prob_m)
-                end
-            end
-
-            sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
-            sample_weights[layer] = total_weight
-        end
-    end
-
-    return sample_measured_states, samples, sample_weights
 end

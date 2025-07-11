@@ -157,49 +157,6 @@ function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Symbol
 end
 
 """
-    mps_sampling(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
-                num_samples::Int=1000, pbc::Bool=true) -> Vector{Vector{Symbol}}, Vector{Float64}
-
-Perform sampling measurements on MPS state.
-"""
-function mps_sampling(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true)
-    num_sites = length(measurement_sites)
-    samples = Vector{Vector{Symbol}}(undef, num_samples)
-    sample_free_energy = Vector{Float64}(undef, num_samples)
-    
-    for sample_idx in 1:num_samples
-        current_sequence = Vector{Symbol}(undef, num_sites)
-        current_state = copy(ψ)
-        total_free_energy = 1.0
-        
-        # Measure from left to right
-        for (site_idx, measurement_site) in enumerate(measurement_sites)
-            # Apply both measurement outcomes
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, :p, pbc)
-            prob_m = 1 - prob_p
-            
-            # Sample based on probabilities
-            random_number = rand(rng)
-            if random_number < prob_p
-                current_sequence[site_idx] = :p
-                current_state = ψ_p
-                total_free_energy *= prob_p
-            else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, :m, pbc)
-                current_sequence[site_idx] = :m
-                current_state = ψ_m
-                total_free_energy *= prob_m
-            end
-        end
-        
-        samples[sample_idx] = current_sequence
-        sample_free_energy[sample_idx] = total_free_energy
-    end
-    
-    return samples, sample_free_energy
-end
-
-"""
     mps_measurement_enumeration(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
                                pbc::Bool=true) -> Vector{MPS}, Vector{Vector{Symbol}}, Vector{Float64}
 
@@ -249,6 +206,49 @@ pbc::Bool=true)
     end
     
     return current_level_states, current_level_trajectories, current_level_probabilities
+end
+
+"""
+    mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
+                num_samples::Int=1000, pbc::Bool=true) -> Vector{Vector{Symbol}}, Vector{Float64}
+
+Perform boundary measurements on MPS state.
+"""
+function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true)
+    num_sites = length(measurement_sites)
+    samples = Vector{Vector{Symbol}}(undef, num_samples)
+    sample_free_energy = Vector{Float64}(undef, num_samples)
+    
+    for sample_idx in 1:num_samples
+        current_sequence = Vector{Symbol}(undef, num_sites)
+        current_state = copy(ψ)
+        total_free_energy = 1.0
+        
+        # Measure from left to right
+        for (site_idx, measurement_site) in enumerate(measurement_sites)
+            # Apply both measurement outcomes
+            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, :p, pbc)
+            prob_m = 1 - prob_p
+            
+            # Sample based on probabilities
+            random_number = rand(rng)
+            if random_number < prob_p
+                current_sequence[site_idx] = :p
+                current_state = ψ_p
+                total_free_energy *= prob_p
+            else
+                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, :m, pbc)
+                current_sequence[site_idx] = :m
+                current_state = ψ_m
+                total_free_energy *= prob_m
+            end
+        end
+        
+        samples[sample_idx] = current_sequence
+        sample_free_energy[sample_idx] = total_free_energy
+    end
+    
+    return samples, sample_free_energy
 end
 
 """
