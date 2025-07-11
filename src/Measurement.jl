@@ -458,7 +458,6 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
             # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
                 state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, :p, pbc)
-                state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
                 
                 prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
                 prob_sqrtm = 1 - prob_sqrtp
@@ -469,6 +468,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                     current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
                     total_weight += -log(prob_sqrtp)
                 else
+                    state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, :m, pbc)
                     current_sequence[site_idx] = :m
                     current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
                     total_weight += -log(prob_sqrtm)
@@ -482,8 +482,6 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
         else
             # measure :p is Pi 0/tau, measure :m is Pi 1
             for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
-                state_after_m = measuremap(N, τ, current_state, measurement_site, :m, pbc)
                 
                 prob_p = state_after_p' * state_after_p
                 prob_m = 1 - prob_p
@@ -494,6 +492,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, pbc::Bo
                     current_state = state_after_p ./ sqrt(prob_p)
                     total_weight += -log(prob_p)
                 else
+                    state_after_p = measuremap(N, τ, current_state, measurement_site, :p, pbc)
                     current_sequence[site_idx] = :m
                     current_state = state_after_m ./ sqrt(prob_m)
                     total_weight += -log(prob_m)
