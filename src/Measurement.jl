@@ -7,21 +7,13 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
     X(state,i) = flip(state, fl >> (i-1))
     
     if τ >= 1e2
-        # (exp(τ)+1)/2√(exp(2τ)+1)  formula goes into infinity
-            cstτ = 0.5
-        if sign == 0
-            coef = 0.5
-        else
-            coef = -0.5
-        end
+        cstτ = 0.5
+        coef = sign == 0 ? 0.5 : -0.5
     else
-        cstτ = (exp(τ)+1)/2√(exp(2τ)+1) 
-        if sign == 0
-            coef = (exp(τ)-1)/2√(exp(2τ)+1)
-        else
-            coef = (1-exp(τ))/2√(exp(2τ)+1)
-        end
+        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
     end
+
     if 2<= i <= N-1
         mask=bmask(T,1,2,3) << (N-i-1)
         str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
@@ -72,7 +64,6 @@ end
 
 
 function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # build measurement matrix for a given index idx to check correctness of the measurement
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=Fibonacci_basis(T, pbc)
@@ -266,52 +257,52 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
-
-function Sampling(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
     num_sites = length(measurement_sites)
     
-    samples_measured_states = Vector{Vector{Float64}}(undef, num_samples)
+    sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
     samples = Vector{Vector{Int64}}(undef, num_samples)
-    samples_probability = Vector{Float64}(undef, num_samples)
+    sample_free_energy = Vector{Float64}(undef, num_samples)
 
     for sample_idx in 1:num_samples
         current_sequence = Vector{Int64}(undef, num_sites)
         current_state = copy(state)  
-        total_probability = 1.0
+        total_free_energy = 0.0
         
         # meaure from the left to the right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
            
             state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc)
-            state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc)
+            
             
             prob_p = state_after_p' * state_after_p
             prob_m = 1 - prob_p
             
-            random_number = rand()
+            random_number = rand(rng)
             if random_number < prob_p
                 current_sequence[site_idx] = 0
                 current_state = state_after_p ./ sqrt(prob_p)
-                total_probability *= prob_p
+                total_free_energy += -log(prob_p)
             else
+                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc)
                 current_sequence[site_idx] = 1
                 current_state = state_after_m ./ sqrt(prob_m)
-                total_probability *= prob_m
+                total_free_energy += -log(prob_m)
             end
         end
         
-        samples_measured_states[sample_idx] = current_state
+        sample_measured_states[sample_idx] = current_state
         samples[sample_idx] = current_sequence
-        samples_probability[sample_idx] = total_probability
+        sample_free_energy[sample_idx] = total_free_energy
     end
     
-    return samples_measured_states, samples, samples_probability
+    return sample_measured_states, samples, sample_free_energy
 end
 
-Sampling(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, pbc::Bool=true) where {ET} = Sampling(BitStr{N, Int}, τ, state, measurement_sites, num_samples, pbc)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc)
 
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -320,7 +311,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 
     current_sequence = Vector{Int64}(undef, num_sites)
     current_state = copy(state)  
-    total_probability = 1.0
+    total_free_energy = 0.0
     
     # meaure from the left to the right
     for (site_idx, measurement_site) in enumerate(measurement_sites)
@@ -331,10 +322,58 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 
         current_sequence[site_idx] = sign
         current_state = state_after_measure ./ sqrt(prob)
-        total_probability *= prob
+        total_free_energy += -log(prob)
     end
     
-    return current_state, current_sequence, total_probability
+    return current_state, current_sequence, total_free_energy
+end
+
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
+    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+    sample = zeros(Int, D, div(N,2))
+    sample_free_energy = Vector{Float64}(undef, D)
+    sample_measured_states = Vector{Vector{ET}}(undef, D)
+
+    current_state = copy(state)  
+    
+    for layer in 1:D
+        current_sequence = zeros(Int, div(N,2))
+        total_free_energy = 0.0
+        
+        # Alternating measurement pattern
+        if layer % 2 == 1
+            measurement_sites = collect(2:2:N)  # odd layers: even sites
+        else
+            measurement_sites = collect(1:2:N)  # even layers: odd sites
+        end
+        
+        measurement_τ = (layer == D) ? τ/2 : τ
+        # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1, measure 0 is Pi 0/tau, measure 1 is Pi 1
+            
+        for (site_idx, measurement_site) in enumerate(measurement_sites)
+            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc)
+            
+            prob_sqrtp = state_after_p' * state_after_p
+            prob_sqrtm = 1 - prob_sqrtp
+            random_number = rand(rng)  
+            if random_number < prob_sqrtp
+                current_sequence[site_idx] = 0
+                current_state = state_after_p ./ sqrt(prob_sqrtp)
+                total_free_energy += -log(prob_sqrtp)
+            else
+                state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc)
+                current_sequence[site_idx] = 1
+                current_state = state_after_m ./ sqrt(prob_sqrtm)
+                total_free_energy += -log(prob_sqrtm)
+            end
+        end
+
+        sample_measured_states[layer] = current_state
+        sample[layer, :] = current_sequence
+        sample_free_energy[layer] = total_free_energy
+    end
+
+    return sample_measured_states, sample, sample_free_energy
 end
 
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true) where {ET}
@@ -350,45 +389,33 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
         current_sequence = Vector{Int64}(undef, div(N,2))
         total_free_energy = 0.0
         # total_free_energy is the log probability of the sample (average free energy), so it should be initialized to 0.0
+        
+        # Alternating measurement pattern
         if layer % 2 == 1
-            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+            measurement_sites = collect(2:2:N)  # odd layers: even sites
         else
-            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+            measurement_sites = collect(1:2:N)  # even layers: odd sites
         end
         
-        if layer == D
-                # meaure from the left to the right
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-            
-                state_after_p = measuremap(N, τ/2, current_state, measurement_site, sign, pbc)
-                current_sequence[site_idx] =  sign
-                prob_p = state_after_p' * state_after_p
-                current_state = state_after_p ./ sqrt(prob_p)
-                total_free_energy += -log(prob_p)
-            end
-
-            sample_measured_states[layer] = current_state
-            sample[layer] = current_sequence
-            sample_free_energy[layer] = total_free_energy
-        else
-                # meaure from the left to the right
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-            
-                state_after_p = measuremap(N, τ, current_state, measurement_site, sign, pbc)
-                current_sequence[site_idx] = sign
-                prob_p = state_after_p' * state_after_p
-                current_state = state_after_p ./ sqrt(prob_p)
-                total_free_energy += -log(prob_p)
-            end
-
-            sample_measured_states[layer] = current_state
-            sample[layer] = current_sequence
-            sample_free_energy[layer] = total_free_energy
+        measurement_τ = (layer == D) ? τ/2 : τ
+        
+        for (site_idx, measurement_site) in enumerate(measurement_sites)
+            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc)
+            current_sequence[site_idx] = sign
+            prob_p = state_after_p' * state_after_p
+            current_state = state_after_p ./ sqrt(prob_p)
+            total_free_energy += -log(prob_p)
         end
+
+        sample_measured_states[layer] = current_state
+        sample[layer] = current_sequence
+        sample_free_energy[layer] = total_free_energy
+        
     end
 
     return sample_measured_states, sample, sample_free_energy
 end
+
 
 function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}  
     if ET == Vector{Int}
@@ -409,17 +436,13 @@ function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            if layer == D
-                for (idx, measurement_type) in enumerate(sample[layer, :])
-                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
-                    state ./= norm(state)  # normalize the state
-                end
-            else
-                for (idx, measurement_type) in enumerate(sample[layer, :])
-                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                    state ./= norm(state)  # normalize the state
-                end
+            measurement_τ = (layer == D) ? τ/2 : τ
+
+            for (idx, measurement_type) in enumerate(sample[layer, :])
+                state = measuremap(N, measurement_τ, state, measurement_sites[idx], measurement_type, pbc)
+                state ./= norm(state)  # normalize the state
             end
+        
         end
         return state
     elseif ET == Matrix{Int} && temp
@@ -433,95 +456,17 @@ function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
             else
                 measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
             end
-            if layer == D
-                for (idx, measurement_type) in enumerate(sample[layer, :])
-                    state = measuremap(N, τ/2, state, measurement_sites[idx], measurement_type, pbc)
-                    state ./= norm(state)  # normalize the state
-                    statelis[layer] = state
-                end
-            else
-                for (idx, measurement_type) in enumerate(sample[layer, :])
-                    state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
-                    state ./= norm(state)  # normalize the state
-                    statelis[layer] = state
-                end
+            measurement_τ = (layer == D) ? τ/2 : τ
+
+            for (idx, measurement_type) in enumerate(sample[layer, :])
+                state = measuremap(N, measurement_τ, state, measurement_sites[idx], measurement_type, pbc)
+                state ./= norm(state)  # normalize the state
+                statelis[layer] = state
             end
+
         end
         return statelis
     end
 
 
-end
-
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
-    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
-    sample = zeros(Int, D, div(N,2))
-    sample_free_energy = Vector{Float64}(undef, D)
-    sample_measured_states = Vector{Vector{ET}}(undef, D)
-
-    current_state = copy(state)  
-    
-    for layer in 1:D
-        current_sequence = zeros(Int, div(N,2))
-        total_free_energy = 0.0
-        
-        if layer % 2 == 1
-            measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-        else
-            measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-        end
-
-        if layer == D
-            # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_sqrtp = measuremap(N, τ/2, current_state, measurement_site, 0, pbc)
-                state_after_sqrtm = measuremap(N, τ/2, current_state, measurement_site, 1, pbc)
-                
-                prob_sqrtp = state_after_sqrtp' * state_after_sqrtp
-                prob_sqrtm = 1 - prob_sqrtp
-
-                random_number = rand(rng)  
-                if random_number < prob_sqrtp
-                    current_sequence[site_idx] = 0
-                    current_state = state_after_sqrtp ./ sqrt(prob_sqrtp)
-                    total_free_energy += -log(prob_sqrtp)
-                else
-                    current_sequence[site_idx] = 1
-                    current_state = state_after_sqrtm ./ sqrt(prob_sqrtm)
-                    total_free_energy += -log(prob_sqrtm)
-                end
-            end
-
-            sample_measured_states[layer] = current_state
-            sample[layer, :] = current_sequence
-            sample_free_energy[layer] = total_free_energy
-            continue
-        else
-            # measure 0 is Pi 0/tau, measure 1 is Pi 1
-            for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_p = measuremap(N, τ, current_state, measurement_site, 0, pbc)
-                state_after_m = measuremap(N, τ, current_state, measurement_site, 1, pbc)
-                
-                prob_p = state_after_p' * state_after_p
-                prob_m = 1 - prob_p
-                
-                random_number = rand(rng)  
-                if random_number < prob_p
-                    current_sequence[site_idx] = 0
-                    current_state = state_after_p ./ sqrt(prob_p)
-                    total_free_energy += -log(prob_p)
-                else
-                    current_sequence[site_idx] = 1
-                    current_state = state_after_m ./ sqrt(prob_m)
-                    total_free_energy += -log(prob_m)
-                end
-            end
-
-            sample_measured_states[layer] = current_state
-            sample[layer, :] = current_sequence
-            sample_free_energy[layer] = total_free_energy
-        end
-    end
-
-    return sample_measured_states, sample, sample_free_energy
 end
