@@ -307,7 +307,7 @@ end
     measurement_sites = collect(2:2:N)
     final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
     
-    @test -log(total_free_energy_p) /5 ≈ 1.1136495433981064 
+    @test total_free_energy_p /5 ≈ 1.1136495433981064 
 end
 
 @testset "Bulkmeasure" begin
