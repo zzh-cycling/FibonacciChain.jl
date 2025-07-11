@@ -404,7 +404,7 @@ end
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true) where {ET}
     @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
-    samples = Vector{Vector{Int64}}(undef, D)
+    sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
 
@@ -432,7 +432,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             end
 
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer, :] = current_sequence
             sample_free_energy[layer] = total_free_energy
         else
                 # meaure from the left to the right
@@ -446,7 +446,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             end
 
             sample_measured_states[layer] = current_state
-            samples[layer] = current_sequence
+            sample[layer, :] = current_sequence
             sample_free_energy[layer] = total_free_energy
         end
     end

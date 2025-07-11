@@ -21,12 +21,13 @@ echo "Setting optimal concurrency to: $CONCURRENCY"
 
 task_counter=0
 
-for ((i=1; i<=1000; i++)); do
+for ((i=1; i<=2000; i++)); do
     # 生成一个随机种子
     RANDOM_SEED=$(( RANDOM + i * 1000 ))  # 通过任务ID来生成种子，确保不同任务之间不重复
 
     # 提交惰性任务，执行当前任务
-    nohup julia --project=. exm/Bulk_measure/monitored_dynamics.jl $i $RANDOM_SEED &
+    nohup julia --project=. exm/test/1010input.jl 10 $i $RANDOM_SEED &
+    # nohup julia --project=. exm/Bulk_measure/monitored_dynamics.jl $i $RANDOM_SEED &
 
     ((task_counter++))
     echo "Submitted job $i (concurrent: $task_counter/$CONCURRENCY)"
