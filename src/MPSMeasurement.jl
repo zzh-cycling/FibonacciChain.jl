@@ -112,9 +112,6 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Symbol; pbc:
     if 2 <= i <= N-1
         # Identity term
         os += cstτ, "I", i
-        
-        # Terms depending on neighboring sites
-        # This is a simplified version - you may need to adjust based on exact Fibonacci rules
         os += coef, "n", i-1, "X", i, "n", i+1
         os += coef * (1 - 2 * ϕ^(-1)), "I", i-1, "X", i, "I", i+1
         
