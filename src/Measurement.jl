@@ -7,20 +7,13 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
     X(state,i) = flip(state, fl >> (i-1))
     
     if τ >= 1e2
-            cstτ = 0.5
-        if sign == 0
-            coef = 0.5
-        else
-            coef = -0.5
-        end
+        cstτ = 0.5
+        coef = sign == 0 ? 0.5 : -0.5
     else
-        cstτ = (exp(τ)+1)/2√(exp(2τ)+1) 
-        if sign == 0
-            coef = (exp(τ)-1)/2√(exp(2τ)+1)
-        else
-            coef = (1-exp(τ))/2√(exp(2τ)+1)
-        end
+        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
     end
+
     if 2<= i <= N-1
         mask=bmask(T,1,2,3) << (N-i-1)
         str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
