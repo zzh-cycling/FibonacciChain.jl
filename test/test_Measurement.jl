@@ -13,7 +13,7 @@ using Arpack
     pbc = false
     τ =0.0
     cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
-    sign = :p
+    sign = 0
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
 
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
@@ -25,7 +25,7 @@ using Arpack
     @test output[5] == (T(bit"101"), cstτ)
 
     τ = 0.0
-    sign = :m
+    sign = 0
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
@@ -35,7 +35,7 @@ using Arpack
     @test output[5] == (T(bit"101"), cstτ)
 
     τ = 1.0
-    sign = :p
+    sign = 0
     cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
     coef = (exp(τ)-1)/2√(exp(2τ)+1)
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
@@ -47,7 +47,7 @@ using Arpack
     @test output[5] == (T(bit"101"), cstτ-coef)
 
     τ = 1.0
-    sign = :m
+    sign = 0
     coef = (1-exp(τ))/2√(exp(2τ)+1)
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
@@ -58,7 +58,7 @@ using Arpack
     @test output[5] == (T(bit"101"), cstτ-coef)
 
     τ = 1e3
-    sign = :p
+    sign = 0
     cstτ = 1/2
     coef = 1/2
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
@@ -104,7 +104,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, :p, false)
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
     @test Mpobc == expected_matrix 
 
     coef = (1-exp(1))/2√(exp(2)+1)
@@ -115,7 +115,7 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, :m, false)
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(5) 
 
@@ -126,7 +126,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
 ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, :p) # pbc
+    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mppbc == expected_matrix 
     coef = (1-exp(1))/2√(exp(2)+1)
     expected_matrix = [
@@ -135,7 +135,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
         ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, :m) # pbc
+    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mmpbc == expected_matrix    
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 
@@ -150,7 +150,7 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, :p, false)
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
     @test Mpobc == expected_matrix 
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
@@ -159,7 +159,7 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, :m, false)
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
     @test Mmobc == expected_matrix 
     @test Mpobc^2+Mmobc^2 ≈ I(5) 
 
@@ -169,7 +169,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
     ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, :p) # pbc
+    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mppbc == expected_matrix 
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
@@ -177,7 +177,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
     ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, :m) # pbc
+    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mmpbc == expected_matrix 
     @test Mppbc^2+Mmpbc^2 ≈ I(4) 
 
@@ -200,7 +200,7 @@ end
         0.0 0.0 cstτ+coef 0.0 ;
         -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
     ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, :p) # pbc
+    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mppbc == expected_matrix 
     coef = (1-exp(1))/2√(exp(2)+1)
     expected_matrix = [
@@ -209,7 +209,7 @@ end
         0.0 0.0 cstτ+coef 0.0 ;
         -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
         ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, :m) # pbc
+    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
     @test Mmpbc == expected_matrix    
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 end
@@ -219,7 +219,7 @@ end
     T = BitStr{N, Int}
     τ = 1.0
     idx = 2
-    sign = :p
+    sign = 0
     cstτ = (exp(1)+1)/2√(exp(2)+1)
     coef = (exp(1)-1)/2√(exp(2)+1)
     ϕ = (1 + √5) / 2
@@ -228,7 +228,7 @@ end
     output = measuremap(T, τ, state, idx, sign)        
     @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
     
-    sign = :m
+    sign = 0
     coef = (1-exp(1))/2√(exp(2)+1)
     output = measuremap(T, τ, state, idx, sign)  
     @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
@@ -252,13 +252,13 @@ end
     idx = 2
 
 
-    sign = :p
+    sign = 0
     state = fill(1.0,16)
     output = laddermeasuremap(T, τ, state, idx, sign)  
     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
     @test output ≈ kron(onechain_st, onechain_st)
     
-    sign = :m
+    sign = 0
     output = laddermeasuremap(T, τ, state, idx, sign)  
     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)
     @test output ≈ kron(onechain_st, onechain_st)
@@ -295,7 +295,7 @@ end
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
 
-    @test [:m for i in 2:2:N] in samples
+    @test [0 for i in 2:2:N] in samples
     
 end
 
@@ -305,7 +305,7 @@ end
     energy, states = eigs(Fibonacci_Ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, :p)
+    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
     
     @test -log(total_free_energy_p) /5 ≈ 1.1136495433981064 
 end
@@ -337,10 +337,10 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, :p, pbc)
+    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc)
     state_t = sample_measured_states[end]
     EE = eelis_Fibo_state(L, state_t)[5]
-    @test samples[end] == fill(:p, div(L,2))
+    @test samples[end] == fill(0, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
 end
 
