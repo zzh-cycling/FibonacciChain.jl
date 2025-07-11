@@ -411,7 +411,6 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     current_state = copy(state)  
 
     for layer in 1:D
-        @show layer
         current_sequence = Vector{Int64}(undef, div(N,2))
         total_free_energy = 0.0
         # total_free_energy is the log probability of the sample (average free energy), so it should be initialized to 0.0
