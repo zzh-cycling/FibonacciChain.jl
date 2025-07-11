@@ -317,8 +317,8 @@ Calculate entanglement entropy of MPS state with bipartition at bond b.
 function ee_mps(ψ::MPS, b::Int)
     # Perform SVD at bond b
     ψ = orthogonalize(ψ, b)
-    U, S, V = svd(ψ[b], (linkind(ψ, b-1)..., siteind(ψ, b)...))
-    
+    U, S, V = svd(ψ[b], (linkind(ψ, b-1), siteind(ψ, b)))
+    # (linkinds(ψ, b-1)..., siteinds(ψ, b)...))
     # Calculate entanglement entropy from singular values
     SvN = 0.0
     for n in 1:dim(S, 1)
