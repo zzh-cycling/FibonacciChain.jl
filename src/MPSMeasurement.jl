@@ -155,11 +155,7 @@ function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64;
     prob = real(inner(ψ_measured, ψ_measured))
     
     # Normalize the state
-    if prob > 1e-12
-        ψ_normalized = (1/√prob) * ψ_measured
-    else
-        ψ_normalized = ψ_measured
-    end
+    ψ_normalized = normalize(ψ_measured)
     
     return ψ_normalized, prob
 end
@@ -282,7 +278,7 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::
         end
         
         measurement_τ = (layer == D) ? τ/2 : τ
-        ``
+
         for (site_idx, measurement_site) in enumerate(measurement_sites)
             ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0, pbc)
             prob_m = 1 - prob_p
@@ -307,6 +303,43 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::
     end
     
     return sample_measured_states, samples, sample_free_energy
+end
+
+# Helper function to apply measurements to a layer
+function apply_measurement_layer_mps!(state::MPS, N::Int64, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) 
+    if layer_idx % 2 == 1
+        measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+    else
+        measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
+    end
+    for (idx, measurement_type) in enumerate(layer_sample)
+        state = apply_measurement_mps(state, measurement_sites[idx], τ, measurement_type, pbc)
+        normalize!(state)
+    end
+    return state
+end
+
+function Generate_state_mps(τ::Float64, state::MPS, sample::ET, temp::Bool=false, pbc::Bool=true) where{ET}
+
+    if ET == Vector{Int}
+        N = 2 * length(sample)
+        return apply_measurement_layer!(state, N, τ, sample, 1, pbc)
+        
+    elseif ET == Matrix{Int}
+        D, N = size(sample, 1), 2 * size(sample, 2)
+        statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
+        # if ET is Vector{Int64} and temp is true, we return temporary states.
+        for layer in 1:D
+            τ_eff = (layer == D) ? τ/2 : τ
+            state = apply_measurement_layer_mps!(state, N, τ_eff, sample[layer, :], layer, pbc)
+            
+            if temp
+                statelis[layer] = copy(state)
+            end
+        end
+        
+        return temp ? statelis : state
+    end
 end
 
 """
