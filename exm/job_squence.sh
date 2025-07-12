@@ -21,23 +21,25 @@ echo "Setting optimal concurrency to: $CONCURRENCY"
 
 task_counter=0
 
-for ((i=1; i<=2000; i++)); do
-    # 生成一个随机种子
-    RANDOM_SEED=$(( RANDOM + i * 1000 ))  # 通过任务ID来生成种子，确保不同任务之间不重复
+for ((j=8; j<=20; j+=2)); do
+    for ((i=1; i<=2000; i++)); do
+        # 生成一个随机种子
+        RANDOM_SEED=$(( (j + i) * 1000 ))  # 通过任务ID来生成种子，确保不同任务之间不重复
 
-    # 提交惰性任务，执行当前任务
-    nohup julia --project=. exm/test/1010input.jl 10 $i $RANDOM_SEED &
-    # nohup julia --project=. exm/Bulk_measure/monitored_dynamics.jl $i $RANDOM_SEED &
+        # 提交惰性任务，执行当前任务
+        nohup julia --project=. exm/test/gamma1.jl $j $i $RANDOM_SEED &
+        # nohup julia --project=. exm/Bulk_measure/monitored_dynamics.jl $j $i $RANDOM_SEED &
 
-    ((task_counter++))
-    echo "Submitted job $i (concurrent: $task_counter/$CONCURRENCY)"
+        ((task_counter++))
+        echo "Submitted job $i for j=$j (concurrent: $task_counter/$CONCURRENCY)"
 
-    # 控制并发任务数量
-    if (( task_counter >= CONCURRENCY )); then
-        wait -n  # 等待任意一个完成的任务
-        ((task_counter--))
-        echo "Job completed, current concurrent: $task_counter"
-    fi
+        # 控制并发任务数量
+        if (( task_counter >= CONCURRENCY )); then
+            wait -n  # 等待任意一个完成的任务
+            ((task_counter--))
+            echo "Job completed, current concurrent: $task_counter"
+        fi
+    done
 done
 
 wait  # 等待剩余任务
