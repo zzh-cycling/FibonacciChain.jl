@@ -39,12 +39,12 @@ end
 
 @testset "Measurement Operators" begin
     N = 4
-    sites = siteinds("S=1/2", N)
+    sites = siteinds("Qubit", N)
     τ = 1.0
     
     # Test measurement operator creation
-    M_p = measurement_operator_mps(sites, 2, τ, :p)
-    M_m = measurement_operator_mps(sites, 2, τ, :m)
+    M_p = measurement_operator_mps(sites, 2, τ, 0)
+    M_m = measurement_operator_mps(sites, 2, τ, 1)
     
     @test M_p isa MPO
     @test M_m isa MPO
@@ -52,8 +52,8 @@ end
     @test length(M_m) == N
     
     # Test invalid inputs
-    @test_throws AssertionError measurement_operator_mps(sites, 0, τ, :p)
-    @test_throws AssertionError measurement_operator_mps(sites, N+1, τ, :p)
+    @test_throws AssertionError measurement_operator_mps(sites, 0, τ, 0)
+    @test_throws AssertionError measurement_operator_mps(sites, N+1, τ, 0)
     @test_throws AssertionError measurement_operator_mps(sites, 2, τ, :invalid)
 end
 
@@ -62,22 +62,25 @@ end
     pbc = true
     τ = 1.0
     
-    # Generate ground state
-    ψ, _ = fibonacci_mps_ground_state(N; pbc=pbc)
-    sites = siteinds(ψ)
+    sites = siteinds("Qubit", N)
+    
+    # Create initial product state (vacuum state)
+    state = ["0" for _ in 1:N]
+    
+    # Create MPS from product state
+    ψ0 = randomMPS(sites, state)
     
     # Apply measurements
-    ψ_p, prob_p = apply_measurement_mps(ψ, sites, 2, τ, :p; pbc=pbc)
-    ψ_m, prob_m = apply_measurement_mps(ψ, sites, 2, τ, :m; pbc=pbc)
-    
-    # Test that results are valid
-    @test ψ_p isa MPS
-    @test ψ_m isa MPS
-    @test 0 <= prob_p <= 1
-    @test 0 <= prob_m <= 1
-    @test abs(prob_p + prob_m - 1.0) < 1e-10  # Probabilities should sum to 1
-    
-    # Test normalization of resulting states
+    ψ_p, prob_p = apply_measurement_mps(ψ0, sites, 1, τ, 0; pbc=pbc)
+    ψ_m, prob_m = apply_measurement_mps(ψ0, sites, 1, τ, 1; pbc=pbc)
+
+    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    state_after_p = measuremap(N, τ, st, 1, 0)
+    p = state_after_p'*state_after_p
+
+    @test prob_p == p
+    @test prob_m ≈ 1 - p  # Should be orthogonal to ψ_p
+
     if prob_p > 1e-12
         @test abs(inner(ψ_p, ψ_p) - 1.0) < 1e-10
     end
@@ -110,7 +113,7 @@ end
     # Check each sample
     for i in 1:num_samples
         @test length(samples[i]) == length(measurement_sites)
-        @test all(s -> s in [:p, :m], samples[i])
+        @test all(s -> s in [0, 1], samples[i])
         @test weights[i] > 0
         @test weights[i] <= 1
     end
@@ -139,8 +142,8 @@ end
     
     # Check trajectories
     trajectory_outcomes = [traj[1] for traj in trajectories]
-    @test :p in trajectory_outcomes
-    @test :m in trajectory_outcomes
+    @test 0 in trajectory_outcomes
+    @test 1 in trajectory_outcomes
     
     # Check probability normalization
     @test abs(sum(probabilities) - 1.0) < 1e-10
@@ -187,7 +190,7 @@ end
     for layer in 1:D
         @test bulk_states[layer] isa MPS
         @test length(bulk_samples[layer]) == div(N, 2)
-        @test all(s -> s in [:p, :m], bulk_samples[layer])
+        @test all(s -> s in [0, 1], bulk_samples[layer])
         @test bulk_weights[layer] >= 0
         @test isfinite(bulk_weights[layer])
     end
@@ -205,16 +208,16 @@ end
     sites = siteinds(ψ)
     
     # Test invalid measurement parameters
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, 0, 1.0, :p)
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, N+1, 1.0, :p)
+    @test_throws AssertionError apply_measurement_mps(ψ, sites, 0, 1.0, 0)
+    @test_throws AssertionError apply_measurement_mps(ψ, sites, N+1, 1.0, 0)
     @test_throws AssertionError apply_measurement_mps(ψ, sites, 2, 1.0, :invalid)
     
     # Test edge cases for τ
-    ψ_large_τ, prob_large_τ = apply_measurement_mps(ψ, sites, 2, 1e3, :p)
+    ψ_large_τ, prob_large_τ = apply_measurement_mps(ψ, sites, 2, 1e3, 0)
     @test isfinite(prob_large_τ)
     @test 0 <= prob_large_τ <= 1
     
-    ψ_small_τ, prob_small_τ = apply_measurement_mps(ψ, sites, 2, 1e-3, :p)
+    ψ_small_τ, prob_small_τ = apply_measurement_mps(ψ, sites, 2, 1e-3, 0)
     @test isfinite(prob_small_τ)
     @test 0 <= prob_small_τ <= 1
 end

@@ -34,8 +34,8 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
     
     # Find ground state using DMRG
-    sweeps = Sweeps(10)
-    setmaxdim!(sweeps, 10, 20, 50, 100, 200)
+    sweeps = Sweeps(200)
+    setmaxdim!(sweeps, 5000)
     setcutoff!(sweeps, 1E-10)
     
     energy, ψ = dmrg(H, ψ0, sweeps)
@@ -54,31 +54,31 @@ function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
     
     # Golden ratio
     ϕ = (1 + √5) / 2
-    
+    coef = 1/2
     # Three-body interactions for Fibonacci chain
     for i in 2:(N-1)
         # Add three-body terms based on Fibonacci fusion rules
-        os += 1.0, "Proj1", i-1
-        os += 1.0, "Proj1", i+1
-        os += (1.0+ϕ^(-2)), "Proj1", i-1, "Proj1", i+1
-        os += ϕ^(-3/2), "Proj1", i-1, "X", i, "Proj1", i+1
-        os += ϕ^(-3), "Proj1", i-1, "Proj1", i, "Proj1", i+1
+        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
     end
     
     # Periodic boundary conditions
     if pbc && N > 2
         # H1 term
-        os += 1.0, "Proj1", N
-        os += 1.0, "Proj1", 2
-        os += (1.0+ϕ^(-2)), "Proj1", N, "Proj1", 2
-        os += ϕ^(-3/2), "Proj1", N, "X", 2, "Proj1", 1
-        os += ϕ^(-3), "Proj1", N, "Proj1", 2, "Proj1", 1
+        os += coef, "Proj0", N, "Z", 1, "Proj1", 2
+        os += coef, "Proj1", N, "Z", 1, "Proj0", 2
+        os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
         # HN term (wrap around)
-        os += 1.0, "Proj1", N-1
-        os += 1.0, "Proj1", 1
-        os += (1.0+ϕ^(-2)), "Proj1", N-1, "Proj1", 1
-        os += ϕ^(-3/2), "Proj1", N-1, "X", 1, "Proj1", N
-        os += ϕ^(-3), "Proj1", N-1, "Proj1", 1, "Proj1", N
+        os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
+        os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
+        os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
     end
     
     return MPO(os, sites)
@@ -112,6 +112,7 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
     if 2 <= i <= N-1
         # Identity term
         os += cstτ, "I", i
+        # PσP terms
         os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
         os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
         os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
@@ -316,8 +317,9 @@ Calculate entanglement entropy of MPS state with bipartition at bond b.
 function ee_mps(ψ::MPS, b::Int)
     # Perform SVD at bond b
     ψ = orthogonalize(ψ, b)
-    U, S, V = svd(ψ[b], (linkind(ψ, b-1), siteind(ψ, b)))
-    # (linkinds(ψ, b-1)..., siteinds(ψ, b)...))
+    # U, S, V = svd(ψ[b], linkind(ψ, b-1), siteind(ψ, b))
+    U, S, V = svd(ψ[b], (linkinds(ψ, b-1)..., siteinds(ψ, b)...))
+    # 
     # Calculate entanglement entropy from singular values
     SvN = 0.0
     for n in 1:dim(S, 1)
