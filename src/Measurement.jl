@@ -416,57 +416,39 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, sample, sample_free_energy
 end
 
-
-function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}  
-    if ET == Vector{Int}
-        N = 2*length(sample)
-        measurement_sites = collect(2:2:N)
-        for (idx, measurement_type) in enumerate(sample)
-            sign = measurement_type == 0 ? 0 : 1
-            state = measuremap(N, τ, state, measurement_sites[idx], sign, pbc)
-            state ./= norm(state)  # normalize the state
-        end
-        return state
-    elseif ET == Matrix{Int} && !temp
-        D = size(sample, 1)
-        N = 2*size(sample, 2)
-        for layer in 1:D
-            if layer % 2 == 1
-                measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-            else
-                measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-            end
-            measurement_τ = (layer == D) ? τ/2 : τ
-
-            for (idx, measurement_type) in enumerate(sample[layer, :])
-                state = measuremap(N, measurement_τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
-            end
-        
-        end
-        return state
-    elseif ET == Matrix{Int} && temp
-        # if ET is Vector{Int64} and temp is true, we return temporary states.
-        D = size(sample, 1)
-        N = 2*size(sample, 2)
-        statelis = Vector{Vector{T}}(undef, D)
-        for layer in 1:D
-            if layer % 2 == 1
-                measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-            else
-                measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-            end
-            measurement_τ = (layer == D) ? τ/2 : τ
-
-            for (idx, measurement_type) in enumerate(sample[layer, :])
-                state = measuremap(N, measurement_τ, state, measurement_sites[idx], measurement_type, pbc)
-                state ./= norm(state)  # normalize the state
-                statelis[layer] = state
-            end
-
-        end
-        return statelis
+# Helper function to apply measurements to a layer
+function apply_measurement_layer!(state::Vector{T}, N::Int64, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) where {T}
+    if layer_idx % 2 == 1
+        measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
+    else
+        measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
     end
+    for (idx, measurement_type) in enumerate(layer_sample)
+        state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+        normalize!(state)
+    end
+    return state
+end
 
+function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}
 
+    if ET == Vector{Int}
+        N = 2 * length(sample)
+        return apply_measurement_layer!(state, N, τ, sample, 1, pbc)
+        
+    elseif ET == Matrix{Int}
+        D, N = size(sample, 1), 2 * size(sample, 2)
+        statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
+        # if ET is Vector{Int64} and temp is true, we return temporary states.
+        for layer in 1:D
+            τ_eff = (layer == D) ? τ/2 : τ
+            state = apply_measurement_layer!(state, N, τ_eff, sample[layer, :], layer, pbc)
+            
+            if temp
+                statelis[layer] = copy(state)
+            end
+        end
+        
+        return temp ? statelis : state
+    end
 end
