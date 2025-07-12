@@ -34,9 +34,9 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
     
     # Find ground state using DMRG
-    sweeps = Sweeps(200)
-    setmaxdim!(sweeps, 5000)
-    setcutoff!(sweeps, 1E-10)
+    sweeps = Sweeps(50)
+    setmaxdim!(sweeps, 1000)
+    setcutoff!(sweeps, 1E-15)
     
     energy, ψ = dmrg(H, ψ0, sweeps)
     
@@ -105,38 +105,38 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
         cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
         coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
     end
+
     
-    os = OpSum()
-    
+    s_im1_idx = i == 1 && pbc ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
+    s_i_idx = i
+    s_ip1_idx = i == N && pbc ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
+
+    s_im1 = sites[s_im1_idx]
+    s_i = sites[s_i_idx]
+    s_ip1 = sites[s_ip1_idx]
+
+    id_i = op("I", s_i)
+    id_im1 = op("I", s_im1)
+    id_ip1 = op("I", s_ip1)
+
+    M_local = cstτ * (id_im1 * id_i * id_ip1)
+
+    P0_im1 = op("Proj0", s_im1)
+    P1_im1 = op("Proj1", s_im1)
+    P0_ip1 = op("Proj0", s_ip1)
+    P1_ip1 = op("Proj1", s_ip1)
+    Z_i = op("Z", s_i)
+    X_i = op("X", s_i)
+
     # Local measurement terms based on neighboring configurations
-    if 2 <= i <= N-1
-        # Identity term
-        os += cstτ, "I", i
-        # PσP terms
-        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
-        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
-        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
-    elseif pbc
-        if i == 1
-            os += cstτ, "I", i
-            os += coef, "Proj0", N, "Z", i, "Proj1", i+1
-            os += coef, "Proj1", N, "Z", i, "Proj0", i+1
-            os += -coef, "Proj1", N, "Z", i, "Proj1", i+1
-            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", i, "Proj0", i+1
-            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", i, "Proj0", i+1
-        elseif i == N
-            os += cstτ, "I", i
-            os += coef, "Proj0", i-1, "Z", i, "Proj1", 1
-            os += coef, "Proj1", i-1, "Z", i, "Proj0", 1
-            os += -coef, "Proj1", i-1, "Z", i, "Proj1", 1
-            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", 1
-            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", 1
-        end
-    end
+    M_local += coef * (P0_im1 * Z_i * P1_ip1)
+    M_local += coef * (P1_im1 * Z_i * P0_ip1)
+    M_local += -coef * (P1_im1 * Z_i * P1_ip1)
+    M_local += coef * (1 - 2 * ϕ^(-1)) * (P0_im1 * Z_i * P0_ip1)
+    M_local += coef * (-2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)
+
     
-    return MPO(os, sites)
+    return M_local
 end
 
 """
@@ -171,7 +171,8 @@ pbc::Bool=true)
     # Initialize with single initial state
     current_level_trajectories = [Int64[]]
     current_level_probabilities = [1.0]
-    
+    current_level_states = [copy(ψ)]
+
     for (measurement_idx, site) in enumerate(measurement_sites)
         next_level_states = Vector{MPS}()
         next_level_trajectories = Vector{Vector{Int64}}()
@@ -184,23 +185,23 @@ pbc::Bool=true)
             
             # Apply 0 measurement
             ψ_p, prob_p = apply_measurement_mps(state, sites, site, τ, 0, pbc)
-            if prob_p > 1e-12
+            # if prob_p > 1e-12
                 new_trajectory_p = [current_trajectory; 0]
                 new_prob_p = current_prob * prob_p
                 push!(next_level_states, ψ_p)
                 push!(next_level_trajectories, new_trajectory_p)
                 push!(next_level_probabilities, new_prob_p)
-            end
+            # end
             
             # Apply 1 measurement
             ψ_m, prob_m = apply_measurement_mps(state, sites, site, τ, 1, pbc)
-            if prob_m > 1e-12
+            # if prob_m > 1e-12
                 new_trajectory_m = [current_trajectory; 1]
                 new_prob_m = current_prob * prob_m
                 push!(next_level_states, ψ_m)
                 push!(next_level_trajectories, new_trajectory_m)
                 push!(next_level_probabilities, new_prob_m)
-            end
+            # end
         end
         
         current_level_states = next_level_states
