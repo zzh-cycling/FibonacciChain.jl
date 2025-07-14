@@ -6,3 +6,5 @@
 /docs/build/
 /exm/data/
 /exm/fig/
+job-*.txt
+resource_usage.log
