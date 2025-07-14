@@ -148,7 +148,7 @@ function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64;
     # Create measurement operator
     M = measurement_operator_mps(sites, i, τ, sign; pbc=pbc)
     
-    # Apply measurement operator
+    # Apply measurement operator, initial state \psi should be normalized
     ψ_measured = apply(M, ψ; cutoff=1e-12)
     
     # Calculate probability (norm squared)
@@ -184,7 +184,7 @@ pbc::Bool=true)
             current_prob = current_level_probabilities[state_idx]
             
             # Apply 0 measurement
-            ψ_p, prob_p = apply_measurement_mps(state, sites, site, τ, 0, pbc)
+            ψ_p, prob_p = apply_measurement_mps(state, sites, site, τ, 0; pbc)
             # if prob_p > 1e-12
                 new_trajectory_p = [current_trajectory; 0]
                 new_prob_p = current_prob * prob_p
@@ -194,7 +194,7 @@ pbc::Bool=true)
             # end
             
             # Apply 1 measurement
-            ψ_m, prob_m = apply_measurement_mps(state, sites, site, τ, 1, pbc)
+            ψ_m, prob_m = apply_measurement_mps(state, sites, site, τ, 1; pbc)
             # if prob_m > 1e-12
                 new_trajectory_m = [current_trajectory; 1]
                 new_prob_m = current_prob * prob_m

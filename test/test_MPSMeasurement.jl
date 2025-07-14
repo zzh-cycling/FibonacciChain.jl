@@ -12,7 +12,7 @@ using LinearAlgebra
     @test length(ψ) == N
     @test all(linkdims(ψ) .== 1)  # Initial state should have bond dimension 1
     
-    # Test normalization
+    # Test normalization, set to be 1
     @test abs(inner(ψ, ψ) - 1.0) < 1e-10
 end
 
@@ -70,10 +70,10 @@ end
     #        0.0 0.0 0.0 1.0]
 
 
-    # # Test invalid inputs
-    # @test_throws AssertionError measurement_operator_mps(sites, 0, τ, 0)
-    # @test_throws AssertionError measurement_operator_mps(sites, N+1, τ, 0)
-    # @test_throws AssertionError measurement_operator_mps(sites, 2, τ, :invalid)
+    # Test invalid inputs
+    @test_throws AssertionError measurement_operator_mps(sites, 0, τ, 0)
+    @test_throws AssertionError measurement_operator_mps(sites, N+1, τ, 0)
+    @test_throws AssertionError measurement_operator_mps(sites, 2, τ, 2)
 end
 
 @testset "Single Measurement Application" begin
@@ -118,23 +118,23 @@ end
     
     # Create initial product state (vacuum state)
     state = ["0" for _ in 1:N]
+    state_exact = zeros(length(Fibonacci_basis(N)))
+    state_exact[1] = 1.0  # Vacuum state
     # Use minimal measurement sites for enumeration
     measurement_sites = collect(2:2:N)
     
+    ψ = randomMPS(sites, state)
     # Enumerate trajectories
     final_states, trajectories, probabilities = mps_measurement_enumeration(
         ψ, sites, measurement_sites, τ; pbc=pbc)
+
+    # final_states_vector = map(x-> reduce(*, x).tensor.storage, final_states) # Noting its elements arranging is different from the final_states_exact, they choose different definition?
     
-    # Should have exactly 2 trajectories for 1 measurement site
-    @test length(final_states) == 2
-    @test length(trajectories) == 2
-    @test length(probabilities) == 2
-    
-    # Check trajectories
-    trajectory_outcomes = [traj[1] for traj in trajectories]
-    @test 0 in trajectory_outcomes
-    @test 1 in trajectory_outcomes
-    
+    final_states_exact, trajectories_exact, probabilities_exact = measurement_enumeration(N, τ, state_exact, measurement_sites)
+
+    @test trajectories == trajectories_exact
+    @test probabilities ≈ probabilities_exact
+ 
     # Check probability normalization
     @test abs(sum(probabilities) - 1.0) < 1e-10
     
@@ -142,7 +142,7 @@ end
     @test all(p -> p > 0, probabilities)
 end
 
-@testset "Sampling Measurements" begin
+@testset "Boundary Measurements" begin
     N = 6
     pbc = true
     τ = 1.0
@@ -169,22 +169,6 @@ end
         @test all(s -> s in [0, 1], samples[i])
         @test weights[i] > 0
         @test weights[i] <= 1
-    end
-end
-
-
-@testset "Entanglement Entropy" begin
-    N = 6
-    pbc = true
-    
-    # Generate ground state
-    ψ, _ = fibonacci_mps_ground_state(N; pbc=pbc)
-    
-    # Calculate entanglement entropy at different cuts
-    for b in 2:(N-1)
-        ee = calculate_entanglement_entropy_mps(ψ, b)
-        @test ee >= 0  # Entanglement entropy should be non-negative
-        @test isfinite(ee)
     end
 end
 
@@ -217,6 +201,25 @@ end
     end
 end
 
+@testset "Generate_state_mps " begin
+    
+end
+
+@testset "Entanglement Entropy" begin
+    N = 6
+    pbc = true
+    
+    sites = siteinds("Qubit", N)
+    
+    # Create initial product state (vacuum state)
+    state = ["0" for _ in 1:N]
+
+    ψ = randomMPS(sites, state)
+    # Calculate entanglement entropy at different cuts
+    EElis = eelis_Fibo_mps(N, ψ)
+    @test all(EElis .>= 0)  # Entanglement entropy should be non-negative
+end
+
 @testset "Parameter Validation" begin
     N = 4
     
@@ -231,7 +234,7 @@ end
     # Test invalid measurement parameters
     @test_throws AssertionError apply_measurement_mps(ψ, sites, 0, 1.0, 0)
     @test_throws AssertionError apply_measurement_mps(ψ, sites, N+1, 1.0, 0)
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, 2, 1.0, :invalid)
+    @test_throws AssertionError apply_measurement_mps(ψ, sites, 2, 1.0, 2)
     
     # Test edge cases for τ
     ψ_large_τ, prob_large_τ = apply_measurement_mps(ψ, sites, 2, 1e3, 0)
