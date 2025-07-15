@@ -17,7 +17,6 @@ include("Observable.jl")
 include("LadderFibo.jl")
 include("Measurement.jl")
 include("FiboSparse.jl")
-# include("MPS.jl")
 include("MPSMeasurement.jl")
 
 end

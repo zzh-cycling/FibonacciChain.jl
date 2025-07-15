@@ -17,6 +17,6 @@ end
     include("./test_Measurement.jl")
 end
 
-# @testset "MPSMeasurement.jl" begin
-#     include("./test_MPSMeasurement.jl")
-# end
+@testset "MPSMeasurement.jl" begin
+    include("./test_MPSMeasurement.jl")
+end
