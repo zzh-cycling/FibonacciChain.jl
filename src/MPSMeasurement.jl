@@ -260,7 +260,7 @@ end
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true)
+function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true)
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{MPS}(undef, D)
@@ -362,6 +362,9 @@ function ee_mps(ψ::MPS, b::Int)
         end
     end
     
+    if abs(SvN) <1e-14
+        SvN = 0.0
+    end
     return SvN
 end
 

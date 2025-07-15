@@ -277,3 +277,49 @@ end
     @test isfinite(prob_small_τ)
     @test 0 <= prob_small_τ <= 1
 end
+
+function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
+    rng = MersenneTwister(seed)
+    
+    ψ, sites = initial_mps(N)
+    
+    sample_measured_states, sample, sample_free_energy = mps_bulk_measurement(ψ, sites, L, τ, D;rng=rng, pbc=true) 
+    
+    halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_mps(L, final_state)
+
+    return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
+end
+
+function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
+    rng = MersenneTwister(seed)
+    
+    st = zeros(length(Fibonacci_basis(L)))
+    st[1] = 1.0
+    
+    sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng, true) 
+    
+    halfchain_EE_tlis = [ee(rdm_Fibo(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
+    final_state = sample_measured_states[end]
+    final_EElis = eelis_Fibo_state(L, final_state)
+
+    return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
+end
+
+@testset "Observable" begin
+    L = 6
+    τ = 1.0
+    D = 5
+    
+    # Generate samples
+    seed = 42
+    sample, sample_free_energy, final_EElis, halfchain_EE_tlis = samples_generate(L, τ, seed, D)
+    
+    sample_mps, sample_free_energy_mps, final_EElis_mps, halfchain_EE_tlis_mps = samples_generate_mps(L, τ, seed, D)
+
+    @test sample == sample_mps
+    @test sample_free_energy ≈ sample_free_energy_mps
+    @test final_EElis ≈ final_EElis_mps
+    @test halfchain_EE_tlis ≈ halfchain_EE_tlis_mps 
+end
