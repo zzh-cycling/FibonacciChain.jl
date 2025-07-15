@@ -434,7 +434,7 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
 
     if ET == Vector{Int}
         N = 2 * length(sample)
-        return apply_measurement_layer!(state, N, τ, sample, 1, pbc)
+        return apply_measurement_layer!(N, state, τ, sample, 1, pbc)
         
     elseif ET == Matrix{Int}
         D, N = size(sample, 1), 2 * size(sample, 2)
