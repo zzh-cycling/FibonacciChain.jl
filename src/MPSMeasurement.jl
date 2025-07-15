@@ -35,8 +35,8 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     
     # Find ground state using DMRG
     sweeps = Sweeps(50)
-    setmaxdim!(sweeps, 1000)
-    setcutoff!(sweeps, 1E-15)
+    setmaxdim!(sweeps, 200)
+    setcutoff!(sweeps, 1E-10)
     
     energy, ψ = dmrg(H, ψ0, sweeps)
     
@@ -144,12 +144,12 @@ end
 
 Apply measurement operator to MPS state and return the resulting state and probability.
 """
-function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64; pbc::Bool=true)
+function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000)
     # Create measurement operator
     M = measurement_operator_mps(sites, i, τ, sign; pbc=pbc)
     
     # Apply measurement operator, initial state \psi should be normalized
-    ψ_measured = apply(M, ψ; cutoff=1e-12)
+    ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
     
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
@@ -167,7 +167,7 @@ end
 Enumerate all possible measurement trajectories on MPS state.
 """
 function mps_measurement_enumeration(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
-pbc::Bool=true)
+pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000)
     # Initialize with single initial state
     current_level_trajectories = [Int64[]]
     current_level_probabilities = [1.0]
@@ -184,7 +184,7 @@ pbc::Bool=true)
             current_prob = current_level_probabilities[state_idx]
             
             # Apply 0 measurement
-            ψ_p, prob_p = apply_measurement_mps(state, sites, site, τ, 0; pbc)
+            ψ_p, prob_p = apply_measurement_mps(state, sites, site, τ, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
             # if prob_p > 1e-12
                 new_trajectory_p = [current_trajectory; 0]
                 new_prob_p = current_prob * prob_p
@@ -194,7 +194,7 @@ pbc::Bool=true)
             # end
             
             # Apply 1 measurement
-            ψ_m, prob_m = apply_measurement_mps(state, sites, site, τ, 1; pbc)
+            ψ_m, prob_m = apply_measurement_mps(state, sites, site, τ, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
             # if prob_m > 1e-12
                 new_trajectory_m = [current_trajectory; 1]
                 new_prob_m = current_prob * prob_m
@@ -218,7 +218,7 @@ end
 
 Perform boundary measurements on MPS state.
 """
-function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true)
+function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000)
     num_sites = length(measurement_sites)
     samples = Vector{Vector{Int64}}(undef, num_samples)
     sample_free_energy = Vector{Float64}(undef, num_samples)
@@ -231,7 +231,7 @@ function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ
         # Measure from left to right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
             # Apply both measurement outcomes
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, 0; pbc)
+            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
             prob_m = 1 - prob_p
             
             # Sample based on probabilities
@@ -241,7 +241,7 @@ function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ
                 current_state = ψ_p
                 total_free_energy += -log(prob_p)
             else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, 1; pbc)
+                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
                 current_sequence[site_idx] = 1
                 current_state = ψ_m
                 total_free_energy += -log(prob_m)
@@ -260,7 +260,7 @@ end
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true)
+function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000)
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{MPS}(undef, D)
@@ -281,7 +281,7 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng
         measurement_τ = (layer == D) ? τ/2 : τ
 
         for (site_idx, measurement_site) in enumerate(measurement_sites)
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0; pbc)
+            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
             prob_m = 1 - prob_p
             
             # Sample measurement outcome
@@ -291,7 +291,7 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng
                 current_state = ψ_p
                 total_free_energy += -log(prob_p)
             else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 1; pbc)
+                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
                 current_sequence[site_idx] = 1
                 current_state = ψ_m
                 total_free_energy += -log(prob_m)
@@ -307,14 +307,14 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng
 end
 
 # Helper function to apply measurements to a layer
-function apply_measurement_layer_mps!(N::Int64, sites, ψ::MPS, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) 
+function apply_measurement_layer_mps!(N::Int64, sites, ψ::MPS, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000) 
     if layer_idx % 2 == 1
         measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
     else
         measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
     end
     for (idx, measurement_type) in enumerate(layer_sample)
-        ψ, prob = apply_measurement_mps(ψ, sites, measurement_sites[idx], τ, measurement_type; pbc=pbc)
+        ψ, prob = apply_measurement_mps(ψ, sites, measurement_sites[idx], τ, measurement_type; pbc=pbc, cutoff=cutoff, maxdim=maxdim)
     end
     return ψ
 end

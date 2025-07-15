@@ -2,6 +2,7 @@ using Test
 using FibonacciChain
 using ITensorMPS, ITensors
 using LinearAlgebra
+using Random
 
 @testset "initial_mps" begin
     N = 6
@@ -281,7 +282,7 @@ end
 function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     rng = MersenneTwister(seed)
     
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(L)
     
     sample_measured_states, sample, sample_free_energy = mps_bulk_measurement(ψ, sites, L, τ, D;rng=rng, pbc=true) 
     
