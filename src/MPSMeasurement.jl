@@ -17,7 +17,7 @@ function initial_mps(N::Int)
     # Create MPS from product state
     ψ0 = randomMPS(sites, state)
     
-    return ψ0
+    return ψ0, sites
 end
 
 function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
@@ -231,7 +231,7 @@ function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ
         # Measure from left to right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
             # Apply both measurement outcomes
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, 0, pbc)
+            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, 0; pbc)
             prob_m = 1 - prob_p
             
             # Sample based on probabilities
@@ -241,7 +241,7 @@ function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ
                 current_state = ψ_p
                 total_free_energy += -log(prob_p)
             else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, 1, pbc)
+                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, 1; pbc)
                 current_sequence[site_idx] = 1
                 current_state = ψ_m
                 total_free_energy += -log(prob_m)
@@ -261,7 +261,7 @@ end
 Perform bulk measurements on MPS with D layers.
 """
 function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true)
-    samples = Vector{Vector{Int64}}(undef, D)
+    sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{MPS}(undef, D)
     
@@ -281,7 +281,7 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::
         measurement_τ = (layer == D) ? τ/2 : τ
 
         for (site_idx, measurement_site) in enumerate(measurement_sites)
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0, pbc)
+            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0; pbc)
             prob_m = 1 - prob_p
             
             # Sample measurement outcome
@@ -291,7 +291,7 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::
                 current_state = ψ_p
                 total_free_energy += -log(prob_p)
             else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 1, pbc)
+                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 1; pbc)
                 current_sequence[site_idx] = 1
                 current_state = ψ_m
                 total_free_energy += -log(prob_m)
@@ -299,28 +299,27 @@ function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; rng::
         end
         
         sample_measured_states[layer] = current_state
-        samples[layer] = current_sequence
+        sample[layer, :] = current_sequence
         sample_free_energy[layer] = total_free_energy
     end
     
-    return sample_measured_states, samples, sample_free_energy
+    return sample_measured_states, sample, sample_free_energy
 end
 
 # Helper function to apply measurements to a layer
-function apply_measurement_layer_mps!(state::MPS, N::Int64, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) 
+function apply_measurement_layer_mps!(N::Int64, sites, ψ::MPS, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) 
     if layer_idx % 2 == 1
         measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
     else
         measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
     end
     for (idx, measurement_type) in enumerate(layer_sample)
-        state = apply_measurement_mps(state, measurement_sites[idx], τ, measurement_type, pbc)
-        normalize!(state)
+        ψ, prob = apply_measurement_mps(ψ, sites, measurement_sites[idx], τ, measurement_type; pbc=pbc)
     end
-    return state
+    return ψ
 end
 
-function Generate_state_mps(τ::Float64, state::MPS, sample::ET, temp::Bool=false, pbc::Bool=true) where{ET}
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET, temp::Bool=false, pbc::Bool=true) where{ET}
 
     if ET == Vector{Int}
         N = 2 * length(sample)
@@ -328,11 +327,11 @@ function Generate_state_mps(τ::Float64, state::MPS, sample::ET, temp::Bool=fals
         
     elseif ET == Matrix{Int}
         D, N = size(sample, 1), 2 * size(sample, 2)
-        statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
+        statelis = temp ? Vector{MPS}(undef, D) : nothing
         # if ET is Vector{Int64} and temp is true, we return temporary states.
         for layer in 1:D
             τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer_mps!(state, N, τ_eff, sample[layer, :], layer, pbc)
+            state = apply_measurement_layer_mps!(N, sites, state, τ_eff, sample[layer, :], layer, pbc)
             
             if temp
                 statelis[layer] = copy(state)

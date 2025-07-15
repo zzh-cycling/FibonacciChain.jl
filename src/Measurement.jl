@@ -417,7 +417,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
 end
 
 # Helper function to apply measurements to a layer
-function apply_measurement_layer!(state::Vector{T}, N::Int64, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) where {T}
+function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) where {T}
     if layer_idx % 2 == 1
         measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
     else
@@ -430,7 +430,7 @@ function apply_measurement_layer!(state::Vector{T}, N::Int64, τ::Float64, layer
     return state
 end
 
-function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}
+function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}
 
     if ET == Vector{Int}
         N = 2 * length(sample)
@@ -442,7 +442,7 @@ function Generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
         # if ET is Vector{Int64} and temp is true, we return temporary states.
         for layer in 1:D
             τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer!(state, N, τ_eff, sample[layer, :], layer, pbc)
+            state = apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc)
             
             if temp
                 statelis[layer] = copy(state)

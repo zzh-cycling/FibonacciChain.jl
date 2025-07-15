@@ -6,11 +6,11 @@ using ITensorMPS, ITensors
 export Fibonacci_Ham, Fibonacci_ferroHam, Fibonacci_basis, rdm_Fibo
 export ee, eelis_Fibo_state, eelis_Fiboladder_state, translation_matrix, inversion_matrix, braidingsqmap, free_energy
 export ladderChoi, ladderrdm, ladderbraidingsqmap, laddertranslationmap
-export measure_basismap, measuremap, laddermeasuremap, measurement_enumeration, measurement_tree_visualization, Boundary_measure, Boundarypost_selection, Bulkmeasure, Bulkpost_selection, Generate_state
+export measure_basismap, measuremap, laddermeasuremap, measurement_enumeration, measurement_tree_visualization, Boundary_measure, Boundarypost_selection, Bulkmeasure, Bulkpost_selection, generate_state
 export Fibonacci_Ham_sparse
 # MPS-based functions
-export fibonacci_mps_ground_state, fibonacci_hamiltonian_mps, measurement_operator_mps, apply_measurement_mps
-export initial_mps, mps_sampling, mps_measurement_enumeration, mps_bulk_measurement, ee_mps, eelis_Fibo_mps
+export fibonacci_mps_ground_state, fibonacci_hamiltonian_mps, measurement_operator_mps, apply_measurement_mps, generate_state_mps
+export initial_mps, mps_measurement_enumeration, mps_boundary_measure, mps_bulk_measurement, ee_mps, eelis_Fibo_mps
 
 include("Basis.jl") 
 include("Observable.jl")

@@ -6,7 +6,7 @@ using LinearAlgebra
 @testset "initial_mps" begin
     N = 6
     # Test initial MPS generation
-    ψ = initial_mps(N)
+    ψ, sites = initial_mps(N)
     
     @test ψ isa MPS
     @test length(ψ) == N
@@ -148,28 +148,18 @@ end
     τ = 1.0
     num_samples = 10
     
-    # Generate ground state
-    ψ, _ = fibonacci_mps_ground_state(N; pbc=pbc)
-    sites = siteinds(ψ)
+    ψ, sites = initial_mps(N)
     
     # Define measurement sites
-    measurement_sites = [2, 4]
-    
+    measurement_sites = collect(2:2:N)
+    seed=10
     # Perform sampling
-    samples, weights = mps_sampling(ψ, sites, measurement_sites, τ; 
-                                   num_samples=num_samples, pbc=pbc)
-    
-    # Test outputs
-    @test length(samples) == num_samples
-    @test length(weights) == num_samples
-    
-    # Check each sample
-    for i in 1:num_samples
-        @test length(samples[i]) == length(measurement_sites)
-        @test all(s -> s in [0, 1], samples[i])
-        @test weights[i] > 0
-        @test weights[i] <= 1
-    end
+    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    samples_mps, samples_free_energy_mps = mps_boundary_measure(ψ, sites, measurement_sites, τ; num_samples=num_samples, rng=MersenneTwister(seed), pbc=pbc)
+    sample_measured_states, samples, samples_free_energy = Boundary_measure(N, τ, st, measurement_sites,num_samples, MersenneTwister(seed))
+
+    @test samples_mps == samples
+    @test samples_free_energy_mps ≈ samples_free_energy
 end
 
 @testset "Bulk Measurements" begin
@@ -178,31 +168,73 @@ end
     τ = 1.0
     D = 2  # Small number of layers for testing
     
-    # Generate ground state
-    ψ, _ = fibonacci_mps_ground_state(N; pbc=pbc)
-    sites = siteinds(ψ)
+    ψ, sites = initial_mps(N)
+    
+    # Define measurement sites
+    measurement_sites = collect(2:2:N)
+    seed=10
+    # Perform sampling
+    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
     
     # Perform bulk measurements
-    bulk_states, bulk_samples, bulk_weights = mps_bulk_measurement(
-        ψ, sites, N, τ, D; pbc=pbc)
+    bulk_states, bulk_samples, bulk_free_energy = mps_bulk_measurement(
+        ψ, sites, N, τ, D; rng=MersenneTwister(seed), pbc=pbc)
     
-    # Test outputs
-    @test length(bulk_states) == D
-    @test length(bulk_samples) == D
-    @test length(bulk_weights) == D
-    
-    # Check each layer
-    for layer in 1:D
-        @test bulk_states[layer] isa MPS
-        @test length(bulk_samples[layer]) == div(N, 2)
-        @test all(s -> s in [0, 1], bulk_samples[layer])
-        @test bulk_weights[layer] >= 0
-        @test isfinite(bulk_weights[layer])
-    end
+    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = Bulkmeasure(N, τ, st, D, MersenneTwister(seed))
+
+    @test bulk_samples == bulk_samples_exact
+    @test bulk_free_energy ≈ bulk_free_energy_exact
 end
 
-@testset "Generate_state_mps " begin
+@testset "apply_measurement_layer_mps" begin
+    N = 6
+    pbc = true
+    τ = 1.0
     
+    ψ, sites = initial_mps(N)
+
+    seed=10
+    # Perform sampling
+    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    
+    # Apply measurement to a specific layer
+    measurement_layer = 2
+    bulk_samples = [1, 1, 1]
+    
+    ψ_layer= FibonacciChain.apply_measurement_layer_mps!(N, sites, ψ, τ, bulk_samples, measurement_layer, pbc)
+    
+    st_exact= FibonacciChain.apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
+
+    inds = [i.buf for i in Fibonacci_basis(N)] .+1
+
+    ψ_dense = reduce(*, ψ_layer).tensor.storage[inds]
+    @test ψ_dense[ψ_dense .>0] ≈ st_exact[st_exact .>0]
+end 
+
+@testset "Generate_state_mps " begin
+    N = 6
+    pbc = true
+    
+    ψ, sites = initial_mps(N)
+
+    seed=10
+    # Perform sampling
+    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    
+    # Generate a specific state
+    measurement_sites = collect(2:2:N)  # Example measurement sites
+    τ = 1.0  # Example τ value
+    bulk_samples = [1 1 1; 0 0 0]
+    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true, pbc)
+    generated_state_exact = generate_state(τ, st, bulk_samples, true, pbc)
+
+    inds = [i.buf for i in Fibonacci_basis(N)] .+1
+
+    ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_state]
+    ψ_dense = [sort(ψ[ψ.>0]) for ψ in ψ_dense] 
+    generated_state_exact = [sort(st_exact[st_exact .>0]) for st_exact in generated_state_exact]
+
+    @test ψ_dense ≈ generated_state_exact
 end
 
 @testset "Entanglement Entropy" begin
