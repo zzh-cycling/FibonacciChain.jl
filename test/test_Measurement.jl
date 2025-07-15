@@ -340,7 +340,7 @@ end
     @test EE ≈ 0.8098675501545762 atol = 1e-4
 end
 
-@testset "Generate_state" begin
+@testset "generate_state" begin
     N = 10
     τ = 1e3
     energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
@@ -348,15 +348,15 @@ end
     measurement_sites = collect(2:2:N)
     
     sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 10)
-    state = Generate_state(τ, antiGS, samples[1])
+    state = generate_state(τ, antiGS, samples[1])
     @test state ≈ sample_measured_states[1]
 
     st = zeros(length(Fibonacci_basis(N)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
-    state_t = Generate_state(τ, st, samples)
-    statelis = Generate_state(τ, st, samples, true, true)
+    state_t = generate_state(τ, st, samples)
+    statelis = generate_state(τ, st, samples, true, true)
     @test statelis ≈ sample_measured_states
     @test state_t ≈ sample_measured_states[end]
 
