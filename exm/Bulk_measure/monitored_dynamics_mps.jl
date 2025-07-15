@@ -9,7 +9,7 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     
     ψ, sites = initial_mps(L)
     
-    @time sample_measured_states, sample, sample_free_energy = mps_bulk_measurement(ψ, sites, L, τ, D; rng=rng, pbc=pbc, cutoff=1e-12, maxdim=500)
+    @time sample_measured_states, sample, sample_free_energy = mps_bulk_measurement(ψ, sites, L, τ, D; rng=rng, pbc=true, cutoff=1e-12, maxdim=500)
     
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]

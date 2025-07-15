@@ -362,5 +362,32 @@ end
 
 end
 
+# Helper function to verify the distortion is working correctly
+function verify_distortion(γ::Float64, original_traj::Vector{Int64}, distorted_traj::Vector{Int64})
+    """
+    Calculate the conditional probability P(s̃|s) for verification.
+    """
+    conditional_prob = 1.0
+    for j in 1:length(original_traj)
+        s_j = original_traj[j]
+        s_tilde_j = distorted_traj[j]
+        conditional_prob *= (1 + γ * s_tilde_j * s_j) / 2
+    end
+    return conditional_prob
+end
 
+@testset "bayes_distort" begin
+    γ = 0.5
+    original_traj = [1, -1, 1, -1]
+    distorted_traj = [1, 1, -1, -1]
+    probabilities = [0.25, 0.25, 0.25, 0.25]
 
+    distorted_trajectories, distorted_probabilities = bayes_distort(γ, [original_traj], probabilities)
+
+    @test length(distorted_trajectories) == 1
+    @test length(distorted_probabilities) == 1
+
+    # Verify the distortion is correct
+    conditional_prob = verify_distortion(γ, original_traj, distorted_trajectories[1])
+    @test isapprox(conditional_prob, distorted_probabilities[1], atol=1e-6)
+end

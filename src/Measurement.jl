@@ -452,3 +452,119 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
         return temp ? statelis : state
     end
 end
+
+function bayes_distort(γ::Float64, trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
+    """
+    Distort the measurement trajectories based on a Bayesian distortion factor γ.
+    
+    This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
+    P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2
+    
+    Args:
+        γ: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1).
+        trajectories: Vector of measurement trajectories, where each trajectory is a vector of ±1 values.
+        probabilities: Corresponding probabilities for each trajectory.
+        
+    Returns:
+        Tuple of (distorted_trajectories, distorted_probabilities) where:
+        - distorted_trajectories: All possible distorted trajectories
+        - distorted_probabilities: Their corresponding probabilities after distortion
+        in corresponding order.
+    """
+    
+    # Dictionary to store the distorted trajectory probabilities
+    distorted_prob_dict = Dict{Vector{Int64}, Float64}()
+    
+    # For each original trajectory
+    for (traj_idx, original_traj) in enumerate(trajectories)
+        original_prob = probabilities[traj_idx]
+        n_sites = length(original_traj)
+        
+        # Generate all possible distorted trajectories (2^n possibilities)
+        for distorted_bits in 0:(2^n_sites - 1)
+            # Convert bit representation to ±1 trajectory
+            distorted_traj = Vector{Int64}(undef, n_sites)
+            for j in 1:n_sites
+                # Extract j-th bit and convert to ±1
+                bit = (distorted_bits >> (j-1)) & 1
+                distorted_traj[j] = 2 * bit - 1
+            end
+            
+            # Calculate conditional probability P(s̃|s)
+            conditional_prob = 1.0
+            for j in 1:n_sites
+                s_j = original_traj[j]
+                s_tilde_j = distorted_traj[j]
+                conditional_prob *= (1 + γ * s_tilde_j * s_j) / 2
+            end
+            
+            # Add contribution to distorted probability
+            contribution = original_prob * conditional_prob
+            
+            if haskey(distorted_prob_dict, distorted_traj)
+                distorted_prob_dict[distorted_traj] += contribution
+            else
+                distorted_prob_dict[distorted_traj] = contribution
+            end
+        end
+    end
+    
+    # Convert dictionary to vectors
+    distorted_trajectories = collect(keys(distorted_prob_dict))
+    distorted_probabilities = collect(values(distorted_prob_dict))
+    
+    return distorted_trajectories, distorted_probabilities
+end
+
+# Alternative more efficient implementation for large systems
+function bayes_distort_efficient(γ::Float64, trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64}, pbc::Bool=true)
+    """
+    More efficient implementation using sampling instead of exhaustive enumeration.
+    Useful for large systems where 2^n becomes prohibitive.
+    
+    Args:
+        γ: Distortion factor.
+        trajectories: measurement trajectories.
+        probabilities: Corresponding probabilities for each trajectory.
+        pbc: Periodic boundary condition flag.
+        n_samples: Number of samples to generate per trajectory (default: 1000).
+        
+    Returns:
+        Sampled distorted trajectories and their estimated probabilities.
+    """
+    
+    n_samples = 1000  # Number of samples per trajectory
+    all_distorted_trajectories = Vector{Vector{Int64}}()
+    all_weights = Vector{Float64}()
+    
+    for (traj_idx, original_traj) in enumerate(trajectories)
+        original_prob = probabilities[traj_idx]
+        n_sites = length(original_traj)
+        
+        # Sample distorted trajectories
+        for _ in 1:n_samples
+            distorted_traj = Vector{Int64}(undef, n_sites)
+            weight = original_prob
+            
+            for j in 1:n_sites
+                s_j = original_traj[j]
+                
+                # Probability of getting +1 given original value s_j
+                prob_plus = (1 + γ * s_j) / 2
+                
+                # Sample the distorted value
+                if rand() < prob_plus
+                    distorted_traj[j] = 1
+                else
+                    distorted_traj[j] = -1
+                end
+            end
+            
+            push!(all_distorted_trajectories, distorted_traj)
+            push!(all_weights, weight / n_samples)
+        end
+    end
+    
+    return all_distorted_trajectories, all_weights
+end
+

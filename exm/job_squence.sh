@@ -22,7 +22,7 @@ echo "Setting optimal concurrency to: $CONCURRENCY"
 task_counter=0
 
 for ((j=32; j<=32; j+=2)); do
-    for ((i=1; i<=2000; i++)); do
+    for ((i=1; i<=50; i++)); do
         # 生成一个随机种子
         RANDOM_SEED=$(( (j + i) * 1000 ))  # 通过任务ID来生成种子，确保不同任务之间不重复
 
