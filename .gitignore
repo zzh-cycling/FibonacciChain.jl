@@ -9,3 +9,5 @@
 job-*.txt
 resource_usage.log
 nohup.out
+.log
+logs/*.log
