@@ -1,115 +1,121 @@
-function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
+function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
-    ϕ = (1+√5)/2
-    fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
     
-    if τ >= 1e2
-        cstτ = 0.5
-        coef = sign == 0 ? 0.5 : -0.5
-    else
-        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
-    end
-
-    if 2<= i <= N-1
-        mask=bmask(T,1,2,3) << (N-i-1)
-        str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
-        if state & mask == str000
-            return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
-        elseif state & mask == str010
-            return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
-        elseif state & mask == str001
-            return state, cstτ+coef
-        elseif state & mask == str100
-            return state, cstτ+coef
-        elseif state & mask == str101
-            return state, cstτ-coef
-        end
-    end
-    if pbc
-        if i == 1 #count from the left
-        mask=bmask(T, N, N-1,1)
-        str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
-            if state & mask == str000
-                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
-            elseif state & mask == str010
-                return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
-            elseif state & mask == str001
-                return state, cstτ+coef
-            elseif state & mask == str100
-                return state, cstτ+coef
-            elseif state & mask == str101
-                return state, cstτ-coef
-            end
-        elseif i == N #count from the left
-        mask=bmask(T, N, 2, 1)
-        str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
-            if state & mask == str000
-                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
-            elseif state & mask == str010
-                return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
-            elseif state & mask == str001
-                return state, cstτ+coef
-            elseif state & mask == str100
-                return state, cstτ+coef
-            elseif state & mask == str101
-                return state, cstτ-coef
-            end
-        end
-    end
-end
-
-
-function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
-
-    basis=Fibonacci_basis(T, pbc)
-    l=length(basis)
-    Bmatrix=zeros((l,l))
-    for i in 1:l
-        outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc)
-        if length(outcome) == 4
-            outputstate1, outputstate2, output1, output2=outcome
-            j2=searchsortedfirst(basis, outputstate2)
-            Bmatrix[i,i]+=output1
-            Bmatrix[i,j2]+=output2
+    if measure_class == :Fibo
+        ϕ = (1+√5)/2
+        fl=bmask(T, N)
+        X(state,i) = flip(state, fl >> (i-1))
+        
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
         else
-            outputstate, output=outcome
-            Bmatrix[i,i]+=output
+            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        end
+
+        if 2<= i <= N-1
+            mask=bmask(T,1,2,3) << (N-i-1)
+            str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
+            if state & mask == str000
+                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+            elseif state & mask == str010
+                return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+            elseif state & mask == str001
+                return state, cstτ+coef
+            elseif state & mask == str100
+                return state, cstτ+coef
+            elseif state & mask == str101
+                return state, cstτ-coef
+            end
+        end
+        if pbc
+            if i == 1 #count from the left
+            mask=bmask(T, N, N-1,1)
+            str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
+                if state & mask == str000
+                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+                elseif state & mask == str010
+                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+                elseif state & mask == str001
+                    return state, cstτ+coef
+                elseif state & mask == str100
+                    return state, cstτ+coef
+                elseif state & mask == str101
+                    return state, cstτ-coef
+                end
+            elseif i == N #count from the left
+            mask=bmask(T, N, 2, 1)
+            str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
+                if state & mask == str000
+                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+                elseif state & mask == str010
+                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+                elseif state & mask == str001
+                    return state, cstτ+coef
+                elseif state & mask == str100
+                    return state, cstτ+coef
+                elseif state & mask == str101
+                    return state, cstτ-coef
+                end
+            end
         end
     end
-    
-    return Bmatrix
 end
 
-function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+
+function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+    if measure_class == :Fibo
+        basis=Fibonacci_basis(T, pbc)
+        l=length(basis)
+        Bmatrix=zeros((l,l))
+        for i in 1:l
+            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc)
+            if length(outcome) == 4
+                outputstate1, outputstate2, output1, output2=outcome
+                j2=searchsortedfirst(basis, outputstate2)
+                Bmatrix[i,i]+=output1
+                Bmatrix[i,j2]+=output2
+            else
+                outputstate, output=outcome
+                Bmatrix[i,i]+=output
+            end
+        end
+        
+        return Bmatrix
+        
+    end
+end
+
+function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-
-    basis=Fibonacci_basis(T, pbc)
-    l=length(basis)
-    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
-    mapped_state = zeros(ET, length(state))
-    for i in 1:l
-        output = measure_basismap(T, τ, basis[i], idx, sign, pbc)
-        if length(output) == 4
-            outputstate1, outputstate2, output1, output2=output
-            j2=searchsortedfirst(basis, outputstate2)
-            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-            mapped_state[j2]+=output2*state[i]
-        else
-            outputstate, output1=output # outputstate is the same as basis[i]
-            mapped_state[i]+=output1*state[i]
+    if measure_class == :Fibo
+        basis=Fibonacci_basis(T, pbc)
+        l=length(basis)
+        @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
+        mapped_state = zeros(ET, length(state))
+        for i in 1:l
+            output = measure_basismap(T, τ, basis[i], idx, sign, pbc)
+            if length(output) == 4
+                outputstate1, outputstate2, output1, output2=output
+                j2=searchsortedfirst(basis, outputstate2)
+                mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
+                mapped_state[j2]+=output2*state[i]
+            else
+                outputstate, output1=output # outputstate is the same as basis[i]
+                mapped_state[i]+=output1*state[i]
+            end
         end
+        
+        return mapped_state
     end
-    
-    return mapped_state
 end
-measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc)
+measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class)
 
 function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
@@ -158,7 +164,7 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
 end
 laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc)
 
-function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     """
     enumerating all trajectories of measurements on a given initial state.
     
@@ -184,7 +190,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
             current_trajectory = current_level_trajectories[state_idx]
             current_prob = current_level_probabilities[state_idx]
             
-            state_after_p = measuremap(T, τ, state, site, 0, pbc)
+            state_after_p = measuremap(T, τ, state, site, 0, pbc, measure_class)
             prob_p = state_after_p' * state_after_p  
             
             # if prob_p > 1e-12  
@@ -197,7 +203,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
                 push!(next_level_probabilities, new_prob_p)
             # end
             
-            state_after_m = measuremap(T, τ, state, site, 1, pbc)
+            state_after_m = measuremap(T, τ, state, site, 1, pbc, measure_class)
             prob_m = state_after_m' * state_after_m
             
             # if prob_m > 1e-12 
@@ -222,8 +228,8 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
     return current_level_states, current_level_trajectories, current_level_probabilities
 end
 
-measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true) where {ET} = 
-measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc)
+measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = 
+measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc, measure_class)
 
 
 function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
@@ -257,7 +263,7 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
-function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
@@ -275,7 +281,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
         # meaure from the left to the right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
            
-            state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc)
+            state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc, measure_class)
             
             
             prob_p = state_after_p' * state_after_p
@@ -287,7 +293,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_free_energy += -log(prob_p)
             else
-                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc)
+                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc, measure_class)
                 current_sequence[site_idx] = 1
                 current_state = state_after_m ./ sqrt(prob_m)
                 total_free_energy += -log(prob_m)
@@ -302,9 +308,9 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
     return sample_measured_states, samples, sample_free_energy
 end
 
-Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, measure_class)
 
-function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true) where {ET}
+function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     num_sites = length(measurement_sites)
@@ -316,7 +322,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     # meaure from the left to the right
     for (site_idx, measurement_site) in enumerate(measurement_sites)
        
-        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc)
+        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc, measure_class)
 
         prob = state_after_measure' * state_after_measure
 
@@ -328,8 +334,8 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     return current_state, current_sequence, total_free_energy
 end
 
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true) where {ET}
-    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+    
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
@@ -351,7 +357,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
         # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1, measure 0 is Pi 0/tau, measure 1 is Pi 1
             
         for (site_idx, measurement_site) in enumerate(measurement_sites)
-            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc)
+            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, measure_class)
             
             prob_sqrtp = state_after_p' * state_after_p
             prob_sqrtm = 1 - prob_sqrtp
@@ -361,7 +367,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
                 current_state = state_after_p ./ sqrt(prob_sqrtp)
                 total_free_energy += -log(prob_sqrtp)
             else
-                state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc)
+                state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, measure_class)
                 current_sequence[site_idx] = 1
                 current_state = state_after_m ./ sqrt(prob_sqrtm)
                 total_free_energy += -log(prob_sqrtm)
@@ -376,8 +382,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
     return sample_measured_states, sample, sample_free_energy
 end
 
-function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true) where {ET}
-    @assert length(state) == length(Fibonacci_basis(N)) "State vector must have length $(length(Fibonacci_basis(N))), but got $(length(state))"
+function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     sample = Vector{Vector{Int64}}(undef, D)
     sample_free_energy = Vector{Float64}(undef, D)
@@ -400,7 +405,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
         measurement_τ = (layer == D) ? τ/2 : τ
         
         for (site_idx, measurement_site) in enumerate(measurement_sites)
-            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc)
+            state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, measure_class)
             current_sequence[site_idx] = sign
             prob_p = state_after_p' * state_after_p
             current_state = state_after_p ./ sqrt(prob_p)
@@ -417,24 +422,24 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
 end
 
 # Helper function to apply measurements to a layer
-function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true) where {T}
+function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {T}
     if layer_idx % 2 == 1
         measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
     else
         measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
     end
     for (idx, measurement_type) in enumerate(layer_sample)
-        state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc)
+        state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class)
         normalize!(state)
     end
     return state
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true) where{T, ET}
+function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=false, pbc::Bool=true, measure_class::Symbol=:Fibo) where{T, ET}
 
     if ET == Vector{Int}
         N = 2 * length(sample)
-        return apply_measurement_layer!(N, state, τ, sample, 1, pbc)
+        return apply_measurement_layer!(N, state, τ, sample, 1, pbc, measure_class)
         
     elseif ET == Matrix{Int}
         D, N = size(sample, 1), 2 * size(sample, 2)
@@ -442,7 +447,7 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
         # if ET is Vector{Int64} and temp is true, we return temporary states.
         for layer in 1:D
             τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc)
+            state = apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, measure_class)
             
             if temp
                 statelis[layer] = copy(state)
@@ -453,7 +458,7 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, temp::Bool=fa
     end
 end
 
-function bayes_distort(γ::Float64, trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
+function bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
     """
     Distort the measurement trajectories based on a Bayesian distortion factor γ.
     
@@ -462,7 +467,7 @@ function bayes_distort(γ::Float64, trajectories::Vector{Vector{Int64}}, probabi
     
     Args:
         γ: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1).
-        trajectories: Vector of measurement trajectories, where each trajectory is a vector of ±1 values.
+        trajectories: Vector of measurement trajectories.
         probabilities: Corresponding probabilities for each trajectory.
         
     Returns:
@@ -474,41 +479,37 @@ function bayes_distort(γ::Float64, trajectories::Vector{Vector{Int64}}, probabi
     
     # Dictionary to store the distorted trajectory probabilities
     distorted_prob_dict = Dict{Vector{Int64}, Float64}()
+    n_sites = length(trajectories)
+    distorted_prob = Vector{Vector{Float64}}(undef, n_sites)
+    transfer_matrix = [1 + γ 1 - γ; 1 - γ 1 + γ] / 2
     
     # For each original trajectory
     for (traj_idx, original_traj) in enumerate(trajectories)
         original_prob = probabilities[traj_idx]
-        n_sites = length(original_traj)
-        
-        # Generate all possible distorted trajectories (2^n possibilities)
-        for distorted_bits in 0:(2^n_sites - 1)
-            # Convert bit representation to ±1 trajectory
-            distorted_traj = Vector{Int64}(undef, n_sites)
-            for j in 1:n_sites
-                # Extract j-th bit and convert to ±1
-                bit = (distorted_bits >> (j-1)) & 1
-                distorted_traj[j] = 2 * bit - 1
-            end
-            
-            # Calculate conditional probability P(s̃|s)
-            conditional_prob = 1.0
-            for j in 1:n_sites
-                s_j = original_traj[j]
-                s_tilde_j = distorted_traj[j]
-                conditional_prob *= (1 + γ * s_tilde_j * s_j) / 2
-            end
-            
-            # Add contribution to distorted probability
-            contribution = original_prob * conditional_prob
-            
-            if haskey(distorted_prob_dict, distorted_traj)
-                distorted_prob_dict[distorted_traj] += contribution
-            else
-                distorted_prob_dict[distorted_traj] = contribution
-            end
-        end
+        prob_distribution = (trajectories[traj_idx] == 1) ? [original_prob, 1 - original_prob] : [1 - original_prob, original_prob]
+        distorted_prob[traj_idx] = transfer_matrix *prob_distribution
     end
     
+    # Generate all possible distorted trajectories (2^n possibilities)
+    for distorted_bits in 0:(2^n_sites - 1)
+        # Convert bit representation to ±1 trajectory
+        prob = 1.0
+        distorted_traj = Vector{Int64}(undef, n_sites)
+        for j in 1:n_sites
+            # Extract j-th bit and convert to ±1
+            bit = (distorted_bits >> (j-1)) & 1
+            distorted_traj[j] = bit
+            prob*= distorted_prob[j][(bit==1) ? 1 : 2]  # bit + 1 because Julia is 1-indexed
+        end
+        
+        
+        
+        if haskey(distorted_prob_dict, distorted_traj)
+            distorted_prob_dict[distorted_traj] = prob
+        else
+            distorted_prob_dict[distorted_traj] = prob
+        end
+    end
     # Convert dictionary to vectors
     distorted_trajectories = collect(keys(distorted_prob_dict))
     distorted_probabilities = collect(values(distorted_prob_dict))

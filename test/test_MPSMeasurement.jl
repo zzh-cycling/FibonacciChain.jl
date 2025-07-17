@@ -202,7 +202,7 @@ end
     measurement_layer = 2
     bulk_samples = [1, 1, 1]
     
-    ψ_layer= FibonacciChain.apply_measurement_layer_mps!(N, sites, ψ, τ, bulk_samples, measurement_layer, pbc)
+    ψ_layer= FibonacciChain.apply_measurement_layer_mps!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
     
     st_exact= FibonacciChain.apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
 
@@ -226,7 +226,7 @@ end
     measurement_sites = collect(2:2:N)  # Example measurement sites
     τ = 1.0  # Example τ value
     bulk_samples = [1 1 1; 0 0 0]
-    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true, pbc)
+    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true;pbc= pbc)
     generated_state_exact = generate_state(τ, st, bulk_samples, true, pbc)
 
     inds = [i.buf for i in Fibonacci_basis(N)] .+1

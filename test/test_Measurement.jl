@@ -377,17 +377,27 @@ function verify_distortion(γ::Float64, original_traj::Vector{Int64}, distorted_
 end
 
 @testset "bayes_distort" begin
-    γ = 0.5
-    original_traj = [1, -1, 1, -1]
-    distorted_traj = [1, 1, -1, -1]
+    γ = 0.0
+    original_traj = [1,0, 1, 0]
     probabilities = [0.25, 0.25, 0.25, 0.25]
 
-    distorted_trajectories, distorted_probabilities = bayes_distort(γ, [original_traj], probabilities)
+    distorted_trajectories, distorted_probabilities = FibonacciChain.bayes_distort(γ, original_traj, probabilities)
 
-    @test length(distorted_trajectories) == 1
-    @test length(distorted_probabilities) == 1
+    @test length(distorted_trajectories) == 2^4
+    @test length(distorted_probabilities) == 2^4
 
-    # Verify the distortion is correct
-    conditional_prob = verify_distortion(γ, original_traj, distorted_trajectories[1])
-    @test isapprox(conditional_prob, distorted_probabilities[1], atol=1e-6)
+    @test distorted_probabilities == 1/16 .* ones(16) 
+
+    γ = 1.0
+    original_traj = [1,0, 1, 0]
+    
+    probabilities = [0.25, 0.25, 0.25, 0.25]
+
+    distorted_trajectories, distorted_probabilities = FibonacciChain.bayes_distort(γ, original_traj, probabilities)
+
+    @test length(distorted_trajectories) == 2^4
+    @test length(distorted_probabilities) == 2^4
+
+    inds = findfirst(x -> x == [1, 1, 1, 1], distorted_trajectories)
+    @test distorted_probabilities[inds] == (3/4)^2*(1/4)^2
 end
