@@ -28,14 +28,14 @@ end
 function mps_example(cutoff=1e-10, maxdim=50)
 
     # System parameters
-    N = 20  # Number of sites
-    τ = atanh(0.6)  # Measurement parameter
+    N = 30  # Number of sites
+    τ = atanh(0.9)  # Measurement parameter
     pbc = true  # Periodic boundary conditions
     
     ψ, sites = initial_mps(N)
     
     # Perform bulk measurements with alternating pattern
-    D = 45N  # Number of layers
+    D = 8N  # Number of layers
     
     elapsed_time = @elapsed bulk_states, bulk_samples, bulk_weights = mps_bulk_measurement(
         ψ, sites, N, τ, D; rng=MersenneTwister(100), pbc=pbc, cutoff=cutoff, maxdim=maxdim)
@@ -47,13 +47,36 @@ function mps_example(cutoff=1e-10, maxdim=50)
         println("  Measurement pattern: $([bulk_samples[layer, :]])")
         println("  Log probability: $(bulk_weights[layer])")
         println("  Final state bond dims: $(linkdims(bulk_states[layer]))")
-        println("  Final state entanglement entropy: $(EElis)")
+        if layer == D
+            println("  Final state entanglement entropy: $(EElis)")
+        end
     end
-    
+
     println("\n=== Example completed ===")
 
     return bulk_weights, EElis, elapsed_time
 end
+
+# bulk_weights, exact_ee, _, _ = get_exact_results(20, atanh(0.6), 45*20)
+
+bulk_weights1, EElis1, elapsed_time1 = mps_example(1e-12, 500)
+bulk_weights2, EElis2, elapsed_time2 = mps_example(1e-12, 150)
+bulk_weights3, EElis3, elapsed_time3 = mps_example(1e-10, 125)
+bulk_weights4, EElis4, elapsed_time4 = mps_example(1e-10, 100)
+@show elapsed_time1, elapsed_time2, elapsed_time3, elapsed_time4
+
+ plot([elapsed_time2, elapsed_time3, elapsed_time4]./elapsed_time1, [sqrt(mean((EElis2 .- EElis1).^2)), sqrt(mean((EElis3 .- EElis1).^2)), sqrt(mean((EElis4 .- EElis1).^2))], yaxis=:log, label=L"Δ ee", marker=:circle,
+     title="Execution Time vs Error for different Cutoff and Maxdim", xlabel=L"t/t_{max}", ylabel="Error", legend=:topright)
+plot!([elapsed_time2, elapsed_time3, elapsed_time4]./elapsed_time1, label=L"Δ F",marker=:circle, [sqrt(mean((bulk_weights2 .- bulk_weights1).^2)), sqrt(mean((bulk_weights3 .- bulk_weights1).^2)), sqrt(mean((bulk_weights4 .- bulk_weights1).^2))])
+# @show sqrt(mean((EElis1 .- exact_ee).^2)), sqrt(mean((EElis2 .- exact_ee).^2)), sqrt(mean((EElis3 .- exact_ee).^2)), sqrt(mean((EElis4 .- exact_ee).^2))
+# @show sqrt(mean((bulk_weights1 .- bulk_weights).^2)),sqrt(mean((bulk_weights2 .- bulk_weights).^2)), sqrt(mean((bulk_weights3 .- bulk_weights).^2)), sqrt(mean((bulk_weights4 .- bulk_weights).^2))
+
+# plot([elapsed_time1, elapsed_time2, elapsed_time3, elapsed_time4], [sqrt(mean((EElis1 .- exact_ee).^2)), sqrt(mean((EElis2 .- exact_ee).^2)), sqrt(mean((EElis3 .- exact_ee).^2)), sqrt(mean((EElis4 .- exact_ee).^2))], yaxis=:log, 
+#      label=L"Δ ee", 
+#      title="Execution Time vs Error for different Cutoff and Maxdim", xlabel=L"t", ylabel="Error", legend=:topright)
+# plot!([elapsed_time1, elapsed_time2, elapsed_time3, elapsed_time4], label=L"Δ F",
+#      [sqrt(mean((bulk_weights1 .- bulk_weights).^2)),sqrt(mean((bulk_weights2 .- bulk_weights).^2)), sqrt(mean((bulk_weights3 .- bulk_weights).^2)), sqrt(mean((bulk_weights4 .- bulk_weights).^2))])
+
 
 function get_exact_results(N, τ, D; rng_seed=100, pbc=true)
     rng = MersenneTwister(rng_seed)

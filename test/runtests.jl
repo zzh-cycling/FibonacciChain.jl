@@ -20,3 +20,11 @@ end
 @testset "MPSMeasurement.jl" begin
     include("./test_MPSMeasurement.jl")
 end
+
+@testset "FiboSparse.jl" begin
+    include("./test_FiboSparse.jl")
+end
+
+@testset "Ising" begin
+    include("./test_Ising.jl")
+end

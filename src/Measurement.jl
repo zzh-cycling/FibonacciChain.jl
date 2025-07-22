@@ -62,6 +62,10 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 end
             end
         end
+    elseif measure_class == :Ising
+        println("Ising measure class is not implemented yet")
+    else
+        error("Unknown measure class: $measure_class")
     end
 end
 
@@ -69,11 +73,11 @@ end
 function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     if measure_class == :Fibo
-        basis=Fibonacci_basis(T, pbc)
+        basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
         l=length(basis)
         Bmatrix=zeros((l,l))
         for i in 1:l
-            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc)
+            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class)
             if length(outcome) == 4
                 outputstate1, outputstate2, output1, output2=outcome
                 j2=searchsortedfirst(basis, outputstate2)
@@ -94,42 +98,41 @@ function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::I
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    if measure_class == :Fibo
-        basis=Fibonacci_basis(T, pbc)
-        l=length(basis)
-        @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
-        mapped_state = zeros(ET, length(state))
-        for i in 1:l
-            output = measure_basismap(T, τ, basis[i], idx, sign, pbc)
-            if length(output) == 4
-                outputstate1, outputstate2, output1, output2=output
-                j2=searchsortedfirst(basis, outputstate2)
-                mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-                mapped_state[j2]+=output2*state[i]
-            else
-                outputstate, output1=output # outputstate is the same as basis[i]
-                mapped_state[i]+=output1*state[i]
-            end
+
+    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
+    l=length(basis)
+    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
+    mapped_state = zeros(ET, length(state))
+    for i in 1:l
+        output = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class)
+        if length(output) == 4
+            outputstate1, outputstate2, output1, output2=output
+            j2=searchsortedfirst(basis, outputstate2)
+            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
+            mapped_state[j2]+=output2*state[i]
+        else
+            outputstate, output1=output # outputstate is the same as basis[i]
+            mapped_state[i]+=output1*state[i]
         end
-        
-        return mapped_state
     end
+    
+    return mapped_state
 end
 measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class)
 
-function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc)
+    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
         for j in 1:l
-            output1 = measure_basismap(T, τ, basis[i], idx, sign, pbc)
-            output2 = measure_basismap(T, τ, basis[j], idx, sign, pbc)
+            output1 = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class)
+            output2 = measure_basismap(T, τ, basis[j], idx, sign, pbc, measure_class)
             if length(output1) == 4 && length(output2) == 4
                 basisi1, basisi2, coefi1, coefi2=output1
                 basisj1, basisj2, coefj1, coefj2=output2
@@ -162,7 +165,7 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
     
     return mapped_state
 end
-laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc)
+laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class=measure_class)
 
 function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     """
