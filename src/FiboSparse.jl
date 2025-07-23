@@ -1,6 +1,6 @@
-function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for PXP model, automotically contain pbc or obc
-    basis=Fibonacci_basis(T,pbc)
+    basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
 
     l=length(basis)
     # H=spzeros(Float64,(l,l))
@@ -20,13 +20,13 @@ function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N
 end
 Fibonacci_Ham_sparse(N::Int64, pbc::Bool=true) = Fibonacci_Ham_sparse(BitStr{N, Int}, pbc)
 
-function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing) where {N, T <: BitStr{N}}
+function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing
 #return: the Hamiltonian matrix in given symmetric sector
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic = Fibonacci_basis(T, k, Y)
+    basisK, basis_dic = Fibonacci_basis(T, k, Y=Y, measure_class=measure_class)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     # H = spzeros(ComplexF64, (l, l))

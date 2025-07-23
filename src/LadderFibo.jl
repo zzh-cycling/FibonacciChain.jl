@@ -1,8 +1,8 @@
-function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET} 
+function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
     # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=Fibonacci_basis(T, pbc)
+    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     
@@ -44,32 +44,32 @@ function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=t
     
     return mapped_state
 end
-ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc)
+ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc, measure_class=measure_class)
 
-function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
+function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # The PBC anyon relation with basis like:
     #  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
     @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
 
     if pbc
         for i in 2:2:N
-            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, measure_class=measure_class)
             state/=norm(state) # normalize the state after each braiding
         end
     else
         for i in 2:2:N-1
-            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, measure_class=measure_class)
         end
     end
 
     return state
 end
-ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc)
+ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc, measure_class=measure_class)
 
-function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
+function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    unsorted_basis = Fibonacci_basis(T, pbc)
+    unsorted_basis = Fibonacci_basis(T, pbc, measure_class=measure_class)
     lenubasis = length(unsorted_basis)
     newT = BitStr{2N, Int} # double the length of the basis
     doublebasis = reshape([join(j,i) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)

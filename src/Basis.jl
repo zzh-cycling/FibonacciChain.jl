@@ -25,29 +25,37 @@ function topological_charge(state::T) where {N, T <: BitStr{N}}
     # 文章提到: "operator Y has two eigenvalues, S_{yτ}/S_{y1} = φ, -φ^{-1}"，因此 y 可以从特征值推导。
 end
 
-function Fibonacci_basis(::Type{T},pbc::Bool=true, Y=nothing) where {N, T <: BitStr{N}}
+function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
-    # Generate Fibonacci chain basis
-    # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
-    if pbc
-        basis=Fibonacci_chain_PBC(T)
+
+    if measure_class == :Fibo
+        # Generate Fibonacci chain basis
+        # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
+        if pbc
+            basis=Fibonacci_chain_PBC(T)
+        else
+            basis=Fibonacci_chain_OBC(T)
+        end
+        sorted_basis=sort(basis)
+    
+        if Y !== nothing
+            # Filter basis by topological charge
+            sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
+        end
+    
+        return sorted_basis
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
+        # Generate basis for Ising model
+        return [T(i) for i in 0:(2^N - 1)]
     else
-        basis=Fibonacci_chain_OBC(T)
+        error("Unsupported measure_class: $measure_class")
     end
-    sorted_basis=sort(basis)
-
-    if Y !== nothing
-        # Filter basis by topological charge
-        sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
-    end
-
-    return sorted_basis
 end
-Fibonacci_basis(N::Int, pbc::Bool=true, Y=nothing) = Fibonacci_basis(BitStr{N, Int}, pbc, Y)
+Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, measure_class=measure_class)
 
-function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
+function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
@@ -58,7 +66,7 @@ function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N
     end
 
     basisK = Vector{T}(undef, 0)
-    basis = Fibonacci_basis(T)
+    basis = Fibonacci_basis(T, Y=Y, measure_class=measure_class)
     basis_dic = Dict{T, Vector{T}}()
 
     for i in basis
@@ -80,7 +88,7 @@ function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N
 
     return basisK, basis_dic
 end
-Fibonacci_basis(N::Int64, k::Int64, Y=nothing) = Fibonacci_basis(BitStr{N, Int}, k, Y)
+Fibonacci_basis(N::Int64, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, k, Y=Y, measure_class=measure_class)
     
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
@@ -111,6 +119,31 @@ function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     end
 end
 
+function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+    @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
+    
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if i == N
+        if pbc
+             if ((state >> (N - 1)) & 1) == (state & 1)
+                return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+            else
+                return state, X(state,i), 1.0, -1.0
+            end
+        else
+            return X(state,i), -1.0
+        end
+    else
+        if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
+            return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+        else
+            return state, X(state,i), 1.0, -1.0
+        end
+    end
+end
+
 function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     n = length(state)
     n < 3 && return 0 
@@ -130,111 +163,127 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
-    mask=bmask(T, N, N-2)
     fl=bmask(T, N)
-    ϕ = (1+√5)/2
     X(state,i) = flip(state, fl >> (i-1))
+    ϕ = (1+√5)/2
 
-    output = Dict{T, Float64}()
-
-    # count 101, 100, 001
-    output[state] = get(output, state, 0.0) - count_subBitStr(T, state)
-
-    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
-    for i in 2:N-1 
-        if state & (mask >> (i-2)) == 0
-            state1, state2, weight1, weight2 = antimap(T, state, i)
+    if measure_class == :Fibo
+        mask=bmask(T, N, N-2)
+        output = Dict{T, Float64}()
+    
+        # count 101, 100, 001
+        output[state] = get(output, state, 0.0) - count_subBitStr(T, state)
+    
+        # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
+        for i in 2:N-1 
+            if state & (mask >> (i-2)) == 0
+                state1, state2, weight1, weight2 = antimap(T, state, i)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+        end
+    
+        if pbc
+            # 1 site antimap
+            if state[1]==0 && state[N-1]==0
+                state1, state2, weight1, weight2 = antimap(T, state, 1)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+            # N site antimap
+            if state[2]==0 && state[N]==0
+                state1, state2, weight1, weight2 = antimap(T, state, N)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+            mask1= bmask(T, N, 2)
+            mask2= bmask(T, N-1, 1)
+            # 1 site 111 fusion, check if is 1xxxx01
+            if state & mask1 == mask1
+                output[state] = get(output, state, 0.0) - 1
+            end
+            # N site 111 fusion, check if is 01xxxx1
+            if state & mask2 == mask2
+                output[state] = get(output, state, 0.0) - 1
+            end
+        end
+        return output
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
+        # Generate Ising model Hamiltonian
+        output = Dict{T, Float64}()
+        for i in 1:N-1
+            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
             output[state1] = get(output, state1, 0.0) + weight1
             output[state2] = get(output, state2, 0.0) + weight2
         end
+
+        if pbc 
+            state1, state2, weight1, weight2 = Isingmap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+
+        return output
+    elseif measure_class == :Ferro
+        mask=bmask(T, N, N-2)
+
+        output = Dict{T, Float64}()
+        
+        # count 101, 100, 001
+        output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
+        
+        # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
+        for i in 2:N-1 
+            if state & (mask >> (i-2)) == 0
+                state1, state2, weight1, weight2 = ferromap(T, state, i)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+        end
+        
+        if pbc
+            # 1 site ferromap
+            if state[1]==0 && state[N-1]==0
+                state1, state2, weight1, weight2 = ferromap(T, state, 1)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+            # N site ferromap
+            if state[2]==0 && state[N]==0
+                state1, state2, weight1, weight2 = ferromap(T, state, N)
+                output[state1] = get(output, state1, 0.0) + weight1
+                output[state2] = get(output, state2, 0.0) + weight2
+            end
+            mask1= bmask(T, N, 2)
+            mask2= bmask(T, N-1, 1)
+            # 1 site 111 fusion
+            if state & mask1 == mask1
+                output[state] = get(output, state, 0.0) + 1
+            end
+            # N site 111 fusion
+            if state & mask2 == mask2
+                output[state] = get(output, state, 0.0) + 1
+            end
+        end
+        return output
+    else
+        error("Unsupported measure_class: $measure_class")
     end
-
-    if pbc
-        # 1 site antimap
-        if state[1]==0 && state[N-1]==0
-            state1, state2, weight1, weight2 = antimap(T, state, 1)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-        # N site antimap
-        if state[2]==0 && state[N]==0
-            state1, state2, weight1, weight2 = antimap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-        mask1= bmask(T, N, 2)
-        mask2= bmask(T, N-1, 1)
-        # 1 site 111 fusion, check if is 1xxxx01
-        if state & mask1 == mask1
-            output[state] = get(output, state, 0.0) - 1
-        end
-        # N site 111 fusion, check if is 01xxxx1
-        if state & mask2 == mask2
-            output[state] = get(output, state, 0.0) - 1
-        end
-    end
-    return output
 end
 
-function ferroactingHam(::Type{T}, state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
-    mask=bmask(T, N, N-2)
-    fl=bmask(T, N)
-    ϕ = (1+√5)/2
-    X(state,i) = flip(state, fl >> (i-1))
 
-    output = Dict{T, Float64}()
-
-    # count 101, 100, 001
-    output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
-
-    # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
-    for i in 2:N-1 
-        if state & (mask >> (i-2)) == 0
-            state1, state2, weight1, weight2 = ferromap(T, state, i)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-    end
-
-    if pbc
-        # 1 site ferromap
-        if state[1]==0 && state[N-1]==0
-            state1, state2, weight1, weight2 = ferromap(T, state, 1)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-        # N site ferromap
-        if state[2]==0 && state[N]==0
-            state1, state2, weight1, weight2 = ferromap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-        mask1= bmask(T, N, 2)
-        mask2= bmask(T, N-1, 1)
-        # 1 site 111 fusion
-        if state & mask1 == mask1
-            output[state] = get(output, state, 0.0) + 1
-        end
-        # N site 111 fusion
-        if state & mask2 == mask2
-            output[state] = get(output, state, 0.0) + 1
-        end
-    end
-    return output
-end
-
-function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=Fibonacci_basis(T,pbc)
+    basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(T, basis[i], pbc) 
+        output=actingHam(T, basis[i], pbc; measure_class=measure_class) 
         states, weights = keys(output), values(output)
         for m in states
             j=searchsortedfirst(basis, m)
@@ -244,26 +293,8 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
 
     return H
 end
-Fibonacci_Ham(N::Int, pbc::Bool=true) = Fibonacci_Ham(BitStr{N, Int}, pbc)
+Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class)
 
-function Fibonacci_ferroHam(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=Fibonacci_basis(T,pbc)
-
-    l=length(basis)
-    H=zeros(Float64,(l,l))
-    for i in 1:l
-        output=ferroactingHam(T, basis[i], pbc) 
-        states, weights = keys(output), values(output)
-        for m in states
-            j=searchsortedfirst(basis, m)
-            H[i, j] += output[m]
-        end
-    end
-
-    return H
-end
-Fibonacci_ferroHam(N::Int, pbc::Bool=true) = Fibonacci_ferroHam(BitStr{N, Int}, pbc)
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
     #params: t is an integer, N is the length of the binary string
@@ -293,14 +324,14 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 
-function Fibonacci_Ham(::Type{T}, k::Int, Y=nothing) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic =Fibonacci_basis(T, k, Y)
+    basisK, basis_dic =Fibonacci_basis(T, k, Y=Y, measure_class=measure_class)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
@@ -332,8 +363,8 @@ function process_join(a, b)
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
-function joint_Fibo_basis(lengthlis::Vector{Int})
-    return sort(mapreduce(len -> Fibonacci_basis(len, false), process_join, lengthlis))
+function joint_Fibo_basis(lengthlis::Vector{Int};measure_class::Symbol=:Fibo)
+    return sort(mapreduce(len -> Fibonacci_basis(len, false, measure_class=measure_class), process_join, lengthlis))
 end
 
 function connected_components(v::Vector{Int})
@@ -371,10 +402,10 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 # take system part of a basis
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
-function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N,T <: BitStr{N}, ET}
+function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    unsorted_basis = Fibonacci_basis(T, pbc)
+    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
     @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
     
     subsystems=connected_components(subsystems)
@@ -387,7 +418,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = unsorted_basis[order], state[order]
     
-    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
@@ -415,14 +446,14 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
 
     return reduced_dm
 end
-rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc)
+rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
 
 
-function iso_tot2sec(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
+function iso_tot2sec(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     #Function to map the total basis to the given symmetric sector Hilbert space basis, actually is the isometry, defined as W'*W=I, W*W'=P, P^2=P
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     
-    basis = Fibonacci_basis(T)
+    basis = Fibonacci_basis(T, Y=Y, measure_class=measure_class)
 
     k_dic = Dict{Int, Vector{Int64}}()
     basisK = Vector{T}(undef, 0)
@@ -454,13 +485,13 @@ function iso_tot2sec(::Type{T}, k::Int64, Y=nothing) where {N, T <: BitStr{N}}
 
     return iso
 end
-iso_tot2sec(N::Int, k::Int64) = iso_tot2sec(BitStr{N, Int}, k)
+iso_tot2sec(N::Int, k::Int64; measure_class::Symbol=:Fibo) = iso_tot2sec(BitStr{N, Int}, k, measure_class=measure_class)
 
-function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64) where {N, T <: BitStr{N}, ET}
+function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
 
-    basis = Fibonacci_basis(T)
+    basis = Fibonacci_basis(T, measure_class=measure_class)
     k_dic = Dict{Int, Vector{Int64}}()
     basisK = Vector{T}(undef, 0)
     for i in eachindex(basis)
@@ -490,7 +521,7 @@ function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64) where {N, T <: Bi
 
     return total_state
 end
-mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k)
+mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, measure_class=measure_class)
 
 function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
     @assert length(kstate) == length(Fibo_K_basis(T,k)[1]) "state length is expected to be $(length(Fibo_K_basis(T, k)[1])), but got $(length(kstate))"
