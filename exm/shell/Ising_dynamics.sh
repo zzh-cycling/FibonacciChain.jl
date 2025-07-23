@@ -1,0 +1,46 @@
+#!/bin/bash
+
+# # 系统参数
+# CPU_LIMIT=$(nproc)    # 通常为44
+# TOTAL_MEM_GB=503      # 503 GB
+# PER_TASK_MEM_GB=5    # 每个任务的预计内存使用
+# MEM_LIMIT=$(( TOTAL_MEM_GB / PER_TASK_MEM_GB ))  # 251
+
+# # 设定最大并发数
+# if [[ MEM_LIMIT -lt CPU_LIMIT ]]; then
+#     CONCURRENCY=$MEM_LIMIT
+# else
+#     CONCURRENCY=$CPU_LIMIT
+# fi
+
+# # 安全起见，保留核心供系统使用
+# CONCURRENCY=$(( CONCURRENCY > 1 ? CONCURRENCY - 1 : 1 ))
+CONCURRENCY=100
+echo "Detected CPU cores: $CPU_LIMIT, Total RAM: ${TOTAL_MEM_GB}GB"
+echo "Setting optimal concurrency to: $CONCURRENCY"
+
+task_counter=0
+
+for ((j=8; j<=16; j+=2)); do
+    for ((i=1; i<=10000; i+=100)); do
+        # 生成一个随机种子
+        RANDOM_SEED=$(( (j + i)))  # 通过任务ID来生成种子，确保不同任务之间不重复
+
+        # 提交惰性任务，执行当前任务
+        # nohup julia --project=. exm/test/gamma1.jl $j $i $RANDOM_SEED &
+        nohup julia --project=. exm/Bulk_measure/moni_dyna_Ising.jl $j $i $RANDOM_SEED &
+
+        ((task_counter++))
+        echo "Submitted job $i for j=$j (concurrent: $task_counter/$CONCURRENCY)"
+
+        # 控制并发任务数量
+        if (( task_counter >= CONCURRENCY )); then
+            wait -n  # 等待任意一个完成的任务
+            ((task_counter--))
+            echo "Job completed, current concurrent: $task_counter"
+        fi
+    done
+done
+
+wait  # 等待剩余任务
+echo "All jobs completed"
