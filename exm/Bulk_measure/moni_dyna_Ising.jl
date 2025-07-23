@@ -112,7 +112,7 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5
     bulk_stderr_EElis = (std(final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    time_average_free_energy = 2*mean(all_FE_tlis[:, window], dims=2) 
+    time_average_free_energy = mean(all_FE_tlis[:, window], dims=2) 
     bulk_FE = mean(time_average_free_energy)
     bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(all_FE_tlis, 1))
     time_FEstderr = (std(all_FE_tlis, dims=1) ./ sqrt(size(all_FE_tlis, 1)))[:]

@@ -26,6 +26,10 @@ using Random
     output = FibonacciChain.Isingmap(T, state, idx)
     @test output == (state, T(bit"101111"), -1.0, -1.0)
 
+    state = T(bit"111111")
+    output = FibonacciChain.Isingmap(T, state, 3, false)
+    @test output == (T(bit"111110"), -1.0)
+
     # Test with periodic boundary conditions
     pbc = true
     output_pbc = FibonacciChain.Isingmap(T, state, N, pbc)
