@@ -161,7 +161,8 @@ else
     index=parse(Int64, ARGS[2])
     seed=parse(Int64, ARGS[3])
     println("Received argument: $N, $index")
-    samples_generate(N, τ, index, seed)
+    total_samples_generate(N, τ, index, seed)
+    # samples_generate(N, τ, index, seed)
     # Observable_collect(N, τ)
     # samples_collect(N, τ)
 end
