@@ -349,7 +349,7 @@ end
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
     state_t = generate_state(τ, st, samples)
-    statelis = generate_state(τ, st, samples, true, true)
+    statelis = generate_state(τ, st, samples, true, temp= true)
     @test statelis ≈ sample_measured_states
     @test state_t ≈ sample_measured_states[end]
 

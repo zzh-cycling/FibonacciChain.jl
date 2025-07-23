@@ -3,6 +3,7 @@ using Test
 using LinearAlgebra
 using BitBasis
 using Arpack
+using Random
 
 @testset "Isingmap" begin
     N = 6
@@ -32,27 +33,27 @@ using Arpack
 end
 
 @testset "actingHamobc" begin
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:Ising) 
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:IsingX) 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000", bit"100", bit"010"])
     @test [weights...] ≈ [-2.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:Ising) 
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:IsingX) 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"110", bit"010"])
     @test [weights...] ≈ [-1.0, -1.0, 0.0]
 
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:Ising) 
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:IsingX) 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"101", bit"011", bit"001"])
     @test [weights...] ≈ [-1.0, -1.0, 2.0]
 
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:Ising) 
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:IsingX) 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"100"])
     @test [weights...] ≈ [0.0]
 
-    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:Ising)
+    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:IsingX)
     states, weights = keys(output), values(output)
     @test [states...]== BitStr{3}.([bit"101"])
     @test [weights...] ≈ [-1.0]
@@ -60,23 +61,23 @@ end
 
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:Ising) 
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:IsingX) 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:Ising) 
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:IsingX) 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:Ising) 
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:IsingX) 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"000", bit"001"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:Ising) 
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:IsingX) 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"000",bit"100"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:Ising)
+    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:IsingX)
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
@@ -84,9 +85,9 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = Fibonacci_basis(5, false, measure_class=:Ising)
+    fib_basis = Fibonacci_basis(5, false, measure_class=:IsingX)
     @test length(fib_basis) == 32
-    fib_basis = Fibonacci_basis(5, measure_class=:Ising)
+    fib_basis = Fibonacci_basis(5, measure_class=:IsingX)
     @test length(fib_basis) == 32
     # Test the Fibonacci Hamiltonian
     fib_ham = Fibonacci_Ham(5)
@@ -367,10 +368,11 @@ end
     num_final_states = length(final_states)
     @test num_final_states == 2^length(measurement_sites)
 
+    # all final states should be equally probable
     total_prob = sum(probabilities)
     @test isapprox(total_prob, 1.0, atol=1e-6)
     @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
-    @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
+    @test sum(map(x->-x*log(x)/length(measurement_sites), probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 
     final_states, trajectories, probabilities = measurement_enumeration(N, τ, st, measurement_sites, measure_class=:IsingZZ)
 
@@ -380,7 +382,7 @@ end
     total_prob = sum(probabilities)
     @test isapprox(total_prob, 1.0, atol=1e-6)
     @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
-    @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
+    @test sum(map(x->-x*log(x)/length(measurement_sites), probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
 @testset "Boundary_measure" begin
@@ -390,74 +392,91 @@ end
     τ = 3.802
     measurement_sites = collect(2:2:N)
 
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, measurement_sites, 1000, measure_class=:IsingX)
+    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, measurement_sites, 500, measure_class=:IsingX)
 
     num_final_states = length(sample_measured_states)
-    @test num_final_states == 1000
+    @test num_final_states == 500
 
     @test [0 for i in 2:2:N] in samples
     
 end
 
 @testset "Boundarypost_selection" begin
-    N = 10
+    N = 6
     τ = 1e3
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
-    antiGS = states[:, 1]
+    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+    st[1] = 1.0 
+ 
     measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
-    
-    @test total_free_energy_p /5 ≈ 1.1136495433981064 
+    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, st, measurement_sites, 0, measure_class=:IsingX)
+
+    # all final states should be equally probable, will give Nlog(2) free energy
+    @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
+
+    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, final_state_p, measurement_sites, 0, measure_class=:IsingZZ)
+
+    @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
+    @test final_state_p[1] == 1.0
 end
 
 @testset "Bulkmeasure" begin
-    L = 10
+    L = 6
     D = 2L
-    st=zeros(length(Fibonacci_basis(L)))
+    τ = 1e3
+    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D) 
-    EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
-    @test size(samples) == (20, 5)
-    @test EElis[1] ≈ 0.0 atol = 1e-4
-    @test EElis[end] > 0.5098675501545762 
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), measure_class=:IsingX) 
+    EElis = [eelis_Fibo_state(L, state_t, measure_class=:IsingX)[div(N,2)] for state_t in sample_measured_states]
+    @test size(samples) == (D, L)
+    # Each layer will erase previous info.
+    @test EElis ≈ [i % 2 == 1 ? 0.0 : log(2) for i in 1:D] atol = 1e-6
 end
 
 @testset "Bulkpost_selection" begin
-    L = 10
-    τ = 0.1
-    D = 15L
+    L = 6
+    τ = 1000.0
+    D = 10L
     pbc = true
-    st=zeros(length(Fibonacci_basis(L)))
+    st=zeros(length(Fibonacci_basis(L, measure_class=:IsingX)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc)
+    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc, measure_class=:IsingX)
     state_t = sample_measured_states[end]
-    EE = eelis_Fibo_state(L, state_t)[5]
-    @test samples[end] == fill(0, div(L,2))
-    @test EE ≈ 0.8098675501545762 atol = 1e-4
+    EE = eelis_Fibo_state(L, state_t, measure_class=:IsingX)
+    @test samples[end] == fill(0, L)
+    @test EE ≈ log(2)*ones(L-1) atol = 1e-4
 end
 
-@testset "generate_state" begin
-    N = 10
+@testset "apply_measurement_layer" begin
+    N = 6
     τ = 1e3
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
-    antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 10)
-    state = generate_state(τ, antiGS, samples[1])
-    @test state ≈ sample_measured_states[1]
-
-    st = zeros(length(Fibonacci_basis(N)))
+    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
-    state_t = generate_state(τ, st, samples)
-    statelis = generate_state(τ, st, samples, true, true)
-    @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), measure_class=:IsingX)
+    state_t = sample_measured_states[end]
 
+    new_state = FibonacciChain.apply_measurement_layer!(N, st, τ, samples[1,:], 1, measure_class=:IsingX)
+    @test new_state ≈ sample_measured_states[1]
 end
+
+# @testset "generate_state" begin
+#     N = 6
+#     τ = 1e3
+#     st=zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+#     st[1] = 1.0
+
+#     sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, measure_class=:IsingX)
+#     state = generate_state(τ, st, samples[1], measure_class=:IsingX)
+#     @test state ≈ sample_measured_states[1]
+
+#     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), measure_class=:IsingX)
+#     state_t = generate_state(τ, st, samples, measure_class=:IsingX)
+#     statelis = generate_state(τ, st, samples, true, temp = true, measure_class=:IsingX)
+#     @test statelis ≈ sample_measured_states
+#     @test state_t ≈ sample_measured_states[end]
+
+# end

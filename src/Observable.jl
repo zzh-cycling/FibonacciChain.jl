@@ -13,16 +13,16 @@ function ee(subrm::Matrix{ET}) where {ET}
     return EE
 end
 
-function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
+function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
     # Generate ee list for a given state from the left to the right
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         if m<= div(N,2)
-            subrho=rdm_Fibo(N, collect(1:m), state, pbc)
+            subrho=rdm_Fibo(N, collect(1:m), state, pbc, measure_class=measure_class)
             EE_lis[m]=ee(subrho)
         else
-            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc)
+            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc, measure_class=measure_class)
             EE_lis[m]=ee(subrho)
         end
     end
