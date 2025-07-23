@@ -24,16 +24,10 @@ using Arpack
     @test output[4] == (T(bit"100"), cstτ)
     @test output[5] == (T(bit"101"), cstτ)
 
-    τ = 0.0
     sign = 1
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), cstτ)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
-
+    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    @test output2 == output
+    
     τ = 1.0
     sign = 0
     cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
@@ -45,8 +39,7 @@ using Arpack
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
-
-    τ = 1.0
+    
     sign = 1
     coef = (1-exp(τ))/2√(exp(2τ)+1)
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)

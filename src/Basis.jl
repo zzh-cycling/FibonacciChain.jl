@@ -46,7 +46,7 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
         end
     
         return sorted_basis
-    elseif measure_class == :Ising
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
         # Generate basis for Ising model
         return [T(i) for i in 0:(2^N - 1)]
     else
@@ -209,7 +209,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
-    elseif measure_class == :Ising
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
         # Generate Ising model Hamiltonian
         output = Dict{T, Float64}()
         for i in 1:N-1

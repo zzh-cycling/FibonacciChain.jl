@@ -101,214 +101,193 @@ end
 
 end
 
-@testset "measure_basismap" begin
+@testset "measure_basismap_IsingX" begin
     N = 3
-    ϕ = (1 + √5) / 2
     T = BitStr{N, Int}
-    state = T(0b000)
     idx = 2
     pbc = false
     τ =0.0
-    cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
+    cstτ = cosh(τ/2) / √(2cosh(τ))
     sign = 0
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
 
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingX)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), cstτ)
+    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, 0.0)
 
-    τ = 0.0
     sign = 1
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), cstτ)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingX)
+    @test output2 == output
 
     τ = 1.0
     sign = 0
-    cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
-    coef = (exp(τ)-1)/2√(exp(2τ)+1)
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    coef = sinh(τ/2) / √(2cosh(τ))
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingX)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
+    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
+    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
+    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
 
-    τ = 1.0
     sign = 1
-    coef = (1-exp(τ))/2√(exp(2τ)+1)
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingX)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
+    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
+    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
+    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
 
     τ = 1e3
     sign = 0
     cstτ = 1/2
     coef = 1/2
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingX)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
+    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
+    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
+    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
+    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
+    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
+
+
+    idx = 3
+    output = measure_basismap.(T, τ, basis0, idx, sign, true, measure_class=:IsingX)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"001"), cstτ, coef)
+    @test output[2] == (T(bit"001"), T(bit"000"), cstτ, coef)
+    @test output[3] == (T(bit"010"), T(bit"011"), cstτ, coef)
+    @test output[4] == (T(bit"100"), T(bit"101"), cstτ, coef)
+    @test output[5] == (T(bit"101"), T(bit"100"), cstτ, coef)
+
+end
+
+@testset "measure_basismap_IsingZZ" begin
+    N = 3
+    T = BitStr{N, Int}
+    idx = 2
+    pbc = false
+    τ =0.0
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    sign = 0
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingZZ)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), cstτ)
+    @test output[2] == (T(bit"001"), cstτ)
+    @test output[3] == (T(bit"010"), cstτ)
+    @test output[4] == (T(bit"100"), cstτ)
+    @test output[5] == (T(bit"101"), cstτ)
+
+    sign = 1
+    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingZZ)
+    @test output2 == output
+
+    τ = 1.0
+    sign = 0
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    coef = sinh(τ/2) / √(2cosh(τ))
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingZZ)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), cstτ+coef)
+    @test output[2] == (T(bit"001"), cstτ-coef)
+    @test output[3] == (T(bit"010"), cstτ+coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
 
-    idx = 1
-    output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
+    sign = 1
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"100"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), cstτ+coef)
-    @test output[4] == (T(bit"100"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
-    @test output[5] === nothing
-
-    idx = 3
-    output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"001"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
+    @test output[1] == (T(bit"000"), cstτ+coef)
+    @test output[2] == (T(bit"001"), cstτ-coef)
     @test output[3] == (T(bit"010"), cstτ+coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] === nothing
+    @test output[5] == (T(bit"101"), cstτ-coef)
+
+    idx=3
+    τ = 1e3
+    sign = 0
+    cstτ = 1/2
+    coef = 1/2
+    output = measure_basismap.(T, τ, basis0, idx, sign, measure_class=:IsingZZ)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), 1.0)
+    @test output[2] == (T(bit"001"), 0.0)
+    @test output[3] == (T(bit"010"), 1.0)
+    @test output[4] == (T(bit"100"), 0.0)
+    @test output[5] == (T(bit"101"), 1.0)
+
+
+    sign = 1
+    output = measure_basismap.(T, τ, basis0, idx, sign, measure_class=:IsingZZ) # pbc is true by default
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), 0.0)
+    @test output[2] == (T(bit"001"), 1.0)
+    @test output[3] == (T(bit"010"), 0.0)
+    @test output[4] == (T(bit"100"), 1.0)
+    @test output[5] == (T(bit"101"), 0.0)
+
 end
 
 @testset "measure_matrix" begin
     N = 3
     T = BitStr{N, Int}
-    ϕ = (1 + √5) / 2
-
-
+    
+    ⊗(a,b) = kron(a, b)
     τ = 1.0
     idx = 2
-    cstτ = (exp(1)+1)/2√(exp(2)+1)
-    coef = (exp(1)-1)/2√(exp(2)+1)
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
-        0.0 cstτ+coef 0.0 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
-        0.0 0.0 0.0 cstτ+coef 0.0;
-        0.0 0.0 0.0 0.0 cstτ-coef]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    coef = sinh(τ/2) / √(2cosh(τ))
+
+    σx = [0.0 1.0; 1.0 0.0]
+    σz = [1.0 0.0; 0.0 -1.0]
+    # measuring X
+    expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σx ⊗ I(2)
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false, measure_class=:IsingX)
     @test Mpobc == expected_matrix 
 
-    coef = (1-exp(1))/2√(exp(2)+1)
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
-        0.0 cstτ+coef 0.0 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
-        0.0 0.0 0.0 cstτ+coef 0.0;
-        0.0 0.0 0.0 0.0 cstτ-coef
-    ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false)
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σx ⊗ I(2)
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false, measure_class=:IsingX)
     @test Mmobc == expected_matrix
-    @test Mpobc^2+Mmobc^2 ≈ I(5) 
+    @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
-    coef = (exp(1)-1)/2√(exp(2)+1)
-    expected_matrix = [        
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
-        0.0 cstτ+coef 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
-        0.0 0.0 0.0 cstτ+coef
-]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
-    @test Mppbc == expected_matrix 
-    coef = (1-exp(1))/2√(exp(2)+1)
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
-        0.0 cstτ+coef 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
-        0.0 0.0 0.0 cstτ+coef
-        ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
-    @test Mmpbc == expected_matrix    
-    @test Mppbc^2+Mmpbc^2 ≈ I(4)
+    # measuring ZZ
+    expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σz ⊗ σz
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false, measure_class=:IsingZZ)
+    @test Mpobc == expected_matrix 
 
-    # Test with a different τ
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σz ⊗ σz
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false, measure_class=:IsingZZ)
+    @test Mmobc == expected_matrix
+    @test Mpobc^2+Mmobc^2 ≈ I(8) 
+
+
+
+    # Test with a different τ, idx
+    idx = 3
     τ = 0.0   
     cstτ = 1/√2
     coef = 0.0      
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
-        0.0 cstτ+coef 0.0 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
-        0.0 0.0 0.0 cstτ+coef 0.0;
-        0.0 0.0 0.0 0.0 cstτ-coef
-    ]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
+    expected_matrix = cstτ* I(8) + coef * kron(kron(I(2), [0.0 1.0; 1.0 0.0]) , I(2))
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0,  measure_class=:IsingZZ)
     @test Mpobc == expected_matrix 
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
-        0.0 cstτ+coef 0.0 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
-        0.0 0.0 0.0 cstτ+coef 0.0;
-        0.0 0.0 0.0 0.0 cstτ-coef
-    ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false)
-    @test Mmobc == expected_matrix 
-    @test Mpobc^2+Mmobc^2 ≈ I(5) 
 
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
-        0.0 cstτ+coef 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
-        0.0 0.0 0.0 cstτ+coef
-    ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
-    @test Mppbc == expected_matrix 
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
-        0.0 cstτ+coef 0.0 0.0;
-        -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
-        0.0 0.0 0.0 cstτ+coef
-    ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
-    @test Mmpbc == expected_matrix 
-    @test Mppbc^2+Mmpbc^2 ≈ I(4) 
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    expected_matrix = cstτ* I(8) + coef * kron(kron(I(2), [0.0 1.0; 1.0 0.0]) , I(2))
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1,  measure_class=:IsingZZ)
+    @test Mmobc == expected_matrix
+    @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
 
-end
-
-@testset "measure_matrix" begin
-    # Test with a different idx， must be pbc.
-    N = 3
-    T = BitStr{N, Int}
-    ϕ = (1 + √5) / 2
-    τ = 1.0
-    cstτ = (exp(1)+1)/2√(exp(2)+1)
-    coef = (exp(1)-1)/2√(exp(2)+1)
-    idx = 1
-
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 0.0 -2*coef*ϕ^(-3/2);
-        0.0 cstτ+coef 0.0 0.0;
-        0.0 0.0 cstτ+coef 0.0 ;
-        -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
-    ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
-    @test Mppbc == expected_matrix 
-    coef = (1-exp(1))/2√(exp(2)+1)
-    expected_matrix = [
-        cstτ+coef*(1-2ϕ^(-1)) 0.0 0.0 -2*coef*ϕ^(-3/2);
-        0.0 cstτ+coef 0.0 0.0;
-        0.0 0.0 cstτ+coef 0.0 ;
-        -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
-        ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
-    @test Mmpbc == expected_matrix    
-    @test Mppbc^2+Mmpbc^2 ≈ I(4)
 end
 
 @testset "measuremap" begin
