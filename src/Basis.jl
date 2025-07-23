@@ -121,14 +121,13 @@ end
 
 function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
-    @assert pbc || (i < N) "i is expected to be less than $N when pbc is false, but got $i"
     
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
 
     if i == N
         if pbc
-            if (state & (1 << (N-1))) == (state & 1)
+             if ((state >> (N - 1)) & 1) == (state & 1)
                 return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
             else
                 return state, X(state,i), 1.0, -1.0

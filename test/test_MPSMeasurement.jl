@@ -53,8 +53,8 @@ end
     s_ip1 = sites[idx+1] # site 3
     row_inds = (prime(s_im1), prime(s_i), prime(s_ip1))
     col_inds = (s_im1, s_i, s_ip1)
-    permuted_M_p = permute(M_p, row_inds..., col_inds...)
-    permuted_M_m = permute(M_m, row_inds..., col_inds...)
+    permuted_M_p = ITensors.permute(M_p, row_inds..., col_inds...)
+    permuted_M_m = ITensors.permute(M_m, row_inds..., col_inds...)
     M_pmatrix = reshape(permuted_M_p.tensor.storage, 8,8)
     M_mmatrix = reshape(permuted_M_m.tensor.storage, 8,8)
 
@@ -226,8 +226,8 @@ end
     measurement_sites = collect(2:2:N)  # Example measurement sites
     τ = 1.0  # Example τ value
     bulk_samples = [1 1 1; 0 0 0]
-    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true;pbc= pbc)
-    generated_state_exact = generate_state(τ, st, bulk_samples, true, pbc)
+    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true; pbc= pbc)
+    generated_state_exact = generate_state(τ, st, bulk_samples, pbc, temp = true)
 
     inds = [i.buf for i in Fibonacci_basis(N)] .+1
 

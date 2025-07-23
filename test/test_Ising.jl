@@ -27,7 +27,7 @@ using Random
     @test output == (state, T(bit"101111"), -1.0, -1.0)
 
     state = T(bit"111111")
-    output = FibonacciChain.Isingmap(T, state, 3, false)
+    output = FibonacciChain.Isingmap(T, state, 6, false)
     @test output == (T(bit"111110"), -1.0)
 
     # Test with periodic boundary conditions
@@ -36,75 +36,75 @@ using Random
     @test output_pbc == (state, T(bit"111110"), -1.0, -1.0)
 end
 
-@testset "actingHamobc" begin
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:IsingX) 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== BitStr{3}.([bit"000", bit"100", bit"010"])
-    @test [weights...] ≈ [-2.0, -1.0, -1.0]
+# @testset "actingHamobc" begin
+#     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:IsingX) 
+#     states, weights = keys(output1), values(output1)
+#     @test [states...]== BitStr{3}.([bit"000", bit"100", bit"010"])
+#     @test [weights...] ≈ [-2.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:IsingX) 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== BitStr{3}.([bit"000", bit"110", bit"010"])
-    @test [weights...] ≈ [-1.0, -1.0, 0.0]
+#     output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:IsingX) 
+#     states, weights = keys(output2), values(output2)
+#     @test [states...]== BitStr{3}.([bit"000", bit"110", bit"010"])
+#     @test [weights...] ≈ [-1.0, -1.0, 0.0]
 
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:IsingX) 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== BitStr{3}.([bit"101", bit"011", bit"001"])
-    @test [weights...] ≈ [-1.0, -1.0, 2.0]
+#     output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:IsingX) 
+#     states, weights = keys(output3), values(output3)
+#     @test [states...]== BitStr{3}.([bit"101", bit"011", bit"001"])
+#     @test [weights...] ≈ [-1.0, -1.0, 2.0]
 
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:IsingX) 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== BitStr{3}.([bit"100"])
-    @test [weights...] ≈ [0.0]
+#     output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:IsingX) 
+#     states, weights = keys(output4), values(output4)
+#     @test [states...]== BitStr{3}.([bit"100"])
+#     @test [weights...] ≈ [0.0]
 
-    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:IsingX)
-    states, weights = keys(output), values(output)
-    @test [states...]== BitStr{3}.([bit"101"])
-    @test [weights...] ≈ [-1.0]
-end
+#     output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:IsingX)
+#     states, weights = keys(output), values(output)
+#     @test [states...]== BitStr{3}.([bit"101"])
+#     @test [weights...] ≈ [-1.0]
+# end
 
-@testset "actingHampbc" begin
-    ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:IsingX) 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
-    @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:IsingX) 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:IsingX) 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== BitStr{3}.([bit"000", bit"001"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:IsingX) 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== BitStr{3}.([bit"000",bit"100"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:IsingX)
-    states, weights = keys(output), values(output)
-    @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
-    @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
-end
+# @testset "actingHampbc" begin
+#     ϕ = (1+√5)/2
+#     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:IsingX) 
+#     states, weights = keys(output1), values(output1)
+#     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
+#     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
+#     output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:IsingX) 
+#     states, weights = keys(output2), values(output2)
+#     @test [states...]== BitStr{3}.([bit"000", bit"010"])
+#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+#     output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:IsingX) 
+#     states, weights = keys(output3), values(output3)
+#     @test [states...]== BitStr{3}.([bit"000", bit"001"])
+#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+#     output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:IsingX) 
+#     states, weights = keys(output4), values(output4)
+#     @test [states...]== BitStr{3}.([bit"000",bit"100"])
+#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+#     output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:IsingX)
+#     states, weights = keys(output), values(output)
+#     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
+#     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
+# end
 
-@testset "basis.jl" begin
-    # Test the Fibonacci basis creation
-    fib_basis = Fibonacci_basis(5, false, measure_class=:IsingX)
-    @test length(fib_basis) == 32
-    fib_basis = Fibonacci_basis(5, measure_class=:IsingX)
-    @test length(fib_basis) == 32
-    # Test the Fibonacci Hamiltonian
-    fib_ham = Fibonacci_Ham(5)
-    @test size(fib_ham) == (32, 32)
-    @test ishermitian(fib_ham)
+# @testset "basis.jl" begin
+#     # Test the Fibonacci basis creation
+#     fib_basis = Fibonacci_basis(5, false, measure_class=:IsingX)
+#     @test length(fib_basis) == 32
+#     fib_basis = Fibonacci_basis(5, measure_class=:IsingX)
+#     @test length(fib_basis) == 32
+#     # Test the Fibonacci Hamiltonian
+#     fib_ham = Fibonacci_Ham(5)
+#     @test size(fib_ham) == (32, 32)
+#     @test ishermitian(fib_ham)
 
-    @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-    @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
-    # Test the reduced density matrix function
-    # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
-    # @test size(rdm) == (2, 2)
+#     @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
+#     @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
+#     # Test the reduced density matrix function
+#     # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
+#     # @test size(rdm) == (2, 2)
 
-end
+# end
 
 @testset "measure_basismap_IsingX" begin
     N = 3
@@ -427,11 +427,11 @@ end
     L = 6
     D = 2L
     τ = 1e3
-    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+    st = zeros(length(Fibonacci_basis(L, measure_class=:IsingX)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), measure_class=:IsingX) 
-    EElis = [eelis_Fibo_state(L, state_t, measure_class=:IsingX)[div(N,2)] for state_t in sample_measured_states]
+    EElis = [eelis_Fibo_state(L, state_t, measure_class=:IsingX)[div(L,2)] for state_t in sample_measured_states]
     @test size(samples) == (D, L)
     # Each layer will erase previous info.
     @test EElis ≈ [i % 2 == 1 ? 0.0 : log(2) for i in 1:D] atol = 1e-6

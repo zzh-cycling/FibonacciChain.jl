@@ -624,10 +624,9 @@ end
 function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=false, measure_class::Symbol=:Fibo) where{T, ET}
 
     if ET == Vector{Int}
-        
-        N = measure_class == 2 * length(sample) 
+        N = 2 * length(sample)
         return apply_measurement_layer!(N, state, τ, sample, 1, pbc, measure_class=measure_class)
-        
+
     elseif ET == Matrix{Int}
         D, N = size(sample, 1), 2 * size(sample, 2) 
         statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
