@@ -85,7 +85,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
         end
 
         if 1<= i <= N-1
-            if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
+            if ((state >> (N - i)) & 1) == ((state >> (N - i -1)) & 1)
                 return state, cstτ+coef
             else
                 return state, cstτ-coef
@@ -227,7 +227,7 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
 end
 laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class=measure_class)
 
-function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     """
     enumerating all trajectories of measurements on a given initial state.
     

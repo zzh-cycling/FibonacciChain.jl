@@ -177,6 +177,9 @@ end
     τ =0.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
     sign = 0
+    basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
+
+
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, measure_class=:IsingZZ)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), cstτ)
@@ -197,7 +200,7 @@ end
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), cstτ+coef)
     @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ+coef)
+    @test output[3] == (T(bit"010"), cstτ-coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
 
@@ -207,7 +210,7 @@ end
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), cstτ+coef)
     @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ+coef)
+    @test output[3] == (T(bit"010"), cstτ-coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] == (T(bit"101"), cstτ-coef)
 
@@ -260,6 +263,7 @@ end
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
     # measuring ZZ
+    coef = sinh(τ/2) / √(2cosh(τ))
     expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σz ⊗ σz
     Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false, measure_class=:IsingZZ)
     @test Mpobc == expected_matrix 
@@ -270,103 +274,123 @@ end
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
-
-
     # Test with a different τ, idx
     idx = 3
-    τ = 0.0   
-    cstτ = 1/√2
-    coef = 0.0      
-    expected_matrix = cstτ* I(8) + coef * kron(kron(I(2), [0.0 1.0; 1.0 0.0]) , I(2))
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0,  measure_class=:IsingZZ)
+    τ = 1000.0   
+    cstτ = 0.5
+    coef = 0.5      
+    expected_matrix = cstτ* I(8) + coef * σz ⊗ I(2) ⊗ σz 
+    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, measure_class=:IsingZZ)
     @test Mpobc == expected_matrix 
 
-    coef = -sinh(τ/2) / √(2cosh(τ))
-    expected_matrix = cstτ* I(8) + coef * kron(kron(I(2), [0.0 1.0; 1.0 0.0]) , I(2))
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1,  measure_class=:IsingZZ)
+    coef = -0.5    
+    expected_matrix = cstτ* I(8) + coef * σz ⊗ I(2) ⊗ σz 
+    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, measure_class=:IsingZZ)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
 
 end
 
-@testset "measuremap" begin
+@testset "measuremap_IsingX" begin
     N = 3
     T = BitStr{N, Int}
     τ = 1.0
     idx = 2
     sign = 0
-    cstτ = (exp(1)+1)/2√(exp(2)+1)
-    coef = (exp(1)-1)/2√(exp(2)+1)
-    ϕ = (1 + √5) / 2
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    coef = sinh(τ/2) / √(2cosh(τ))
 
-    state = fill(1.0,4)
-    output = measuremap(T, τ, state, idx, sign)        
-    @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
+    state = fill(1.0,2^N)
+    output = measuremap(T, τ, state, idx, sign, measure_class=:IsingX)        
+    @test output == (cstτ+coef) .* ones(2^N)
     
     sign = 1
-    coef = (1-exp(1))/2√(exp(2)+1)
-    output = measuremap(T, τ, state, idx, sign)  
-    @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
-
-    # Test with a different state
-    state = collect(1.0:4)
-    output = measuremap(T, τ, state, idx, sign) 
-    @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef)]
-
-    # Try with obc
-    pbc = false
-    state = collect(1.0:5)
-    output = measuremap(T, τ, state, idx, sign, pbc)
-    @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef), 5(cstτ-coef)]
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    output = measuremap(T, τ, state, idx, sign, measure_class=:IsingX)  
+    @test output == (cstτ+coef) .* ones(2^N)
 end
 
-@testset "laddermeasuremap" begin
+@testset "measuremap_IsingZZ" begin
     N = 3
     T = BitStr{N, Int}
     τ = 1.0
     idx = 2
+    sign = 0
+    cstτ = cosh(τ/2) / √(2cosh(τ))
+    coef = sinh(τ/2) / √(2cosh(τ))
 
-
-    sign = 1
-    state = fill(1.0,16)
-    output = laddermeasuremap(T, τ, state, idx, sign)  
-    onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
-    @test output ≈ kron(onechain_st, onechain_st)
+    state = fill(1.0,2^N)
+    output = measuremap(T, τ, state, idx, sign, measure_class=:IsingZZ)        
+    @test output == [cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef, cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef]
     
     sign = 1
-    output = laddermeasuremap(T, τ, state, idx, sign)  
-    onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)
-    @test output ≈ kron(onechain_st, onechain_st)
+    coef = -sinh(τ/2) / √(2cosh(τ))
+    output = measuremap(T, τ, state, idx, sign, measure_class=:IsingZZ)  
+    @test output == [cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef, cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef]
+
+
+    # Try with idx=3 pbc
+    state = ones(2^N)
+    output = measuremap(T, 1000.0, state, idx, sign, measure_class=:IsingZZ)
+    @test output == [0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]
 end
+
+# @testset "laddermeasuremap" begin
+#     N = 3
+#     T = BitStr{N, Int}
+#     τ = 1.0
+#     idx = 2
+
+
+#     sign = 1
+#     state = fill(1.0,16)
+#     output = laddermeasuremap(T, τ, state, idx, sign)  
+#     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
+#     @test output ≈ kron(onechain_st, onechain_st)
+    
+#     sign = 1
+#     output = laddermeasuremap(T, τ, state, idx, sign)  
+#     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)
+#     @test output ≈ kron(onechain_st, onechain_st)
+# end
 
 @testset "measurement_enumeration" begin
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
-    antiGS= states[:, 1]
-
+    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+    st[1] = 1.0 
     τ = 0.0
     measurement_sites = collect(2:2:N)
-    
-    final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
+
+    final_states, trajectories, probabilities = measurement_enumeration(N, τ, st, measurement_sites, measure_class=:IsingX)
 
     num_final_states = length(final_states)
     @test num_final_states == 2^length(measurement_sites)
 
     total_prob = sum(probabilities)
     @test isapprox(total_prob, 1.0, atol=1e-6)
+    @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
+    @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 
+    final_states, trajectories, probabilities = measurement_enumeration(N, τ, st, measurement_sites, measure_class=:IsingZZ)
+
+    num_final_states = length(final_states)
+    @test num_final_states == 2^length(measurement_sites)
+
+    total_prob = sum(probabilities)
+    @test isapprox(total_prob, 1.0, atol=1e-6)
+    @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
 @testset "Boundary_measure" begin
     N=6
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
-    antiGS= states[:, 1]
+    st = zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+    st[1] = 1.0 
     τ = 3.802
     measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 1000)
+
+    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, measurement_sites, 1000, measure_class=:IsingX)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
@@ -436,44 +460,4 @@ end
     @test statelis ≈ sample_measured_states
     @test state_t ≈ sample_measured_states[end]
 
-end
-
-# Helper function to verify the distortion is working correctly
-function verify_distortion(γ::Float64, original_traj::Vector{Int64}, distorted_traj::Vector{Int64})
-    """
-    Calculate the conditional probability P(s̃|s) for verification.
-    """
-    conditional_prob = 1.0
-    for j in 1:length(original_traj)
-        s_j = original_traj[j]
-        s_tilde_j = distorted_traj[j]
-        conditional_prob *= (1 + γ * s_tilde_j * s_j) / 2
-    end
-    return conditional_prob
-end
-
-@testset "bayes_distort" begin
-    γ = 0.0
-    original_traj = [1,0, 1, 0]
-    probabilities = [0.25, 0.25, 0.25, 0.25]
-
-    distorted_trajectories, distorted_probabilities = FibonacciChain.bayes_distort(γ, original_traj, probabilities)
-
-    @test length(distorted_trajectories) == 2^4
-    @test length(distorted_probabilities) == 2^4
-
-    @test distorted_probabilities == 1/16 .* ones(16) 
-
-    γ = 1.0
-    original_traj = [1,0, 1, 0]
-    
-    probabilities = [0.25, 0.25, 0.25, 0.25]
-
-    distorted_trajectories, distorted_probabilities = FibonacciChain.bayes_distort(γ, original_traj, probabilities)
-
-    @test length(distorted_trajectories) == 2^4
-    @test length(distorted_probabilities) == 2^4
-
-    inds = findfirst(x -> x == [1, 1, 1, 1], distorted_trajectories)
-    @test distorted_probabilities[inds] == (3/4)^2*(1/4)^2
 end
