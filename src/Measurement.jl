@@ -3,10 +3,11 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
     
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+    ϕ = (1+√5)/2
+    
     if measure_class == :Fibo
-        ϕ = (1+√5)/2
-        fl=bmask(T, N)
-        X(state,i) = flip(state, fl >> (i-1))
         
         if τ >= 1e2
             cstτ = 0.5
@@ -15,7 +16,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
             cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
             coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
         end
-
+        
         if 2<= i <= N-1
             mask=bmask(T,1,2,3) << (N-i-1)
             str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
@@ -31,6 +32,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 return state, cstτ-coef
             end
         end
+
         if pbc
             if i == 1 #count from the left
             mask=bmask(T, N, N-1,1)
@@ -62,8 +64,52 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 end
             end
         end
-    elseif measure_class == :Ising
-        println("Ising measure class is not implemented yet")
+    elseif measure_class == :IsingX
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        end
+
+        mask=bmask(T,1,2,3) << (N-i-1)
+        str0 = T(0) << (N-i-1)
+        if state & mask == str0
+            return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+        else
+            return state, cstτ-coef
+        end
+
+    elseif measure_class == :IsingZZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        end
+
+        if 1<= i <= N-1
+            mask=bmask(T,1,2,3) << (N-i-1)
+            str0 = T(0) << (N-i-1)
+            if state & mask == str0
+                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)   
+            else
+                return state, cstτ-coef
+            end
+        end
+
+        if pbc && i == N
+        mask=bmask(T, N, N-1,1)
+        str0 = T(0)
+            if state & mask == str0
+                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+            else
+                return state, cstτ-coef
+            end
+        end
+    
     else
         error("Unknown measure class: $measure_class")
     end
@@ -90,7 +136,26 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool
         end
         
         return Bmatrix
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
+        basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
+        l=length(basis)
+        Bmatrix=zeros((l,l))
+        for i in 1:l
+            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class)
+            if length(outcome) == 4
+                outputstate1, outputstate2, output1, output2=outcome
+                j2=searchsortedfirst(basis, outputstate2)
+                Bmatrix[i,i]+=output1
+                Bmatrix[i,j2]+=output2
+            elseif length(outcome) == 2
+                outputstate, output=outcome
+                Bmatrix[i,i]+=output
+            end
+        end
         
+        return Bmatrix
+    else
+        error("Unknown measure class: $measure_class")
     end
 end
 

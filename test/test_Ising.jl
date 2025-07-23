@@ -4,26 +4,55 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 
+@testset "Isingmap" begin
+    N = 6
+    T = BitStr{N, Int}
+    state = T(0)
+    idx = 2
+    pbc = false
+    output = FibonacciChain.Isingmap(T, state, idx)
+    @test output == (state, T(bit"010000"), -1.0, -1.0)
+
+    state = T(bit"001000")
+    output = FibonacciChain.Isingmap(T, state, idx)
+    @test output == (state, T(bit"011000"), 1.0, -1.0)
+
+    state = T(bit"010100")
+    output = FibonacciChain.Isingmap(T, state, idx)
+    @test output == (state, T(bit"000100"), 1.0, -1.0)
+
+    state = T(bit"111111")
+    output = FibonacciChain.Isingmap(T, state, idx)
+    @test output == (state, T(bit"101111"), -1.0, -1.0)
+
+    # Test with periodic boundary conditions
+    pbc = true
+    output_pbc = FibonacciChain.Isingmap(T, state, N, pbc)
+    @test output_pbc == (state, T(bit"111110"), -1.0, -1.0)
+end
 
 @testset "actingHamobc" begin
-    ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000",false) 
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:Ising) 
     states, weights = keys(output1), values(output1)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-1), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false) 
+    @test [states...]== BitStr{3}.([bit"000", bit"100", bit"010"])
+    @test [weights...] ≈ [-2.0, -1.0, -1.0]
+
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:Ising) 
     states, weights = keys(output2), values(output2)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false) 
+    @test [states...]== BitStr{3}.([bit"000", bit"110", bit"010"])
+    @test [weights...] ≈ [-1.0, -1.0, 0.0]
+
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:Ising) 
     states, weights = keys(output3), values(output3)
-    @test [states...]== BitStr{3}.([bit"001"])
-    @test [weights...] ≈ [0.0]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false) 
+    @test [states...]== BitStr{3}.([bit"101", bit"011", bit"001"])
+    @test [weights...] ≈ [-1.0, -1.0, 2.0]
+
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:Ising) 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"100"])
     @test [weights...] ≈ [0.0]
-    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false)
+
+    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:Ising)
     states, weights = keys(output), values(output)
     @test [states...]== BitStr{3}.([bit"101"])
     @test [weights...] ≈ [-1.0]
@@ -31,23 +60,23 @@ end
 
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000") 
+    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:Ising) 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010") 
+    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:Ising) 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001") 
+    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:Ising) 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"000", bit"001"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100") 
+    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:Ising) 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"000",bit"100"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000")
+    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:Ising)
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
@@ -55,13 +84,13 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = Fibonacci_basis(5)
-    @test length(fib_basis) == 11
-    fib_basis = Fibonacci_basis(5,false)
-    @test length(fib_basis) == 13
+    fib_basis = Fibonacci_basis(5, false, measure_class=:Ising)
+    @test length(fib_basis) == 32
+    fib_basis = Fibonacci_basis(5, measure_class=:Ising)
+    @test length(fib_basis) == 32
     # Test the Fibonacci Hamiltonian
     fib_ham = Fibonacci_Ham(5)
-    @test size(fib_ham) == (11, 11)
+    @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
 
     @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]

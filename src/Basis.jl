@@ -119,6 +119,28 @@ function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     end
 end
 
+function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+    @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
+    @assert pbc || (i < N) "i is expected to be less than $N when pbc is false, but got $i"
+    
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if pbc && i == N
+        if (state  & 1) == ((state  >> (N -1) ) & 1)
+            return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+        else
+            return state, X(state,i), 1.0, -1.0
+        end
+    else
+        if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
+            return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+        else
+            return state, X(state,i), 1.0, -1.0
+        end
+    end
+end
+
 function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     n = length(state)
     n < 3 && return 0 
@@ -142,12 +164,12 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+    ϕ = (1+√5)/2
+
     if measure_class == :Fibo
         mask=bmask(T, N, N-2)
-        fl=bmask(T, N)
-        ϕ = (1+√5)/2
-        X(state,i) = flip(state, fl >> (i-1))
-    
         output = Dict{T, Float64}()
     
         # count 101, 100, 001
@@ -190,20 +212,22 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
     elseif measure_class == :Ising
         # Generate Ising model Hamiltonian
         output = Dict{T, Float64}()
-        for i in 1:N
-            if state & (1 << (N-i)) == 0
-                state1, state2, weight1, weight2 = antomap(T, state, i)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
+        for i in 1:N-1
+            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
+
+        if pbc 
+            state1, state2, weight1, weight2 = Isingmap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+
         return output
     elseif measure_class == :Ferro
         mask=bmask(T, N, N-2)
-        fl=bmask(T, N)
-        ϕ = (1+√5)/2
-        X(state,i) = flip(state, fl >> (i-1))
-        
+
         output = Dict{T, Float64}()
         
         # count 101, 100, 001
