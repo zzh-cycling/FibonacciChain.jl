@@ -31,7 +31,7 @@ function fitCCEntEntScal(
 
     # plot rescaled
     plot!(subplot=2, framestyle=:box,
-    inset = (1, bbox(0.3, 0.2, 0.4, 0.45, :bottom)))
+    inset = (1, bbox(0.30, 0.2, 0.4, 0.45, :bottom)))
     xdata = LinRange(xdata[1], 0, 25)
     ydata = fit.param[1] * xdata .+ fit.param[2]
 
@@ -48,7 +48,7 @@ function fitCCEntEntScal(
         yerror=err, marker=:circle, label=false)
         plot!(subplot=2, xdata, ydata, lw=2,label=(latexstring("c = $(round(cent, digits=2)) \\ ±\\ $(round(cent_err, digits=2))")))
     end
-    return cent, fig
+    return (cent, cent_err), fig
 end
 
 function fitpart(
@@ -57,7 +57,7 @@ function fitpart(
     mincut::Int=1,
     pbc::Bool=false, part::Symbol)
     
-    @assert part in [:L, :R] "part should be either :L or :R, but got $(part)"
+    @assert part in [:L, :R, :even, :odd] "part should be either :L, :R, :even or :odd, but got $(part)"
     # log of chord length / 6 for open boundary
     logChord(l, L) = @. log(sin(π * l /L))/6
     lm(x,p) = @. p[1] * x + p[2]
@@ -66,8 +66,8 @@ function fitpart(
     idx = div(L, 2)
     if part == :L
         xdata = logChord(collect(1:idx),L); #log.(sin.(π .* [1:L-1;] ./L))./6
-        SvN_list = SvN_list[1:idx]
-        fit = curve_fit(lm, xdata[mincut:end], SvN_list[mincut:end], [0.5, 0.0])
+        tempSvN_list = SvN_list[1:idx]
+        fit = curve_fit(lm, xdata[mincut:end], tempSvN_list[mincut:end], [0.5, 0.0])
         fitparam = fit.param
         cent = fitparam[1]
         cent_err = stderror(fit)[1]
@@ -76,10 +76,35 @@ function fitpart(
             cent_err/= 2.0
         end
         println("cent ± cent_err is $(cent) ± $(cent_err)")
-    else
+    
+    elseif part == :R
         xdata = logChord(collect(idx:L-1),L); #log.(sin.(π .* [1:L-1;] ./L))./6
-        SvN_list = SvN_list[idx:L-1]
-        fit = curve_fit(lm, xdata[1:end-mincut+1], SvN_list[1:end-mincut+1], [0.5, 0.0])
+        tempSvN_list = SvN_list[idx:L-1]
+        fit = curve_fit(lm, xdata[1:end-mincut+1], tempSvN_list[1:end-mincut+1], [0.5, 0.0])
+        fitparam = fit.param
+        cent = fitparam[1]
+        cent_err = stderror(fit)[1]
+        if pbc
+            cent /= 2.0
+            cent_err/= 2.0
+        end
+        println("cent ± cent_err is $(cent) ± $(cent_err)")
+    elseif part == :odd
+        xdata = logChord(collect(1:2:L),L); #log (sin.(π .* [1:L-1;] ./L))./6
+        tempSvN_list = SvN_list[1:2:L]
+        fit = curve_fit(lm, xdata[mincut:end-mincut+1], tempSvN_list[mincut:end-mincut+1], [0.5, 0.0])
+        fitparam = fit.param
+        cent = fitparam[1]
+        cent_err = stderror(fit)[1]
+        if pbc
+            cent /= 2.0
+            cent_err/= 2.0
+        end
+        println("cent ± cent_err is $(cent) ± $(cent_err)")
+    elseif part == :even
+        xdata = logChord(collect(2:2:L-1),L); #log (sin.(π .* [1:L-1;] ./L))./6
+        tempSvN_list = SvN_list[2:2:L-1]
+        fit = curve_fit(lm, xdata[mincut:end-mincut+1], tempSvN_list[mincut:end-mincut+1], [0.5, 0.0])
         fitparam = fit.param
         cent = fitparam[1]
         cent_err = stderror(fit)[1]
@@ -97,7 +122,7 @@ function fitpart(
 
     # plot scaling
     fig = scatter(1:L-1, SvN_list, ylabel=L"S_{vN}", xlabel=L"l", frame=:box, yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1))
-    plot!(1:L-1, fitparam[1] .* logChord([1:L-1;], L) .+ fitparam[2], label=false)
+    plot!(range(1, L-1, 100), fitparam[1] .* logChord(range(1, L-1, 100), L) .+ fitparam[2], label=false)
 
     # plot rescaled
     plot!(subplot=2, framestyle=:box,
@@ -118,7 +143,82 @@ function fitpart(
         yerror=err, marker=:circle, label=false)
         plot!(subplot=2, xdata, ydata, lw=2,label=(latexstring("c = $(round(cent, digits=2)) \\ ±\\ $(round(cent_err, digits=2))")))
     end
-    return cent, fig
+    return (cent, cent_err), fig
+end
+
+function fitevenodd(
+    SvN_list::Vector{Float64};
+    err::Vector{Float64}=0.0SvN_list,
+    mincut::Int=1,
+    pbc::Bool=false)
+    
+    logChord(l, L) = @. log(sin(π * l /L))/6
+    lm(x,p) = @. p[1] * x + p[2]
+
+    L = length(SvN_list) + 1
+   
+
+    xdata1 = logChord(collect(1:2:L-1),L); #log (sin.(π .* [1:L-1;] ./L))./6
+    tempSvN_list1 = SvN_list[1:2:L-1]
+    fit1 = curve_fit(lm, xdata1[mincut:end-mincut+1], tempSvN_list1[mincut:end-mincut+1], [0.5, 0.0])
+    fitparam1 = fit1.param
+    cent1 = fitparam1[1]
+    cent_err1 = stderror(fit1)[1]
+    if pbc
+        cent1 /= 2.0
+        cent_err1/= 2.0
+    end
+    
+    println("cent ± cent_err is $(cent1) ± $(cent_err1)")
+
+    xdata2 = logChord(collect(2:2:L-1),L); #log (sin.(π .* [1:L-1;] ./L))./6
+    tempSvN_list2 = SvN_list[2:2:L-1]
+    fit2 = curve_fit(lm, xdata2[mincut:end-mincut+1], tempSvN_list2[mincut:end-mincut+1], [0.5, 0.0])
+    fitparam2 = fit2.param
+    cent2 = fitparam2[1]
+    cent_err2 = stderror(fit2)[1]
+    if pbc
+        cent2 /= 2.0
+        cent_err2/= 2.0
+    end
+    println("cent ± cent_err is $(cent2) ± $(cent_err2)")
+
+    
+    # plot scaling
+    fig = scatter(1:2:L-1, SvN_list[1:2:L-1], ylabel=L"S_{vN}", xlabel=L"l", frame=:box, yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1), color = palette(:tab10)[1])
+    scatter!(2:2:L-1, SvN_list[2:2:L-1], yerror=err, label=false, lw=2, marker=:circle, xlims=(-1, L+1), color =palette(:tab10)[2])
+    plot!(range(1, L-1, 100), fitparam1[1] .* logChord(range(1, L-1, 100), L) .+ fitparam1[2], label=false, color = palette(:tab10)[1])
+    plot!(range(1, L-1, 100), fitparam2[1] .* logChord(range(1, L-1, 100), L) .+ fitparam2[2], label=false, color = palette(:tab10)[2])
+
+    # plot rescaled
+    plot!(subplot=2, framestyle=:box,
+    inset = (1, bbox(0.3, 0.2, 0.4, 0.45, :bottom)))
+    xdata1 = LinRange(xdata1[1], 0, 25)
+    ydata1 = fit1.param[1] * xdata1 .+ fit1.param[2]
+    xdata2 = LinRange(xdata2[1], 0, 25)
+    ydata2 = fit2.param[1] * xdata2 .+ fit2.param[2]
+
+    if pbc
+        scatter!(subplot=2, lw=2,
+        legend_background_color=nothing,
+        legend_foreground_color=nothing, 
+        log.(sin.(π .*[1:2: L-1;]./L)) ./3, SvN_list[1:2:L-1],
+        xlabel=L"\frac{1}{3}\ln\sin(π l/L)",
+        yerror=err, marker=:circle, label=false, color = palette(:tab10)[1])
+        scatter!(subplot=2, lw=2,
+        log.(sin.(π .*[2:2: L-1;]./L)) ./3, SvN_list[2:2:L-1],
+        yerror=err, marker=:circle, label=false, color = palette(:tab10)[2])
+        plot!(subplot=2, 2xdata1, ydata1, lw=2,label=(latexstring("c = $(round(cent1, digits=2)) \\ ±\\ $(round(cent_err1, digits=2))")), color = palette(:tab10)[1])
+        plot!(subplot=2, 2xdata2, ydata2, lw=2,label=(latexstring("c = $(round(cent2, digits=2)) \\ ±\\ $(round(cent_err2, digits=2))")), color = palette(:tab10)[2])
+    else
+        scatter!(subplot=2, lw=2,
+        log.(sin.(π .*[1:L-1;]./L)) ./6, SvN_list,
+        xlabel=L"\frac{1}{6}\ln\sin(π l/L)",
+        yerror=err, marker=:circle, label=false)
+        plot!(subplot=2, xdata1, ydata1, lw=2,label=(latexstring("c = $(round(cent1, digits=2)) \\ ±\\ $(round(cent_err1, digits=2))")), color = palette(:tab10)[1])
+        plot!(subplot=2, xdata2, ydata2, lw=2,label=(latexstring("c = $(round(cent2, digits=2)) \\ ±\\ $(round(cent_err2, digits=2))")), color = palette(:tab10)[2])
+    end
+    return (cent1, cent_err1, cent2, cent_err2), fig
 end
 
 function new_fitCCEntEntScal(
