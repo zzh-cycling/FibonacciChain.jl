@@ -3,14 +3,14 @@ using JLD
 using Statistics
 using Random
 
-function total_samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=120L)
+function total_samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=20L)
     for i in 0:99
         @show (index+i), (seed+i)
         samples_generate(L, τ, index+i, seed + i, D)
     end
 end
 
-function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=120L)
+function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=20L)
     rng = MersenneTwister(seed)
     
     st = zeros(length(Fibonacci_basis(L, measure_class=:IsingX)))
@@ -29,7 +29,7 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     # return sample_measured_states, samples, sample_free_energy
 end
 
-function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=120L, additional_layers::Int64=15L)
+function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=20L, additional_layers::Int64=15L)
     rng = MersenneTwister(seed)
     
     sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
@@ -45,8 +45,8 @@ function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::In
     save("exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D+additional_layers,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
 end
 
-function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 2000
+function samples_collect(L::Int64, τ::Float64, D::Int64=20L)
+    samples_num = 10000
     ensemble = Vector{Matrix{Int}}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
     ensemble_seed = Vector{Int64}(undef, samples_num)
@@ -62,8 +62,8 @@ function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
 end
 
 
-function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 2000
+function Observable_collect(L::Int64, τ::Float64, D::Int64=20L)
+    samples_num = 10000
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
     ensemble_seed = Vector{Int64}(undef, samples_num)
     ensemble_EE_dynamics= zeros(samples_num, D) 
@@ -93,7 +93,7 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5
     st[1] = 1.0
     bulk_meanEElis=zeros(L-1)
     
-    samples_num = 2000
+    samples_num = 10000
 
     ensemble_EE_dynamics= zeros(samples_num, D) 
     bulk_stderr_EElis = zeros(L-1)
@@ -145,23 +145,23 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5
 end
 
 τ = log(1 + sqrt(2)) # golden ratio
-N = 12
-average_EE_tlis, stderr_EE_tlis, bulk_meanEElis, bulk_stderr_EElis,
-time_FElis, time_FEstderr, bulk_FE, bulk_FE_stderr, seed_lis = monitored_dynamics(N, τ)
-fig = plot(collect(1:20*N), average_EE_tlis, yerror=stderr_EE_tlis, xlabel = L"t", ylabel=L"S_{vN}", label=false)
+# N = 12
+# average_EE_tlis, stderr_EE_tlis, bulk_meanEElis, bulk_stderr_EElis,
+# time_FElis, time_FEstderr, bulk_FE, bulk_FE_stderr, seed_lis = monitored_dynamics(N, τ)
+# fig = plot(collect(1:20*N), average_EE_tlis, yerror=stderr_EE_tlis, xlabel = L"t", ylabel=L"S_{vN}", label=false)
 
-plot(collect(1:20*N), time_FElis, yerror=time_FEstderr, xlabel = L"t", ylabel=L"S", label=false)
+# plot(collect(1:20*N), time_FElis, yerror=time_FEstderr, xlabel = L"t", ylabel=L"S", label=false)
 
-cent, fig = fitCCEntEntScal(bulk_meanEElis, mincut=1, pbc=true)
-display(fig)
-# if length(ARGS) == 0
-#     println("No arguments provided.")
-# else
-#     N=parse(Int64, ARGS[1])
-#     index=parse(Int64, ARGS[2])
-#     seed=parse(Int64, ARGS[3])
-#     println("Received argument: $N, $index")
-#     samples_generate(N, τ, index, seed)
-#     # Observable_collect(N, τ)
-#     # samples_collect(N, τ)
-# end
+# cent, fig = fitCCEntEntScal(bulk_meanEElis, mincut=1, pbc=true)
+# display(fig)
+if length(ARGS) == 0
+    println("No arguments provided.")
+else
+    N=parse(Int64, ARGS[1])
+    index=parse(Int64, ARGS[2])
+    seed=parse(Int64, ARGS[3])
+    println("Received argument: $N, $index")
+    samples_generate(N, τ, index, seed)
+    # Observable_collect(N, τ)
+    # samples_collect(N, τ)
+end
