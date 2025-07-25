@@ -137,7 +137,7 @@ function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
     time_FElis = mean(temp, dims=2)[:]
     
-    save(load_data_path, 
+    save("exm/data/Bulk_measure/simple/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
