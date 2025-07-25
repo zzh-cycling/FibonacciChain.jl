@@ -120,6 +120,52 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
            average_FE_tlis, stderr_FE_tlis, average_FE, stderr_FE
 end
 
+function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
+    # timewindow = 8L:35L-10
+    timewindow = 5L:D-5  # Adjusted time window for averaging
+    load_data_path = "exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld"
+    data = load(load_data_path)
+    
+    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"]
+    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"]
+    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"]
+    
+    function check_duplicates(seeds)
+        if length(seeds) != length(unique(seeds))
+            duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
+            duplicate_values = unique(seeds)[duplicates]
+            println("WARNING: Found duplicate seeds: $duplicate_values")
+            return true
+        else
+            println("No duplicate seeds found in $(length(seeds)) seeds.")
+            return false
+        end
+    end
+    
+    # Check if there are duplicates in the ensemble_seed
+    has_duplicates = check_duplicates(ensemble_seed)
+    
+    temp = hcat(ensemble_free_energy...)
+    time_average_free_energy = mean(temp[timewindow, :], dims=1) 
+    bulk_FE = mean(time_average_free_energy)
+    bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
+    time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
+    time_FElis = mean(temp, dims=2)[:]
+    
+    save(load_data_path, 
+        "average_EE_tlis", average_EE_tlis, 
+        "stderr_EE_tlis", stderr_EE_tlis, 
+        "bulk_meanEElis", bulk_meanEElis, 
+        "ensemble_stderr_EElis", ensemble_stderr_EElis, 
+        "time_average_free_energy", time_average_free_energy, 
+        "bulk_FE", bulk_FE,
+        "bulk_FE_stderr", bulk_FE_stderr, 
+        "time_FEstderr", time_FEstderr, 
+        "time_FElis", time_FElis, 
+        "ensemble_seed", ensemble_seed)
+end
+
+
 τ = atanh(0.3)
 
 if length(ARGS) == 0
