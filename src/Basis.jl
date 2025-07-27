@@ -363,7 +363,7 @@ function process_join(a, b)
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
-function joint_Fibo_basis(lengthlis::Vector{Int};measure_class::Symbol=:Fibo)
+function joint_basis(lengthlis::Vector{Int};measure_class::Symbol=:Fibo)
     return sort(mapreduce(len -> Fibonacci_basis(len, false, measure_class=measure_class), process_join, lengthlis))
 end
 
@@ -418,7 +418,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = unsorted_basis[order], state[order]
     
-    reduced_basis = move_subsystem.(T, joint_Fibo_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))

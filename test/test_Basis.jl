@@ -94,7 +94,7 @@ end
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
 
     # joint_pxp_basis
-    res = FibonacciChain.joint_Fibo_basis([2, 3])
+    res = FibonacciChain.joint_basis([2, 3])
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
 
     # move_subsystem
