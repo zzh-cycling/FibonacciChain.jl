@@ -321,9 +321,12 @@ end
     @test braidingsqmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
 end
 
-@testset "free_energy" begin
-    state = collect(1:10)
-    state/=norm(state)
-    FE=free_energy(state)
-    @test FE ≈ 0.0
+@testset "add_reference_qubit" begin
+    N = 3
+    st =ones(4)/2; 
+    # Test add_reference_qubit
+    @test FibonacciChain.add_reference_qubit!(N, st, 1) == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5]
+    @test FibonacciChain.add_reference_qubit!(N, st, 2) == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
+    @test FibonacciChain.add_reference_qubit!(N, st, 3) == [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
 end
+

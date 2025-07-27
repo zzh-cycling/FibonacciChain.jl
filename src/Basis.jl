@@ -29,12 +29,16 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
-
+    @assert T <: BitStr{N} "Type T must be a BitStr type"
     if measure_class == :Fibo
         # Generate Fibonacci chain basis
         # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
         if pbc
-            basis=Fibonacci_chain_PBC(T)
+            if T == BitStr{1, Int}
+                basis=Fibonacci_chain_OBC(T)
+            else
+                basis=Fibonacci_chain_PBC(T)
+            end
         else
             basis=Fibonacci_chain_OBC(T)
         end
@@ -363,8 +367,8 @@ function process_join(a, b)
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
-function joint_basis(lengthlis::Vector{Int};measure_class::Symbol=:Fibo)
-    return sort(mapreduce(len -> Fibonacci_basis(len, false, measure_class=measure_class), process_join, lengthlis))
+function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
+    return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
 end
 
 function connected_components(v::Vector{Int})
@@ -531,3 +535,54 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
+function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+    # Usually subsystem indices count from the right of binary string.
+    # The function is to take common environment parts of the two disjoint basis, given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
+    unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
+    lenubasisA = length(unsorted_basisA)
+    lenubasisB = length(unsorted_basisB)
+    newT = BitStr{N1+N2, Int} # double the length of the basis
+    doublebasis = reshape([join(j,i) for i in unsorted_basisA, j in unsorted_basisB], lenubasisA*lenubasisB)
+    @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
+
+    subsystems = vcat(subsystemsA, subsystemsB) # add the second half of the system to the subsystems
+    subsystems=connected_components(subsystems)
+    lengthlis=length.(subsystems)
+    subsystems=vcat(subsystems...)
+    # mask = bmask(newT, subsystems...)
+    mask = bmask(newT, (2N1 .-subsystems .+1)...)
+
+    
+    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
+    basis, state = doublebasis[order], state[order]
+    reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
+    len = length(reduced_basis)
+    
+    # Initialize the reduced density matrix
+    reduced_dm = zeros(ET, (len, len))
+
+    # Keep track of indices where the key changes
+    result_indices = Int[]
+    current_key = -1
+    for (idx, i) in enumerate(basis)
+        key = takeenviron(i, mask)  # Get environment l bits
+        if key != current_key
+            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
+            push!(result_indices, idx)
+            current_key = key
+        end
+    end
+    # Add the final index to get complete ranges
+    push!(result_indices, length(basis) + 1)
+
+    for i in 1:length(result_indices)-1
+        range = result_indices[i]:result_indices[i+1]-1         
+        # Get indices in the reduced basis
+        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
+        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
+    end
+
+    return reduced_dm
+end
+disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)

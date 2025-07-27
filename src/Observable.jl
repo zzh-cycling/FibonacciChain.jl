@@ -177,24 +177,19 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
 end
 braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
-function add_reference_qubit!(N::Int64, state::Vector{ET}, site::Int64 ;pbc::Bool=true, measure_class::Symbol =:Fibo) where {ET}
-    @assert 1 <= site <= N "Inserting site index must be in the range [1, N]"
-    # Add a reference qubit to the state at site, which is set to be |0> state for half, and |1> state for the other half.
+function add_reference_qubit!(N::Int64, state::Vector{ET}, site_idx::Int64 ;pbc::Bool=true, measure_class::Symbol =:Fibo) where {ET}
+    @assert 1 <= site_idx <= N "Inserting site index must be in the range [1, N]"
+    # Add a reference qubit to the state at site_idx, which is set to be |0> state or |1> state.
     basis = Fibonacci_basis(N, pbc, measure_class=measure_class)
     l = length(basis)
-    extended_basis = Fibonacci_basis(N + 1, pbc, measure_class=measure_class)
-
+    extended_basis = vcat(process_join([bit"0"], basis), process_join([bit"1"], basis))
     new_state = zeros(ET, length(extended_basis))
-    for i in 1:l
-        if i <= div(l, 2)
-            ind = searchsortedfirst(extended_basis, basis[i])
-            new_state[ind] = state[i] * extended_basis[i]
-            new_state[i] = state[i] * extended_basis[i]
-        else
-            ind = searchsortedfirst(extended_basis, basis[i] | bmask(ET, N + 1))
-            new_state[ind] = state[i] * extended_basis[i] | bmask(ET, N + 1)
-            new_state[i] = state[i] * extended_basis[i] | bmask(ET, N + 1)
-        end
-    end
-    return new_state
+    
+    inds = [i for i in 1:l if basis[i][N- site_idx+1]==0]
+    co_inds = setdiff(1:l, inds)
+
+    new_state[inds] = state[inds]
+    new_state[co_inds .+ l] = state[co_inds]
+    
+    return new_state 
 end
