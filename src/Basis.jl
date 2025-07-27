@@ -535,6 +535,11 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
+# # create Fibonacci basis composed of multiple disjoint chains with different basis type
+# function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
+#     return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlisA, lengthlisB))
+# end
+
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis, given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
@@ -551,7 +556,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
     # mask = bmask(newT, subsystems...)
-    mask = bmask(newT, (2N1 .-subsystems .+1)...)
+    mask = bmask(newT, (N1+N2 .-subsystems .+1)...)
 
     
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
