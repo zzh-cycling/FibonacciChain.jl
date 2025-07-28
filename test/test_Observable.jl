@@ -321,13 +321,48 @@ end
     @test braidingsqmap(N, state, 3) ≈ [exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2)+2(exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)+2(exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1)), 3exp(-6im*π/5), 4exp(-6im*π/5)]
 end
 
-@testset "add_reference_qubit" begin
+@testset "build_extended_basis" begin
+    N = 3
+    k_total = 2
+    T = BitStr{N+k_total, Int}
+    basis = Fibonacci_basis(N)
+    extended_basis = FibonacciChain.build_extended_basis(k_total,basis)
+
+    @test length(extended_basis) == 4 * length(basis)
+    @test extended_basis == T.([0, 1, 2, 4, 8, 9, 10, 12, 16, 17, 18, 20, 24, 25, 26, 28])
+
+    k_total = 1
+    T = BitStr{N+k_total, Int}
+    extended_basis = FibonacciChain.build_extended_basis(k_total, basis)
+
+    @test length(extended_basis) == 2 * length(basis)
+    @test extended_basis == T.([0, 1, 2, 4, 8, 9, 10, 12])
+
+    k_total = 0
+    extended_basis = FibonacciChain.build_extended_basis(k_total, basis)
+    @test length(extended_basis) == length(basis)
+    @test extended_basis == basis
+end
+
+@testset "add_reference_qubits" begin
     N = 3
     st =ones(4)/2; 
     # Test add_reference_qubit
-    @test FibonacciChain.add_reference_qubit!(N, st, 1) == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5]
-    @test FibonacciChain.add_reference_qubit!(N, st, 2) == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
-    @test FibonacciChain.add_reference_qubit!(N, st, 3) == [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2)
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3)
+    @test add_st1 == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5]
+    @test add_st2 == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
+    @test add_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
+
+    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1)
+    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2)
+    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3)
+
+    @test add2_st1 == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
+    @test add2_st2 == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0]
+    @test add2_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0]
+
 end
 
 @testset "spatial_correlation" begin

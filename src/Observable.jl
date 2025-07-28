@@ -177,21 +177,48 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
 end
 braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
-function add_reference_qubit!(N::Int64, state::Vector{ET}, site_idx::Int64 ;pbc::Bool=true, measure_class::Symbol =:Fibo) where {ET}
-    @assert 1 <= site_idx <= N "Inserting site index must be in the range [1, N]"
-    # Add a reference qubit to the state at site_idx, which is set to be |0> state or |1> state.
-    basis = Fibonacci_basis(N, pbc, measure_class=measure_class)
-    l = length(basis)
-    extended_basis = vcat(process_join([bit"0"], basis), process_join([bit"1"], basis))
-    new_state = zeros(ET, length(extended_basis))
+function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
+    T = BitStr{k_total, Int}
+    ref_strings = [T(i) for i in 0:(2^k_total-1)] 
+    extended_basis = sort(
+        mapreduce(suffix -> process_join(basis, [suffix]),
+              vcat,
+              ref_strings))
+
+    return extended_basis
+end
+
+function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+    @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
+    k_new >= 1 || error("k_new must be ≥ 1")
+
+    basis_F = Fibonacci_basis(N, pbc, measure_class=measure_class)
+    len_F   = length(basis_F)
+    l = length(state)
     
-    inds = [i for i in 1:l if basis[i][N- site_idx+1]==0]
+
+    # old reference qubit number, k_old
+    k_old = round(Int, log2(length(state) ÷ len_F))
+    length(state) == (2^k_old * len_F) ||
+        error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
+    @assert k_old >= 0 "k_old must be non-negative, but got $(k_old)"
+    
+    # new reference prefix
+    k_total = k_old + k_new
+    new_dim = 2^k_total * len_F
+    new_state = zeros(ET, new_dim)
+    extended_basis = build_extended_basis(k_total, basis_F)
+
+    inds = [i for i in 1:l if extended_basis[i][N- site_idx + 1]==0]
+
     co_inds = setdiff(1:l, inds)
+    offset = length(state)   # new k_new qubit starting position
 
     new_state[inds] = state[inds]
-    new_state[co_inds .+ l] = state[co_inds]
+    new_state[co_inds .+ offset] = state[co_inds]
 
-    return new_state 
+    @show state, inds, co_inds, offset, extended_basis, N- site_idx + 1
+    return new_state
 end
 
 function spatial_correlation(N::Int64, state::Vector{ET}, site1::Int64, site2::Int64, pbc::Bool=true) where {ET}
