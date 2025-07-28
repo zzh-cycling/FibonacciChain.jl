@@ -190,6 +190,34 @@ function add_reference_qubit!(N::Int64, state::Vector{ET}, site_idx::Int64 ;pbc:
 
     new_state[inds] = state[inds]
     new_state[co_inds .+ l] = state[co_inds]
-    
+
     return new_state 
+end
+
+function spatial_correlation(N::Int64, state::Vector{ET}, site1::Int64, site2::Int64, pbc::Bool=true) where {ET}
+    # Calculate the spatial correlation between two sites in a given state
+    @assert 1 <= site1 <= length(state) "Site1 index must be in the range [1, length(state)]"
+    @assert 1 <= site2 <= length(state) "Site2 index must be in the range [1, length(state)]"
+    
+    ρ1 = rdm_Fibo(N, [site1], state, pbc)
+    ρ2 = rdm_Fibo(N, [site2], state, pbc)
+    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc)
+    
+    correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
+
+    return correlation
+end
+
+function temporal_correlation(N::Int64, state::Vector{ET}, site::Int64, time_slice1::Int64, time_slice2::Int64, pbc::Bool=true) where {ET}
+    # Calculate the temporal correlation between two sites in a given state
+    @assert 1 <= site <= N "Site index must be in the range [1, N]"
+    @assert 1 <= time_slice1 <= length(state) "Time slice 1 index must be in the range [1, length(state)]"
+    @assert 1 <= time_slice2 <= length(state) "Time slice 2 index must be in the range [1, length(state)]"
+
+    ρ1 = rdm_Fibo(N, [time_slice1], state, pbc)
+    ρ2 = rdm_Fibo(N, [time_slice2], state, pbc) 
+    ρ12 = rdm_Fibo(N, [time_slice1, time_slice2], state, pbc)
+    correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
+
+    return correlation
 end

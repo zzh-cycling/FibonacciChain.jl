@@ -330,3 +330,22 @@ end
     @test FibonacciChain.add_reference_qubit!(N, st, 3) == [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
 end
 
+@testset "spatial_correlation" begin
+    N=12
+    mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    mes[233] = 1/√2 
+    mes[end] = 1/√2 # set the last two qubits to be in the Bell state
+
+    sc = spatial_correlation(N, mes, 1, 2, pbc)
+    @test sc ≈ log(2)
+end
+
+@testset "temporal_correlation" begin
+    # N=12
+    # mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    # mes[233] = 1/√2 
+    # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
+
+    # tc = temporal_correlation(N, mes, 1, 2, pbc)
+    # @test tc ≈ log(2)
+end

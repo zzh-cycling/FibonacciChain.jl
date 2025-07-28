@@ -591,3 +591,51 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     return reduced_dm
 end
 disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
+
+function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    # Usually subsystem indices count from the right of binary string.
+    # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
+    @assert 2*length(unsorted_basis) == length(state) "state length is expected to be $(2*length(unsorted_basis)), but got $(length(state))"
+    reference_basis = vcat(process_join([bit"0"], unsorted_basis), process_join([bit"1"], unsorted_basis))
+
+    subsystems=vcat(subsystems, [N+1])
+    subsystems=connected_components(subsystems)
+    lengthlis=length.(subsystems)
+    subsystems=vcat(subsystems...)
+    # mask = bmask(T, subsystems...)
+    mask = bmask(T, (N .-subsystems .+1)...)
+
+    
+    order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
+    basis, state = unsorted_basis[order], state[order]
+    
+    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    len = length(reduced_basis)
+    # Initialize the reduced density matrix
+    reduced_dm = zeros(ET, (len, len))
+
+    # Keep track of indices where the key changes
+    result_indices = Int[]
+    current_key = -1
+    for (idx, i) in enumerate(basis)
+        key = takeenviron(i, mask)  # Get environment l bits
+        if key != current_key
+            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
+            push!(result_indices, idx)
+            current_key = key
+        end
+    end
+    # Add the final index to get complete ranges
+    push!(result_indices, length(basis) + 1)
+
+    for i in 1:length(result_indices)-1
+        range = result_indices[i]:result_indices[i+1]-1         
+        # Get indices in the reduced basis
+        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
+        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
+    end
+
+    return reduced_dm
+end
+reference_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc)
