@@ -423,6 +423,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     basis, state = unsorted_basis[order], state[order]
     
     reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    @show reduced_basis
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
@@ -592,7 +593,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 end
 disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
 
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; k_new::Int=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_rdm(::Type{T}, state::Vector{ET}, pbc::Bool=true; k_new::Int=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
@@ -606,11 +607,11 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, 
     k_total = k_old + k_new
     extended_basis = build_extended_basis(k_total, unsorted_basis)
 
-    subsystems=connected_components(subsystems)
+    subsystems=connected_components(collect(1:k_total)) # the subsystems are the first k_new bits, which are the new subsystems
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    newT = BitStr{N + k_total, Int} 
-    mask = bmask(newT, (N +k_total .-subsystems .+1)...)
+    newT = BitStr{k_total+N, Int} 
+    mask = bmask(newT, (N + k_total.-subsystems .+1)...)
 
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = unsorted_basis[order], state[order]
