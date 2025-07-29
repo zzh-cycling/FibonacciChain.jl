@@ -375,6 +375,89 @@ end
     @test sc ≈ log(2)
 end
 
+@testset "reference_measure_basismap" begin
+    N = 3
+    τ = 1.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    basislis = Fibonacci_basis(N, pbc, measure_class=:Fibo)
+    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0)
+    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
+    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0)
+    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc)
+    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0)
+    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc)
+    @test all(output11[1] .≈ output12[1])
+    @test all(output11[2] .≈ output12[2])
+    @test all(output11[3] .≈ output12[3])
+    @test all(output11[4] .≈ output12[4])
+
+    @test all(output21[1] .≈ output22[1])
+    @test all(output21[2] .≈ output22[2])
+    @test all(output21[3] .≈ output22[3])
+    @test all(output21[4] .≈ output22[4])
+
+    @test all(output31[1] .≈ output32[1])
+    @test all(output31[2] .≈ output32[2])
+    @test all(output31[3] .≈ output32[3])
+    @test all(output31[4] .≈ output32[4])
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1)
+
+    @test all(output13[1] .≈ output12[1])
+    @test all(output13[2] .≈ output12[2])
+    @test all(output13[3] .≈ output12[3])
+    @test all(output13[4] .≈ output12[4])
+    @test all(output13[5] .≈ output12[1])
+    @test all(output13[6] .≈ output12[2])
+    @test all(output13[7] .≈ output12[3])
+    @test all(output13[8] .≈ output12[4])
+
+    @test all(output23[1] .≈ output22[1])
+    @test all(output23[2] .≈ output22[2])
+    @test all(output23[3] .≈ output22[3])
+    @test all(output23[4] .≈ output22[4])
+    @test all(output23[5] .≈ output22[1])
+    @test all(output23[6] .≈ output22[2])
+    @test all(output23[7] .≈ output22[3])
+    @test all(output23[8] .≈ output22[4])
+
+    @test all(output33[1] .≈ output32[1])
+    @test all(output33[2] .≈ output32[2])
+    @test all(output33[3] .≈ output32[3])
+    @test all(output33[4] .≈ output32[4])
+    @test all(output33[5] .≈ output32[1])
+    @test all(output33[6] .≈ output32[2])
+    @test all(output33[7] .≈ output32[3])
+    @test all(output33[8] .≈ output32[4])
+end
+
+@testset "reference_measuremap" begin
+    N = 3
+    τ = 1.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    st = ones(4)/2;
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
+    output12 = FibonacciChain.measuremap(T, τ, st, 1, sign, pbc)
+    output22 = FibonacciChain.measuremap(T, τ, st, 2, sign, pbc)
+    output32 = FibonacciChain.measuremap(T, τ, st, 3, sign, pbc)
+    @test all(output13 .≈ output12)
+    @test all(output23 .≈ output22)
+    @test all(output33 .≈ output32)    
+end
+
 @testset "temporal_correlation" begin
     # N=12
     # mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
