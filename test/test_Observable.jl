@@ -371,8 +371,8 @@ end
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
-    sclis = [spatial_correlation(N, mes, i, j, pbc) for i in 1:N-1, j in i+1:N]
-    @test sclis ≈ log(2)*ones(11,11)
+    sclis = [spatial_correlation(N, mes, i, j, pbc) for i in 1:N for j in 1:N if j!=i]
+    @test sclis ≈ log(2)*ones(12*11)
 end
 
 @testset "reference_measure_basismap" begin
@@ -483,6 +483,7 @@ end
 
 @testset "temporal_correlation" begin
     N=12
+    τ = 1000.0
     mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
