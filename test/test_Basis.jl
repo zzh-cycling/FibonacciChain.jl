@@ -114,3 +114,19 @@ end
     @test FibonacciChain.connected_components(v) == [[1, 2], [4, 5], [7]]
     @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
 end
+
+@testset "reference_rdm" begin
+    N = 3
+    st = ones(4)/2;
+    site = 1
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
+    
+    rdm = reference_rdm(N, add_site1)
+    @test size(rdm) == (2, 2)  # 2^1 = 2
+    @test rdm == [0.75 0.0; 0.0 0.25]
+
+    full_st = zeros(2^(N+1))
+    inds = [1, 3, 5, 10]
+    full_st[inds] .= 0.5
+    rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == [0.75 0.0; 0.0 0.25]
+end

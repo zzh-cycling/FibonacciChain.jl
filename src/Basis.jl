@@ -423,7 +423,6 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     basis, state = unsorted_basis[order], state[order]
     
     reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
-    @show reduced_basis
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
@@ -439,6 +438,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
             current_key = key
         end
     end
+
     # Add the final index to get complete ranges
     push!(result_indices, length(basis) + 1)
 
@@ -593,30 +593,27 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 end
 disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
 
-function reference_rdm(::Type{T}, state::Vector{ET}, pbc::Bool=true; k_new::Int=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_rdm(::Type{T}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
     len_F   = length(unsorted_basis)
-    l = length(state)
     k_old = round(Int, log2(length(state) ÷ len_F))
 
-    length(state) == (2^k_old * len_F) ||
-        error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
+    length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
     @assert 2*length(unsorted_basis) == length(state) "state length is expected to be $(2*length(unsorted_basis)), but got $(length(state))"
-    k_total = k_old + k_new
-    extended_basis = build_extended_basis(k_total, unsorted_basis)
+    extended_basis = build_extended_basis(k_old, unsorted_basis)
 
-    subsystems=connected_components(collect(1:k_total)) # the subsystems are the first k_new bits, which are the new subsystems
+    subsystems=connected_components(collect(1:k_old)) # the subsystems are the first k_old bits, which are the new subsystems
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
-    newT = BitStr{k_total+N, Int} 
-    mask = bmask(newT, (N + k_total.-subsystems .+1)...)
+    newT = BitStr{k_old+N, Int} 
+    mask = bmask(newT, (N + k_old.-subsystems .+1)...)
 
-    order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
-    basis, state = unsorted_basis[order], state[order]
-    
-    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    order = sortperm(extended_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
+    basis, state = extended_basis[order], state[order]
+
+    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
@@ -644,4 +641,4 @@ function reference_rdm(::Type{T}, state::Vector{ET}, pbc::Bool=true; k_new::Int=
 
     return reduced_dm
 end
-reference_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc)
+reference_rdm(N::Int, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, state, pbc, measure_class=measure_class)

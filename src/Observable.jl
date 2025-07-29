@@ -181,21 +181,22 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
     T = BitStr{k_total, Int}
     ref_strings = [T(i) for i in 0:(2^k_total-1)] 
     extended_basis = sort(
-        mapreduce(suffix -> process_join([suffix], basis),
+        mapreduce(suffix -> process_join(basis, [suffix]),
               vcat,
               ref_strings))
 
     return extended_basis
 end
-# process_join([suffix], basis) will give [0000, 0001, 0010, 0100], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0011]
+# process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
-    # Add k_new reference qubits to the state at the specified site_idx, and place them to the right part of basis (index N-site_idx+1)
+    # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1)
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
-    k_new >= 1 || error("k_new must be ≥ 1")
+    1>= k_new >= 0 || error("k_new must be in [0,1]")
 
     basis_F = Fibonacci_basis(N, pbc, measure_class=measure_class)
     len_F   = length(basis_F)
-
+    l = length(state)
+    
 
     # old reference qubit number, k_old
     k_old = round(Int, log2(length(state) ÷ len_F))
@@ -208,15 +209,16 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     new_dim = 2^k_total * len_F
     new_state = zeros(ET, new_dim)
     extended_basis = build_extended_basis(k_total, basis_F)
-    len_e   = length(extended_basis)
 
-    inds = [i for i in 1:len_e if (extended_basis[i]>>(N + k_total - site_idx  + 1)) & 1==extended_basis[i] & 1]
+    inds = [i for i in 1:l*k_new if extended_basis[i][N- site_idx + 1]==0]
 
-    co_inds = setdiff(1:len_e, inds)
+    co_inds = setdiff(1:l, inds)
+    offset = length(state)   # new k_new qubit starting position
 
-    new_state[inds] = state
+    new_state[inds] = state[inds]
+    new_state[co_inds .+ offset] = state[co_inds]
 
-    @show state, inds, co_inds, extended_basis, N- site_idx + 1 + k_total, k_total
+    @show state, inds, co_inds, offset, extended_basis, N- site_idx + 1 + k_total, k_total
     return new_state
 end
 
