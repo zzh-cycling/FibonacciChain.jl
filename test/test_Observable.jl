@@ -371,7 +371,7 @@ end
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
-    sclis = [spatial_correlation(N, mes, i, j, pbc) for i in 1:N for j in 1:N if j!=i]
+    sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2)*ones(12*11)
 end
 
