@@ -3,6 +3,7 @@ using Test
 using LinearAlgebra
 using BitBasis
 using Arpack
+using Random 
 
 @testset "measure_basismap" begin
     N = 3
@@ -309,7 +310,7 @@ end
     st=zeros(length(Fibonacci_basis(L)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D) 
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(2)) 
     EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
     @test size(samples) == (20, 5)
     @test EElis[1] ≈ 0.0 atol = 1e-4
