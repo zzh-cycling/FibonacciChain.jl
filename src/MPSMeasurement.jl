@@ -20,7 +20,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
+function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
     sites = siteinds("Qubit", N)
     
@@ -34,9 +34,9 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true)
     H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
     
     # Find ground state using DMRG
-    sweeps = Sweeps(50)
-    setmaxdim!(sweeps, 200)
-    setcutoff!(sweeps, 1E-10)
+    sweeps = Sweeps(sweep_times)
+    setmaxdim!(sweeps, maxdim)
+    setcutoff!(sweeps, cutoff)
     
     energy, ψ = dmrg(H, ψ0, sweeps)
     

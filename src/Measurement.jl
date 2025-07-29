@@ -1,5 +1,5 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # default for PBC system
+    # default for PBC system, map basis (not state!!!)
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
     
@@ -155,7 +155,7 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool
 end
 
 function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
-    # input a superposition state, and output the braided state
+    # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
