@@ -121,7 +121,7 @@ end
     site = 1
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
     
-    rdm = reference_rdm(N, add_site1)
+    rdm = reference_rdm(N, [1], add_site1)
     @test size(rdm) == (2, 2)  # 2^1 = 2
     @test rdm == [0.75 0.0; 0.0 0.25]
 
@@ -129,4 +129,14 @@ end
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
     rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == [0.75 0.0; 0.0 0.25]
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site)
+    rdm2 = reference_rdm(N, [1], add_st2)
+    rdm3 = reference_rdm(N, [2], add_st2)
+    @test rdm == rdm2
+    @test rdm2 == rdm3
+
+    rdm4 = reference_rdm(N, [1, 2], add_st2)
+    @test size(rdm4) == (4, 4)  # 2^2 = 4
+    @test rdm4 == [0.75 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.25]
 end

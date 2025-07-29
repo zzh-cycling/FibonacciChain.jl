@@ -237,8 +237,8 @@ end
 
 function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # default for PBC system, map basis
-    @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
-
+    @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2)
+ 
     mask = bmask(BitStr{N+k_old, Int}, 1:N...)
     action_state = T(takesystem(state, mask))
     return measure_basismap(T, τ, action_state, i, sign, pbc, measure_class=measure_class)
@@ -251,7 +251,6 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
-   
     
     # Noting that basis is not consisten with state, but extended_basis is.
     extended_basis = build_extended_basis(k_old, basis) 
@@ -259,12 +258,18 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
     l=length(extended_basis)
 
     mapped_state = zeros(ET, length(state))
-    for i in 1:div(l, 2)
-        output = reference_measure_basismap(T, τ, extended_basis[i], idx, sign, pbc, k_old=k_old, measure_class=measure_class)
+
+    pretype = BitStr{k_old, Int}
+    mask = bmask(BitStr{N+k_old, Int}, 1:N...)
     
+    for (i, ext_basis_i) in enumerate(extended_basis)
+        output = reference_measure_basismap(T, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, measure_class=measure_class)
+        
+        prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
+        
         if length(output) == 4
             outputstate1, outputstate2, output1, output2=output
-            j2=searchsortedfirst(extended_basis, join(bit"0", outputstate2))
+            j2=searchsortedfirst(extended_basis, join(prefix_i, outputstate2))
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
         else
@@ -273,20 +278,6 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         end
     end
 
-    for i in div(l,2)+1:l
-        output = reference_measure_basismap(T, τ, extended_basis[i], idx, sign, pbc, k_old=k_old, measure_class=measure_class)
-        
-        if length(output) == 4
-            outputstate1, outputstate2, output1, output2=output
-            j2=searchsortedfirst(extended_basis, join(bit"1", outputstate2))
-            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-            mapped_state[j2]+=output2*state[i]
-        else
-            outputstate, output1=output # outputstate is the same as basis[i]
-            mapped_state[i]+=output1*state[i]
-        end
-    end
-    
     return mapped_state
 end
 reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {ET} = reference_measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, k_old=k_old, measure_class=measure_class)
@@ -356,7 +347,7 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
 
     state = initial_state
     for layer in 1:time_slice1
-        state = reference_apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, k_old=0, measure_class = measure_class)
+        state = apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, measure_class = measure_class)
     end
 
     state_addref1 = add_reference_qubits!(N, state, site, pbc=pbc, measure_class=measure_class)

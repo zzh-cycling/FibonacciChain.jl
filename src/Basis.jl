@@ -593,15 +593,15 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 end
 disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
 
-function reference_rdm(::Type{T}, state::Vector{ET}, subsystems::Vector{Int64}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
     len_F   = length(unsorted_basis)
     k_old = round(Int, log2(length(state) ÷ len_F))
-
+    
     length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
-    @assert 2*length(unsorted_basis) == length(state) "state length is expected to be $(2*length(unsorted_basis)), but got $(length(state))"
+    @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
     extended_basis = build_extended_basis(k_old, unsorted_basis)
 
     # the subsystems are the first k_old bits
@@ -641,4 +641,4 @@ function reference_rdm(::Type{T}, state::Vector{ET}, subsystems::Vector{Int64}, 
 
     return reduced_dm
 end
-reference_rdm(N::Int, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, state, pbc, measure_class=measure_class)
+reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc, measure_class=measure_class)
