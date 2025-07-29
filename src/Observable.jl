@@ -237,7 +237,7 @@ end
 
 function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # default for PBC system, map basis
-    @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)"
+    @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
 
     mask = bmask(BitStr{N+k_old, Int}, 1:N...)
     action_state = T(takesystem(state, mask))
@@ -251,16 +251,20 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
-    l=length(basis)
-    @assert l*2^k_old == length(state) "state length is expected to be $(l*2^k_old), but got $(length(state))"
+   
+    
+    # Noting that basis is not consisten with state, but extended_basis is.
     extended_basis = build_extended_basis(k_old, basis) 
+    @assert length(basis)*2^k_old == length(state) == length(extended_basis) "state length is expected to be $(length(basis)*2^k_old), but got $(length(state))"
+    l=length(extended_basis)
 
     mapped_state = zeros(ET, length(state))
-    for i in 1:l*2^(k_old-1)
+    for i in 1:div(l, 2)
         output = reference_measure_basismap(T, τ, extended_basis[i], idx, sign, pbc, k_old=k_old, measure_class=measure_class)
+    
         if length(output) == 4
             outputstate1, outputstate2, output1, output2=output
-            j2=searchsortedfirst(extended_basis, join(outputstate2, bit"0"))
+            j2=searchsortedfirst(extended_basis, join(bit"0", outputstate2))
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
         else
@@ -269,11 +273,12 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         end
     end
 
-    for i in l*2^(k_old-1)+1:l*2^(k_old)
+    for i in div(l,2)+1:l
         output = reference_measure_basismap(T, τ, extended_basis[i], idx, sign, pbc, k_old=k_old, measure_class=measure_class)
+        
         if length(output) == 4
             outputstate1, outputstate2, output1, output2=output
-            j2=searchsortedfirst(extended_basis, join(outputstate2, bit"1"))
+            j2=searchsortedfirst(extended_basis, join(bit"1", outputstate2))
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
         else
@@ -286,7 +291,7 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
 end
 reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {ET} = reference_measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, k_old=k_old, measure_class=measure_class)
 
-function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {T}
+function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {T}
     if measure_class == :Fibo
         if layer_idx % 2 == 1
             measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
@@ -294,7 +299,7 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
             measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
         end
         for (idx, measurement_type) in enumerate(layer_sample)
-            state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = measure_class)
+            state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, measure_class = measure_class)
             normalize!(state)
         end
         return state
@@ -304,14 +309,14 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
         if layer_idx % 2 == 1
             # odd layers: measure X
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = :IsingX)
+                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, measure_class = :IsingX)
                 normalize!(state)
             end
             return state
         else
             # even layers: measure ZZ
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = :IsingZZ)
+                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old= k_old, measure_class = :IsingZZ)
                 normalize!(state)
             end
             return state
@@ -321,16 +326,16 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
     end
 end
 
-function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; measure_class::Symbol=:Fibo) where{T, ET}
+function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=true, k_old::Int64=1, measure_class::Symbol=:Fibo) where{T, ET}
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
     D, N = size(sample, 1), 2 * size(sample, 2) 
-    statelis = Vector{Vector{T}}(undef, D)
+    statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
  
     for layer in 1:D
         τ_eff = (layer == D) ? τ/2 : τ
-        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, measure_class = measure_class)
-        
+        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, measure_class = measure_class)
+
         if temp
             statelis[layer] = copy(state)
         end
@@ -339,15 +344,37 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     return temp ? statelis : state
 end
 
-function temporal_correlation(N::Int64, initial_state::Vector{ET}, site::Int64, time_slice1::Int64, time_slice2::Int64, pbc::Bool=true) where {ET}
+function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET, T}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
-    @assert 1 <= site <= N "Site index must be in the range [1, N]"
-    @assert 1 <= time_slice1 <= length(state) "Time slice 1 index must be in the range [1, length(state)]"
-    @assert 1 <= time_slice2 <= length(state) "Time slice 2 index must be in the range [1, length(state)]"
+    D, N = size(sample, 1), 2 * size(sample, 2) 
 
-    ρ1 = rdm_Fibo(N, [time_slice1], state, pbc)
-    ρ2 = rdm_Fibo(N, [time_slice2], state, pbc) 
-    ρ12 = rdm_Fibo(N, [time_slice1, time_slice2], state, pbc)
+    @assert 1 <= site <= N "Site index must be in the range [1, N]"    
+    @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
+    @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
+    @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
+    
+
+    state = initial_state
+    for layer in 1:time_slice1
+        state = reference_apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, k_old=0, measure_class = measure_class)
+    end
+
+    state_addref1 = add_reference_qubits!(N, state, site, pbc=pbc, measure_class=measure_class)
+
+    for layer in (time_slice1+1):time_slice2
+        state_addref1 = reference_apply_measurement_layer!(N, state_addref1, τ, sample[layer, :], layer, pbc, k_old=1, measure_class = measure_class)
+    end
+
+    state_addref2 = add_reference_qubits!(N, state_addref1, site, pbc=pbc, measure_class=measure_class)
+
+    for layer in (time_slice2+1):D
+        τ_eff = (layer == D) ? τ/2 : τ
+        state_addref2 = reference_apply_measurement_layer!(N, state_addref2, τ_eff, sample[layer, :], layer, pbc, k_old=2, measure_class = measure_class)
+    end
+
+    ρ1 = reference_rdm(N, [2], state_addref2, pbc)
+    ρ2 = reference_rdm(N, [1], state_addref2, pbc) 
+    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation

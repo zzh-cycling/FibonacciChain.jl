@@ -450,20 +450,62 @@ end
     output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
     output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
     output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
-    output12 = FibonacciChain.measuremap(T, τ, st, 1, sign, pbc)
-    output22 = FibonacciChain.measuremap(T, τ, st, 2, sign, pbc)
-    output32 = FibonacciChain.measuremap(T, τ, st, 3, sign, pbc)
-    @test all(output13 .≈ output12)
-    @test all(output23 .≈ output22)
-    @test all(output33 .≈ output32)    
+    @test output13 == [0.2859295753144778, 0.4692539498975694, 0.4692539498975694, -0.14412070965501542, -0.14412070965501542, 0.0, 0.0, 0.35595325543890144]
+    @test output23 == [0.1418088656594624, 0.4692539498975694, 0.21183254578388602, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+    @test output33 == [0.1418088656594624, 0.21183254578388602, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+end
+
+@testset "reference_apply_measurement_layer" begin
+    N=8
+    τ = 1000.0
+    sign = 1
+    pbc = true
+    k_old = 1
+    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    sample = zeros(Int, length(2:2:N))
+
+    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
+    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
+    @test output1[1:div(length(output1), 2)] == output2
+
+    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
+    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
+    @test output3[1:div(length(output3), 2)] == output4
+    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
+    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
+    @test output5[1:div(length(output5), 2)] == output6
+end
+
+@testset "reference_generate_state" begin
+    N = 8
+    τ = 1000.0
+    sign = 1
+    pbc = true
+    k_old = 1
+    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    sample = zeros(Int, (3, length(2:2:N)))
+
+    output1 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
+    output2 = generate_state(τ, st, sample, pbc, temp= true)
+    @test [i[1:47] for i in output1] == output2
+
+    output3 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
+    output4 = generate_state(τ, st, sample, pbc, temp= true)
+    @test [i[1:47] for i in output3] == output4
+
+    output5 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
+    output6 = generate_state(τ, st, sample, pbc, temp= true)
+    @test [i[1:47] for i in output5] == output6
 end
 
 @testset "temporal_correlation" begin
-    # N=12
-    # mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
-    # mes[233] = 1/√2 
-    # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
+    N=12
+    mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    mes[233] = 1/√2 
+    mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
-    # tc = temporal_correlation(N, mes, 1, 2, pbc)
-    # @test tc ≈ log(2)
+    tc = temporal_correlation(N, mes, 1, 2, pbc)
+    @test tc ≈ log(2)
 end
