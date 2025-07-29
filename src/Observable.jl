@@ -237,7 +237,7 @@ end
 
 function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # default for PBC system, map basis
-    @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2)
+    @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
  
     mask = bmask(BitStr{N+k_old, Int}, 1:N...)
     action_state = T(takesystem(state, mask))
@@ -249,6 +249,7 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
     # input a superposition state with reference qubit, and output the measured state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+    @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2), in contrast to reference_measure_basismap
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
     

@@ -562,7 +562,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
     basis, state = doublebasis[order], state[order]
-    reduced_basis = move_subsystem.(newT, joint_Fibo_basis(lengthlis), Ref(subsystems))
+    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
     len = length(reduced_basis)
     
     # Initialize the reduced density matrix
