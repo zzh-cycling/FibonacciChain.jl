@@ -371,8 +371,8 @@ end
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
-    sc = spatial_correlation(N, mes, 1, 2, pbc)
-    @test sc ≈ log(2)
+    sclis = [spatial_correlation(N, mes, i, j, pbc) for i in 1:N-1, j in i+1:N]
+    @test sclis ≈ log(2)*ones(11,11)
 end
 
 @testset "reference_measure_basismap" begin
@@ -488,6 +488,10 @@ end
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
     sample = [0 1 1 1 1 1; 1 0 0 0 0 1; 1 1 1 1 1 1; 0 0 1 1 1 1; 1 0 1 1 1 1; 0 1 1 0 0 1; 1 1 1 1 1 1; 0 1 1 1 0 0; 0 1 1 1 1 0; 1 0 1 1 0 1]
+    D= 10 
+    # sample = zeros(Int, D, length(2:2:N))
     tc = temporal_correlation(τ, mes, sample, div(N,2), 5, 8)
-    @test tc ≈ log(2)
+    
+    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j) for i in 1:D-1 for j in i+1:D]
+    @test tc ≈ 0.03098628964295691
 end
