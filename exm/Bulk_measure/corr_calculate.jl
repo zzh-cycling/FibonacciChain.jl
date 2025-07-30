@@ -22,11 +22,11 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=35L, start_
 
     statelis = generate_state(τ, initial_state, sample, temp= true)
 
-    final_st= statelis[end-20]
+    final_st= statelis[end-3L]
     spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc)
     
     timeslice1 = L*start_point
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+5:D-20]
+    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+L:D-3L]
 
     save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
