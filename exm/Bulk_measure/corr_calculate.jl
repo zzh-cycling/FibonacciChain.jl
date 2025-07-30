@@ -1,7 +1,6 @@
 using FibonacciChain
 using JLD
 using Statistics
-using Random
 using BitBasis
 
 
@@ -17,18 +16,17 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
     pbc = true
     measure_class = :Fibo
     sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
-    halfchain_EE_tlis = load("exm/data/Bulk_measure/Observable_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis")
 
     initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(0.5, initial_state, sample, true, temp= true)
+    statelis = generate_state(τ, initial_state, sample, temp= true)
 
     final_st= statelis[end-20]
     spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc)
-
-    timeslice1 = 35*8
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+1:35*12-5]
+    
+    timeslice1 = div(N, L)*8
+    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+5:D-20]
 
     save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end

@@ -9,3 +9,4 @@ using SparseArrays
 
     @test Matrix(H_sparse) ≈ H
 end
+
