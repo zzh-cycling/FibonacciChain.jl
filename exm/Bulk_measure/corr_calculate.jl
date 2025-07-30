@@ -38,7 +38,7 @@ function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     spatial_corr_ensemble = Vector{Float64}(undef, samples_num)
      for i in 1:samples_num
         @show i
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld",  "temporal_corr_lis", "spatial_corr")
+        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld",  "temporal_corr_lis", "spatial_corr")
         temporal_corr_ensemble[i] = temporal_corr_lis
         spatial_corr_ensemble[i] = spatial_corr
     end
