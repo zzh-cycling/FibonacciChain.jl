@@ -12,7 +12,7 @@ function compute_total(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
     end
 end
 
-function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
+function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=35L, start_point::Int64=24)
     pbc = true
     measure_class = :Fibo
     sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
@@ -25,11 +25,12 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
     final_st= statelis[end-20]
     spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc)
     
-    timeslice1 = div(N, L)*8
+    timeslice1 = L*start_point
     temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+5:D-20]
 
     save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
+
 
 function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     samples_num = 10000
