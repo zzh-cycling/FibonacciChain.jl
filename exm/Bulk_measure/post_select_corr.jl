@@ -3,6 +3,56 @@ using JLD
 using Statistics
 using BitBasis
 
+function get_system_params(τ, L)
+    if τ == log(1 + √2)
+        D = 35L
+        inds = collect(1:14:D)
+        avg_range = 20L:D-5
+    elseif τ == atanh(0.1)
+        D = 2500L
+        inds = collect(1:1000:D)
+        avg_range = 1500L:D-5
+    elseif τ == atanh(0.2)
+        D = 500L
+        inds = collect(1:100:D)
+        avg_range = 250L:D-5
+    elseif τ == atanh(0.3)
+        D = 120L
+        inds = collect(1:48:D)
+        avg_range = 100L:D-5
+    elseif τ == atanh(0.4)
+        D = 100L
+        inds = collect(1:40:D)
+        avg_range = 80L:D-5
+    elseif τ == atanh(0.5)
+        D = 80L
+        inds = collect(1:32:D)
+        avg_range = 40L:D-5
+    elseif τ == atanh(0.6)
+        D = 45L
+        inds = collect(1:20:D)
+        avg_range = 30L:D-5
+    elseif τ == atanh(0.8)
+        D = 25L
+        inds = collect(1:10:D)
+        avg_range = 10L:D-5
+    elseif τ == atanh(0.9) || τ == atanh(0.95)
+        D = 8L
+        inds = collect(1:4:D)
+        avg_range = 4L:D-5
+    elseif τ == atanh(0.999)
+        D = 5L
+        inds = collect(1:2:D)
+        avg_range = 2L:D-5
+    else
+        D = 5L  # Default value for τ=1000.0
+        inds = collect(1:2:D)
+        avg_range = 2L:D-5
+    end
+    
+    return D, inds, avg_range
+end
+
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24)
     pbc = true
     measure_class = :Fibo
@@ -22,13 +72,20 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point
     save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
-τ = log(1+sqrt(2)) 
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0  # Last value is for γ=1
+τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
+
 
 if length(ARGS) == 0
     println("No arguments provided.")
 else
     L=parse(Int64, ARGS[1])
-    println("Received argument: $L")
+    inds = parse(Int64, ARGS[2])
+    println("Received argument: $L, $inds")
+    τ = τlis[inds]
+    D, _, _ = get_system_params(τ, L)
     compute_post_selection(L, τ, D)
 end
 
