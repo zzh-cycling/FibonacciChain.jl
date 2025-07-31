@@ -338,14 +338,19 @@ end
 
 function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET, T}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
-    D, N = size(sample, 1), 2 * size(sample, 2) 
+    D = size(sample, 1)
+    if measure_class == :Fibo
+        N = 2 * size(sample, 2) 
+    else
+        N = size(sample, 2) 
+    end
 
+    
     @assert 1 <= site <= N "Site index must be in the range [1, N]"    
     @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
     
-
     state = initial_state
     for layer in 1:time_slice1
         state = apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, measure_class = measure_class)
