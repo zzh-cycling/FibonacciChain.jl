@@ -56,8 +56,8 @@ end
 function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start_point::Int64=15)
     pbc = true
     measure_class = :IsingX
-    sample = ones(Int, D, L)
-    # sample = zeros(Int, D, L)
+    # sample = ones(Int, D, L)
+    sample = zeros(Int, D, L)
 
     initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
     initial_state[1] = 1.0 # initial state is all zero state
@@ -70,7 +70,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start
 
     temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, measure_class=:IsingX) for j in timeslice1+1:timeslice1+2L]
 
-    save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
+    save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
 function get_system_params_corr(τ)
@@ -119,10 +119,10 @@ function plot_corr(L_list=collect(8:2:24))
         
 
         # plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis ./spatial_corr, label=latexstring("$(L)"), legendtitle=L"L", color=c[idx], linewidth=2)
-        plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis ./spatial_corr, label=latexstring("s=1, L=$(L)"), color=c[idx], linewidth=2)
+        plot!(fig ,collect(1:2:length(temporal_corr_lis))./2L, temporal_corr_lis[1:2:end] ./spatial_corr, label=latexstring("s=1, L=$(L)"), color=c[idx], linewidth=2)
 
         temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps0.jld",  "temporal_corr_lis", "spatial_corr")
-        plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis ./spatial_corr, label=latexstring("s=0, L=$(L)"), color=c[idx], linewidth=2)
+        plot!(fig ,collect(1:2:length(temporal_corr_lis))./2L, temporal_corr_lis[1:2:end] ./spatial_corr, label=latexstring("s=0, L=$(L)"), color=c[idx], linewidth=2)
     end
 
     return fig
@@ -131,13 +131,11 @@ end
 function alpha_compute_corr(L, τ)
     D = get_system_params_corr(τ)
 
-    temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
+    temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
 
-  
-
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis ./ spatial_corr)
-    Δt = (collect(1:length(temporal_corr_lis))./L)[inds][end-1]
-    α = log(1+√2)/π/Δt
+    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis[1:2:end] ./ spatial_corr)
+    Δt = (collect(1:2:length(temporal_corr_lis))./L)[inds][end-1]
+    α = 2*log(1+√2)/π/Δt
     return α
 end
 
@@ -150,7 +148,7 @@ end
 τlis = atanh.(γlis)
 τlis[end] = 1000.0  # Last value is for γ=1
 τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
-gamma=atanh(log(1 + √2))
+gamma=tanh(log(1 + √2))
 fig = plot_corr(collect(8:2:12))
 
 if length(ARGS) == 0
