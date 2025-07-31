@@ -585,6 +585,34 @@ end
     @test output7[1:div(length(output7),4)] == output8
 end
 
+@testset "reference_apply_measurement_layer" begin
+    N=8
+    τ = 1000.0
+    sign = 1
+    pbc = true
+    k_old = 1
+    measure_class = :IsingX
+    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    sample = zeros(Int, length(2:2:N))
+
+    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
+    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
+    @test output1[1:div(length(output1), 2)] == output2
+
+    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
+    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
+    @test output3[1:div(length(output3), 2)] == output4
+    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
+    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
+    @test output5[1:div(length(output5), 2)] == output6
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1)
+    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2)
+    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc)
+    @test output7[1:div(length(output7),4)] == output8
+end
+
 @testset "reference_generate_state" begin
     N = 8
     τ = 1000.0

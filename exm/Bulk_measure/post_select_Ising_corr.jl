@@ -67,7 +67,7 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point
     spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc=pbc, measure_class=measure_class)
 
     timeslice1 = L*start_point
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+5:D-3L]
+    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, measure_class=:IsingX) for j in timeslice1+5:D-3L]
 
     save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
