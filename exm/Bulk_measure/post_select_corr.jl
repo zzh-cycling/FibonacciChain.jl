@@ -105,6 +105,7 @@ function plot_corr(L_list=collect(8:2:24))
     c = cgrad(:blues, length(L_list), categorical=true)
     
     fig = plot(
+        label=false,
         legend_background_color=nothing,
         legend_foreground_color=nothing, 
         xlabel=L"\Delta t /L",
