@@ -156,17 +156,3 @@ else
     D, _, _ = get_system_params(τ, L)
     compute_post_selection(L, τ, D)
 end
-
-
-
-# τ = log(1 + √2)  
-gamma = 0.5
-# gamma = tanh(log(1 + √2) )
-τ = atanh(gamma)
-# τ = 1000.0
-L_list = collect(8:2:16)
-fig = plot_corr(L_list)
-savefig(fig, "exm/data/Bulk_measure/corr_plot_L$(L_list[1])$((L_list[end]))_τ$(τ).pdf")
-
-
-alphalis=[0.1951651660310192, 0.29531571175746324, 0.6234442803768668, 1.1221997046783603]

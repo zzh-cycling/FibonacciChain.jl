@@ -558,58 +558,31 @@ end
     @test output7[1:div(length(output7),4)] == output8
 end
 
-@testset "reference_apply_measurement_layer" begin
-    N=8
-    τ = 1000.0
-    sign = 1
-    pbc = true
-    k_old = 1
-    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
-    sample = zeros(Int, length(2:2:N))
-
-    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
-    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
-    @test output1[1:div(length(output1), 2)] == output2
-
-    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
-    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
-    @test output3[1:div(length(output3), 2)] == output4
-    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
-    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
-    @test output5[1:div(length(output5), 2)] == output6
-
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1)
-    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2)
-    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc)
-    @test output7[1:div(length(output7),4)] == output8
-end
-
-@testset "reference_apply_measurement_layer" begin
+@testset "reference_apply_measurement_layer_Ising" begin
     N=8
     τ = 1000.0
     sign = 1
     pbc = true
     k_old = 1
     measure_class = :IsingX
-    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    st = zeros(length(Fibonacci_basis(N, pbc, measure_class=measure_class))); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, measure_class=measure_class)
     sample = zeros(Int, length(2:2:N))
 
-    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
-    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
+    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1, measure_class=measure_class)
+    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc, measure_class=measure_class)
     @test output1[1:div(length(output1), 2)] == output2
 
-    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
-    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
+    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1, measure_class=measure_class)
+    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc, measure_class=measure_class)
     @test output3[1:div(length(output3), 2)] == output4
-    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
-    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
+    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1, measure_class=measure_class)
+    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc, measure_class=measure_class)
     @test output5[1:div(length(output5), 2)] == output6
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1)
-    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2)
-    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1, measure_class=measure_class)
+    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2, measure_class=measure_class)
+    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc, measure_class=measure_class)
     @test output7[1:div(length(output7),4)] == output8
 end
 
@@ -639,7 +612,7 @@ end
 @testset "temporal_correlation" begin
     N=12
     τ = 1000.0
-    mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:Fibo)))
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
@@ -650,4 +623,17 @@ end
     
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j) for i in 1:D-1 for j in i+1:D]
     @test tc ≈ 0.03098628964295691
+
+    N=10
+    τ = 1000.0
+    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes[1]=1.0 # set the last two qubits to be in the Bell state
+    
+    sample = zeros(Int, 10, length(2:2:N))
+    D= 10 
+    # sample = zeros(Int, D, length(2:2:N))
+    tc = temporal_correlation(τ, mes, sample, div(N,2), 5, 8, measure_class=:IsingX)
+    
+    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, measure_class=:IsingX) for i in 1:D-1 for j in i+1:D]
+    @test isapprox(tc, 0.0, atol=1e-6)
 end
