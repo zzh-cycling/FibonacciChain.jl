@@ -593,7 +593,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 end
 disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
 
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
@@ -641,4 +641,4 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, 
 
     return reduced_dm
 end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc, measure_class=measure_class)
+reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class)

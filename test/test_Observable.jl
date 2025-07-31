@@ -342,6 +342,17 @@ end
     extended_basis = FibonacciChain.build_extended_basis(k_total, basis)
     @test length(extended_basis) == length(basis)
     @test extended_basis == basis
+
+    # Test for Ising basis
+    basis_ising = Fibonacci_basis(N, pbc, measure_class=:IsingX)
+    extended_basis_ising = FibonacciChain.build_extended_basis(0, basis_ising)
+    @testset extended_basis_ising == basis_ising
+
+    extended_basis_ising1 = FibonacciChain.build_extended_basis(1, basis_ising)
+    @test extended_basis_ising1 == Fibonacci_basis(N+1, pbc, measure_class=:IsingX)
+
+    extended_basis_ising2 = FibonacciChain.build_extended_basis(2, basis_ising)
+    @test extended_basis_ising2 == Fibonacci_basis(N+2, pbc, measure_class=:IsingX)
 end
 
 @testset "add_reference_qubits" begin
@@ -363,6 +374,14 @@ end
     @test add2_st2 == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0]
     @test add2_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0]
 
+    # Test for Ising basis
+    st_ising = ones(2^N);
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3)
+    @test add_st_ising1 == [1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+    @test add_st_ising2 == [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0] 
+    @test add_st_ising3 == [1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
 end
 
 @testset "spatial_correlation" begin
@@ -373,6 +392,13 @@ end
 
     sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2)*ones(12*11)
+
+    N=6
+    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes[22] = 1/√2 
+    mes[43] = 1/√2
+    sclis = [spatial_correlation(N, mes, i, j, measure_class=:IsingX) for i in 1:N for j in 1:N if j!=i]
+    @test sclis ≈ log(2)*ones(6*5)
 end
 
 @testset "reference_measure_basismap" begin
@@ -413,6 +439,60 @@ end
     @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
 end
 
+@testset "reference_measure_basismap_Ising" begin
+    N = 3
+    τ = 1.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    measure_class1 = :IsingX
+    measure_class2 = :IsingZZ
+    basislis = Fibonacci_basis(N, pbc, measure_class=measure_class1)
+    l = length(basislis)
+    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, measure_class = measure_class1)
+    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, measure_class = measure_class1)
+    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0, measure_class = measure_class1)
+    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, measure_class = measure_class1)
+    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0, measure_class = measure_class1)
+    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, measure_class = measure_class1)
+    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
+    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
+    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, measure_class = measure_class1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, measure_class = measure_class1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, measure_class = measure_class1)
+
+    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
+
+    extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
+    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2, measure_class = measure_class1)
+    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2, measure_class = measure_class1)
+    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2, measure_class = measure_class1)
+
+    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
+
+    # Test the IsingZZ
+    output12zz = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, measure_class = measure_class2)
+    output22zz = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, measure_class = measure_class2)
+    output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, measure_class = measure_class2)
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, measure_class = measure_class2)
+    output23zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, measure_class = measure_class2)
+    output33zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, measure_class = measure_class2)
+
+    @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33zz[i+j*l] .≈ output32zz[i]) for i in 1:l]) for j in 0:1])
+end
+
 @testset "reference_measuremap" begin
     N = 3
     τ = 1.0
@@ -429,6 +509,53 @@ end
     @test output13 == [0.2859295753144778, 0.4692539498975694, 0.4692539498975694, -0.14412070965501542, -0.14412070965501542, 0.0, 0.0, 0.35595325543890144]
     @test output23 == [0.1418088656594624, 0.4692539498975694, 0.21183254578388602, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
     @test output33 == [0.1418088656594624, 0.21183254578388602, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+end
+
+@testset "reference_measuremap_Ising" begin
+    N = 3
+    τ = 1.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    st = ones(2^N)/2;
+    measure_class1 = :IsingX
+    measure_class2 = :IsingZZ
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, measure_class = measure_class1)
+
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, measure_class = measure_class1)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, measure_class = measure_class1)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, measure_class = measure_class2)
+    @test output13 == [0.32094141537668963, 0.32094141537668963, 0.32094141537668963, 0.32094141537668963, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.1483125345208798, 0.32094141537668963, 0.32094141537668963, 0.32094141537668963, 0.32094141537668963]
+    @test output23 == [0.4692539498975694, 0.4692539498975694, 0.4692539498975694, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694, 0.4692539498975694, 0.4692539498975694, 0.4692539498975694]
+    @test output33 == [0.4692539498975694, 0.17262888085580982, 0.4692539498975694, 0.17262888085580982, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.17262888085580982, 0.4692539498975694, 0.17262888085580982, 0.4692539498975694]
+end
+
+@testset "reference_apply_measurement_layer" begin
+    N=8
+    τ = 1000.0
+    sign = 1
+    pbc = true
+    k_old = 1
+    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    sample = zeros(Int, length(2:2:N))
+
+    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
+    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
+    @test output1[1:div(length(output1), 2)] == output2
+
+    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
+    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
+    @test output3[1:div(length(output3), 2)] == output4
+    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
+    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
+    @test output5[1:div(length(output5), 2)] == output6
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1)
+    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2)
+    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc)
+    @test output7[1:div(length(output7),4)] == output8
 end
 
 @testset "reference_apply_measurement_layer" begin

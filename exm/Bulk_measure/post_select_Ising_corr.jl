@@ -55,17 +55,17 @@ end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24)
     pbc = true
-    measure_class = :Fibo
+    measure_class = :IsingX
     sample = ones(Int, D, length(2:2:L))
 
     initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true)
+    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
 
     final_st= statelis[end-3L]
-    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc)
-    
+    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc=pbc, measure_class=measure_class)
+
     timeslice1 = L*start_point
     temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+5:D-3L]
 
@@ -159,14 +159,14 @@ end
 
 
 
-# # τ = log(1 + √2)  
-# gamma = 0.5
-# # gamma = tanh(log(1 + √2) )
-# τ = atanh(gamma)
-# # τ = 1000.0
-# L_list = collect(8:2:16)
-# fig = plot_corr(L_list)
-# savefig(fig, "exm/data/Bulk_measure/corr_plot_L$(L_list[1])$((L_list[end]))_τ$(τ).pdf")
+# τ = log(1 + √2)  
+gamma = 0.5
+# gamma = tanh(log(1 + √2) )
+τ = atanh(gamma)
+# τ = 1000.0
+L_list = collect(8:2:16)
+fig = plot_corr(L_list)
+savefig(fig, "exm/data/Bulk_measure/corr_plot_L$(L_list[1])$((L_list[end]))_τ$(τ).pdf")
 
 
-# alphalis=[0.1951651660310192, 0.29531571175746324, 0.6234442803768668, 1.1221997046783603]
+alphalis=[0.1951651660310192, 0.29531571175746324, 0.6234442803768668, 1.1221997046783603]

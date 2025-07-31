@@ -122,7 +122,6 @@ end
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
     
     rdm = reference_rdm(N, [1], add_site1)
-    @test size(rdm) == (2, 2)  # 2^1 = 2
     @test rdm == [0.75 0.0; 0.0 0.25]
 
     full_st = zeros(2^(N+1))
@@ -137,6 +136,25 @@ end
     @test rdm2 == rdm3
 
     rdm4 = reference_rdm(N, [1, 2], add_st2)
-    @test size(rdm4) == (4, 4)  # 2^2 = 4
     @test rdm4 == [0.75 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.25]
+end
+
+@testset "reference_rdm_Ising" begin
+    N = 3
+    st = ones(2^N); st /= norm(st)  # Normalize the state
+    site = 1
+    measure_class = :IsingX
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, measure_class = measure_class)
+    
+    rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
+    @test rdm ≈ [0.5 0.0; 0.0 0.5]
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, measure_class = measure_class)
+    rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
+    rdm3 = reference_rdm(N, [2], add_st2, measure_class = measure_class)
+    @test rdm == rdm2
+    @test rdm2 == rdm3
+
+    rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
+    @test rdm4 ≈ [0.4999999999999999 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.4999999999999999]
 end
