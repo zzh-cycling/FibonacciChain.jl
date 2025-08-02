@@ -13,21 +13,66 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-function topological_symmetry_basismap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Fcoef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base
+    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
+    #  %%
+    #  %% 
+    #  %%%%%%%%%%%%%
+    #  %%
+    #  %%
+    #  %%%          idxout              idxbond'
+    ϕ = (1+√5)/2
+    prod=1
+    
+    if measure_class == :Fibo
+        @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
+        for site in 2:N-1
+            str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
+            mask = bmask(T, 1, 2, 3) << (N-site-1)
+            if state & mask == str000
+                prod *= (base[N-site+1] == 0) ? ϕ^(-1) : ϕ^(-1/2)
+            elseif state & mask == str010
+                prod *= (base[N-site+1] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
+            else
+                prod *= 1
+            end
+        end
+
+        if pbc
+            mask=bmask(T, N, N-1,1)
+            str010, str000 = bmask(T, N), T(0)
+            if state & mask == str000
+                prod *= (base[N] == 0) ? ϕ^(-1) : ϕ^(-1/2)
+            elseif state & mask == str010
+                prod *= (base[N] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
+            else
+                prod *= 1
+            end
+        
+            mask=bmask(T, N, 2, 1)
+            str010, str000 = bmask(T, 1), T(0)
+            if state & mask == str000
+                prod *= (base[1] == 0) ? ϕ^(-1) : ϕ^(-1/2)
+            elseif state & mask == str010
+                prod *= (base[1] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
+            else
+                prod *= 1
+            end
+        end
+        return prod
+    else
+        error("Unsupported measure_class: $measure_class")
+    end
+end
+
+function topological_symmetry_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state, site) = flip(state, fl >> (site-1))
 
     @assert 1 <= site <= N "site is expected to be in [1, $N], but got $site"
     @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
-
-    # Check the flipped state validity
-    mask1 = bmask(T, site, site-1, 1); mask2 = bmask(T, site, 2, 1)
-
-    # if allone(X(state, site), mask1) || allone(X(state, site), mask2)
-    #     return state, 1
-    # end
-
 
     str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
     mask = bmask(T, 1, 2, 3) << (N-site-1)
@@ -62,32 +107,24 @@ function topological_symmetry_basismap(state::T, site::Int64, pbc::Bool=true) wh
     end
 end
 
+function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
+    basis = Fibonacci_basis(T, pbc, measure_class = :Fibo)
+    coeflis = Vector{Float64}(undef, length(basis))
+
+    # For each base in basis, check the state at each site
+    for (idx, base) in enumerate(basis)
+        coef = Fcoef(state, base)
+        coeflis[idx] = coef
+    end
+    return coeflis
+end
+
 function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
     basis=Fibonacci_basis(T, pbc, measure_class = :Fibo)
-    l=length(basis)
-    Ymatrixlis = Vector{Matrix{Float64}}(undef, N)
-    
-    # for idx in 1:N
-        idx=1
-        Ymatrix=zeros((l,l))
-        for i in 1:l
-            outcome = topological_symmetry_basismap(basis[i], idx)
-            if length(outcome) == 4
-                outputstate1, outputstate2, output1, output2=outcome
-                j2=searchsortedfirst(basis, outputstate2)
+    Ymatrix=hcat(topological_symmetry_basismap.(basis)...)
 
-                @show basis[i], j2, outputstate2
-                Ymatrix[i,i]+=output1
-                Ymatrix[i,j2]+=output2
-            else
-                outputstate, output=outcome
-                Ymatrix[i,i]+=output
-            end
-        end
-        # Ymatrixlis[idx] = Ymatrix
-    # end
-    
     return Ymatrix
 end
 

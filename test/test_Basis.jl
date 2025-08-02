@@ -43,25 +43,63 @@ end
     @test [weights...] ≈ [-1.0]
 end
 
-@testset "topological_symmetry_basismap" begin
+# 系数函数示例：F(i, x_i, x_{i+1}, x'_i, x'_{i+1})
+function F(i, xi, xi1, xpi, xpi1)
+    # 这里仅示范，可按实际公式替换
+    return (xi == xpi ? 0.9 : 0.1) * (xi1 == xpi1 ? 0.8 : 0.2)
+end
+
+function forward_sum(L::Int, x_seq::Vector{Int}, j::Int, l::Int)
+    X = (0, 1)
+    α_prev = Dict(x => 1.0 for x in X)
+
+    for i in 0:L-2
+        α_next = Dict(x_next => 0.0 for x_next in X)
+        for x_prev in X, x_next in X
+            α_next[x_next] += α_prev[x_prev] *
+                              F(i, x_seq[i+1], x_seq[i+2], x_prev, x_next)
+        end
+        α_prev = α_next
+    end
+    return sum(values(α_prev))
+end
+
+@testset "Fcoef" begin
+    ϕ = (1+√5)/2
+    N=3
+    T = BitStr{N}
+    output1 = FibonacciChain.Fcoef(T(bit"000"), T(bit"010"))
+    @test output1 ≈ ϕ^(-5/2)
+    output2 = FibonacciChain.Fcoef(T(bit"010"), T(bit"000"))
+    @test output2 ≈ ϕ^(-1/2)
+    output3 = FibonacciChain.Fcoef(T(bit"000"), T(bit"000"))
+    @test output3 ≈ ϕ^(-3)
+end
+
+@testset "topological_symmetry_sitemap" begin
     N = 3
     T = BitStr{N}
     ϕ = (1+√5)/2
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"000"), 1) == (T(bit"000"), T(bit"100"), ϕ^(-1), ϕ^(-1/2))
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"010"), 1) == (T(bit"010"), 1)
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"010"), 2) == (T(bit"010"), T(bit"000"), ϕ^(-1/2), -ϕ^(-1))
+    @test FibonacciChain.topological_symmetry_sitemap(T(bit"000"), 1) == (T(bit"000"), T(bit"100"), ϕ^(-1), ϕ^(-1/2))
+    @test FibonacciChain.topological_symmetry_sitemap(T(bit"010"), 1) == (T(bit"010"), 1)
+    @test FibonacciChain.topological_symmetry_sitemap(T(bit"010"), 2) == (T(bit"010"), T(bit"000"), ϕ^(-1/2), -ϕ^(-1))
 
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"100"), 2) == (T(bit"100"), 1)
+    @test FibonacciChain.topological_symmetry_sitemap(T(bit"100"), 2) == (T(bit"100"), 1)
+end
+
+@testset "topological_symmetry_basismap" begin
+    N = 4
+    T = BitStr{N}
+    ϕ = (1+√5)/2
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-7/2), ϕ^(-7/2), ϕ^(-7/2), ϕ^(-3), ϕ^(-7/2), ϕ^(-3)]
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"0100")) ≈ [ϕ^(-3/2), ϕ^(-1), ϕ^(-3/2), -ϕ^(-2), -ϕ^(-3/2), ϕ^(-3/2), ϕ^(-3/2)]
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-1), -ϕ^(-3/2), ϕ^(-1), ϕ^(-1), -ϕ^(-3/2), ϕ^(-2)]
 end
 
 @testset "topological_charge_operator" begin
     N = 4
     T = BitStr{N}
-    @test FibonacciChain.topological_charge_operator(T) == 1
-    # @test FibonacciChain.topological_charge_operator(T(1)) == 2
-    # @test FibonacciChain.topological_charge_operator(T(2)) == 1
-    # @test FibonacciChain.topological_charge_operator(T(3)) == 2
-    # @test FibonacciChain.topological_charge_operator(T(4)) == 1
+    @test eigvals(FibonacciChain.topological_charge_operator(T)) == [-1.9717365435132914, -1.0, -1.0, -0.2897857741641314, 1.0000000000000002, 1.0000000000000007, 1.6434883289275268]
 end
 
 @testset "actingHampbc" begin
