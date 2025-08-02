@@ -13,16 +13,82 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-function topological_charge(state::T) where {N, T <: BitStr{N}}
-    # compute the topological charge of a given state in the Fibonacci model.
-    bit_vector = digits(state, base=2, pad=N)  # 将整数状态转换为位数组，顺序可能需调整
-    if sum(bit_vector) % 2 == 0  # 假设1的数量为偶时 y=1, 但并非普适！需依据模型调整
-        return 1  # 或 :trivial
-    else
-        return 2  # 或 :nontrivial
-    end
+function topological_symmetry_basismap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
+    ϕ = (1+√5)/2
+    fl=bmask(T, N)
+    X(state, site) = flip(state, fl >> (site-1))
 
-    # 文章提到: "operator Y has two eigenvalues, S_{yτ}/S_{y1} = φ, -φ^{-1}"，因此 y 可以从特征值推导。
+    @assert 1 <= site <= N "site is expected to be in [1, $N], but got $site"
+    @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
+
+    # Check the flipped state validity
+    mask1 = bmask(T, site, site-1, 1); mask2 = bmask(T, site, 2, 1)
+
+    # if allone(X(state, site), mask1) || allone(X(state, site), mask2)
+    #     return state, 1
+    # end
+
+
+    str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
+    mask = bmask(T, 1, 2, 3) << (N-site-1)
+    if 2<= site <= N-1
+        if state & mask == str000
+            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+        elseif state & mask == str010
+            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+        else
+            return state, 1
+        end
+    elseif site == 1
+        mask=bmask(T, N, N-1,1)
+        str010, str000 = bmask(T, N), T(0)
+        if state & mask == str000
+            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+        elseif state & mask == str010
+            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+        else
+            return state, 1
+        end
+    elseif site == N
+        mask=bmask(T, N, 2, 1)
+        str010, str000 = bmask(T, 1), T(0)
+        if state & mask == str000
+            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+        elseif state & mask == str010
+            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+        else
+            return state, 1
+        end
+    end
+end
+
+function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
+    basis=Fibonacci_basis(T, pbc, measure_class = :Fibo)
+    l=length(basis)
+    Ymatrixlis = Vector{Matrix{Float64}}(undef, N)
+    
+    # for idx in 1:N
+        idx=1
+        Ymatrix=zeros((l,l))
+        for i in 1:l
+            outcome = topological_symmetry_basismap(basis[i], idx)
+            if length(outcome) == 4
+                outputstate1, outputstate2, output1, output2=outcome
+                j2=searchsortedfirst(basis, outputstate2)
+
+                @show basis[i], j2, outputstate2
+                Ymatrix[i,i]+=output1
+                Ymatrix[i,j2]+=output2
+            else
+                outputstate, output=outcome
+                Ymatrix[i,i]+=output
+            end
+        end
+        # Ymatrixlis[idx] = Ymatrix
+    # end
+    
+    return Ymatrix
 end
 
 function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}

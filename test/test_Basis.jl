@@ -43,6 +43,27 @@ end
     @test [weights...] ≈ [-1.0]
 end
 
+@testset "topological_symmetry_basismap" begin
+    N = 3
+    T = BitStr{N}
+    ϕ = (1+√5)/2
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"000"), 1) == (T(bit"000"), T(bit"100"), ϕ^(-1), ϕ^(-1/2))
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"010"), 1) == (T(bit"010"), 1)
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"010"), 2) == (T(bit"010"), T(bit"000"), ϕ^(-1/2), -ϕ^(-1))
+
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"100"), 2) == (T(bit"100"), 1)
+end
+
+@testset "topological_charge_operator" begin
+    N = 4
+    T = BitStr{N}
+    @test FibonacciChain.topological_charge_operator(T) == 1
+    # @test FibonacciChain.topological_charge_operator(T(1)) == 2
+    # @test FibonacciChain.topological_charge_operator(T(2)) == 1
+    # @test FibonacciChain.topological_charge_operator(T(3)) == 2
+    # @test FibonacciChain.topological_charge_operator(T(4)) == 1
+end
+
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000") 
