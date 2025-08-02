@@ -73,15 +73,16 @@ end
 τlis[end] = 1000.0  # Last value is for γ=1
 τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
 
-for τ in τlis[end]
+for τ in τlis
+    @show τ
     for L in 8:2:20
         D = get_system_params(τ, L)[1]
         @show L
-        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, 0)
-        save("exm/data/post_selection0/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
+        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, 1)
+        save("exm/data/post_selection1/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
     end
 end
 
 
-L=20
-average_EElis, EE_tlis, sample_free_energy = post_selection(L, 1000.0, 5L, 0)
+# L=20
+# average_EElis, EE_tlis, sample_free_energy = post_selection(L, 1000.0, 5L, 0)
