@@ -179,32 +179,3 @@ else
     # Observable_collect(N, τ)
     # samples_collect(N, τ)
 end
-
-k=10
-N=8
-random_stlis = []
-problis = rand(k)
-problis = problis ./ sum(problis)  # Normalize probabilities
-for i in 1:k
-    st = randn(2^N)
-    st = st ./ norm(st)
-    push!(random_stlis, st)
-end
-
-ρ = zeros(2^N, 2^N)
-for i in 1:k
-    ρ += problis[i] * random_stlis[i] * random_stlis[i]'
-end
-
-
-ψ = zeros(2^(N+1))
-
-for i in 1:5
-        ψ += sqrt(problis[i]) * kron([1,0], random_stlis[i])
-end
-
-for i in 6:10
-        ψ += sqrt(problis[i]) * kron([0,1], random_stlis[i])
-end
-
-eelis = eelis_Fibo_state(N+1, ψ, measure_class = :IsingX)

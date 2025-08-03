@@ -69,50 +69,10 @@ ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true; meas
 function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    unsorted_basis = Fibonacci_basis(T, pbc, measure_class=measure_class)
-    lenubasis = length(unsorted_basis)
-    newT = BitStr{2N, Int} # double the length of the basis
-    doublebasis = reshape([join(j,i) for i in unsorted_basis,j in unsorted_basis], lenubasis^2)
-    @assert lenubasis^2 == length(state) "state length is expected to be $(lenubasis), but got $(length(state))"
-    
-    subsystems = vcat(subsystems, subsystems .+ N) # add the second half of the system to the subsystems
-    subsystems=connected_components(subsystems)
-    lengthlis=length.(subsystems)
-    subsystems=vcat(subsystems...)
-    # mask = bmask(newT, subsystems...)
-    mask = bmask(newT, (2N .-subsystems .+1)...)
+    # The disjoin_rdm function need to be careful about the combing order of subsystems, as the order of subsystems in the disjoint basis matters. For example, if input state is 2*3 (counting from the left), the disjoint basis counts from the right, is 3*2. So must ensure the order of subsystems is consistent with the input state.
 
-    
-    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
-    basis, state = doublebasis[order], state[order]
-    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
-    len = length(reduced_basis)
-    
-    # Initialize the reduced density matrix
-    reduced_dm = zeros(ET, (len, len))
-
-    # Keep track of indices where the key changes
-    result_indices = Int[]
-    current_key = -1
-    for (idx, i) in enumerate(basis)
-        key = takeenviron(i, mask)  # Get environment l bits
-        if key != current_key
-            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
-            push!(result_indices, idx)
-            current_key = key
-        end
-    end
-    # Add the final index to get complete ranges
-    push!(result_indices, length(basis) + 1)
-
-    for i in 1:length(result_indices)-1
-        range = result_indices[i]:result_indices[i+1]-1         
-        # Get indices in the reduced basis
-        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
-    end
-
-    return reduced_dm
+    # However, in this ladder_rdm function, the order of subsystems doesn't matter, because of two subsystems have the same length.
+    return disjoint_rdm(T, T, subsystems, subsystems, state, pbc)
 end
 ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
 

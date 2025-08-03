@@ -189,7 +189,7 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
 end
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
-    # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1)
+    # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
     1>= k_new >= 0 || error("k_new must be in [0,1]")
 
@@ -221,14 +221,14 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     return new_state
 end
 
-function spatial_correlation(N::Int64, state::Vector{ET}, site1::Int64, site2::Int64, pbc::Bool=true) where {ET}
+function spatial_correlation(N::Int64, state::Vector{ET}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Calculate the spatial correlation between two sites in a given state
     @assert 1 <= site1 <= length(state) "Site1 index must be in the range [1, length(state)]"
     @assert 1 <= site2 <= length(state) "Site2 index must be in the range [1, length(state)]"
     
-    ρ1 = rdm_Fibo(N, [site1], state, pbc)
-    ρ2 = rdm_Fibo(N, [site2], state, pbc)
-    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc)
+    ρ1 = rdm_Fibo(N, [site1], state, pbc, measure_class=measure_class)
+    ρ2 = rdm_Fibo(N, [site2], state, pbc, measure_class=measure_class)
+    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, measure_class=measure_class)
     
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
@@ -338,14 +338,19 @@ end
 
 function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET, T}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
-    D, N = size(sample, 1), 2 * size(sample, 2) 
+    D = size(sample, 1)
+    if measure_class == :Fibo
+        N = 2 * size(sample, 2) 
+    else
+        N = size(sample, 2) 
+    end
 
+    
     @assert 1 <= site <= N "Site index must be in the range [1, N]"    
     @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
     
-
     state = initial_state
     for layer in 1:time_slice1
         state = apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, measure_class = measure_class)
@@ -364,9 +369,9 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
         state_addref2 = reference_apply_measurement_layer!(N, state_addref2, τ_eff, sample[layer, :], layer, pbc, k_old=2, measure_class = measure_class)
     end
 
-    ρ1 = reference_rdm(N, [2], state_addref2, pbc)
-    ρ2 = reference_rdm(N, [1], state_addref2, pbc) 
-    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc)
+    ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, measure_class=measure_class)
+    ρ2 = reference_rdm(N, [1], state_addref2, pbc=pbc, measure_class=measure_class) 
+    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, measure_class=measure_class)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation

@@ -3,7 +3,7 @@ module FibonacciChain
 using BitBasis, LinearAlgebra, SparseArrays, Arpack, Random
 using ITensorMPS, ITensors
 
-export Fibonacci_Ham, Fibonacci_basis, rdm_Fibo, disjoint_rdm, reference_rdm
+export Fibonacci_Ham, Fibonacci_basis, rdm_Fibo, disjoint_rdm, reference_rdm, topological_symmetry_basismap, mapst_sec2tot, rdm_Fibo_sec
 export ee, eelis_Fibo_state, eelis_Fiboladder_state, translation_matrix, inversion_matrix, braidingsqmap, add_reference_qubits!, spatial_correlation, temporal_correlation, reference_generate_state
 export ladderChoi, ladderrdm, ladderbraidingsqmap, laddertranslationmap
 export measure_basismap, measuremap, laddermeasuremap, measurement_enumeration, measurement_tree_visualization, Boundary_measure, Boundarypost_selection, Bulkmeasure, Bulkpost_selection, generate_state

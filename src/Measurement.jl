@@ -600,6 +600,7 @@ function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer
         return state
     
     elseif measure_class == :IsingX || measure_class == :IsingZZ
+        # measure at all sites!!!
         measurement_sites = collect(1:N)
         if layer_idx % 2 == 1
             # odd layers: measure X
@@ -628,7 +629,12 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
         return apply_measurement_layer!(N, state, τ, sample, 1, pbc, measure_class=measure_class)
 
     elseif ET == Matrix{Int}
-        D, N = size(sample, 1), 2 * size(sample, 2) 
+        D = size(sample, 1)
+        if measure_class == :Fibo
+            N = 2 * size(sample, 2) 
+        else
+            N = size(sample, 2) 
+        end
         statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
         # if ET is Vector{Int64} and temp is true, we return temporary states.
         for layer in 1:D
