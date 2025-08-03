@@ -55,16 +55,6 @@ end
     @test output3 ≈ -ϕ^(-3)
 end
 
-@testset "Y_sitemap" begin
-    N = 3
-    T = BitStr{N}
-    ϕ = (1+√5)/2
-    @test FibonacciChain.Y_sitemap(T(bit"000"), 1) == (T(bit"000"), T(bit"100"), ϕ^(-1), ϕ^(-1/2))
-    @test FibonacciChain.Y_sitemap(T(bit"010"), 1) == (T(bit"010"), 1)
-    @test FibonacciChain.Y_sitemap(T(bit"010"), 2) == (T(bit"010"), T(bit"000"), ϕ^(-1/2), -ϕ^(-1))
-    @test FibonacciChain.Y_sitemap(T(bit"100"), 2) == (T(bit"100"), 1)
-end
-
 @testset "topological_symmetry_basismap" begin
     N = 4
     T = BitStr{N}
@@ -76,9 +66,14 @@ end
 
 
 @testset "topological_charge_operator" begin
+    ϕ = (1+√5)/2
     N = 4
     T = BitStr{N}
-    @test eigvals(FibonacciChain.topological_charge_operator(T)) == [-1.9717365435132914, -1.0, -1.0, -0.2897857741641314, 1.0000000000000002, 1.0000000000000007, 1.6434883289275268]
+    Y =FibonacciChain.topological_charge_operator(T)
+    @test isapprox(Y, Y')
+    vals = eigvals(Y)
+    @test vals == [-1.0799610383969367, -0.23606797749978994, -0.23606797749978972, -0.23606797749978964, 0.4778136965285674, 1.9041523147215358, 3.079961038396939]
+    @test vals[end]/vals[end-1] ≈ ϕ atol = 1e-3
 end
 
 @testset "actingHampbc" begin
@@ -131,14 +126,14 @@ end
     res = FibonacciChain.process_join(lis1, lis2) 
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
 
+    # joint_basis
+    res = FibonacciChain.joint_basis([2, 3])
+    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
+    
     lis1 = Fibonacci_basis(1,false)
     lis2 = Fibonacci_basis(2,false)
     res = FibonacciChain.joint_basis([1, 2])  
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    # joint_pxp_basis
-    res = FibonacciChain.joint_basis([2, 3])
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
     @test res == BitStr{5}(bit"11001")
@@ -243,10 +238,12 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = BitStr{N1+N2}(0b11001100)  # Example state
+    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2))); state[1] = 1; state[end] = 1
+    state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
-    subsystemsB = [3, 4]
+    subsystemsB = [1, 2]
     
     rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state)
-    @test size(rdm_result) == (4, 4)  # Check the size of the reduced density matrix
+    @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
+    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 end

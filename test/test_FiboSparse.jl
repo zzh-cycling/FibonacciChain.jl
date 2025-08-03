@@ -19,16 +19,3 @@ end
     energy_sparse, state_sparse = eigs(H_sparse, nev=1, which=:SR)
     @test energy ≈ energy_sparse[1]
 end
-
-@testset "iso_total2sec_sparse" begin
-    N = 8
-    k = 0
-    iso_sparse = iso_total2sec_sparse(N, k)
-    @test size(iso_sparse) == (Fibonacci_basis(N, k), Fibonacci_basis(N, 0))
-    
-    # Check if the isometry is correct
-    basis = Fibonacci_basis(N, k)
-    for state in basis
-        @test norm(iso_sparse * state) ≈ 1.0
-    end
-end

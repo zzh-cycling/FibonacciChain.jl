@@ -13,47 +13,6 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-function Y_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Y is the topological symmetry operator in the Fibonacci model, such map is defined in Fibonacci chain basis, not in Anyon basis. But not correct!!!
-    ϕ = (1+√5)/2
-    fl=bmask(T, N)
-    X(state, site) = flip(state, fl >> (site-1))
-
-    @assert 1 <= site <= N "site is expected to be in [1, $N], but got $site"
-    @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
-
-    str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
-    mask = bmask(T, 1, 2, 3) << (N-site-1)
-    if 2<= site <= N-1
-        if state & mask == str000
-            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
-        elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
-        else
-            return state, 1
-        end
-    elseif site == 1
-        mask=bmask(T, N, N-1,1)
-        str010, str000 = bmask(T, N), T(0)
-        if state & mask == str000
-            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
-        elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
-        else
-            return state, 1
-        end
-    elseif site == N
-        mask=bmask(T, N, 2, 1)
-        str010, str000 = bmask(T, 1), T(0)
-        if state & mask == str000
-            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
-        elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
-        else
-            return state, 1
-        end
-    end
-end
 
 function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
@@ -476,11 +435,13 @@ Fibonacci_Ham(N::Int, k::Int, Y=nothing) = Fibonacci_Ham(BitStr{N, Int}, k, Y)
 
 # join two lists of basis by make a product of two lists, noting that a is smalller site, b is larger site, but b is placed before a (In BitString Order)
 function process_join(a, b)
-    return [join(b, a) for b in b for a in a]
+    # effectively, [join(b, a) for b in b for a in a] # seems slower
+    return vec([join(b, a) for a in a, b in b])
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
 function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
+    # The element order in lengthlis doesn't matter, i.e., [2, 3] is only different with [3, 2] in basis order. Only your input state must consistent with the basis order. 
     return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
 end
 
@@ -536,6 +497,8 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
     basis, state = unsorted_basis[order], state[order]
     
     reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
+    # TIPS: mask must have common non-zero part with reduced_basis (thus for comparing)
     len = length(reduced_basis)
     # Initialize the reduced density matrix
     reduced_dm = zeros(ET, (len, len))
@@ -684,6 +647,7 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
     subsystems=vcat(subsystems...)
     newT = BitStr{k_old+N, Int} 
     mask = bmask(newT, (N + k_old.-subsystems .+1)...)
+    # This mask only masks the reference qubit, which are placed at 1, 2.(counts starting from the left)
 
     order = sortperm(extended_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = extended_basis[order], state[order]

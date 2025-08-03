@@ -323,6 +323,7 @@ end
 
 @testset "build_extended_basis" begin
     N = 3
+    pbc = true
     k_total = 2
     T = BitStr{N+k_total, Int}
     basis = Fibonacci_basis(N)
