@@ -131,13 +131,17 @@ end
     res = FibonacciChain.process_join(lis1, lis2) 
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
 
+    lis1 = Fibonacci_basis(1,false)
+    lis2 = Fibonacci_basis(2,false)
+    res = FibonacciChain.joint_basis([1, 2])  
+    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
     # joint_pxp_basis
     res = FibonacciChain.joint_basis([2, 3])
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-
+    
     # move_subsystem
-    res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(0b101), [1, 2, 5])
-    @test res == BitStr{5}(0b10001)
+    res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
+    @test res == BitStr{5}(bit"11001")
 
     # takeenviron
     bs, mask = BitStr{5}(0b11001), BitStr{5}(0b10001)
@@ -232,4 +236,17 @@ end
     rdm_sec = rdm_Fibo_sec(N, collect(1:div(N,2)), sec_gs, k)
     rdm = rdm_Fibo(N, collect(1:div(N,2)), gs)
     @test rdm_sec ≈ rdm  # Check if the reduced density matrix matches
+end
+
+@testset "disjoint_rdm" begin
+    N1 = 4
+    N2 = 4
+    T1 = BitStr{N1}
+    T2 = BitStr{N2}
+    state = BitStr{N1+N2}(0b11001100)  # Example state
+    subsystemsA = [1, 2]
+    subsystemsB = [3, 4]
+    
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state)
+    @test size(rdm_result) == (4, 4)  # Check the size of the reduced density matrix
 end

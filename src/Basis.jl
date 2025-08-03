@@ -474,9 +474,9 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
 end
 Fibonacci_Ham(N::Int, k::Int, Y=nothing) = Fibonacci_Ham(BitStr{N, Int}, k, Y)
 
-# join two lists of basis by make a product of two lists
+# join two lists of basis by make a product of two lists, noting that a is smalller site, b is larger site, but b is placed before a (In BitString Order)
 function process_join(a, b)
-    return vec([join(b, a) for a in a, b in b])
+    return [join(b, a) for b in b for a in a]
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
@@ -617,22 +617,23 @@ rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) wher
 
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
-    # The function is to take common environment parts of the two disjoint basis, espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
     unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
     doublebasis = reshape([join(j,i) for i in unsorted_basisA, j in unsorted_basisB], lenubasisA*lenubasisB)
+    # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
-    subsystems = vcat(subsystemsA, subsystemsB) # add the second half of the system to the subsystems
+    subsystems = vcat(subsystemsA, subsystemsB.+N1) # add the second half of the system to the subsystems
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
     # mask = bmask(newT, subsystems...)
-    mask = bmask(newT, (N1+N2 .-subsystems .+1)...)
-
+    mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
+    
     
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
     basis, state = doublebasis[order], state[order]
@@ -665,7 +666,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N, Int}, subsystems, state, pbc)
+disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc)
 
 function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
