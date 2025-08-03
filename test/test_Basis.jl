@@ -133,7 +133,11 @@ end
     lis1 = Fibonacci_basis(1,false)
     lis2 = Fibonacci_basis(2,false)
     res = FibonacciChain.joint_basis([1, 2])  
+    # Ensureing the order is 2*1, not 1*2
+    # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
+    @test res != [join(l1, l2) for l1 in lis1 for l2 in lis2]
+
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
     @test res == BitStr{5}(bit"11001")
