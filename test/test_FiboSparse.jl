@@ -16,6 +16,6 @@ end
     H = Fibonacci_Ham(N)
     H_sparse = Fibonacci_Ham_sparse(N, 0)
     energy = eigvals(H)[1]
-    energy_sparse, state_sparse = eigs(H_sparse, nev=1, which=:SR)
+    energy_sparse, state_sparse = Arpack.eigs(H_sparse, nev=1, which=:SR)
     @test energy ≈ energy_sparse[1]
 end
