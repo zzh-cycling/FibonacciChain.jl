@@ -13,60 +13,8 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-function Fcoef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base
-    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
-    #  %%
-    #  %% 
-    #  %%%%%%%%%%%%%
-    #  %%
-    #  %%
-    #  %%%          idxout              idxbond'
-    ϕ = (1+√5)/2
-    prod=1
-    
-    if measure_class == :Fibo
-        @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
-        for site in 2:N-1
-            str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
-            mask = bmask(T, 1, 2, 3) << (N-site-1)
-            if state & mask == str000
-                prod *= (base[N-site+1] == 0) ? ϕ^(-1) : ϕ^(-1/2)
-            elseif state & mask == str010
-                prod *= (base[N-site+1] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
-            else
-                prod *= 1
-            end
-        end
-
-        if pbc
-            mask=bmask(T, N, N-1,1)
-            str010, str000 = bmask(T, N), T(0)
-            if state & mask == str000
-                prod *= (base[N] == 0) ? ϕ^(-1) : ϕ^(-1/2)
-            elseif state & mask == str010
-                prod *= (base[N] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
-            else
-                prod *= 1
-            end
-        
-            mask=bmask(T, N, 2, 1)
-            str010, str000 = bmask(T, 1), T(0)
-            if state & mask == str000
-                prod *= (base[1] == 0) ? ϕ^(-1) : ϕ^(-1/2)
-            elseif state & mask == str010
-                prod *= (base[1] == 0) ? ϕ^(-1/2) : -ϕ^(-1)
-            else
-                prod *= 1
-            end
-        end
-        return prod
-    else
-        error("Unsupported measure_class: $measure_class")
-    end
-end
-
-function topological_symmetry_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Y_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
+    # Y is the topological symmetry operator in the Fibonacci model
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state, site) = flip(state, fl >> (site-1))
@@ -78,9 +26,9 @@ function topological_symmetry_sitemap(state::T, site::Int64, pbc::Bool=true) whe
     mask = bmask(T, 1, 2, 3) << (N-site-1)
     if 2<= site <= N-1
         if state & mask == str000
-            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
         elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
         else
             return state, 1
         end
@@ -88,9 +36,9 @@ function topological_symmetry_sitemap(state::T, site::Int64, pbc::Bool=true) whe
         mask=bmask(T, N, N-1,1)
         str010, str000 = bmask(T, N), T(0)
         if state & mask == str000
-            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
         elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
         else
             return state, 1
         end
@@ -98,12 +46,76 @@ function topological_symmetry_sitemap(state::T, site::Int64, pbc::Bool=true) whe
         mask=bmask(T, N, 2, 1)
         str010, str000 = bmask(T, 1), T(0)
         if state & mask == str000
-            return state, X(state, site), ϕ^(-1), ϕ^(-1/2)
+            return state, X(state, site), -ϕ^(-1), ϕ^(-1/2)
         elseif state & mask == str010
-            return state, X(state, site), ϕ^(-1/2), -ϕ^(-1)
+            return state, X(state, site), ϕ^(-1/2), ϕ^(-1)
         else
             return state, 1
         end
+    end
+end
+
+function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base
+    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
+    #  %%
+    #  %% 
+    #  %%%%%%%%%%%%%
+    #  %%
+    #  %%
+    #  %%%          idxout              idxbond'
+    #  or effectively, the coefficient like: A_{x_1 x_2 x_2'}^{x_1'} 
+    #  coef rule: 010 -> ϕ^(-1) 010 + ϕ^(-1/2) 000, 000 -> ϕ^(-1/2) 010 + -ϕ^(-1) 000
+    ϕ = (1+√5)/2
+    prod=1
+    
+    if measure_class == :Fibo
+        @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
+        for site in 2:N-1
+            str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
+            mask = bmask(T, 2, 3) << (N-site-1)
+            mask_base = bmask(T, 2) << (N-site-1)
+            # Identify {x_1 x_2 x_2'}
+            if ((state & mask) | (base & mask_base) >>1) == str000
+                # Determine coef according to x_1'
+                prod *= (base[N-site+2] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+            elseif ((state & mask) | (base & mask_base) >>1) == str010
+                prod *= (base[N-site+2] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+            else
+                prod *= 1
+            end
+        end
+
+        if pbc
+            mask=bmask(T, N, 1)
+            str010, str000 = bmask(T, N), T(0)
+            # Identify {x_N x_1 x_1'}
+            mask_base = bmask(T, N)
+            if ((state & mask) | (base & mask_base) >>2) == str000
+                # Determine coef according to x_N'
+                prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+            elseif ((state & mask) | (base & mask_base) >>1) == str010
+                prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+            else
+                prod *= 1
+            end
+        
+            mask=bmask(T, 2, 1)
+            str010, str000 = bmask(T, 1), T(0)
+            # Identify {x_N-1 x_N x_N'}
+            mask_base = bmask(T, 1)
+            if ((state & mask) | (base & mask_base) >>1) == str000
+                # Determine coef according to x_N-1'
+                prod *= (base[2] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+            elseif ((state & mask) | (base & mask_base) >>1) == str010
+                prod *= (base[2] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+            else
+                prod *= 1
+            end
+        end
+        return prod
+    else
+        error("Unsupported measure_class: $measure_class")
     end
 end
 
@@ -114,7 +126,7 @@ function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: 
 
     # For each base in basis, check the state at each site
     for (idx, base) in enumerate(basis)
-        coef = Fcoef(state, base)
+        coef = Fsymmetry_coef(state, base)
         coeflis[idx] = coef
     end
     return coeflis
