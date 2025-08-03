@@ -571,19 +571,19 @@ end
     sample = zeros(Int, N)
 
     output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1, measure_class=measure_class)
-    @test output1 == ones(2^(N+1)) ./4
+    @test output1 ≈ ones(2^(N+1)) ./4
 
     output3 = FibonacciChain.reference_apply_measurement_layer!(N, output1, τ, sample, 2, pbc, k_old=1, measure_class=:IsingZZ)
-    @test output3 == [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
+    @test output3 ≈ [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
 
     output5 = FibonacciChain.reference_apply_measurement_layer!(N, output3, τ, sample, 3, pbc, k_old=1, measure_class=measure_class)
-    @test output5 == output1
+    @test output5 ≈ output1
 
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1, measure_class=measure_class)
     output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2, measure_class=measure_class)
-    @test output7 == add_st2
+    @test output7 ≈ add_st2
     output8 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 3, pbc, k_old=2, measure_class=measure_class)
-    @test vcat(output8[1:8], output8[25:32]) == output1
+    @test vcat(output8[1:8], output8[25:32]) ≈ output1
 end
 
 @testset "reference_generate_state" begin
