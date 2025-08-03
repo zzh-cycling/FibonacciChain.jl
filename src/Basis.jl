@@ -14,7 +14,7 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
 end
 
 function Y_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Y is the topological symmetry operator in the Fibonacci model
+    # Y is the topological symmetry operator in the Fibonacci model, such map is defined in Fibonacci chain basis, not in Anyon basis. But not correct!!!
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state, site) = flip(state, fl >> (site-1))
@@ -56,7 +56,7 @@ function Y_sitemap(state::T, site::Int64, pbc::Bool=true) where {N, T <: BitStr{
 end
 
 function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base
+    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
     #  %%
     #  %% 
@@ -65,55 +65,53 @@ function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol
     #  %%
     #  %%%          idxout              idxbond'
     #  or effectively, the coefficient like: A_{x_1 x_2 x_2'}^{x_1'} 
-    #  coef rule: 010 -> ϕ^(-1) 010 + ϕ^(-1/2) 000, 000 -> ϕ^(-1/2) 010 + -ϕ^(-1) 000
     ϕ = (1+√5)/2
     prod=1
     
     if measure_class == :Fibo
-        @assert pbc || site != 1 && site != N "For OBC, site must not be 1 or $N, but got $site"
-        for site in 2:N-1
-            str010, str000 = T(2) << (N-site-1), T(0) << (N-site-1)
-            mask = bmask(T, 2, 3) << (N-site-1)
-            mask_base = bmask(T, 2) << (N-site-1)
-            # Identify {x_1 x_2 x_2'}
-            if ((state & mask) | (base & mask_base) >>1) == str000
-                # Determine coef according to x_1'
-                prod *= (base[N-site+2] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-            elseif ((state & mask) | (base & mask_base) >>1) == str010
-                prod *= (base[N-site+2] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-            else
+        @assert pbc || site != N "For OBC, site must not be $N, but got $site"
+        for site in 1:N-1
+            # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
+            if state[N - site + 1] == 1
                 prod *= 1
+            else
+                if base[N - site] == 1
+                    prod *= 1
+                else
+                    # check x_3, if x_3 is 1
+                    if state[N - site] == 0
+                        # Determine coef according to x_2'
+                        prod *= (base[N - site + 1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+                    else
+                        prod *= (base[N - site + 1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+                    end
+                end
             end
         end
 
         if pbc
-            mask=bmask(T, N, 1)
-            str010, str000 = bmask(T, N), T(0)
-            # Identify {x_N x_1 x_1'}
-            mask_base = bmask(T, N)
-            if ((state & mask) | (base & mask_base) >>2) == str000
-                # Determine coef according to x_N'
-                prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-            elseif ((state & mask) | (base & mask_base) >>1) == str010
-                prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-            else
+            # Check x_N', if x_N' is 1, return 1, otherwise, check x_1', if x_1' is 1, return 1.
+            if state[1] == 1
                 prod *= 1
-            end
-        
-            mask=bmask(T, 2, 1)
-            str010, str000 = bmask(T, 1), T(0)
-            # Identify {x_N-1 x_N x_N'}
-            mask_base = bmask(T, 1)
-            if ((state & mask) | (base & mask_base) >>1) == str000
-                # Determine coef according to x_N-1'
-                prod *= (base[2] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-            elseif ((state & mask) | (base & mask_base) >>1) == str010
-                prod *= (base[2] == 0) ? ϕ^(-1/2) : ϕ^(-1)
             else
+                if base[N] == 1
+                    prod *= 1
+                else
+                    # check x_1, if x_1 is 1
+                    if state[N] == 0
+                        # Determine coef according to x_N'
+                        prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+                    else
+                        prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+                    end
+                end
+            
                 prod *= 1
             end
         end
+
         return prod
+
     else
         error("Unsupported measure_class: $measure_class")
     end
@@ -121,9 +119,10 @@ end
 
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
+
     basis = Fibonacci_basis(T, pbc, measure_class = :Fibo)
     coeflis = Vector{Float64}(undef, length(basis))
-
+    
     # For each base in basis, check the state at each site
     for (idx, base) in enumerate(basis)
         coef = Fsymmetry_coef(state, base)
@@ -134,6 +133,7 @@ end
 
 function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
+    
     basis=Fibonacci_basis(T, pbc, measure_class = :Fibo)
     Ymatrix=hcat(topological_symmetry_basismap.(basis)...)
 
@@ -143,7 +143,7 @@ end
 function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
+    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
     if measure_class == :Fibo
         # Generate Fibonacci chain basis
@@ -161,7 +161,8 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
     
         if Y !== nothing
             # Filter basis by topological charge
-            sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
+            # sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
+            error("Filtering by topological charge is not implemented yet.")
         end
     
         return sorted_basis
@@ -174,15 +175,11 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
 end
 Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, measure_class=measure_class)
 
-function Fibonacci_basis(::Type{T}, k::Int64, Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
-
-    if y !== nothing
-        basis = [s for s in basis if topological_charge(s) == y]
-    end
+    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
     basisK = Vector{T}(undef, 0)
     basis = Fibonacci_basis(T, Y=Y, measure_class=measure_class)
@@ -448,7 +445,7 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
+    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
     basisK, basis_dic =Fibonacci_basis(T, k, Y=Y, measure_class=measure_class)
     l = length(basisK)
@@ -458,13 +455,14 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
     for i in 1:l
         n=basisK[i]
         output = actingHam(T, n, true)
-        for m in output
+        states, weights = keys(output), values(output)
+        for m in states
             mbar, d = get_representative(m)
             if mbar ∈ basisK
                 j=searchsortedfirst(basisK, mbar)
                 Yn= sqrt(length(basis_dic[n])) / N
                 Ym= sqrt(length(basis_dic[mbar])) / N
-                H[i, j] += Yn/Ym * omegak^d
+                H[i, j] += Yn/Ym * omegak^d*output[m]
             end
         end
     end
@@ -568,45 +566,6 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
 end
 rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
 
-
-function iso_tot2sec(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    #Function to map the total basis to the given symmetric sector Hilbert space basis, actually is the isometry, defined as W'*W=I, W*W'=P, P^2=P
-    @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    
-    basis = Fibonacci_basis(T, Y=Y, measure_class=measure_class)
-
-    k_dic = Dict{Int, Vector{Int64}}()
-    basisK = Vector{T}(undef, 0)
-    for i in eachindex(basis)
-        state=basis[i]
-        category = get_representative(state)[1]
-        if haskey(k_dic, category)
-            push!(k_dic[category], i)
-        else
-            k_dic[category] = [i]
-        end
-    end
-    
-    for j in eachindex(basis)
-        n=basis[j]
-        RS = get_representative(n)[1]
-        if RS == n && (k * length(k_dic[RS])) % N == 0
-            push!(basisK, n)
-        end
-    end
-
-    iso = zeros((length(basis), length(keys(basisK))))
-    
-    for (i, state) in enumerate(basisK)
-        state_indices = k_dic[state]  
-        l = length(state_indices)
-        iso[state_indices, i] .= 1/sqrt(l)
-    end
-
-    return iso
-end
-iso_tot2sec(N::Int, k::Int64; measure_class::Symbol=:Fibo) = iso_tot2sec(BitStr{N, Int}, k, measure_class=measure_class)
-
 function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
@@ -644,8 +603,8 @@ end
 mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, measure_class=measure_class)
 
 function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
-    @assert length(kstate) == length(Fibo_K_basis(T,k)[1]) "state length is expected to be $(length(Fibo_K_basis(T, k)[1])), but got $(length(kstate))"
-    state = mapstate_K2total(T, kstate, k)
+    @assert length(kstate) == length(Fibonacci_basis(T,k)[1]) "state length is expected to be $(length(Fibonacci_basis(T, k)[1])), but got $(length(kstate))"
+    state = mapst_sec2tot(T, kstate, k)
     reduced_dm = rdm_Fibo(T, subsystems, state)
     return reduced_dm
 end
@@ -658,7 +617,7 @@ rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) wher
 
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
-    # The function is to take common environment parts of the two disjoint basis, given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    # The function is to take common environment parts of the two disjoint basis, espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
     unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
     lenubasisA = length(unsorted_basisA)

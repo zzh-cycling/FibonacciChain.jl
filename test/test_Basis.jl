@@ -50,9 +50,9 @@ end
     output1 = FibonacciChain.Fsymmetry_coef(T(bit"000"), T(bit"010"))
     @test output1 ≈ -ϕ^(-3/2)
     output2 = FibonacciChain.Fsymmetry_coef(T(bit"010"), T(bit"000"))
-    @test output2 ≈ ϕ^(-1/2)
+    @test output2 ≈ -ϕ^(-3/2)
     output3 = FibonacciChain.Fsymmetry_coef(T(bit"000"), T(bit"000"))
-    @test output3 ≈ ϕ^(-3)
+    @test output3 ≈ -ϕ^(-3)
 end
 
 @testset "Y_sitemap" begin
@@ -69,10 +69,11 @@ end
     N = 4
     T = BitStr{N}
     ϕ = (1+√5)/2
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-7/2), ϕ^(-7/2), ϕ^(-7/2), ϕ^(-3), ϕ^(-7/2), ϕ^(-3)]
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"0100")) ≈ [ϕ^(-3/2), ϕ^(-1), ϕ^(-3/2), -ϕ^(-2), -ϕ^(-3/2), ϕ^(-3/2), ϕ^(-3/2)]
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-1), -ϕ^(-3/2), ϕ^(-1), ϕ^(-1), -ϕ^(-3/2), ϕ^(-2)]
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"0100")) ≈ [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
+    @test FibonacciChain.topological_symmetry_basismap(T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
 end
+
 
 @testset "topological_charge_operator" begin
     N = 4
@@ -194,4 +195,41 @@ end
 
     rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
     @test rdm4 ≈ [0.4999999999999999 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.4999999999999999]
+end
+
+@testset "Fibonacci_basis_K" begin
+    N = 8
+    T = BitStr{N}
+    k = 0
+    fib_basis_k = Fibonacci_basis(T, k)[1]
+    @test length(fib_basis_k) == 8  # Check the length of the basis
+    @test [i.buf for i in fib_basis_k] == [0, 1, 5, 9, 17, 21, 37, 85]
+end
+
+@testset "Fibonacci_Ham_K" begin
+    N = 8
+    T = BitStr{N}
+    k = 0
+    fib_ham_k = Fibonacci_Ham(T, k)
+    H = Fibonacci_Ham(N)
+    @test size(fib_ham_k) == (8, 8)  # Check the size of the Hamiltonian matrix
+    @test ishermitian(fib_ham_k)  # Check if the Hamiltonian is Hermitian
+    @test eigvals(H)[1] ≈ eigvals(fib_ham_k)[1]  # Check if the ground state energy matches
+end
+
+@testset "mapst_sec2tot, rdm_Fibo_sec" begin
+    N = 8
+    k = 0
+    T = BitStr{N}
+    fib_ham_k = Fibonacci_Ham(T, k)
+    H = Fibonacci_Ham(N)
+    
+    sec_gs = eigvecs(fib_ham_k)[:, 1]
+    gs = eigvecs(H)[:, 1]
+    mapped_st = FibonacciChain.mapst_sec2tot(T, sec_gs, k)
+    @test mapped_st ≈ gs  # Check if the mapped state matches the ground state
+
+    rdm_sec = rdm_Fibo_sec(N, collect(1:div(N,2)), sec_gs, k)
+    rdm = rdm_Fibo(N, collect(1:div(N,2)), gs)
+    @test rdm_sec ≈ rdm  # Check if the reduced density matrix matches
 end
