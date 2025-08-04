@@ -181,7 +181,7 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
     T = BitStr{k_total, Int}
     ref_strings = [T(i) for i in 0:(2^k_total-1)] 
     extended_basis = sort(
-        mapreduce(suffix -> process_join(basis, [suffix]),
+        mapreduce(suffix -> process_join([suffix], basis),
               vcat,
               ref_strings))
 

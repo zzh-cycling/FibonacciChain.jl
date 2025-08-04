@@ -120,28 +120,28 @@ end
     lis1 = BitStr{2}[0, 1, 2]
     lis2 = BitStr{3}[0, 1, 2, 4, 5]
     res = FibonacciChain.process_join(lis1, lis2) 
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
+    @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
     # joint_basis
     res = FibonacciChain.joint_basis([2, 3])
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    
+    @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
+
     lis1 = Fibonacci_basis(1,false)
     lis2 = Fibonacci_basis(2,false)
     res = FibonacciChain.joint_basis([1, 2])  
     # Ensureing the order is 2*1, not 1*2
     # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    @test res != [join(l1, l2) for l1 in lis1 for l2 in lis2]
+    @test res == vec([join(l1, l2) for l1 in lis1 for l2 in lis2])
+    @test res != [join(l2, l1) for l1 in lis1, l2 in lis2]
 
 
     # Test disjoint system joint_basis
     res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:Fibo)
-    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1), l2 in Fibonacci_basis(2,false)])
+    @test res == [join(l1, l2) for l1 in Fibonacci_basis(1) for l2 in Fibonacci_basis(2,false)]
     res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:IsingX)
-    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1, measure_class=:IsingX), l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
     res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:Fibo)
-    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1, measure_class=:IsingX), l2 in Fibonacci_basis(2, false)])
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, false)])
     res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:IsingX)
 
     # move_subsystem
@@ -172,6 +172,9 @@ end
     # The total system
     rdm = rdm_Fibo(N, collect(1:N), st)
     @test rdm ≈ st*st'
+
+    rdm = rdm_Fibo(N, [1], st)
+    @test rdm ≈ [0.75 0.25; 0.25 0.25]
 end
 
 @testset "rdm_Fibo_Ising" begin
@@ -193,7 +196,6 @@ end
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
     
     rdm = reference_rdm(N, [1], add_site1)
-    disjoint_rdm(BitStr{N, Int}, BitStr{1, Int}, Int[], [1], add_site1, measure_classB=:IsingX) == rdm
     @test rdm == [0.75 0.0; 0.0 0.25]
 
     full_st = zeros(2^(N+1))
@@ -220,7 +222,7 @@ end
     
     rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
-    rdm = disjoint_rdm(BitStr{1, Int}, BitStr{N, Int}, [1], Int64[], st, measure_classA = measure_class, measure_classB = measure_class)
+  
 
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, measure_class = measure_class)
     rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
@@ -328,8 +330,8 @@ end
     
     # Test for one subsystem is empty
     rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classB=:IsingX)
-    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
 
     rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
-    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5]
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end
