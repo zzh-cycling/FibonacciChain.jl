@@ -221,11 +221,12 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     return new_state
 end
 
-function spatial_correlation(N::Int64, state::Vector{ET}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Calculate the spatial correlation between two sites in a given state
-    @assert 1 <= site1 <= length(state) "Site1 index must be in the range [1, length(state)]"
-    @assert 1 <= site2 <= length(state) "Site2 index must be in the range [1, length(state)]"
-    
+    @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
+    @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
+    @assert site1 != site2 "Site1 and Site2 must be different"
+
     ρ1 = rdm_Fibo(N, [site1], state, pbc, measure_class=measure_class)
     ρ2 = rdm_Fibo(N, [site2], state, pbc, measure_class=measure_class)
     ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, measure_class=measure_class)

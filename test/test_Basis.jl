@@ -189,6 +189,23 @@ end
     rdm = rdm_Fibo(N, [1], st, measure_class=:IsingX) ≈ 0.5*I(2)
 end
 
+@testset "rdm_Fibo_matrix" begin
+    N = 4
+    st = zeros(length(Fibonacci_basis(N)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
+
+    rdm = rdm_Fibo(N, collect(1:2), st*st')
+    @test rdm ≈ diagm([0.0, 0.5, 0.5])
+    rdm = rdm_Fibo(N, collect(1:N), st*st')
+    @test rdm ≈ st*st'
+
+    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+
+    rdm = rdm_Fibo(N, [1,2], st*st', measure_class=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
+
+    st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # 
+    rdm = rdm_Fibo(2, [1], st*st', measure_class=:IsingX) ≈ 0.5 * I(2)
+end
+
 @testset "reference_rdm" begin
     N = 3
     st = ones(4)/2;

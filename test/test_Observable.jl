@@ -402,7 +402,8 @@ end
     @test sclis ≈ log(2)*ones(6*5)
 end
 
-@testset "spatial_corr and reference rdm" begin
+@testset "spatial_corr_matrix and reference rdm" begin
+    # The spatial correlation should be the same after adding reference qubits
     N=6
     mes = zeros(length(Fibonacci_basis(N, true)))
     mes[13] = 1/√2 
@@ -412,8 +413,11 @@ end
     add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1)
     # Counting for system
     ρ = reference_rdm(N, collect(1:N), add_mes, traceref=false)
-    
+    sclis_ref = [spatial_correlation(N, ρ, i, j) for i in 1:N for j in 1:N if j!=i]
+
+    @test sclis ≈ sclis_ref
 end
+
 @testset "reference_measure_basismap" begin
     N = 3
     τ = 1.0
