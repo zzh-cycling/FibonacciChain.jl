@@ -113,10 +113,6 @@ end
 
     @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
     @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
-    # Test the reduced density matrix function
-    # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
-    # @test size(rdm) == (2, 2)
-
 end
 
 @testset "process_join" begin
@@ -138,6 +134,16 @@ end
     @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
     @test res != [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
+
+    # Test disjoint system joint_basis
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:Fibo)
+    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1), l2 in Fibonacci_basis(2,false)])
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:IsingX)
+    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1, measure_class=:IsingX), l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:Fibo)
+    @test res == vec([join(l2, l1) for l1 in Fibonacci_basis(1, measure_class=:IsingX), l2 in Fibonacci_basis(2, false)])
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:IsingX)
+
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
     @test res == BitStr{5}(bit"11001")
@@ -154,6 +160,30 @@ end
     v = [1, 2, 4, 5, 7]
     @test FibonacciChain.connected_components(v) == [[1, 2], [4, 5], [7]]
     @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
+end
+
+@testset "rdm_Fibo" begin
+    N = 3
+    st = ones(length(Fibonacci_basis(N))); st /= norm(st)  # Normalize the state
+    # The empty subsystem
+    rdm = rdm_Fibo(N, Int64[], st)
+    @test rdm ≈ ones(Float64, 1,1)
+
+    # The total system
+    rdm = rdm_Fibo(N, collect(1:N), st)
+    @test rdm ≈ st*st'
+end
+
+@testset "rdm_Fibo_Ising" begin
+    N = 3
+    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    rdm = rdm_Fibo(N, Int[], st)
+    @test rdm ≈ ones(Float64, 1,1)
+
+    rdm = rdm_Fibo(N, collect(1:N), st, measure_class=:IsingX)
+    @test rdm ≈ st*st'
+    
+    rdm = rdm_Fibo(N, [1], st, measure_class=:IsingX) ≈ 0.5*I(2)
 end
 
 @testset "reference_rdm" begin
@@ -189,6 +219,7 @@ end
     
     rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
+    rdm = disjoint_rdm(BitStr{1, Int}, BitStr{N, Int}, [1], Int64[], st, measure_classA = measure_class, measure_classB = measure_class)
 
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, measure_class = measure_class)
     rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
@@ -250,4 +281,32 @@ end
     rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+    
+    # Test for one subsystem is empty
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state)
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state)
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+end
+
+@testset "disjoint_rdm_Ising" begin
+    N1 = 4
+    N2 = 4
+    T1 = BitStr{N1}
+    T2 = BitStr{N2}
+    state = zeros(length(Fibonacci_basis(N1, measure_class = :IsingX)) * length(Fibonacci_basis(N2, measure_class=:IsingX))); state[1] = 1; state[end] = 1
+    state = state ./ norm(state)  # Normalize the state
+    subsystemsA = [1, 2]
+    subsystemsB = [1, 2]
+    
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
+    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end

@@ -442,12 +442,16 @@ end
 # create Fibonacci basis composed of multiple disjoint sub-chains
 function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
     # The element order in lengthlis doesn't matter, i.e., [2, 3] is only different with [3, 2] in basis order. Only your input state must consistent with the basis order. 
-    return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
+    if isempty(lengthlis)
+        return BitStr{0, Int}[]
+    else
+        return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
+    end
 end
 
 function connected_components(v::Vector{Int})
     if isempty(v)
-        return []
+        return Int[]
     end
 
     sort!(v)
@@ -483,6 +487,13 @@ takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    if isempty(subsystems)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystems == collect(1:N)
+        # If subsystems is all sites, return the full density matrix
+        return state* state' # Full density matrix
+    end
+
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
     @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
     
@@ -573,14 +584,23 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
-# # create Fibonacci basis composed of multiple disjoint chains with different basis type
-# function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
-#     return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlisA, lengthlisB))
-# end
+# create Fibonacci basis composed of multiple disjoint chains with different basis type
+function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int}, pbc::Bool=false;measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo)
+    lisA = sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_classA), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_classB), process_join, lengthlisB))
+    return vec([join(j, i) for i in lisA, j in lisB])
+end
 
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    @assert all(subsystemsB .<= N2) "subsystemsB is expected to be in [1, $N2], but got $(subsystemsB)"
+    if isempty(subsystemsA) && isempty(subsystemsB)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystemsA == collect(1:N1) && subsystemsB == collect(1:N2)
+        return state * state'
+    end
+
     unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
     unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
     lenubasisA = length(unsorted_basisA)
@@ -590,17 +610,30 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
-    subsystems = vcat(subsystemsA, subsystemsB.+N1) # add the second half of the system to the subsystems
-    subsystems=connected_components(subsystems)
-    lengthlis=length.(subsystems)
-    subsystems=vcat(subsystems...)
-    # mask = bmask(newT, subsystems...)
     mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
     
-    
+    subsystemsB = subsystemsB.+N1 # add the second half of the system to the subsystems
+    @show typeof(subsystemsA), typeof(subsystemsB)
+    subsystemsA = connected_components(subsystemsA)
+    subsystemsB = connected_components(subsystemsB)
+    subsystems = vcat(subsystemsA, subsystemsB)
+    @show typeof(subsystems)
+    lengthlis = length.(subsystems)
+    lengthlisA = length.(subsystemsA)
+    lengthlisB = length.(subsystemsB)
+    subsystemsA = vcat(subsystemsA...)
+    subsystemsB = vcat(subsystemsB...)
+    @show typeof(subsystemsA), typeof(subsystemsB)
+
+    if isempty(subsystemsA) || isempty(subsystemsB)
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
+    else
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
+    end
+
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
     basis, state = doublebasis[order], state[order]
-    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
+    
     len = length(reduced_basis)
     
     # Initialize the reduced density matrix

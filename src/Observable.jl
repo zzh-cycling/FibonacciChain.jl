@@ -351,15 +351,19 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
     
+    statelis = Vector{Vector{ET}}(undef, D)
+
     state = initial_state
     for layer in 1:time_slice1
         state = apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, measure_class = measure_class)
+        statelis[layer] = copy(state)
     end
 
     state_addref1 = add_reference_qubits!(N, state, site, pbc=pbc, measure_class=measure_class)
 
     for layer in (time_slice1+1):time_slice2
         state_addref1 = reference_apply_measurement_layer!(N, state_addref1, τ, sample[layer, :], layer, pbc, k_old=1, measure_class = measure_class)
+        statelis[layer] = copy(state_addref1)
     end
 
     state_addref2 = add_reference_qubits!(N, state_addref1, site, pbc=pbc, measure_class=measure_class)
@@ -367,6 +371,7 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     for layer in (time_slice2+1):D
         τ_eff = (layer == D) ? τ/2 : τ
         state_addref2 = reference_apply_measurement_layer!(N, state_addref2, τ_eff, sample[layer, :], layer, pbc, k_old=2, measure_class = measure_class)
+        statelis[layer] = copy(state_addref2)
     end
 
     ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, measure_class=measure_class)
@@ -374,5 +379,5 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, measure_class=measure_class)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
-    return correlation
+    return correlation, statelis
 end
