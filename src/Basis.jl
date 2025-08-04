@@ -610,23 +610,34 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
+    # subsystems = vcat(subsystemsA, subsystemsB.+N1) # add the second half of the system to the subsystems
+    # @show subsystems
+    # subsystems=connected_components(subsystems)
+    # lengthlis=length.(subsystems)
+    # subsystems=vcat(subsystems...)
+    # @show subsystems
+    # reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
+    # @show joint_basis(lengthlis)
     mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
     
-    subsystemsB = subsystemsB.+N1 # add the second half of the system to the subsystems
-    @show typeof(subsystemsA), typeof(subsystemsB)
-    subsystemsA = connected_components(subsystemsA)
-    subsystemsB = connected_components(subsystemsB)
-    subsystems = vcat(subsystemsA, subsystemsB)
-    @show typeof(subsystems)
+    
+    subsystems = vcat(subsystemsA, subsystemsB .+N1)
+    subsystems = FibonacciChain.connected_components(subsystems)
     lengthlis = length.(subsystems)
+    subsystems = vcat(subsystems...)
+    
+    subsystemsB = subsystemsB.+N1 # add the second half of the system to the subsystems
+    subsystemsA = FibonacciChain.connected_components(subsystemsA)
+    subsystemsB = FibonacciChain.connected_components(subsystemsB)
     lengthlisA = length.(subsystemsA)
     lengthlisB = length.(subsystemsB)
     subsystemsA = vcat(subsystemsA...)
     subsystemsB = vcat(subsystemsB...)
-    @show typeof(subsystemsA), typeof(subsystemsB)
 
-    if isempty(subsystemsA) || isempty(subsystemsB)
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
+    if isempty(subsystemsA)
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class = measure_classA), Ref(subsystems))
+    elseif isempty(subsystemsB)
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class = measure_classB), Ref(subsystems))
     else
         reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
     end

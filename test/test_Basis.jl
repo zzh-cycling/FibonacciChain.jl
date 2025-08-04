@@ -193,6 +193,7 @@ end
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
     
     rdm = reference_rdm(N, [1], add_site1)
+    disjoint_rdm(BitStr{N, Int}, BitStr{1, Int}, Int[], [1], add_site1, measure_classB=:IsingX) == rdm
     @test rdm == [0.75 0.0; 0.0 0.25]
 
     full_st = zeros(2^(N+1))
@@ -301,12 +302,34 @@ end
     subsystemsB = [1, 2]
     
     rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
-    @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
+    @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 
     rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
-    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+    @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
 
     rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
-    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+    @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
+end
+
+@testset "disjoint_rdm_mixed" begin
+    N1 = 4
+    N2 = 4
+    T1 = BitStr{N1}
+    T2 = BitStr{N2}
+    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2, measure_class = :IsingX))); state[1] = 1; state[end] = 1
+    state = state ./ norm(state)  # Normalize the state
+    subsystemsA = [1, 2]
+    subsystemsB = [1, 2]
+    
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classB=:IsingX)
+    @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
+    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+    
+    # Test for one subsystem is empty
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classB=:IsingX)
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5]
 end
