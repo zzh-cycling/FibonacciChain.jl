@@ -540,6 +540,60 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
 end
 rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
 
+function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, ρ::Matrix{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+    if isempty(subsystems)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystems == collect(1:N)
+        # If subsystems is all sites, return the full density matrix
+        return ρ # Full density matrix
+    end
+
+    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
+    @assert length(unsorted_basis) == length(ρ) "ρ length is expected to be $(length(unsorted_basis)), but got $(length(ρ))"
+    
+    subsystems=connected_components(subsystems)
+    lengthlis=length.(subsystems)
+    subsystems=vcat(subsystems...)
+    # mask = bmask(T, subsystems...)
+    mask = bmask(T, (N .-subsystems .+1)...)
+
+    
+    order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
+    basis, ρ = unsorted_basis[order], ρ[order, order]
+    
+    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
+    # TIPS: mask must have common non-zero part with reduced_basis (thus for comparing)
+    len = length(reduced_basis)
+    # Initialize the reduced density matrix
+    reduced_dm = zeros(ET, (len, len))
+
+    # Keep track of indices where the key changes
+    result_indices = Int[]
+    current_key = -1
+    for (idx, i) in enumerate(basis)
+        key = takeenviron(i, mask)  # Get environment l bits
+        if key != current_key
+            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
+            push!(result_indices, idx)
+            current_key = key
+        end
+    end
+
+    # Add the final index to get complete ranges
+    push!(result_indices, length(basis) + 1)
+
+    for i in 1:length(result_indices)-1
+        range = result_indices[i]:result_indices[i+1]-1         
+        # Get indices in the reduced basis
+        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
+        view(reduced_dm, indices, indices) .+= view(ρ, range) .* view(ρ, range)'
+    end
+
+    return reduced_dm
+end
+rdm_Fibo(N::Int, subsystems::Vector{Int64}, ρ::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, ρ, pbc; measure_class=measure_class)
+
 function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
@@ -585,15 +639,17 @@ end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
-function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int}, pbc::Bool=false;measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo)
-    lisA = sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_classA), process_join, lengthlisA))
-    lisB = sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_classB), process_join, lengthlisB))
+function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo)
+    # subpbc is used to indicate whether the subsystem is periodic or not
+    lisA = sort(mapreduce(len -> Fibonacci_basis(len, subApbc, measure_class=measure_classA), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> Fibonacci_basis(len, subBpbc, measure_class=measure_classB), process_join, lengthlisB))
     return vec([join(i, j) for i in lisA for j in lisB])
 end
 
-function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
     @assert all(subsystemsB .<= N2) "subsystemsB is expected to be in [1, $N2], but got $(subsystemsB)"
     if isempty(subsystemsA) && isempty(subsystemsB)
         return ones(ET, 1, 1) # Return empty matrix if no subsystems
@@ -610,14 +666,6 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
-    # subsystems = vcat(subsystemsA, subsystemsB.+N1) # add the second half of the system to the subsystems
-    # @show subsystems
-    # subsystems=connected_components(subsystems)
-    # lengthlis=length.(subsystems)
-    # subsystems=vcat(subsystems...)
-    # @show subsystems
-    # reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
-    # @show joint_basis(lengthlis)
     mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
     
     
@@ -635,11 +683,12 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     subsystemsB = vcat(subsystemsB...)
 
     if isempty(subsystemsA)
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class = measure_classB), Ref(subsystems))
+        # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, measure_classB
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubBpbc, measure_class = measure_classB), Ref(subsystems))
     elseif isempty(subsystemsB)
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class = measure_classA), Ref(subsystems))
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubApbc, measure_class = measure_classA), Ref(subsystems))
     else
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
     end
 
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
@@ -673,19 +722,29 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc)
+disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true, totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {ET} = 
+disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
+totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
+measure_classA=measure_classA, measure_classB=measure_classB)
 
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    # N is the particle number of system, while k_old is the number of reference qubit, which is deduced from the state length.
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
     len_F   = length(unsorted_basis)
     k_old = round(Int, log2(length(state) ÷ len_F))
     
     length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
     @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
-
-    return disjoint_rdm(BitStr{k_old, Int}, T, subsystems, Int[], state, pbc; measure_classA=:IsingX, measure_classB=measure_class)
+    if traceref
+        # If traceref is true, we need to trace out the reference qubit. otherwise, we trace out system.
+        return disjoint_rdm(BitStr{k_old, Int}, T, subsystems, Int[], state, pbc; measure_classA=:IsingX, measure_classB=measure_class)
+    else
+        totalsubBpbc = (length(subsystems) == N) ? true : false
+        return disjoint_rdm(BitStr{k_old, Int}, T, Int[], subsystems, state, pbc; measure_classA=:IsingX, totalsubBpbc=totalsubBpbc, measure_classB=measure_class)
+    end
+   
   
 end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class)
+reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=false) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)

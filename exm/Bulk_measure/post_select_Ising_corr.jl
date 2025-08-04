@@ -214,3 +214,17 @@ else
     D, _, _ = get_system_params(τ, L)
     compute_post_selection(L, τ, D)
 end
+
+function trace_distance(ρ1, ρ2)
+    diff = ρ1 - ρ2
+    # 迹距离 = 1/2 * ||ρ1 - ρ2||₁
+    return 0.5 * tr(sqrt(diff' * diff))
+end
+
+function fidelity(ρ1, ρ2)
+    # 对于密度矩阵，保真度定义为 F(ρ1,ρ2) = tr(√(√ρ1 * ρ2 * √ρ1))²
+    # 简化计算：
+    sqrt_ρ1 = sqrt(ρ1)
+    F = tr(sqrt(sqrt_ρ1 * ρ2 * sqrt_ρ1))^2
+    return real(F)
+end

@@ -379,5 +379,5 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, measure_class=measure_class)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
-    return correlation
+    return correlation, statelis
 end

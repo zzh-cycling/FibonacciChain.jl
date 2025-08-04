@@ -221,6 +221,7 @@ end
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, measure_class = measure_class)
     
     rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
+    rdm_system = reference_rdm(N, [2, 3], add_site1, measure_class = measure_class)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
   
 
@@ -303,14 +304,14 @@ end
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
     
-    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
     @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 
-    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
     @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
 
-    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
     @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
 end
 
