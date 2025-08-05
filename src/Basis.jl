@@ -369,7 +369,7 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) w
     return H
 end
 Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class)
-
+# Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
     #params: t is an integer, N is the length of the binary string

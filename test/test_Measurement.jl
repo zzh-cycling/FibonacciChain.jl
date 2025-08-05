@@ -208,6 +208,23 @@ end
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 end
 
+@testset "Temperley Lieb algebra" begin
+    N = 8
+    T = BitStr{N, Int}
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+    Xlis = ϕ .* [FibonacciChain.measure_matrix(T, τ, idx, 1) for idx in 1:N]
+
+    # X_i ^2 = d X_i
+    @test all(Xlis[i] * Xlis[i] ≈ ϕ .* Xlis[i] for i in 1:N)
+    # X_i * X_{i+1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i+1] * Xlis[i] ≈ Xlis[i] for i in 1:N-1)
+    # X_i * X_{i-1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i-1] * Xlis[i] ≈ Xlis[i] for i in 2:N)
+    # [X_i, X_{j}] = 0, |i-j|>=2
+    @test all(Xlis[i] * Xlis[j] ≈ Xlis[j] * Xlis[i] for i in 1:N for j in i+2:N-1)
+end
+
 @testset "measuremap" begin
     N = 3
     T = BitStr{N, Int}

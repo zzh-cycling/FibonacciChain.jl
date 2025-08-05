@@ -191,8 +191,8 @@ end
 function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
-    1>= k_new >= 0 || error("k_new must be in [0,1]")
-
+    1 >= k_new >= 0 || error("k_new must be in [0,1]")
+    # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
     basis_F = Fibonacci_basis(N, pbc, measure_class=measure_class)
     len_F   = length(basis_F)
     l = length(state)
@@ -247,7 +247,7 @@ function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, s
 end
 
 function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true;k_old::Int64=1,measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
-    # input a superposition state with reference qubit, and output the measured state
+    # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2), in contrast to reference_measure_basismap

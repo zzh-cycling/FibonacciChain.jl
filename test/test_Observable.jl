@@ -548,6 +548,42 @@ end
     @test output33 == add_st
 end
 
+@testset "reference_map and and correlation" begin
+    # Finish test on reference_map. Should give the same correlation as directly applying measurement 
+    # Then for layermap. using layermap to map initial state then compute correlation. Then use refrence_map traceout reference qubit to obtain correlation matrix. Check whether they are same. Then finally check time correlation
+    N=8
+    τ = 1000.0
+    sign = 1
+    pbc = true
+    k_old = 1
+    sample = zeros(Int, length(2:2:N))
+
+    # M|ψ> should give the same correlation as M'|ψ,r>
+    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    measure_st = measuremap(N, τ, st, 1, sign, pbc)
+
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    measure_add_st = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1)
+    ρ_add_st = reference_rdm(N, collect(1:N), measure_add_st, traceref=false)
+    @test [spatial_correlation(N, measure_st, i, j) for i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_add_st, i, j) for i in 1:N for j in 1:N if i != j]
+
+    # M1M2|ψ> should give the same correlation as M'1M'2|ψ,r>
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 2, k_new=1)
+    measure_add_st2 = FibonacciChain.reference_measuremap(N, τ, add_st2, 2, sign, pbc, k_old=2)
+    ρ_add_st2 = reference_rdm(N, collect(1:N), measure_add_st2, traceref=false)
+    @test [spatial_correlation(N, measure_st, i, j) for
+        i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_add_st2, i, j) for i in 1:N for j in 1:N if i != j]
+    
+    measure_lis = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
+    measure_lis_add1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
+    ρ_lis_add1 = reference_rdm(N, collect(1:N), measure_lis_add1, traceref=false)
+    @test [spatial_correlation(N, measure_lis, i, j) for i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_lis_add1, i, j) for i in 1:N for j in 1:N if i != j]
+
+    D = 100
+    statelis = generate_state(τ, st, zeros(Int, length(2:2:N), D), temp= true)
+    final_st= statelis[end]
+end
+
 @testset "reference_apply_measurement_layer" begin
     N=8
     τ = 1000.0
