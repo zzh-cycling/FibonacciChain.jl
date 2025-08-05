@@ -188,53 +188,6 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
     return extended_basis
 end
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
-function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
-    # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
-    @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
-    1 >= k_new >= 0 || error("k_new must be in [0,1]")
-    # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
-    basis_F = Fibonacci_basis(N, pbc, measure_class=measure_class)
-    len_F   = length(basis_F)
-    l = length(state)
-    
-
-    # old reference qubit number, k_old
-    k_old = round(Int, log2(length(state) ÷ len_F))
-    length(state) == (2^k_old * len_F) ||
-        error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
-    @assert k_old >= 0 "k_old must be non-negative, but got $(k_old)"
-    
-    # new reference prefix
-    k_total = k_old + k_new
-    new_dim = 2^k_total * len_F
-    new_state = zeros(ET, new_dim)
-    extended_basis = build_extended_basis(k_total, basis_F)
-
-    inds = [i for i in 1:l*k_new if extended_basis[i][N- site_idx + 1]==0]
-
-    co_inds = setdiff(1:l, inds)
-    offset = length(state)   # new k_new qubit starting position
-
-    new_state[inds] = state[inds]
-    new_state[co_inds .+ offset] = state[co_inds]
-
-    return new_state
-end
-
-function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
-    # Calculate the spatial correlation between two sites in a given state
-    @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
-    @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
-    @assert site1 != site2 "Site1 and Site2 must be different"
-
-    ρ1 = rdm_Fibo(N, [site1], state, pbc, measure_class=measure_class)
-    ρ2 = rdm_Fibo(N, [site2], state, pbc, measure_class=measure_class)
-    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, measure_class=measure_class)
-    
-    correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
-
-    return correlation
-end
 
 function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # default for PBC system, map basis
@@ -248,9 +201,17 @@ end
 
 function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true;k_old::Int64=1,measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+    if measure_class == :Fibo
+        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif measure_class == :IsingZZ
+        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
+    elseif measure_class ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
+    else
+        error("Unknown measure class: $measure_class")
+    end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2), in contrast to reference_measure_basismap
+    # @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2), in contrast to reference_measure_basismap
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
     
@@ -335,6 +296,67 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     end
     
     return temp ? statelis : state
+end
+
+function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+    # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
+    @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
+    1 >= k_new >= 0 || error("k_new must be in [0,1]")
+    # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
+    basis_F = Fibonacci_basis(N, pbc, measure_class=measure_class)
+    len_F   = length(basis_F)
+    l = length(state)
+    
+
+    # old reference qubit number, k_old
+    k_old = round(Int, log2(length(state) ÷ len_F))
+    length(state) == (2^k_old * len_F) ||
+        error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
+    @assert k_old >= 0 "k_old must be non-negative, but got $(k_old)"
+    
+    # new reference prefix
+    k_total = k_old + k_new
+    new_dim = 2^k_total * len_F
+    new_state = zeros(ET, new_dim)
+    extended_basis = build_extended_basis(k_total, basis_F)
+    
+    resettype = (measure_class ∈ (:Fibo,)) ? :resetFibo : :reset
+    state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, measure_class = resettype)
+    prob_sqrt0 = state_after_0' * state_after_0
+    prob_sqrt1 = 1 - prob_sqrt0
+    random_number = rand(rng)  
+
+    if random_number < prob_sqrt0
+        current_state = state_after_0 ./ sqrt(prob_sqrt0)
+    else
+        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, k_old=k_old, measure_class = resettype)
+        current_state = state_after_1 ./ sqrt(prob_sqrt1)
+    end
+    @show current_state
+    inds = [i for i in 1:l*k_new if extended_basis[i][N- site_idx + 1]==0]
+
+    co_inds = setdiff(1:l, inds)
+    offset = length(state)   # new k_new qubit starting position
+
+    new_state[inds] = current_state[inds]
+    new_state[co_inds .+ offset] = current_state[co_inds]
+
+    return new_state
+end
+
+function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+    # Calculate the spatial correlation between two sites in a given state
+    @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
+    @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
+    @assert site1 != site2 "Site1 and Site2 must be different"
+
+    ρ1 = rdm_Fibo(N, [site1], state, pbc, measure_class=measure_class)
+    ρ2 = rdm_Fibo(N, [site2], state, pbc, measure_class=measure_class)
+    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, measure_class=measure_class)
+    
+    correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
+
+    return correlation
 end
 
 function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET, T}

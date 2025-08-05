@@ -175,7 +175,10 @@ end
     @test Mmpbc == expected_matrix 
     @test Mppbc^2+Mmpbc^2 ≈ I(4) 
 
-
+    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, measure_class=:reset) 
+    @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, measure_class=:reset) # pbc
+    @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
 end
 
 @testset "measure_matrix" begin

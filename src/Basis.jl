@@ -104,7 +104,7 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
-    if measure_class == :Fibo
+    if measure_class ∈ (:Fibo, :resetFibo)
         # Generate Fibonacci chain basis
         # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
         if pbc
@@ -125,7 +125,7 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
         end
     
         return sorted_basis
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
+    elseif measure_class ∈ (:IsingX, :IsingZZ, :IsingZ, :reset)
         # Generate basis for Ising model
         return [T(i) for i in 0:(2^N - 1)]
     else

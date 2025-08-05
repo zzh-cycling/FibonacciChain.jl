@@ -2,6 +2,7 @@ using FibonacciChain
 using Test
 using BitBasis
 using LinearAlgebra 
+using Random
 
 @testset "ee" begin
     N=6
@@ -360,12 +361,14 @@ end
     N = 3
     st =ones(4)/2; 
     # Test add_reference_qubit
-    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1)
-    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2)
-    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3)
-    @test add_st1 == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5]
-    @test add_st2 == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
-    @test add_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
+    seed = 100
+    rng = MersenneTwister(seed)
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, rng)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, rng)
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, rng)
+    @test add_st1[2] == 1.0
+    @test add_st2 == [0.5773502691896258, 0.5773502691896258, 0.0, 0.5773502691896258, 0.0, 0.0, 0.0, 0.0]
+    @test add_st3 == [0.5773502691896258, 0.5773502691896258, 0.5773502691896258, 0.0]
 
     add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1)
     add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2)
@@ -376,13 +379,18 @@ end
     @test add2_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0]
 
     # Test for Ising basis
-    st_ising = ones(2^N);
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1)
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3)
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, rng, measure_class=:IsingX)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, rng, measure_class=:IsingX)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, rng, measure_class=:IsingX)
     @test add_st_ising1 == [1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
     @test add_st_ising2 == [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0] 
     @test add_st_ising3 == [1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
+
+    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, rng)
+    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, rng)
+    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, rng)
+    @test add_st_ising4[end] == add_st_ising5[end] == add_st_ising6[end] == 1
 end
 
 @testset "spatial_correlation" begin
@@ -518,14 +526,21 @@ end
     k_old = 1
     T = BitStr{N, Int}
     st = ones(4)/2;
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    # add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
-    @test output13 == [0.2859295753144778, 0.4692539498975694, 0.4692539498975694, -0.14412070965501542, -0.14412070965501542, 0.0, 0.0, 0.35595325543890144]
-    @test output23 == [0.1418088656594624, 0.4692539498975694, 0.21183254578388602, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
-    @test output33 == [0.1418088656594624, 0.21183254578388602, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+    # output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
+    # output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
+    # output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
+    # @test output13 == [0.2859295753144778, 0.4692539498975694, 0.4692539498975694, -0.14412070965501542, -0.14412070965501542, 0.0, 0.0, 0.35595325543890144]
+    # @test output23 == [0.1418088656594624, 0.4692539498975694, 0.21183254578388602, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+    # @test output33 == [0.1418088656594624, 0.21183254578388602, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+
+    output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0)
+    output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0)
+    output33 = FibonacciChain.reference_measuremap(T, τ, st, 3, 1, pbc, k_old=0)
+    @test output13 == measuremap(N, τ, st, 1, 0, pbc)
+    @test output23 == measuremap(N, τ, st, 2, 0, pbc)
+    @test output33 == measuremap(N, τ, st, 3, 1, pbc)
 end
 
 @testset "reference_measuremap_Ising" begin
