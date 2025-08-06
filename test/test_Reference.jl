@@ -41,24 +41,41 @@ end
 
 @testset "add_reference_qubits" begin
     N = 3
-    st =ones(4)/2; 
-    # Test add_reference_qubit
+    st = ones(4)/2; 
+    # Test add_reference_qubit with Proj 0
+    seed = 90
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(seed))
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, MersenneTwister(seed))
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, MersenneTwister(seed))
+    @test add_st1 ≈ [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5] 
+    @test add_st2 ≈ [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
+    @test add_st3 ≈ [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
+
+    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, MersenneTwister(seed))
+    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
+    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
+
+    @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
+
     seed = 100
-    rng = MersenneTwister(seed)
-    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, rng)
-    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, rng)
-    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, rng)
-    @test add_st1[2] == 1.0
-    @test add_st2 == [0.5773502691896258, 0.5773502691896258, 0.0, 0.5773502691896258, 0.0, 0.0, 0.0, 0.0]
-    @test add_st3 == [0.5773502691896258, 0.5773502691896258, 0.5773502691896258, 0.0]
+    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, MersenneTwister(seed))
+    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
+    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
 
-    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1)
-    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2)
-    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3)
+    @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
 
-    @test add2_st1 == [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
-    @test add2_st2 == [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0]
-    @test add2_st3 == [0.5, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0]
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(seed))
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, MersenneTwister(seed))
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, MersenneTwister(seed))
+    @test add_st1 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475]
+    @test add_st2 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475, 0.0] 
+    @test add_st3 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475, 0.0, 0.0]
+
+
 
     # Test for Ising basis
     st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state

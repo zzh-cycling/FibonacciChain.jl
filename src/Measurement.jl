@@ -1,5 +1,5 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # default for PBC system, map basis (not state!!!)
+    # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
     
@@ -108,7 +108,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
             coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
         end
 
-        return state, (state[i] == 0) ? cstτ + coef : cstτ - coef
+        return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
     else
         error("Unknown measure class: $measure_class")
     end
@@ -654,7 +654,7 @@ end
 
 function bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
     """
-    Distort the measurement trajectories based on a Bayesian distortion factor γ.
+    Distort the measurement trajectories based on a Bayesian distortion factor γ. Noting that it only works for one layer measurement to generate new sample for the other factor γ based on Projective limit measurement.
     
     This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
     P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2

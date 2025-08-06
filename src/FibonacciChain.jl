@@ -11,7 +11,7 @@ export Fibonacci_Ham_sparse
 # MPS-based functions
 export fibonacci_mps_ground_state, fibonacci_hamiltonian_mps, measurement_operator_mps, apply_measurement_mps, generate_state_mps
 export initial_mps, mps_measurement_enumeration, mps_boundary_measure, mps_bulk_measurement, ee_mps, eelis_Fibo_mps
-export add_reference_qubits!, reference_measuremap, spatial_correlation, temporal_correlation, reference_generate_state
+export add_reference_qubits!, reference_measuremap, spatial_correlation, temporal_correlation, reference_generate_state, build_extended_basis
 
 include("Basis.jl") 
 include("Observable.jl")

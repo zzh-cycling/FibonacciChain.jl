@@ -80,6 +80,14 @@ using Random
     @test output[3] == (T(bit"010"), cstτ+coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] === nothing
+
+    output = measure_basismap.(T, 1000.0, basis0, idx, sign, measure_class=:resetFibo)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), 1.0)
+    @test output[2] == (T(bit"001"), 0.0)
+    @test output[3] == (T(bit"010"), 1.0)
+    @test output[4] == (T(bit"100"), 1.0)
+    @test output[5] == (T(bit"101"), 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin

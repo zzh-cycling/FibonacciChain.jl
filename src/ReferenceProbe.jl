@@ -140,29 +140,56 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     new_dim = 2^k_total * len_F
     new_state = zeros(ET, new_dim)
     extended_basis = build_extended_basis(k_total, basis_F)
+    extended_basis_old = build_extended_basis(k_old, basis_F)
+    T = BitStr{N + k_old, Int}
+    fl=bmask(T, N)
+    mask = bmask(BitStr{N+k_total, Int}, 1:N...)
+    X(state,i) = flip(state, fl >> (i-1))
     
+    offset = length(state)   # new k_new qubit starting position
+    # NEED to do RESET qubit to 0!!! then concat with the new reference qubit. 
     resettype = (measure_class ∈ (:Fibo,)) ? :resetFibo : :reset
     state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, measure_class = resettype)
     prob_sqrt0 = state_after_0' * state_after_0
     prob_sqrt1 = 1 - prob_sqrt0
     random_number = rand(rng)  
-
+    @show prob_sqrt0, random_number
+    # random_number = 0.1
+    
     if random_number < prob_sqrt0
         current_state = state_after_0 ./ sqrt(prob_sqrt0)
+        
+        # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed_inds is the indices of the flipped basis that exists in the constraint Hilbert space.
+        inds = [i for i in 1:l*k_new if extended_basis_old[i][N- site_idx + 1]==0]
+
+        @show inds
+        flipped_basis = X.(extended_basis_old[inds], site_idx)
+        flipped_inds = indexin(flipped_basis, T.(takesystem.(extended_basis, mask)))
+        existed_inds = findall(!isnothing, flipped_inds)
+        
+        flipped_inds = flipped_inds[existed_inds] .+ offset
+        new_state[inds] = current_state[inds]
+        new_state[flipped_inds] = current_state[existed_inds]
+        new_state ./= norm(new_state)
+        return new_state
     else
         state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, k_old=k_old, measure_class = resettype)
         current_state = state_after_1 ./ sqrt(prob_sqrt1)
+
+        inds = [i for i in 1:l*k_new if extended_basis_old[i][N- site_idx + 1]==1]
+    
+        flipped_basis = X.(extended_basis_old[inds], site_idx)
+        flipped_inds = indexin(flipped_basis, T.(takesystem.(extended_basis, mask)))
+        existed_inds = findall(!isnothing, flipped_inds)
+
+        flipped_inds = flipped_inds[existed_inds]
+        new_state[inds .+ offset] = current_state[inds]
+        new_state[flipped_inds] = current_state[inds]
+        new_state ./= norm(new_state)
+
+        return new_state
     end
-    @show current_state
-    inds = [i for i in 1:l*k_new if extended_basis[i][N- site_idx + 1]==0]
 
-    co_inds = setdiff(1:l, inds)
-    offset = length(state)   # new k_new qubit starting position
-
-    new_state[inds] = current_state[inds]
-    new_state[co_inds .+ offset] = current_state[co_inds]
-
-    return new_state
 end
 
 function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
