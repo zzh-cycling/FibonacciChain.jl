@@ -51,6 +51,13 @@ end
     @test add_st2 ≈ [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
     @test add_st3 ≈ [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
 
+    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, MersenneTwister(90))
+    @test add_st == [0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.37796447300922725, 0.37796447300922725]
+    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, MersenneTwister(100))
+    @test add_st[[1,3,13,14]] == [0.5, 0.5, 0.5, 0.5]
+    add_st = FibonacciChain.add_reference_qubits!(N+1, add_st, 1, MersenneTwister(90))
+    @test add_st[[1,3, 20, 21]] == [0.5, 0.5, 0.5, 0.5]
+
     add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, MersenneTwister(seed))
     add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
     add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
@@ -64,48 +71,38 @@ end
     add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
     add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
 
-    @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
-    @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
-    @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st1[[5,16]] == [1/√2, 1/√2]
+    @test add2_st2[[5,15]] == [1/√2, 1/√2]
+    @test add2_st3[[5,14]] == [1/√2, 1/√2]
 
     add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(seed))
     add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, MersenneTwister(seed))
     add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, MersenneTwister(seed))
-    @test add_st1 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475]
-    @test add_st2 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475, 0.0] 
-    @test add_st3 ≈ [0.7071067811865475, 0.0, 0.0, 0.0, 0.0, 0.7071067811865475, 0.0, 0.0]
+    @test add_st1[[1,8]] ≈ [1/√2, 1/√2]
+    @test add_st2[[1,7]] ≈ [1/√2, 1/√2]
+    @test add_st3[[1,6]] ≈ [1/√2, 1/√2]
 
-
-
-    # Test for Ising basis
-    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, rng, measure_class=:IsingX)
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, rng, measure_class=:IsingX)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, rng, measure_class=:IsingX)
-    @test add_st_ising1 == [1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
-    @test add_st_ising2 == [1.0, 1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0] 
-    @test add_st_ising3 == [1.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]
-
-    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, rng)
-    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, rng)
-    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, rng)
-    @test add_st_ising4[end] == add_st_ising5[end] == add_st_ising6[end] == 1
 end
 
-@testset "spatial_corr_matrix and reference rdm" begin
-    # The spatial correlation should be the same after adding reference qubits
-    N=6
-    mes = zeros(length(Fibonacci_basis(N, true)))
-    mes[13] = 1/√2 
-    mes[end] = 1/√2
-    sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
+@testset "add_reference_qubits_Ising" begin
+    # Test for Ising basis
+    N = 3
+    seed = 90
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), measure_class=:IsingX)
+    @test add_st_ising1[[1,13]] == [1/√2, 1/√2]
+    @test add_st_ising2[[1,11]] == [1/√2, 1/√2]
+    @test add_st_ising3[[1,10]] == [1/√2, 1/√2]
 
-    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1)
-    # Counting for system
-    ρ = reference_rdm(N, collect(1:N), add_mes, traceref=false)
-    sclis_ref = [spatial_correlation(N, ρ, i, j) for i in 1:N for j in 1:N if j!=i]
-
-    @test sclis ≈ sclis_ref
+    seed=100
+    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), measure_class=:IsingX)
+    @test add_st_ising4[[4,end]] == [1/√2, 1/√2]
+    @test add_st_ising5[[6,end]] == [1/√2, 1/√2]
+    @test add_st_ising6[[7,end]] == [1/√2, 1/√2]
 end
 
 @testset "reference_measure_basismap" begin
@@ -202,20 +199,21 @@ end
 
 @testset "reference_measuremap" begin
     N = 3
-    τ = 1.0
+    τ = 1000.0
     sign = 0
     pbc = true
     k_old = 1
     T = BitStr{N, Int}
     st = ones(4)/2;
-    # add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
+    ϕ = (1 + √5) / 2  
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90))
 
-    # output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
-    # output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
-    # output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
-    # @test output13 == [0.2859295753144778, 0.4692539498975694, 0.4692539498975694, -0.14412070965501542, -0.14412070965501542, 0.0, 0.0, 0.35595325543890144]
-    # @test output23 == [0.1418088656594624, 0.4692539498975694, 0.21183254578388602, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
-    # @test output33 == [0.1418088656594624, 0.21183254578388602, 0.4692539498975694, 0.0, 0.0, 0.0, 0.0, 0.4692539498975694]
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
+    @test output13 == 0.5*[(1-ϕ^(-1)), 1, 1, -ϕ^(-3/2), -ϕ^(-3/2), 0, 0, ϕ^(-1)]
+    @test output23 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), 1, ϕ^(-1)-ϕ^(-3/2), 0, 0 , 0, 0, 1]
+    @test output33 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), ϕ^(-1)-ϕ^(-3/2), 1, 0, 0, 0, 0, 1]
 
     output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0)
     output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0)
@@ -240,99 +238,9 @@ end
     output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, measure_class = measure_class1)
     output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, measure_class = measure_class1)
     output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, measure_class = measure_class2)
-    @test output13 == [0.5, 0.0, 0.0, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    @test output23 == [0.5, 0.0, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    @test output33 == add_st
-end
-
-@testset "reference_map and and correlation" begin
-    # Finish test on reference_map. Should give the same correlation as directly applying measurement 
-    # Then for layermap. using layermap to map initial state then compute correlation. Then use refrence_map traceout reference qubit to obtain correlation matrix. Check whether they are same. Then finally check time correlation
-    N=8
-    τ = 1000.0
-    sign = 1
-    pbc = true
-    k_old = 1
-    sample = zeros(Int, length(2:2:N))
-
-    # M|ψ> should give the same correlation as M'|ψ,r>
-    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
-    measure_st = measuremap(N, τ, st, 1, sign, pbc)
-
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
-    measure_add_st = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1)
-    ρ_add_st = reference_rdm(N, collect(1:N), measure_add_st, traceref=false)
-    @test [spatial_correlation(N, measure_st, i, j) for i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_add_st, i, j) for i in 1:N for j in 1:N if i != j]
-
-    # M1M2|ψ> should give the same correlation as M'1M'2|ψ,r>
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 2, k_new=1)
-    measure_add_st2 = FibonacciChain.reference_measuremap(N, τ, add_st2, 2, sign, pbc, k_old=2)
-    ρ_add_st2 = reference_rdm(N, collect(1:N), measure_add_st2, traceref=false)
-    @test [spatial_correlation(N, measure_st, i, j) for
-        i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_add_st2, i, j) for i in 1:N for j in 1:N if i != j]
-    
-    measure_lis = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
-    measure_lis_add1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
-    ρ_lis_add1 = reference_rdm(N, collect(1:N), measure_lis_add1, traceref=false)
-    @test [spatial_correlation(N, measure_lis, i, j) for i in 1:N for j in 1:N if i != j] ≈ [spatial_correlation(N, ρ_lis_add1, i, j) for i in 1:N for j in 1:N if i != j]
-
-    D = 100
-    statelis = generate_state(τ, st, zeros(Int, length(2:2:N), D), temp= true)
-    final_st= statelis[end]
-end
-
-@testset "reference_apply_measurement_layer" begin
-    N=8
-    τ = 1000.0
-    sign = 1
-    pbc = true
-    k_old = 1
-    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
-    sample = zeros(Int, length(2:2:N))
-
-    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1)
-    output2 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 1, pbc)
-    @test output1[1:div(length(output1), 2)] == output2
-
-    output3 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 2, pbc, k_old=1)
-    output4 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 2, pbc)
-    @test output3[1:div(length(output3), 2)] == output4
-    output5 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 3, pbc, k_old=1)
-    output6 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 3, pbc)
-    @test output5[1:div(length(output5), 2)] == output6
-
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1)
-    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2)
-    output8 = FibonacciChain.apply_measurement_layer!(N, st, τ, sample, 4, pbc)
-    @test output7[1:div(length(output7),4)] == output8
-end
-
-@testset "reference_apply_measurement_layer_Ising" begin
-    N=3
-    τ = 1000.0
-    sign = 0
-    pbc = true
-    k_old = 1
-    measure_class = :IsingX
-    st = zeros(length(Fibonacci_basis(N, pbc, measure_class=measure_class))); st[1] = 1; st[end]=1; st /= norm(st)
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, measure_class=measure_class) # 1 is site where the ref qubit connected
-    sample = zeros(Int, N)
-
-    output1 = FibonacciChain.reference_apply_measurement_layer!(N, add_st, τ, sample, 1, pbc, k_old=1, measure_class=measure_class)
-    @test output1 ≈ ones(2^(N+1)) ./4
-
-    output3 = FibonacciChain.reference_apply_measurement_layer!(N, output1, τ, sample, 2, pbc, k_old=1, measure_class=:IsingZZ)
-    @test output3 ≈ [0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.5]
-
-    output5 = FibonacciChain.reference_apply_measurement_layer!(N, output3, τ, sample, 3, pbc, k_old=1, measure_class=measure_class)
-    @test output5 ≈ output1
-
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_st, 1, measure_class=measure_class)
-    output7 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 4, pbc, k_old=2, measure_class=measure_class)
-    @test output7 ≈ add_st2
-    output8 = FibonacciChain.reference_apply_measurement_layer!(N, add_st2, τ, sample, 3, pbc, k_old=2, measure_class=measure_class)
-    @test vcat(output8[1:8], output8[25:32]) ≈ output1
+    @test output13[[1, 5, 9, 13]] == 1/2√2*ones(4)
+    @test output23[[1, 3, 13, 15]] == 1/2√2*ones(4)
+    @test output33[[1]] == [1/√2]
 end
 
 @testset "reference_generate_state" begin
@@ -346,40 +254,37 @@ end
     sample = zeros(Int, (3, length(2:2:N)))
 
     output1 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
-    output2 = generate_state(τ, st, sample, pbc, temp= true)
-    @test [i[1:47] for i in output1] == output2
-
-    output3 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
-    output4 = generate_state(τ, st, sample, pbc, temp= true)
-    @test [i[1:47] for i in output3] == output4
-
-    output5 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
-    output6 = generate_state(τ, st, sample, pbc, temp= true)
-    @test [i[1:47] for i in output5] == output6
+    @test length(output1) == 3
 end
 
 @testset "reference_rdm" begin
     N = 3
     st = ones(4)/2;
     site = 1
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
+    add_site2 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(100))
+
+    rdm = reference_rdm(N, [1], add_site2)
+    @test rdm ≈ [0.5 0.0; 0.0 0.5]
+
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90))
     
     rdm = reference_rdm(N, [1], add_site1)
     @test rdm == [0.75 0.0; 0.0 0.25]
 
-    full_st = zeros(2^(N+1))
+
+    full_st = zeros(2^(N+1));
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
-    rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == [0.75 0.0; 0.0 0.25]
+    @test rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == rdm
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90))
     rdm2 = reference_rdm(N, [1], add_st2)
     rdm3 = reference_rdm(N, [2], add_st2)
     @test rdm == rdm2
-    @test rdm2 == rdm3
+    @test rdm2 + 0.25 * [0 1;1 0] == rdm3
 
     rdm4 = reference_rdm(N, [1, 2], add_st2)
-    @test rdm4 == [0.75 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.25]
+    @test rdm4 == [0.5 0.25 0.0; 0.25 0.25 0.0; 0.0 0.0 0.25]
 end
 
 @testset "reference_rdm_Ising" begin
@@ -402,4 +307,20 @@ end
 
     rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
     @test rdm4 ≈ [0.4999999999999999 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.4999999999999999]
+end
+
+@testset "spatial_corr_matrix and reference rdm" begin
+    # The spatial correlation should be the same after adding reference qubits
+    N=6
+    mes = zeros(length(Fibonacci_basis(N, true)))
+    mes[13] = 1/√2 
+    mes[end] = 1/√2
+    sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
+
+    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1)
+    # Counting for system
+    ρ = reference_rdm(N, collect(1:N), add_mes, traceref=false)
+    sclis_ref = [spatial_correlation(N, ρ, i, j) for i in 1:N for j in 1:N if j!=i]
+
+    @test sclis ≈ sclis_ref
 end

@@ -32,7 +32,6 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         error("Unknown measure class: $measure_class")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    # @assert k_old >= 1 "k_old must be at least 1, but got $(k_old)" # because join(bit"1", outputstate2), in contrast to reference_measure_basismap
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
     
@@ -146,50 +145,51 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     mask = bmask(BitStr{N+k_total, Int}, 1:N...)
     X(state,i) = flip(state, fl >> (i-1))
     
-    offset = length(state)   # new k_new qubit starting position
     # NEED to do RESET qubit to 0!!! then concat with the new reference qubit. 
     resettype = (measure_class ∈ (:Fibo,)) ? :resetFibo : :reset
     state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, measure_class = resettype)
     prob_sqrt0 = state_after_0' * state_after_0
     prob_sqrt1 = 1 - prob_sqrt0
     random_number = rand(rng)  
-    @show prob_sqrt0, random_number
-    # random_number = 0.1
     
     if random_number < prob_sqrt0
         current_state = state_after_0 ./ sqrt(prob_sqrt0)
         
-        # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed_inds is the indices of the flipped basis that exists in the constraint Hilbert space.
-        inds = [i for i in 1:l*k_new if extended_basis_old[i][N- site_idx + 1]==0]
-
-        @show inds
+        # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
+        inds = findall(x -> x!=0.0, current_state)
         flipped_basis = X.(extended_basis_old[inds], site_idx)
-        flipped_inds = indexin(flipped_basis, T.(takesystem.(extended_basis, mask)))
-        existed_inds = findall(!isnothing, flipped_inds)
+    
+        added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
         
-        flipped_inds = flipped_inds[existed_inds] .+ offset
+        flipped_inds = indexin(added_flipped_basis, extended_basis)
+        existed = findall(!isnothing, flipped_inds)
+        
+        flipped_inds = flipped_inds[existed]
         new_state[inds] = current_state[inds]
-        new_state[flipped_inds] = current_state[existed_inds]
+        new_state[flipped_inds] = current_state[inds[existed]]
         new_state ./= norm(new_state)
         return new_state
     else
         state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, k_old=k_old, measure_class = resettype)
         current_state = state_after_1 ./ sqrt(prob_sqrt1)
 
-        inds = [i for i in 1:l*k_new if extended_basis_old[i][N- site_idx + 1]==1]
-    
+        inds = findall(x -> x!=0.0, current_state)
         flipped_basis = X.(extended_basis_old[inds], site_idx)
-        flipped_inds = indexin(flipped_basis, T.(takesystem.(extended_basis, mask)))
-        existed_inds = findall(!isnothing, flipped_inds)
 
-        flipped_inds = flipped_inds[existed_inds]
+        # added_basis = join.(BitStr{1, Int}.(readbit.(extended_basis_old[inds], N-site_idx+1)), extended_basis_old[inds])
+        added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
+        
+        flipped_inds = indexin(added_flipped_basis, extended_basis)
+        existed = findall(!isnothing, flipped_inds)
+        
+        offset = l  # new k_new qubit starting position
+        flipped_inds = flipped_inds[existed]
         new_state[inds .+ offset] = current_state[inds]
-        new_state[flipped_inds] = current_state[inds]
+        new_state[flipped_inds] = current_state[inds[existed]]
         new_state ./= norm(new_state)
-
         return new_state
     end
-
+    
 end
 
 function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
