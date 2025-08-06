@@ -685,25 +685,3 @@ disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vect
 disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
 totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
 measure_classA=measure_classA, measure_classB=measure_classB)
-
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
-    # Usually subsystem indices count from the right of binary string.
-    # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    # N is the particle number of system, while k_old is the number of reference qubit, which is deduced from the state length.
-    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
-    len_F   = length(unsorted_basis)
-    k_old = round(Int, log2(length(state) ÷ len_F))
-    
-    length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
-    @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
-    if traceref
-        # If traceref is true, we need to trace out the reference qubit. otherwise, we trace out system.
-        return disjoint_rdm(BitStr{k_old, Int}, T, subsystems, Int[], state, pbc; measure_classA=:IsingX, measure_classB=measure_class)
-    else
-        totalsubBpbc = (length(subsystems) == N) ? true : false
-        return disjoint_rdm(BitStr{k_old, Int}, T, Int[], subsystems, state, pbc; measure_classA=:IsingX, totalsubBpbc=totalsubBpbc, measure_classB=measure_class)
-    end
-   
-  
-end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=false) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)
