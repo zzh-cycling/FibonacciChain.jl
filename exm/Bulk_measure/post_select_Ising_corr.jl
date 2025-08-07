@@ -87,12 +87,12 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, bloc
 
     spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, measure_class=measure_class)
 
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice, timeslice+block,  measure_class=:IsingX) for timeslice in 2:2:D-block]
+    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed, measure_class=:IsingX), measure_class=:IsingX) for timeslice in 2:2:D-block]
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
     # return temporal_corr_lis, spatial_corr_lis
 end
-
+# temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D20_ps0_2_seed100.jld", "temporal_corr_lis", "spatial_corr_lis")
 function get_system_params_corr(τ)
     if τ == log(1 + √2)
         D = 20
@@ -186,7 +186,7 @@ function alpha_compute_corr(L, τ)
 
     temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
 
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis[1:2:end] ./ spatial_corr)
+    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis ./ spatial_corr)
     Δt = (collect(1:2:length(temporal_corr_lis))./L)[inds][end-1]
     α = 2*log(1+√2)/π/Δt
     return α
