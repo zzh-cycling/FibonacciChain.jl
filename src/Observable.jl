@@ -179,7 +179,7 @@ braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = 
 
 
 function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
-    # Calculate the spatial correlation between two sites in a given state
+    # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
     @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
     @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
     @assert site1 != site2 "Site1 and Site2 must be different"
@@ -193,7 +193,7 @@ function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, sit
     return correlation
 end
 
-function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET, T}
+function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T, site::Int64, time_slice1::Int64, time_slice2::Int64; pbc::Bool=true, rng::MersenneTwister=MersenneTwister(), measure_class::Symbol=:Fibo) where {ET, T}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
     D = size(sample, 1)
     if measure_class == :Fibo
@@ -208,27 +208,27 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
     
-    statelis = Vector{Vector{ET}}(undef, D)
+    # statelis = Vector{Vector{ET}}(undef, D)
 
     state = initial_state
     for layer in 1:time_slice1
         state = apply_measurement_layer!(N, state, τ, sample[layer, :], layer, pbc, measure_class = measure_class)
-        statelis[layer] = copy(state)
+        # statelis[layer] = copy(state)
     end
 
-    state_addref1 = add_reference_qubits!(N, state, site, pbc=pbc, measure_class=measure_class)
+    state_addref1 = add_reference_qubits!(N, state, site, rng, pbc=pbc, measure_class=measure_class)
 
     for layer in (time_slice1+1):time_slice2
         state_addref1 = reference_apply_measurement_layer!(N, state_addref1, τ, sample[layer, :], layer, pbc, k_old=1, measure_class = measure_class)
-        statelis[layer] = copy(state_addref1)
+        # statelis[layer] = copy(state_addref1)
     end
 
-    state_addref2 = add_reference_qubits!(N, state_addref1, site, pbc=pbc, measure_class=measure_class)
+    state_addref2 = add_reference_qubits!(N, state_addref1, site, rng, pbc=pbc, measure_class=measure_class)
 
     for layer in (time_slice2+1):D
         τ_eff = (layer == D) ? τ/2 : τ
         state_addref2 = reference_apply_measurement_layer!(N, state_addref2, τ_eff, sample[layer, :], layer, pbc, k_old=2, measure_class = measure_class)
-        statelis[layer] = copy(state_addref2)
+        # statelis[layer] = copy(state_addref2)
     end
 
     ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, measure_class=measure_class)
@@ -236,5 +236,6 @@ function temporal_correlation(τ::Float64,  initial_state::Vector{ET}, sample::T
     ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, measure_class=measure_class)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
-    return correlation, statelis
+    # return correlation, statelis
+    return correlation
 end

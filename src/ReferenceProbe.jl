@@ -151,7 +151,7 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     prob_sqrt0 = state_after_0' * state_after_0
     prob_sqrt1 = 1 - prob_sqrt0
     random_number = rand(rng)  
-    
+    @show random_number, prob_sqrt0, prob_sqrt1
     if random_number < prob_sqrt0
         current_state = state_after_0 ./ sqrt(prob_sqrt0)
         
