@@ -202,6 +202,7 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
     
     length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
     @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
+
     if traceref
         # If traceref is true, we need to trace out the reference qubit. otherwise, we trace out system.
         return disjoint_rdm(BitStr{k_old, Int}, T, subsystems, Int[], state, pbc; measure_classA=:IsingX, measure_classB=measure_class)
@@ -212,4 +213,4 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
    
   
 end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=false) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)
+reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)

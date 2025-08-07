@@ -281,10 +281,10 @@ end
     rdm2 = reference_rdm(N, [1], add_st2)
     rdm3 = reference_rdm(N, [2], add_st2)
     @test rdm == rdm2
-    @test rdm2 + 0.25 * [0 1;1 0] == rdm3
+    @test rdm3 == [1.0 0.0; 0.0 0.0]
 
     rdm4 = reference_rdm(N, [1, 2], add_st2)
-    @test rdm4 == [0.5 0.25 0.0; 0.25 0.25 0.0; 0.0 0.0 0.25]
+    @test diag(rdm4) == [0.75, 0.0, 0.25, 0.0]
 end
 
 @testset "reference_rdm_Ising" begin
@@ -292,35 +292,44 @@ end
     st = ones(2^N); st /= norm(st)  # Normalize the state
     site = 1
     measure_class = :IsingX
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, measure_class = measure_class)
-    
-    rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
-    rdm_system = reference_rdm(N, [2, 3], add_site1, measure_class = measure_class)
-    @test rdm ≈ [0.5 0.0; 0.0 0.5]
-  
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90), measure_class = measure_class)
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, measure_class = measure_class)
+    rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
+    @test rdm ≈ [0.5 0.0; 0.0 0.5]
+    
+    rdm_system = reference_rdm(N, [2, 3], add_site1, measure_class = measure_class)
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90), measure_class = measure_class)
     rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
     rdm3 = reference_rdm(N, [2], add_st2, measure_class = measure_class)
     @test rdm == rdm2
-    @test rdm2 == rdm3
-
+    @test rdm3  ≈ [1.0 0.0; 0.0 0.0]
+ 
     rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
-    @test rdm4 ≈ [0.4999999999999999 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.4999999999999999]
+    @test diag(rdm4) ≈ [0.4999999999999999, 0.0, 0.4999999999999999, 0.0]
 end
 
 @testset "spatial_corr_matrix and reference rdm" begin
     # The spatial correlation should be the same after adding reference qubits
     N=6
-    mes = zeros(length(Fibonacci_basis(N, true)))
+    mes = zeros(length(Fibonacci_basis(N)))
     mes[13] = 1/√2 
     mes[end] = 1/√2
     sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
+    @test sclis ≈ log(2) * ones(length(sclis))  
 
-    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1)
-    # Counting for system
+    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1, MersenneTwister(100))
+
+    ρ1=reference_rdm(N, [1], add_mes)
+    ρ2=reference_rdm(N, [2], add_mes)
+    ρ12=reference_rdm(N, [1,2], add_mes) 
+    I = ee(ρ1) + ee(ρ2) - ee(ρ12)
+    @test I ≈ 2*log(2)
+    # Two qubit form a Bell pair, so the mutual information is 2*log(2)
+
+    # Counting for system, need to add traceref = false
     ρ = reference_rdm(N, collect(1:N), add_mes, traceref=false)
     sclis_ref = [spatial_correlation(N, ρ, i, j) for i in 1:N for j in 1:N if j!=i]
 
-    @test sclis ≈ sclis_ref
+    @test all([isapprox(sc, 0.0, atol=1e-12) for sc in sclis_ref])
 end
