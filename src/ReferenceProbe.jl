@@ -194,6 +194,7 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     
 end
 
+# subsystems is the system to keep, not throw!!!
 function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
@@ -219,7 +220,7 @@ reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true
 
 # This function is used to compute the temporal_correlation at different time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
 function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
-pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo)
+pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo, temp::Bool=false)
     # time_slice1 and time_slice2 are the indices of the time slices in the sample.
     N = (measure_class == :Fibo) ? round(Int, size(sample, 2) / 2) : size(sample, 2)
     D = size(sample, 1)
@@ -237,14 +238,23 @@ pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo)
                                    measure_class=measure_class)
     
     # 3) t₁ → t₂ evolution
-    final_st1 = reference_generate_state(τ, state1, sample[time_slice1:time_slice2, :], pbc, measure_class=measure_class, temp=false)
-
-    # 4) add reference qubit 2 at site
-    state2 = add_reference_qubits!(N, final_st1, site, rng, pbc=pbc,
-                                   measure_class=measure_class)
-                                   
-    # 5) t₂ → D evolution
-    final_st2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, measure_class=measure_class, temp=false)
-
-    return final_st2
+    final_st1 = reference_generate_state(τ, state1, sample[time_slice1+1:time_slice2, :], pbc, measure_class=measure_class, temp=temp)
+    
+    if temp
+        statelis = Vector{eltype(forward)}(undef, D)
+        # 4) add reference qubit 2 at site
+        state2 = add_reference_qubits!(N, final_st1[end], site, rng, pbc=pbc,
+                                       measure_class=measure_class) 
+        # 5) t₂ → D evolution
+        final_st2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, measure_class=measure_class, temp=temp)
+        statelis[1:time_slice1] = forward[1:time_slice1]
+        statelis[time_slice1+1:time_slice2] = final_st1
+        statelis[time_slice2+1:end] = final_st2
+        return statelis
+    else
+        state2 = add_reference_qubits!(N, final_st1, site, rng, pbc=pbc,
+                                       measure_class=measure_class)
+        final_st2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, measure_class=measure_class, temp=temp)
+        return final_st2
+    end
 end

@@ -284,6 +284,7 @@ end
 
     rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
     @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
+
 end
 
 @testset "disjoint_rdm_mixed" begin
@@ -306,4 +307,24 @@ end
 
     rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+end
+
+@testset "disjoint_rdm and ref qubit" begin
+    L=6
+    pbc=true
+    measure_class = :IsingX
+    sample = ones(Int, 20, L)
+    τ = log(1 + √2)
+    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state[1] = 1.0
+    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+
+
+    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, measure_class=:IsingX)
+    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, measure_classA=:IsingX, measure_classB=:IsingX)
+    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, measure_classA=:IsingX, measure_classB=:IsingX)
+    ρ2r = rdm_Fibo(L, collect(1:div(L,2)), ρ2, measure_class=:IsingX)
+    S1 = ee(ρ1)
+    S2 = ee(ρ2r)
+    @test S1 ≈ S2
 end
