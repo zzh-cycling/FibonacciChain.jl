@@ -681,7 +681,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true, totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {ET} = 
+disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {ET} = 
 disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
 totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
 measure_classA=measure_classA, measure_classB=measure_classB)
