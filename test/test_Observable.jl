@@ -363,12 +363,13 @@ end
 
     sample = zeros(Int, D, N)
     statelis = generate_state(τ, mes, sample, temp= true, measure_class=:IsingX)
+    # Noting that the first state of statelis is not mes.
     spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, measure_class=:IsingX)
     @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
 
-    # sample = zeros(Int, D, length(2:2:N))
-    tc = temporal_correlation(τ, mes, sample, div(N,2), 9, 10, measure_class=:IsingX)
+    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, measure_class=:IsingX)
     
+    tc = temporal_correlation(N, final_st, measure_class=:IsingX)
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, measure_class=:IsingX) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol=1e-6)
 end

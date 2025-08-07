@@ -103,7 +103,9 @@ end
 function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=true, k_old::Int64=1, measure_class::Symbol=:Fibo) where{T, ET}
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
-    D, N = size(sample, 1), 2 * size(sample, 2) 
+    D = size(sample, 1)
+    N = (measure_class == :Fibo) ? round(Int, size(sample, 2) / 2) : size(sample, 2)
+    
     statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
  
     for layer in 1:D
@@ -214,3 +216,34 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
   
 end
 reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)
+
+# This function is used to compute the temporal_correlation at different time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
+function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
+pbc=true, rng::MersenneTwister=MersenneTwister(), measure_class::Symbol=:Fibo)
+    # time_slice1 and time_slice2 are the indices of the time slices in the sample.
+    N = (measure_class == :Fibo) ? round(Int, size(sample, 2) / 2) : size(sample, 2)
+    D = size(sample, 1)
+    @assert 1 <= site <= N "Site index must be in the range [1, N]"    
+    @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
+    @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
+    @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
+
+    # 1) 0 → t₁
+    state = forward[time_slice1]
+
+    # 2) add reference qubit 1 at site
+    state1 = add_reference_qubits!(N, state, site, rng, pbc=pbc,
+                                   measure_class=measure_class)
+    
+    # 3) t₁ → t₂ evolution
+    final_st1 = reference_generate_state(τ, state1, sample[time_slice1:time_slice2, :], pbc, measure_class=measure_class, temp=false)
+
+    # 4) add reference qubit 2 at site
+    state2 = add_reference_qubits!(N, final_st1, site, rng, pbc=pbc,
+                                   measure_class=measure_class)
+                                   
+    # 5) t₂ → D evolution
+    final_st2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, measure_class=measure_class, temp=false)
+
+    return final_st2
+end
