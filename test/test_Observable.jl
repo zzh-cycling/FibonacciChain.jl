@@ -340,16 +340,16 @@ end
 end
 
 @testset "temporal_correlation" begin
-    N=12
-    τ = 1000.0
-    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:Fibo)))
-    mes[233] = 1/√2 
-    mes[end] = 1/√2 # set the last two qubits to be in the Bell state
+    # N=12
+    # τ = 1000.0
+    # mes = zeros(length(Fibonacci_basis(N, true, measure_class=:Fibo)))
+    # mes[233] = 1/√2 
+    # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
-    sample = [0 1 1 1 1 1; 1 0 0 0 0 1; 1 1 1 1 1 1; 0 0 1 1 1 1; 1 0 1 1 1 1; 0 1 1 0 0 1; 1 1 1 1 1 1; 0 1 1 1 0 0; 0 1 1 1 1 0; 1 0 1 1 0 1]
-    D= 10 
+    # sample = [0 1 1 1 1 1; 1 0 0 0 0 1; 1 1 1 1 1 1; 0 0 1 1 1 1; 1 0 1 1 1 1; 0 1 1 0 0 1; 1 1 1 1 1 1; 0 1 1 1 0 0; 0 1 1 1 1 0; 1 0 1 1 0 1]
+    # D= 10 
     # sample = zeros(Int, D, length(2:2:N))
-    tc = temporal_correlation(τ, mes, sample, div(N,2), 5, 8)
+    # tc = temporal_correlation(τ, mes, sample, div(N,2), 5, 8)
     
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j) for i in 1:D-1 for j in i+1:D]
     # @test tc ≈ 0.03098628964295691
@@ -359,8 +359,13 @@ end
     mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
     
-    sample = zeros(Int, 10, N)
     D= 10 
+
+    sample = zeros(Int, D, N)
+    statelis = generate_state(τ, mes, sample, temp= true, measure_class=:IsingX)
+    spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, measure_class=:IsingX)
+    @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
+
     # sample = zeros(Int, D, length(2:2:N))
     tc = temporal_correlation(τ, mes, sample, div(N,2), 9, 10, measure_class=:IsingX)
     

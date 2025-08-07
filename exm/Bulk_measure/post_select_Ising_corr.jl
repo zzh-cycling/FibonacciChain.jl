@@ -76,20 +76,21 @@ end
 function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3, seed::Int64=100)
     pbc = true
     measure_class = :IsingX
-    sample = ones(Int, D, L)
+    sample = zeros(Int, D, L)
 
     initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
     initial_state[1] = 1.0 # initial state is all zero state
-
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
-    
-    spatial_corr_lis = spatial_correlation.(L, statelis, 1, div(L,2),  pbc=pbc, measure_class=measure_class)
     block = round(Int, block_size*L)
     block = iseven(block) ? block : block - 1
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice, timeslice+block, rng = MersenneTwister(seed),  measure_class=:IsingX) for timeslice in 2:2:D-10]
 
-    # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1_$(block).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
-    return temporal_corr_lis, spatial_corr_lis
+    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+
+    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, measure_class=measure_class)
+
+    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice, timeslice+block,  measure_class=:IsingX) for timeslice in 2:2:D-block]
+
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
+    # return temporal_corr_lis, spatial_corr_lis
 end
 
 function get_system_params_corr(τ)
