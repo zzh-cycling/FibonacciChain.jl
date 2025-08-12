@@ -174,7 +174,7 @@ function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
 
     X(state,i) = flip(state, fl >> (i-1))
 
-    if (state & (1 << (N-i))) == 0
+    if readbit(state, N +1 -i) == 0
         return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
     else
         return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
@@ -187,34 +187,34 @@ function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
 
     X(state,i) = flip(state, fl >> (i-1))
 
-    if (state & (1 << (N-i))) == 0
+    if readbit(state, N +1 -i) == 0
         return state, X(state,i), ϕ^(-1), ϕ^(-3/2)
     else
         return state, X(state,i), ϕ^(-2), ϕ^(-3/2)
     end
 end
 
-function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
     
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
-
+    J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
     if i == N
         if pbc
-             if ((state >> (N - 1)) & 1) == (state & 1)
-                return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+            if readbit(state, 1) == readbit(state, N)
+                return state, X(state,i), -J, -h # If same, return -zz and -x
             else
-                return state, X(state,i), 1.0, -1.0
+                return state, X(state,i), J, -h
             end
         else
-            return X(state,i), -1.0 # If OBC, only return -x_N
+            return X(state,i), -h # If OBC, only return -x_N
         end
     else
-        if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
-            return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+        if readbit(state, N - i + 1) == readbit(state, N - i)
+            return state, X(state,i), -J, -h # If same, return -zz and -x
         else
-            return state, X(state,i), 1.0, -1.0
+            return state, X(state,i), J, -h
         end
     end
 end
@@ -332,20 +332,19 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
     elseif measure_class == :IsingX || measure_class == :IsingZZ
         # Generate Ising model Hamiltonian
         output = Dict{T, Float64}()
-        J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
         for i in 1:N-1
-            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
-            output[state1] = get(output, state1, 0.0) + J*weight1
-            output[state2] = get(output, state2, 0.0) + h*weight2
+            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         end
 
         if pbc
-            state1, state2, weight1, weight2 = Isingmap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + J*weight1
-            output[state2] = get(output, state2, 0.0) + h*weight2
+            state1, state2, weight1, weight2 = Isingmap(T, state, N, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
         else
-            state1, weight1 = Isingmap(T, state, N, pbc)
-            output[state1] = get(output, state1, 0.0) + h*weight1
+            state1, weight1 = Isingmap(T, state, N, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
         end
 
         return output
@@ -372,7 +371,7 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, k
 
     return H
 end
-Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class)
+Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class, kwargs...)
 # Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
@@ -435,7 +434,7 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
     H=(H+H')/2
     return H
 end
-Fibonacci_Ham(N::Int, k::Int, Y=nothing) = Fibonacci_Ham(BitStr{N, Int}, k, Y)
+Fibonacci_Ham(N::Int, k::Int, Y=nothing, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, k, Y, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
