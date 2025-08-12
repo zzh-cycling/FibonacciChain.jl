@@ -36,75 +36,86 @@ using Random
     @test output_pbc == (state, T(bit"111110"), -1.0, -1.0)
 end
 
-# @testset "actingHamobc" begin
-#     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", false, measure_class=:IsingX) 
-#     states, weights = keys(output1), values(output1)
-#     @test [states...]== BitStr{3}.([bit"000", bit"100", bit"010"])
-#     @test [weights...] ≈ [-2.0, -1.0, -1.0]
+@testset "actingHamobc" begin
+    N = 3
+    T = BitStr{N, Int}
+    output1 = FibonacciChain.actingHam(T, bit"000", false, measure_class=:IsingX, J=2.0, h=1.0) 
+    states, weights = keys(output1), values(output1)
+    @test [states...]== T.([bit"000", bit"100", bit"010", bit"001"])
+    @test [weights...] ≈ [-4.0, -1.0, -1.0, -1.0]
 
-#     output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false, measure_class=:IsingX) 
-#     states, weights = keys(output2), values(output2)
-#     @test [states...]== BitStr{3}.([bit"000", bit"110", bit"010"])
-#     @test [weights...] ≈ [-1.0, -1.0, 0.0]
+    output2 = FibonacciChain.actingHam(T, bit"010",false, measure_class=:IsingX) 
+    states, weights = keys(output2), values(output2)
+    @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
+    @test [weights...] ≈ [-1.0, -1.0, 0.0, -1.0]
 
-#     output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false, measure_class=:IsingX) 
-#     states, weights = keys(output3), values(output3)
-#     @test [states...]== BitStr{3}.([bit"101", bit"011", bit"001"])
-#     @test [weights...] ≈ [-1.0, -1.0, 2.0]
+    output3 = FibonacciChain.actingHam(T, bit"001",false, measure_class=:IsingX) 
+    states, weights = keys(output3), values(output3)
+    @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
+    @test [weights...] ≈ [-1.0, -1.0, -1.0, 2.0]
 
-#     output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false, measure_class=:IsingX) 
-#     states, weights = keys(output4), values(output4)
-#     @test [states...]== BitStr{3}.([bit"100"])
-#     @test [weights...] ≈ [0.0]
+    output4 = FibonacciChain.actingHam(T, bit"100",false, measure_class=:IsingX) 
+    states, weights = keys(output4), values(output4)
+    @test [states...]== T.([bit"000", bit"100", bit"110", bit"101"])
+    @test [weights...] ≈ [-1.0, -2.0, -1.0, -1.0]
 
-#     output = FibonacciChain.actingHam(BitStr{3}, bit"101",false, measure_class=:IsingX)
-#     states, weights = keys(output), values(output)
-#     @test [states...]== BitStr{3}.([bit"101"])
-#     @test [weights...] ≈ [-1.0]
-# end
+    output = FibonacciChain.actingHam(T, bit"101",false, measure_class=:IsingX)
+    states, weights = keys(output), values(output)
+    @test [states...]== T.([bit"101", bit"100", bit"111", bit"001"])
+    @test [weights...] ≈ [2.0, -1.0, -1.0, -1.0]
+end
 
-# @testset "actingHampbc" begin
-#     ϕ = (1+√5)/2
-#     output1 = FibonacciChain.actingHam(BitStr{3}, bit"000", measure_class=:IsingX) 
-#     states, weights = keys(output1), values(output1)
-#     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
-#     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-#     output2 = FibonacciChain.actingHam(BitStr{3}, bit"010", measure_class=:IsingX) 
-#     states, weights = keys(output2), values(output2)
-#     @test [states...]== BitStr{3}.([bit"000", bit"010"])
-#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-#     output3 = FibonacciChain.actingHam(BitStr{3}, bit"001", measure_class=:IsingX) 
-#     states, weights = keys(output3), values(output3)
-#     @test [states...]== BitStr{3}.([bit"000", bit"001"])
-#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-#     output4 = FibonacciChain.actingHam(BitStr{3}, bit"100", measure_class=:IsingX) 
-#     states, weights = keys(output4), values(output4)
-#     @test [states...]== BitStr{3}.([bit"000",bit"100"])
-#     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-#     output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:IsingX)
-#     states, weights = keys(output), values(output)
-#     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
-#     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
-# end
+@testset "actingHampbc" begin
+    N = 3
+    T = BitStr{N, Int}
+    output1 = FibonacciChain.actingHam(T, bit"000", measure_class=:IsingX, J=2.0, h=1.0) 
+    states, weights = keys(output1), values(output1)
+    @test [states...]== T.([bit"000",bit"100", bit"010", bit"001"])
+    @test [weights...] ≈ [-6.0, -1.0, -1.0, -1.0]
 
-# @testset "basis.jl" begin
-#     # Test the Fibonacci basis creation
-#     fib_basis = Fibonacci_basis(5, false, measure_class=:IsingX)
-#     @test length(fib_basis) == 32
-#     fib_basis = Fibonacci_basis(5, measure_class=:IsingX)
-#     @test length(fib_basis) == 32
-#     # Test the Fibonacci Hamiltonian
-#     fib_ham = Fibonacci_Ham(5)
-#     @test size(fib_ham) == (32, 32)
-#     @test ishermitian(fib_ham)
+    output2 = FibonacciChain.actingHam(T, bit"010", measure_class=:IsingX) 
+    states, weights = keys(output2), values(output2)
+    @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
+    @test [weights...] ≈ [-1.0, -1.0, -1.0, -1.0]
+    
+    output3 = FibonacciChain.actingHam(T, bit"001", measure_class=:IsingX) 
+    states, weights = keys(output3), values(output3)
+    @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
+    @test [weights...] ≈ [-1.0, -1.0, -1.0, 3.0]
 
-#     @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-#     @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
-#     # Test the reduced density matrix function
-#     # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
-#     # @test size(rdm) == (2, 2)
+    output4 = FibonacciChain.actingHam(T, bit"100", measure_class=:IsingX) 
+    states, weights = keys(output4), values(output4)
+    @test [states...]== T.([bit"000",bit"100", bit"110", bit"101"])
+    @test [weights...] ≈ [-1.0, -1.0, -1.0, -1.0]
 
-# end
+    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", measure_class=:IsingX)
+    states, weights = keys(output), values(output)
+    @test [states...] == BitStr{10}.([16, 560, 656, 532, 529, 784, 512, 536, 528, 530, 592])
+    @test [weights...] ≈ vcat(-ones(8),[-4.0, -1.0, -1.0])
+end
+
+@testset "basis.jl" begin
+    # Test the Fibonacci basis creation
+    fib_basis = Fibonacci_basis(5, false, measure_class=:IsingX)
+    @test length(fib_basis) == 32
+    fib_basis = Fibonacci_basis(5, measure_class=:IsingX)
+    @test length(fib_basis) == 32
+    # Test the Fibonacci Hamiltonian
+    fib_ham = Fibonacci_Ham(5, measure_class=:IsingX)
+    @test size(fib_ham) == (32, 32)
+    @test ishermitian(fib_ham)
+
+    @test Fibonacci_Ham(3,false, measure_class=:IsingX) == [-2.0 -1.0 -1.0 0.0 -1.0 0.0 0.0 0.0; -1.0 2.0 0.0 -1.0 0.0 -1.0 0.0 0.0; -1.0 0.0 0.0 -1.0 0.0 0.0 -1.0 0.0; 0.0 -1.0 -1.0 0.0 0.0 0.0 0.0 -1.0; -1.0 0.0 0.0 0.0 -2.0 -1.0 -1.0 0.0; 0.0 -1.0 0.0 0.0 -1.0 2.0 0.0 -1.0; 0.0 0.0 -1.0 0.0 -1.0 0.0 0.0 -1.0; 0.0 0.0 0.0 -1.0 0.0 -1.0 -1.0 0.0]
+
+    H = Fibonacci_Ham(3, measure_class=:IsingX)
+    @test H == [-3.0 -1.0 -1.0 0.0 -1.0 0.0 0.0 0.0; -1.0 3.0 0.0 -1.0 0.0 -1.0 0.0 0.0; -1.0 0.0 -1.0 -1.0 0.0 0.0 -1.0 0.0; 0.0 -1.0 -1.0 1.0 0.0 0.0 0.0 -1.0; -1.0 0.0 0.0 0.0 -1.0 -1.0 -1.0 0.0; 0.0 -1.0 0.0 0.0 -1.0 1.0 0.0 -1.0; 0.0 0.0 -1.0 0.0 -1.0 0.0 1.0 -1.0; 0.0 0.0 0.0 -1.0 0.0 -1.0 -1.0 -1.0]
+
+    gs = eigvecs(fib_ham)[:,1]
+    # Test the reduced density matrix function
+    rdm = rdm_Fibo(5, collect(1:1), gs, measure_class=:IsingX)
+    @test size(rdm) == (2, 2)
+    @test rdm ≈ [0.8191079332998358 0.37755708971817986; 0.37755708971817986 0.18089206670016397]
+end
 
 @testset "measure_basismap_IsingX" begin
     N = 3
@@ -341,24 +352,6 @@ end
     @test output == [0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]
 end
 
-# @testset "laddermeasuremap" begin
-#     N = 3
-#     T = BitStr{N, Int}
-#     τ = 1.0
-#     idx = 2
-
-
-#     sign = 1
-#     state = fill(1.0,16)
-#     output = laddermeasuremap(T, τ, state, idx, sign)  
-#     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
-#     @test output ≈ kron(onechain_st, onechain_st)
-    
-#     sign = 1
-#     output = laddermeasuremap(T, τ, state, idx, sign)  
-#     onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)
-#     @test output ≈ kron(onechain_st, onechain_st)
-# end
 
 @testset "measurement_enumeration" begin
     N=6

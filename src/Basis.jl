@@ -208,7 +208,7 @@ function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: Bi
                 return state, X(state,i), 1.0, -1.0
             end
         else
-            return X(state,i), -1.0
+            return X(state,i), -1.0 # If OBC, only return -x_N
         end
     else
         if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
@@ -238,7 +238,7 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -287,25 +287,9 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
-        # Generate Ising model Hamiltonian
-        output = Dict{T, Float64}()
-        for i in 1:N-1
-            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-
-        if pbc 
-            state1, state2, weight1, weight2 = Isingmap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-
-        return output
     elseif measure_class == :Ferro
         mask=bmask(T, N, N-2)
-
+        
         output = Dict{T, Float64}()
         
         # count 101, 100, 001
@@ -345,20 +329,40 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
+        # Generate Ising model Hamiltonian
+        output = Dict{T, Float64}()
+        J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
+        for i in 1:N-1
+            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
+            output[state1] = get(output, state1, 0.0) + J*weight1
+            output[state2] = get(output, state2, 0.0) + h*weight2
+        end
+
+        if pbc
+            state1, state2, weight1, weight2 = Isingmap(T, state, N)
+            output[state1] = get(output, state1, 0.0) + J*weight1
+            output[state2] = get(output, state2, 0.0) + h*weight2
+        else
+            state1, weight1 = Isingmap(T, state, N, pbc)
+            output[state1] = get(output, state1, 0.0) + h*weight1
+        end
+
+        return output
     else
         error("Unsupported measure_class: $measure_class")
     end
 end
 
 
-function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(T, basis[i], pbc; measure_class=measure_class) 
+        output=actingHam(T, basis[i], pbc; measure_class=measure_class, kwargs...) 
         states, weights = keys(output), values(output)
         for m in states
             j=searchsortedfirst(basis, m)
@@ -399,7 +403,7 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 
-function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
@@ -413,7 +417,7 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(T, n, true)
+        output = actingHam(T, n, true; measure_class=measure_class, kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
