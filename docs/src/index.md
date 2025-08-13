@@ -8,7 +8,7 @@ CurrentModule = FibonacciChain
 
 ## Overview
 
-This package provides comprehensive tools for studying anyon chains based on the principle that, $(2+1) D$ bulk TQFT has correspondence to $(1+1) D$ boundary CFT. Similar to the Heisenberg model where singlet states have lower energy, fusion outcomes with trivial topological charge are energetically preferred. Then we can write down a interacting Hamiltonian.
+This package provides comprehensive tools for studying anyon chains based on the principle that, $(2+1) \mathrm{D}$ bulk TQFT has correspondence to $(1+1) \mathrm{D}$ boundary CFT. Similar to the Heisenberg model where singlet states have lower energy, fusion outcomes with trivial topological charge are energetically preferred. Then we can write down a interacting Hamiltonian.
 
 ### Supported Anyon Types
 
