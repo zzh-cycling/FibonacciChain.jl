@@ -13,13 +13,13 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-```
+"""
 Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> prod(::Float64)
 
 is a function that computes the topological symmetry coefficient for a given state and base in the Fibonacci chain. It checks the state and base at each site to determine the coefficient based on the Fibonacci anyon fusion rules.
 
 Return the topological symmetry coefficient.    
-```
+"""
 function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
@@ -82,13 +82,13 @@ function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol
     end
 end
 
-```
+"""
     topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}} -> Vector{Float64}
 
 # Compute the topological symmetry map for a given state using the topological symmetry site map for all sites
 # This function returns a vector of coefficients for each basis state in the Fibonacci chain.
 # The coefficients are computed based on the topological symmetry of the state.
-```
+"""
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
 
@@ -112,7 +112,7 @@ function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: B
     return Ymatrix
 end
 
-```
+"""
     Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> Vector{T}
 
 # params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
@@ -120,7 +120,7 @@ end
 # Generate basis for 1D anyon chain, depending on the `measure_class`. Now we support `IsingX, IsingZZ, IsingZ, :Fibo, reset`, which is the SU(2)_2, SU(2)_3, SU(2)_∞, the Ising anyon/Majorana fermions, Fibonacci anyon basis and 1/2 spin basis. `Y` is the topological charge, which can be `nothing`, `0`, `1`, `:tau`, `:trivial`, or `:nontrivial`. If `Y` is not `nothing`, the basis will be filtered by the topological charge.
 
 Return BitBasis form, which can be used as binary and decimal form. Here we both consider `PBC` and `OBC` in ascending order.
-```
+"""
 function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
@@ -156,13 +156,13 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
 end
 Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, measure_class=measure_class)
 
-```
+"""
     Fibonacci_basis(N::Int, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) -> Vector{T}, Dict{T, Vector{T}}
 
 #params: a int of chain particle number `N`, momentum of system `k`, topological_charge `Y`, which default to be nothing
 
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in anyon chain.
-```
+"""
 function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
@@ -382,14 +382,14 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
     end
 end
 
-```
+"""
     Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{Float64}
 
 # params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 
 # Generate Hamiltonian for anyon chain, automotically contain `pbc` or `obc`.
 # Return the Hamiltonian matrix in given symmetric sector Hilbert space
-```
+"""
 function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
@@ -437,13 +437,13 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
     return representative, translation
 end
 
-```
+"""
     Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
 
 # params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
 
 # return: the Hamiltonian matrix in given symmetric sector Hilbert space
-```
+"""
 function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
@@ -529,13 +529,13 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 # take system part of a basis
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
-```
+"""
     rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
 
 # params: a type `T` of BitStr{N, Int}, `subsystems` is a vector of subsystem indices, `state` is the state vector or matrix, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 
 # Return the reduced density matrix for the given subsystems in anyon basis.
-```
+"""
 function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
@@ -605,13 +605,13 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET},
 end
 rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
 
-```
+"""
     mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
 
 # params: a type `T` of BitStr{N, Int}, `state` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system, `measure_class` is a symbol, which default to be :Fibo
 
 # Map the symmetric sector Hilbert space state to total space state, which is used to calculate the reduced density matrix in total space.
-```
+"""
 function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
@@ -648,13 +648,13 @@ function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Sym
 end
 mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, measure_class=measure_class)
 
-```
+"""
     rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
 
 # params: a type `T` of BitStr{N, Int}, `subsystems` is a vector of subsystem indices, `kstate` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system
 
 # Return the reduced density matrix for the given subsystems in anyon basis, which is in symmetric sector Hilbert space.
-```
+"""
 function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
     @assert length(kstate) == length(Fibonacci_basis(T,k)[1]) "state length is expected to be $(length(Fibonacci_basis(T, k)[1])), but got $(length(kstate))"
     state = mapst_sec2tot(T, kstate, k)
@@ -671,13 +671,13 @@ function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::B
     return vec([join(i, j) for i in lisA for j in lisB])
 end
 
-```
+"""
     disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET} -> Matrix{ET}
 
 # params: Two system's info. `T1` of BitStr{N1, Int}, `T2` of BitStr{N2, Int}, `subsystemsA` is a vector of subsystem indices to be kept for the first system, `subsystemsB` is a vector of subsystem indices to be kept for the second system, `state` is the state vector in disjoint basis, `pbc` is a boolean value, `totalsubApbc` and `totalsubBpbc` are used to indicate whether the total subsystem is periodic or not, `measure_classA` and `measure_classB` are symbols, which default to be :Fibo
 
 # Return the reduced density matrix for the given subsystems in disjoint basis, which can be viewed as two parallel chains or two joint systems.
-```
+"""
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.

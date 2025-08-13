@@ -120,12 +120,12 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     return temp ? statelis : state
 end
 
-```
+"""
     reference_generate_state(N::Int64, τ::Float64, state::Vector{ET}, sample::ET; pbc::Bool=true, temp::Bool=true, k_old::Int64=1, measure_class::Symbol=:Fibo) where {ET} ->  Vector{ET}}
 
 # params: a int of lattice number, `τ` is the evolution time, `state` is the state vector in anyon basis, `sample` is the measurement sample, `pbc` is a boolean value, `temp` is a boolean value, which default to be true, `k_old` is the number of reference qubits in the state, which default to be 1, `measure_class` is a symbol, which default to be :Fibo
 # Return the evolved state vector or a list of state vectors at each time slice.
-```
+"""
 function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
@@ -200,12 +200,12 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     
 end
 
-```
+"""
     add_reference_qubits!(N::Int64, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} -> Vector{ET}
 
 # params: a int of lattice number, `state` is the state vector in anyon basis, `site_idx` is the index of the site to add reference qubit, `rng` is the random number generator, `k_new` is the number of new reference qubits to add, which default to be 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
 # Return the new state vector with reference qubits added at the specified site.
-```
+"""
 # subsystems is the system to keep, not throw!!!
 function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
@@ -230,12 +230,12 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
 end
 reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo, traceref::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class, traceref=traceref)
 
-```
+"""
     reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
 pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo, temp::Bool=false) -> Vector{ET}
 # params: a int of lattice number, `τ` is the evolution time, `forward` is the forward state evolution, `sample` is the measurement sample, `site` is the index of the site to add reference qubit, `time_slice1` and `time_slice2` are the indices of the time slices in the sample, `pbc` is a boolean value, `seed` is the random seed, which default to be 100, `measure_class` is a symbol, which default to be :Fibo, `temp` is a boolean value, which default to be false
 # Return the state vector or a list of state vectors at each time slice after adding reference qubit and evolving the state.
-```
+"""
 # This function is used to compute the temporal_correlation at different time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
 function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
 pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo, temp::Bool=false)

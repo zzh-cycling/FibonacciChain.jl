@@ -1,10 +1,10 @@
-```
+"""
 
     ee(::Matrix{ET}) where {ET} -> Float64
 
 # params: a reduced density matrix `subrm` of type `ET`
 # Return the entanglement entropy of the reduced density matrix.
-```
+"""
 function ee(subrm::Matrix{ET}) where {ET}
     #  subrm=qi.ptrace(state*state',[2 for i in 1:N],[i for i in l+1:N])
     @assert ishermitian(subrm) "The reduced density matrix is not hermitian."
@@ -20,13 +20,13 @@ function ee(subrm::Matrix{ET}) where {ET}
     return EE
 end
 
-```
+"""
     eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} -> Vector{Float64}  
 
 # params: a int of lattice number, `state` is the state vector in anyon basis, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 # Return the entanglement entropy list for a given state from the left to the right.
 
-```
+"""
 function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
     # Generate ee list for a given state from the left to the right
     splitlis=Vector(1:N-1)
@@ -59,12 +59,12 @@ function eelis_Fiboladder_state(N::Int64,state::Vector{ET},pbc::Bool=true) where
     return EE_lis
 end
 
-```
+"""
     translation_matrix(::Type{T}) where {N, T <: BitStr{N}} -> Matrix{Float64}
 
 # params: a type `T` of BitStr{N, Int}
 # Return the translation matrix for the Fibonacci basis, which is used to translate the state from one site to another.
-```
+"""
 function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
     basis=Fibonacci_basis(T) 
     l = length(basis) 
@@ -79,11 +79,11 @@ function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 translation_matrix(N::Int) = translation_matrix(BitStr{N, Int})
 
-```
+"""
     inversion_matrix(::Type{T}) where {N, T <: BitStr{N}} -> Matrix{Float64}
 # params: a type `T` of BitStr{N, Int}
 # Return the inversion matrix for the Fibonacci basis, which is used to invert the state from one site to another.
-```
+"""
 function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
     basis=Fibonacci_basis(T)
     l=length(basis)
@@ -100,13 +100,13 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
 end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
-```
+"""
     braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
     
  # params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 
 # Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
-```
+"""
 function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
@@ -184,12 +184,12 @@ function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: B
     return Bmatrix
 end
 
-```
+"""
     braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
 
 # params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 # Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
-```
+"""
 function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
@@ -215,13 +215,13 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
 end
 braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
-```
+"""
     spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} -> Float64
 
 # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
 # params: a int of lattice number, `state` is the state vector in anyon basis, `site1` and `site2` are the indices of the sites to be correlated, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
 # Return the spatial correlation between the two sites.
-```
+"""
 function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
     @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
@@ -237,13 +237,13 @@ function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, sit
     return correlation
 end
 
-```
+"""
     temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} -> Float64
 
 # Calculate the temporal correlation between two time slices at one site in a given initial_state
 # params: a int of lattice number, `state_addref2` is the state vector
 # Return the temporal correlation between two time slices at one site in a given initial_state
-```
+"""
 function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
 
