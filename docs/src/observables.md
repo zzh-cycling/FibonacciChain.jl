@@ -6,11 +6,6 @@ This section covers the calculation of physical observables and correlation func
 
 ### Entanglement Entropy
 
-```@docs
-ee
-anyon_eelis
-anyonladder_eelis
-```
 
 The von Neumann entanglement entropy is a fundamental measure of quantum entanglement:
 
@@ -40,11 +35,6 @@ plot(1:N-1, ee_profile, xlabel="Bipartition Size", ylabel="Entanglement Entropy"
 
 ### Translation and Inversion
 
-```@docs
-translation_matrix
-inversion_matrix
-laddertranslationmap
-```
 
 These functions implement discrete symmetries of the anyon chain:
 
@@ -53,10 +43,6 @@ These functions implement discrete symmetries of the anyon chain:
 
 ## Braiding Operations
 
-```@docs
-braidingsqmap
-ladderbraidingsqmap
-```
 
 Braiding operations are fundamental to anyonic systems, implementing the exchange statistics that define non-Abelian anyons.
 
@@ -72,15 +58,9 @@ where φ = (1+√5)/2 is the golden ratio.
 
 ### Spatial Correlations
 
-```@docs
-spatial_correlation
-```
 
 ### Temporal Correlations
 
-```@docs
-temporal_correlation
-```
 
 The correlation functions measure quantum correlations between different regions or times:
 

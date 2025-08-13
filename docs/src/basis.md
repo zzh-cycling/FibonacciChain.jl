@@ -4,10 +4,6 @@ This section covers the fundamental basis generation and manipulation functions 
 
 ## Anyon Basis Generation
 
-```@docs
-anyon_basis
-```
-
 The `anyon_basis` function generates the computational basis states for various anyon models:
 
 ### Fibonacci Anyons
@@ -34,23 +30,11 @@ basis_k0, rep_dict = anyon_basis(N, 0)
 
 ## Hamiltonian Construction
 
-```@docs
-anyon_ham
-anyon_ham_sparse
-```
 
 ## Reduced Density Matrices
 
-```@docs
-anyon_rdm
-disjoint_rdm
-```
 
 ## Topological Symmetries
 
-```@docs
-topological_symmetry_basismap
-Fsymmetry_coef
-```
 
 The topological symmetry operations are crucial for understanding the anyonic nature of the system. They encode how the fusion outcomes transform under topological operations.

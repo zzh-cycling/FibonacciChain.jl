@@ -4,10 +4,6 @@ This section covers the efficient Matrix Product State (MPS) implementations for
 
 ## Ground State Calculations
 
-```@docs
-fibonacci_mps_ground_state
-initial_mps
-```
 
 MPS methods allow simulation of much larger systems (N ~ 50-100) compared to exact diagonalization:
 
@@ -21,9 +17,6 @@ N = 50
 
 ## Hamiltonian Construction
 
-```@docs
-fibonacci_hamiltonian_mps
-```
 
 The MPS Hamiltonian is constructed as a Matrix Product Operator (MPO) with three-body interactions:
 
@@ -37,25 +30,14 @@ H = fibonacci_hamiltonian_mps(sites, pbc=true)
 
 ### Measurement Operators
 
-```@docs
-measurement_operator_mps
-apply_measurement_mps
-```
 
 ### MPS-based Protocols
 
-```@docs
-mps_measurement_enumeration
-mps_boundary_measure
-mps_bulk_measurement
-```
+
 
 ## Entanglement Entropy
 
-```@docs
-ee_mps
-anyon_eelis_mps
-```
+
 
 MPS naturally provides access to entanglement structure:
 
@@ -70,9 +52,7 @@ ee_profile = anyon_eelis_mps(ψ)
 
 ## State Generation and Evolution
 
-```@docs
-generate_state_mps
-```
+
 
 ## Advantages of MPS Methods
 

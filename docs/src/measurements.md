@@ -6,25 +6,13 @@ This section covers quantum measurement protocols and dynamical evolution of any
 
 ### Basic Measurement Operations
 
-```@docs
-measure_basismap
-measuremap
-```
 
 ### Ladder System Measurements
 
-```@docs
-laddermeasuremap
-```
 
 ## Measurement Protocols
 
 ### Boundary Measurements
-
-```@docs
-Boundary_measure
-Boundarypost_selection
-```
 
 Boundary measurements are performed at the edges of the chain, allowing for:
 - Probabilistic measurement outcomes
@@ -33,24 +21,11 @@ Boundary measurements are performed at the edges of the chain, allowing for:
 
 ### Bulk Measurements
 
-```@docs
-Bulkmeasure
-Bulkpost_selection
-```
-
 ### State Evolution
 
-```@docs
-generate_state
-apply_measurement_layer!
-```
 
 ## Measurement Trees and Enumeration
 
-```@docs
-measurement_enumeration
-measurement_tree_visualization
-```
 
 These functions provide systematic ways to explore all possible measurement outcomes and their probabilities.
 
@@ -58,9 +33,6 @@ These functions provide systematic ways to explore all possible measurement outc
 
 ### Probabilistic Braiding
 
-```@docs
-ladderChoi
-```
 
 The Choi map implements a noise channel that applies braiding operations with probability p:
 
