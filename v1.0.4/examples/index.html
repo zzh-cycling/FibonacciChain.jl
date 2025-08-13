@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/><title>Examples · FibonacciChain.jl</title><meta name="title" content="Examples · FibonacciChain.jl"/><meta property="og:title" content="Examples · FibonacciChain.jl"/><meta property="twitter:title" content="Examples · FibonacciChain.jl"/><meta name="description" content="Documentation for FibonacciChain.jl."/><meta property="og:description" content="Documentation for FibonacciChain.jl."/><meta property="twitter:description" content="Documentation for FibonacciChain.jl."/><meta property="og:url" content="https://zzh-cycling.github.io/FibonacciChain.jl/examples/"/><meta property="twitter:url" content="https://zzh-cycling.github.io/FibonacciChain.jl/examples/"/><link rel="canonical" href="https://zzh-cycling.github.io/FibonacciChain.jl/examples/"/><script data-outdated-warner src="../assets/warner.js"></script><link href="https://cdnjs.cloudflare.com/ajax/libs/lato-font/3.0.0/css/lato-font.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/juliamono/0.050/juliamono.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/fontawesome.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/solid.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/brands.min.css" rel="stylesheet" type="text/css"/><link href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.8/katex.min.css" rel="stylesheet" type="text/css"/><script>documenterBaseURL=".."</script><script src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.6/require.min.js" data-main="../assets/documenter.js"></script><script src="../search_index.js"></script><script src="../siteinfo.js"></script><script src="../../versions.js"></script><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-mocha.css" data-theme-name="catppuccin-mocha"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-macchiato.css" data-theme-name="catppuccin-macchiato"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-frappe.css" data-theme-name="catppuccin-frappe"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/catppuccin-latte.css" data-theme-name="catppuccin-latte"/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-dark.css" data-theme-name="documenter-dark" data-theme-primary-dark/><link class="docs-theme-link" rel="stylesheet" type="text/css" href="../assets/themes/documenter-light.css" data-theme-name="documenter-light" data-theme-primary/><script src="../assets/themeswap.js"></script></head><body><div id="documenter"><nav class="docs-sidebar"><div class="docs-package-name"><span class="docs-autofit"><a href="../">FibonacciChain.jl</a></span></div><button class="docs-search-query input is-rounded is-small is-clickable my-2 mx-auto py-1 px-2" id="documenter-search-query">Search docs (Ctrl + /)</button><ul class="docs-menu"><li><a class="tocitem" href="../">Home</a></li><li><span class="tocitem">Manual</span><ul><li><a class="tocitem" href="../basis/">Basis Functions</a></li><li><a class="tocitem" href="../observables/">Observables</a></li><li><a class="tocitem" href="../measurements/">Measurements</a></li><li><a class="tocitem" href="../mps/">MPS Methods</a></li><li class="is-active"><a class="tocitem" href>Examples</a><ul class="internal"><li><a class="tocitem" href="#Example-1:-Ground-State-Properties"><span>Example 1: Ground State Properties</span></a></li><li><a class="tocitem" href="#Example-2:-Measurement-Protocol-Simulation"><span>Example 2: Measurement Protocol Simulation</span></a></li><li><a class="tocitem" href="#Example-3:-Braiding-Operations-and-Topological-Properties"><span>Example 3: Braiding Operations and Topological Properties</span></a></li><li><a class="tocitem" href="#Example-4:-Large-System-with-MPS"><span>Example 4: Large System with MPS</span></a></li><li><a class="tocitem" href="#Example-5:-Reference-Qubit-Protocol"><span>Example 5: Reference Qubit Protocol</span></a></li><li><a class="tocitem" href="#Example-6:-Phase-Transition-Study"><span>Example 6: Phase Transition Study</span></a></li></ul></li></ul></li><li><a class="tocitem" href="../api/">API Reference</a></li></ul><div class="docs-version-selector field has-addons"><div class="control"><span class="docs-label button is-static is-size-7">Version</span></div><div class="docs-selector control is-expanded"><div class="select is-fullwidth is-size-7"><select id="documenter-version-selector"></select></div></div></div></nav><div class="docs-main"><header class="docs-navbar"><a class="docs-sidebar-button docs-navbar-link fa-solid fa-bars is-hidden-desktop" id="documenter-sidebar-button" href="#"></a><nav class="breadcrumb"><ul class="is-hidden-mobile"><li><a class="is-disabled">Manual</a></li><li class="is-active"><a href>Examples</a></li></ul><ul class="is-hidden-tablet"><li class="is-active"><a href>Examples</a></li></ul></nav><div class="docs-right"><a class="docs-navbar-link" href="https://github.com/zzh-cycling/FibonacciChain.jl" title="View the repository on GitHub"><span class="docs-icon fa-brands"></span><span class="docs-label is-hidden-touch">GitHub</span></a><a class="docs-navbar-link" href="https://github.com/zzh-cycling/FibonacciChain.jl/blob/main/docs/src/examples.md" title="Edit source on GitHub"><span class="docs-icon fa-solid"></span></a><a class="docs-settings-button docs-navbar-link fa-solid fa-gear" id="documenter-settings-button" href="#" title="Settings"></a><a class="docs-article-toggle-button fa-solid fa-chevron-up" id="documenter-article-toggle-button" href="javascript:;" title="Collapse all docstrings"></a></div></header><article class="content" id="documenter-page"><h1 id="Examples"><a class="docs-heading-anchor" href="#Examples">Examples</a><a id="Examples-1"></a><a class="docs-heading-anchor-permalink" href="#Examples" title="Permalink"></a></h1><p>This section provides comprehensive examples demonstrating the key capabilities of FibonacciChain.jl.</p><h2 id="Example-1:-Ground-State-Properties"><a class="docs-heading-anchor" href="#Example-1:-Ground-State-Properties">Example 1: Ground State Properties</a><a id="Example-1:-Ground-State-Properties-1"></a><a class="docs-heading-anchor-permalink" href="#Example-1:-Ground-State-Properties" title="Permalink"></a></h2><p>Let&#39;s calculate the ground state properties of a Fibonacci anyon chain and analyze its entanglement structure.</p><pre><code class="language-julia hljs">using FibonacciChain, LinearAlgebra, Plots
+
+# System parameters
+N = 8  # Chain length
+pbc = true  # Periodic boundary conditions
+
+# Generate basis and Hamiltonian
+basis = anyon_basis(N, pbc)
+H = anyon_ham(N, pbc)
+
+println(&quot;Hilbert space dimension: $(length(basis))&quot;)
+
+# Find ground state
+eigenvals, eigenvecs = eigen(H)
+E0 = eigenvals[1]
+ψ_gs = eigenvecs[:, 1]
+
+println(&quot;Ground state energy: $E0&quot;)
+
+# Calculate entanglement entropy profile
+ee_profile = anyon_eelis(N, ψ_gs, pbc)
+
+# Plot entanglement entropy
+plot(1:N-1, ee_profile, 
+     xlabel=&quot;Subsystem Size&quot;, 
+     ylabel=&quot;Entanglement Entropy&quot;,
+     title=&quot;EE Profile for N=$N Fibonacci Chain&quot;,
+     marker=:circle)</code></pre><h2 id="Example-2:-Measurement-Protocol-Simulation"><a class="docs-heading-anchor" href="#Example-2:-Measurement-Protocol-Simulation">Example 2: Measurement Protocol Simulation</a><a id="Example-2:-Measurement-Protocol-Simulation-1"></a><a class="docs-heading-anchor-permalink" href="#Example-2:-Measurement-Protocol-Simulation" title="Permalink"></a></h2><p>This example demonstrates a quantum measurement protocol with post-selection.</p><pre><code class="language-julia hljs">using FibonacciChain, Random
+
+N = 6
+τ = 1.0
+num_samples = 1000
+
+# Initialize random state  
+Random.seed!(42)
+initial_state = normalize!(rand(ComplexF64, length(anyon_basis(N))))
+
+# Define measurement sites (even sites for Fibonacci anyons)
+measurement_sites = [2, 4, 6]
+
+# Perform boundary measurements
+println(&quot;Performing $num_samples measurement samples...&quot;)
+measured_states, sequences, free_energies = Boundary_measure(
+    N, τ, initial_state, measurement_sites, num_samples
+)
+
+# Analyze results
+using Statistics
+mean_energy = mean(free_energies)
+std_energy = std(free_energies)
+
+println(&quot;Average free energy: $(round(mean_energy, digits=4)) ± $(round(std_energy, digits=4))&quot;)
+
+# Post-select specific measurement outcome (all +1)
+target_sequence = [0, 0, 0]  # All +1 measurements
+selected_states = [state for (state, seq) in zip(measured_states, sequences) if seq == target_sequence]
+
+if !isempty(selected_states)
+    println(&quot;Found $(length(selected_states)) trajectories with target sequence&quot;)
+    avg_selected_state = mean(selected_states)
+    
+    # Calculate entanglement of post-selected state
+    ee_selected = anyon_eelis(N, avg_selected_state)
+    println(&quot;Post-selected EE at center: $(round(ee_selected[N÷2], digits=3))&quot;)
+end</code></pre><h2 id="Example-3:-Braiding-Operations-and-Topological-Properties"><a class="docs-heading-anchor" href="#Example-3:-Braiding-Operations-and-Topological-Properties">Example 3: Braiding Operations and Topological Properties</a><a id="Example-3:-Braiding-Operations-and-Topological-Properties-1"></a><a class="docs-heading-anchor-permalink" href="#Example-3:-Braiding-Operations-and-Topological-Properties" title="Permalink"></a></h2><p>Explore the effects of braiding operations on anyon states.</p><pre><code class="language-julia hljs">using FibonacciChain
+
+N = 6
+initial_state = normalize!(ones(ComplexF64, length(anyon_basis(N))))
+
+# Apply braiding operation at site 3
+braided_state = braidingsqmap(N, initial_state, 3)
+
+# Calculate overlap between original and braided states
+overlap = abs(dot(initial_state, braided_state))
+println(&quot;Braiding overlap: $(round(overlap, digits=4))&quot;)
+
+# Study braiding under multiple operations
+state = copy(initial_state)
+overlaps = Float64[]
+
+for i in 1:10
+    state = braidingsqmap(N, state, 3)
+    push!(overlaps, abs(dot(initial_state, state))^2)
+end
+
+# Plot braiding evolution
+plot(1:10, overlaps,
+     xlabel=&quot;Braiding Steps&quot;, 
+     ylabel=&quot;Fidelity |⟨ψ₀|ψ(t)⟩|²&quot;,
+     title=&quot;Evolution under Repeated Braiding&quot;,
+     marker=:circle)</code></pre><h2 id="Example-4:-Large-System-with-MPS"><a class="docs-heading-anchor" href="#Example-4:-Large-System-with-MPS">Example 4: Large System with MPS</a><a id="Example-4:-Large-System-with-MPS-1"></a><a class="docs-heading-anchor-permalink" href="#Example-4:-Large-System-with-MPS" title="Permalink"></a></h2><p>Simulate a larger system using Matrix Product State methods.</p><pre><code class="language-julia hljs">using FibonacciChain, ITensors
+
+N = 40
+maxdim = 100
+cutoff = 1e-10
+
+println(&quot;Finding ground state for N=$N system...&quot;)
+
+# Find MPS ground state
+ψ_gs, E0 = fibonacci_mps_ground_state(N, 
+                                      pbc=true,
+                                      sweep_times=20,
+                                      maxdim=maxdim, 
+                                      cutoff=cutoff)
+
+println(&quot;Ground state energy density: $(E0/N)&quot;)
+
+# Calculate entanglement entropy profile
+ee_profile = anyon_eelis_mps(ψ_gs)
+
+# Analyze scaling behavior
+L_values = 1:N÷2
+ee_values = ee_profile[L_values]
+
+# Fit to logarithmic scaling (CFT prediction)
+using LsqFit
+@. log_model(x, p) = p[1] * log(x) + p[2]
+fit_result = curve_fit(log_model, Float64.(L_values), ee_values, [1.0, 0.0])
+c_eff = 6 * fit_result.param[1]  # Effective central charge
+
+println(&quot;Effective central charge: $(round(c_eff, digits=3))&quot;)
+
+# Plot with fit
+plot(L_values, ee_values, label=&quot;MPS Data&quot;, marker=:circle)
+plot!(L_values, log_model(L_values, fit_result.param), 
+      label=&quot;Log Fit (c=$(round(c_eff, digits=2)))&quot;, 
+      linestyle=:dash)
+xlabel!(&quot;Subsystem Size L&quot;)
+ylabel!(&quot;Entanglement Entropy&quot;)
+title!(&quot;Entanglement Scaling for N=$N&quot;)</code></pre><h2 id="Example-5:-Reference-Qubit-Protocol"><a class="docs-heading-anchor" href="#Example-5:-Reference-Qubit-Protocol">Example 5: Reference Qubit Protocol</a><a id="Example-5:-Reference-Qubit-Protocol-1"></a><a class="docs-heading-anchor-permalink" href="#Example-5:-Reference-Qubit-Protocol" title="Permalink"></a></h2><p>Demonstrate the reference qubit method for measuring correlations.</p><pre><code class="language-julia hljs">using FibonacciChain
+
+N = 8
+site = 4  # Site to probe
+
+# Initialize ground state
+H = anyon_ham(N, true)
+eigenvals, eigenvecs = eigen(H)
+ground_state = eigenvecs[:, 1]
+
+# Add reference qubit at site 4
+println(&quot;Adding reference qubit at site $site...&quot;)
+state_with_ref = add_reference_qubits!(N, ground_state, site)
+
+# Perform measurement protocol to create temporal correlation
+τ = 0.5
+sample_sequence = rand([0, 1], 5, N÷2)  # 5 time steps, N/2 measurement sites per step
+
+# Generate forward evolution
+forward_states = reference_generate_state(N, τ, state_with_ref, sample_sequence, temp=true)
+
+# Calculate temporal correlation between time slices 1 and 4
+time_corr = reference_evolution(τ, forward_states, sample_sequence, site, 1, 4)
+
+println(&quot;Temporal correlation: $(round(real(time_corr), digits=4))&quot;)
+
+# Compare with spatial correlation in ground state
+spatial_corr = spatial_correlation(N, ground_state, 1, 5)
+println(&quot;Spatial correlation (sites 1-5): $(round(spatial_corr, digits=4))&quot;)</code></pre><h2 id="Example-6:-Phase-Transition-Study"><a class="docs-heading-anchor" href="#Example-6:-Phase-Transition-Study">Example 6: Phase Transition Study</a><a id="Example-6:-Phase-Transition-Study-1"></a><a class="docs-heading-anchor-permalink" href="#Example-6:-Phase-Transition-Study" title="Permalink"></a></h2><p>Investigate phase transitions by varying Hamiltonian parameters.</p><pre><code class="language-julia hljs">using FibonacciChain
+
+N = 10
+h_values = 0.0:0.1:2.0  # Magnetic field strength
+gap_values = Float64[]
+
+for h in h_values
+    # Construct Hamiltonian with external field
+    H = anyon_ham(N, true, h_field=h)  # Assuming h_field parameter exists
+    
+    eigenvals = eigvals(H)
+    gap = eigenvals[2] - eigenvals[1]  # Energy gap
+    push!(gap_values, gap)
+end
+
+# Plot phase diagram
+plot(h_values, gap_values,
+     xlabel=&quot;Field Strength h&quot;, 
+     ylabel=&quot;Energy Gap Δ&quot;,
+     title=&quot;Phase Diagram for N=$N&quot;,
+     marker=:circle)</code></pre><p>These examples demonstrate the versatility of FibonacciChain.jl for studying quantum many-body physics with anyons, from basic calculations to advanced protocols involving measurements and correlations.</p></article><nav class="docs-footer"><a class="docs-footer-prevpage" href="../mps/">« MPS Methods</a><a class="docs-footer-nextpage" href="../api/">API Reference »</a><div class="flexbox-break"></div><p class="footer-message">Powered by <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> and the <a href="https://julialang.org/">Julia Programming Language</a>.</p></nav></div><div class="modal" id="documenter-settings"><div class="modal-background"></div><div class="modal-card"><header class="modal-card-head"><p class="modal-card-title">Settings</p><button class="delete"></button></header><section class="modal-card-body"><p><label class="label">Theme</label><div class="select"><select id="documenter-themepicker"><option value="auto">Automatic (OS)</option><option value="documenter-light">documenter-light</option><option value="documenter-dark">documenter-dark</option><option value="catppuccin-latte">catppuccin-latte</option><option value="catppuccin-frappe">catppuccin-frappe</option><option value="catppuccin-macchiato">catppuccin-macchiato</option><option value="catppuccin-mocha">catppuccin-mocha</option></select></div></p><hr/><p>This document was generated with <a href="https://github.com/JuliaDocs/Documenter.jl">Documenter.jl</a> version 1.14.1 on <span class="colophon-date" title="Wednesday 13 August 2025 19:01">Wednesday 13 August 2025</span>. Using Julia version 1.11.6.</p></section><footer class="modal-card-foot"></footer></div></div></div></body></html>
