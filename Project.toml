@@ -1,7 +1,7 @@
 name = "FibonacciChain"
 uuid = "1d4145e4-32a1-4f27-ab5f-4bf470d9d7e4"
 authors = ["Zhaohui Zhi"]
-version = "1.0.0-DEV"
+version = "1.0.2"
 
 [deps]
 Arpack = "7d9fca2a-8960-54d3-9f78-7d1dccf2cb97"
