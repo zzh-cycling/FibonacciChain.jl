@@ -15,7 +15,7 @@ export add_reference_qubits!, reference_measuremap, spatial_correlation, tempora
 
 include("Basis.jl") 
 include("Observable.jl")
-include("LadderFibo.jl")
+include("AnyonLadder.jl")
 include("Measurement.jl")
 include("FiboSparse.jl")
 include("MPSMeasurement.jl")

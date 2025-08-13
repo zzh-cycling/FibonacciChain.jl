@@ -12,7 +12,7 @@ Construct Fibonacci chain Hamiltonian as sparse matrix.
 - `SparseMatrixCSC{Float64, Int}`: Hamiltonian matrix in anyon basis
 """
 function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    basis=Fibonacci_basis(T,pbc, anyon_type=anyon_type)
+    basis=anyon_basis(T,pbc, anyon_type=anyon_type)
 
     l=length(basis)
     I, J, V = Int[], Int[], Float64[]
@@ -51,7 +51,7 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic = Fibonacci_basis(T, k, Y=Y, anyon_type=anyon_type)
+    basisK, basis_dic = anyon_basis(T, k, Y=Y, anyon_type=anyon_type)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     # H = spzeros(ComplexF64, (l, l))

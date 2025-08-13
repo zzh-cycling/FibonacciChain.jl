@@ -303,7 +303,7 @@ function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     
     halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis_state(L, final_state)
+    final_EElis = anyon_eelis(L, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end
