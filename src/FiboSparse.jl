@@ -10,6 +10,29 @@ Construct anyon chain Hamiltonian as sparse matrix.
 
 # Returns
 - `SparseMatrixCSC{Float64, Int}`: Sparse Hamiltonian matrix in anyon basis
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis, SparseArrays
+
+julia> N = 6; T = BitStr{N, Int};
+
+julia> H_sparse = anyon_ham_sparse(T, true, anyon_type=:Fibo);
+
+julia> # Check it's a sparse matrix
+       H_sparse isa SparseMatrixCSC
+true
+
+julia> # Should be Hermitian
+       ishermitian(H_sparse)
+true
+
+julia> # Compare with dense version for small system
+       H_dense = anyon_ham(N, true);
+
+julia> norm(Matrix(H_sparse) - H_dense) < 1e-10
+true
+```
 """
 function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     basis=anyon_basis(T,pbc, anyon_type=anyon_type)

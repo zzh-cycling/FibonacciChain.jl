@@ -8,6 +8,25 @@ Calculate entanglement entropy from reduced density matrix.
 
 # Returns
 - `Float64`: von Neumann entanglement entropy
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> # Create a simple 2x2 density matrix
+       ρ = [0.5 0.0; 0.0 0.5];  # Maximally mixed state
+
+julia> entropy = ee(ρ);
+
+julia> abs(entropy - log(2)) < 1e-10  # Should equal log(2) ≈ 0.693
+true
+
+julia> # Pure state has zero entropy
+       ρ_pure = [1.0 0.0; 0.0 0.0];
+
+julia> ee(ρ_pure) ≈ 0.0
+true
+```
 """
 function ee(subrm::Matrix{ET}) where {ET}
     #  subrm=qi.ptrace(state*state',[2 for i in 1:N],[i for i in l+1:N])
@@ -37,6 +56,29 @@ Calculate entanglement entropy profile along the chain for given quantum state o
 
 # Returns
 - `Vector{Float64}`: Entanglement entropy at each bipartition from left to right
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> N = 6;
+
+julia> # Create ground state of Fibonacci Hamiltonian
+       H = anyon_ham(N, true);
+
+julia> eigenvals, eigenvecs = eigen(H);
+
+julia> ground_state = eigenvecs[:, 1];
+
+julia> # Calculate entanglement entropy profile
+       ee_profile = anyon_eelis(N, ground_state, true);
+
+julia> length(ee_profile) == N - 1  # Profile has N-1 points
+true
+
+julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
+true
+```
 """
 function anyon_eelis(N::Int64,state::Union{Vector{ET}, Matrix{ET}},pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     # Generate ee list for a given state from the left to the right

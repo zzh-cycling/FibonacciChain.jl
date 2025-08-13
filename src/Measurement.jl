@@ -16,6 +16,27 @@ Map single basis state under measurement operation at site i.
 - Basis-dependent output: Either `(basis, coefficient)` or `(basis1, basis2, coeff1, coeff2)`
 
 Maps individual basis states according to measurement protocols and fusion rules. Here we choose Heisenberg-like preferring way, selecting specific fusion outcome.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> state = T(0b0100);  # Single τ at site 2
+
+julia> τ = 1.0;  # Measurement strength
+
+julia> # Measure at site 2 with outcome + (sign=0)
+       result = measure_basismap(T, τ, state, 2, 0, true);
+
+julia> length(result) ∈ [2, 4]  # Returns 2 or 4 elements depending on configuration
+true
+
+julia> # The first element is always a basis state
+       typeof(result[1]) == T
+true
+```
 """
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # default for PBC system, map basis (not state!!!), and index count from the left.

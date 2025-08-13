@@ -14,6 +14,31 @@ Apply braiding squared operation to density matrix state in vectorized form. Eff
 - `Vector{ET}`: Transformed density matrix state after braiding
 
 Operates on superposition states represented as vectorized density matrices.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> # Create PBC Fibonacci anyon basis 
+       basis = anyon_basis(T, true, anyon_type=:Fibo);
+
+julia> l = length(basis);
+
+julia> ρ_vec = zeros(ComplexF64, l^2);
+
+julia> # Initialize as identity matrix (vectorized)
+       for i in 1:l
+           ρ_vec[(i-1)*l + i] = 1.0/l;
+       end
+
+julia> # Apply braiding at site 2
+       ρ_braided = ladderbraidingsqmap(T, ρ_vec, 2, true);
+
+julia> norm(ρ_braided) > 0  # Should be non-zero
+true
+```
 """
 function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
     # input a superposition of basis, and output the braided state

@@ -20,6 +20,24 @@ Find ground state of Fibonacci chain Hamiltonian using DMRG.
 # Returns
 - `MPS`: Ground state as Matrix Product State
 - `Float64`: Ground state energy
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, ITensorMPS, ITensors
+
+julia> # Find ground state for small system
+       N = 8;
+
+julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10);
+
+julia> # Check that we got an MPS
+       ψ_gs isa MPS
+true
+
+julia> # Energy should be real and negative
+       E0 < 0 && imag(E0) ≈ 0
+true
+```
 """
 function initial_mps(N::Int)
     # Create sites for Fibonacci anyons

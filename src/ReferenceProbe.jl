@@ -137,6 +137,26 @@ Generate quantum state evolution under measurement protocol with reference qubit
 
 # Returns
 - `Vector{ET}` or trajectory: Evolved state or time evolution trajectory
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, Random
+
+julia> N = 4; 
+
+julia> initial_state = normalize!(ones(Float64, length(anyon_basis(N))));  add_ref = add_reference_qubits!(N, initial_state, 1);  # Initialize a simple state with 1 reference qubit
+
+julia> Random.seed!(42); # Create measurement sample (2 layers, 2 measurement sites each)
+
+julia> sample = ones(Int, 2, 2);  # Example measurement sample with 2 layers, each with 2 measurements
+
+julia> τ = 0.5;
+
+julia> trajectory = reference_generate_state(τ, add_ref, sample, temp=true); # Generate evolution trajectory
+
+julia> length(trajectory) == size(sample, 1)  # Should have D time steps
+true
+```
 """
 function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.

@@ -26,6 +26,23 @@ Compute topological symmetry coefficient for state in given base configurations 
 
 # Returns
 - `Float64`: Topological symmetry coefficient based on Fibonacci fusion rules
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2  # Example state configuration
+
+julia> base = T(0b0101);   # Example base configuration
+
+julia> coef = Fsymmetry_coef(state, base, true, :Fibo)
+0.3819660112501051
+
+julia> abs(coef - ϕ)) < 1e-10  # Should equal φ for this configuration
+true
+```
 """
 function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
@@ -100,6 +117,23 @@ Compute topological symmetry coefficients for all basis states relative to given
 
 # Returns
 - `Vector{Float64}`: Coefficients for each basis state
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> state = T(0b0000);  # Vacuum state
+
+julia> coeffs = topological_symmetry_basismap(state, true);
+
+julia> length(coeffs) == length(anyon_basis(T, true, anyon_type=:Fibo))
+true
+
+julia> all(x -> abs(x) > 1e-10 || abs(x) < 1e-10, coeffs)  # All coeffs are well-defined
+true
+```
 """
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
@@ -139,6 +173,28 @@ Generate basis states for 1D anyon chain.
 - `Vector{T}`: Sorted basis states satisfying constraints
 
 Supports Fibonacci anyons, Ising anyons/Majorana fermions, and spin-1/2 systems.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> # Generate Fibonacci basis for N=4 with PBC
+       N = 4; T = BitStr{N, Int};
+
+julia> basis_fibo = anyon_basis(T, true, anyon_type=:Fibo);
+
+julia> length(basis_fibo)  # Fibonacci numbers give the dimension
+7
+
+julia> basis_fibo[1]  # First basis state (vacuum)
+0000
+
+julia> # Generate Ising basis for comparison
+       basis_ising = anyon_basis(T, true, anyon_type=:IsingX);
+
+julia> length(basis_ising)  # All 2^N states for Ising
+16
+```
 """
 function anyon_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
@@ -424,6 +480,23 @@ Construct Hamiltonian matrix for 1D anyon chain.
 - `Matrix{Float64}`: Hamiltonian matrix in chosen basis
 
 Supports various anyon models including Fibonacci and Ising anyons.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N,Int};
+
+julia> H_fibo = anyon_ham(T, true, anyon_type=:Fibo);
+
+julia> size(H_fibo)       # Hamiltonian dimension matches basis size
+(7, 7)
+
+julia> H_Ising = anyon_ham(T, true, anyon_type=:IsingX, J=1.0, h=1.0);
+
+julia> size(H_Ising)      # full Hilbert space for Ising model
+(16, 16)
+```
 """
 function anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
@@ -587,6 +660,21 @@ Compute reduced density matrix for specified subsystems from quantum state or de
 - `Matrix{ET}`: Reduced density matrix for specified subsystems
 
 Subsystem indices are counted from right in binary representation.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis, LinearAlgebra
+julia> N = 4; T = BitStr{N, Int};
+julia> basis = anyon_basis(T, true, anyon_type=:Fibo);
+julia> state = randn(ComplexF64, length(basis)); state ./= norm(state)  
+julia> rdm = anyon_rdm(T, [1, 2], state, true, anyon_type=:Fibo);
+julia> size(rdm)  # Reduced density matrix dimension
+(3, 3)
+julia> ishermitian(rdm)  # RDM should be Hermitian
+true
+julia> trace = tr(rdm)  # Trace should be 1
+1.0 + 0.0im
+```
 """
 function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
@@ -757,6 +845,34 @@ Compute reduced density matrix for two joint different systems, or two parallel 
 
 # Returns
 - `Matrix{ET}`: Reduced density matrix in total Hilbert basis
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis, LinearAlgebra
+
+julia> N1, N2 = 4, 4; T1, T2 = BitStr{N1,Int}, BitStr{N2,Int};
+
+julia> basisA = anyon_basis(T1, true, anyon_type=:Fibo);
+
+julia> basisB = anyon_basis(T2, true, anyon_type=:Fibo);
+
+julia> state = randn(ComplexF64, length(basisA) * length(basisB));
+
+julia> state ./= norm(state);
+
+julia> rdm = disjoint_rdm(T1, T2, [1,2], [1,2], state, true,
+                          totalsubApbc=false, totalsubBpbc=false,
+                          anyon_typeA=:Fibo, anyon_typeB=:Fibo);
+
+julia> size(rdm)          # reduced density matrix dimension
+(9, 9)
+
+julia> ishermitian(rdm)   # should be Hermitian
+true
+
+julia> tr(rdm)            # trace should be 1
+1.0 + 0.0im
+```
 """
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
