@@ -1,13 +1,18 @@
 """
+    Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-    Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> SparseMatrixCSC{Float64, Int}
+Construct Fibonacci chain Hamiltonian as sparse matrix.
 
-# params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
 
-# Return the Hamiltonian matrix in anyon basis, which is automatically contain periodic boundary condition (pbc) or open boundary condition (obc).
+# Returns
+- `SparseMatrixCSC{Float64, Int}`: Hamiltonian matrix in anyon basis
 """
-function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
+function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    basis=Fibonacci_basis(T,pbc, anyon_type=anyon_type)
 
     l=length(basis)
     I, J, V = Int[], Int[], Float64[]
@@ -27,18 +32,26 @@ end
 Fibonacci_Ham_sparse(N::Int64, pbc::Bool=true) = Fibonacci_Ham_sparse(BitStr{N, Int}, pbc)
 
 """
-    Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> SparseMatrixCSC{ComplexF64, Int}   
-    
-# params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
-# Return the Hamiltonian matrix in given symmetric sector Hilbert space.
+    Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+
+Construct Hamiltonian in momentum-topological sector as sparse matrix.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `k::Int`: Momentum quantum number (0 ≤ k ≤ N-1)
+- `Y`: Topological charge sector
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `SparseMatrixCSC{ComplexF64, Int}`: Hamiltonian in symmetric sector
 """
-function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing
 #return: the Hamiltonian matrix in given symmetric sector
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic = Fibonacci_basis(T, k, Y=Y, measure_class=measure_class)
+    basisK, basis_dic = Fibonacci_basis(T, k, Y=Y, anyon_type=anyon_type)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     # H = spzeros(ComplexF64, (l, l))

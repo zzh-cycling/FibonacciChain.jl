@@ -1,9 +1,13 @@
 """
+    ee(subrm::Matrix{ET}) where {ET}
 
-    ee(::Matrix{ET}) where {ET} -> Float64
+Calculate entanglement entropy from reduced density matrix.
 
-# params: a reduced density matrix `subrm` of type `ET`
-# Return the entanglement entropy of the reduced density matrix.
+# Arguments
+- `subrm::Matrix{ET}`: Hermitian reduced density matrix
+
+# Returns
+- `Float64`: von Neumann entanglement entropy
 """
 function ee(subrm::Matrix{ET}) where {ET}
     #  subrm=qi.ptrace(state*state',[2 for i in 1:N],[i for i in l+1:N])
@@ -21,22 +25,29 @@ function ee(subrm::Matrix{ET}) where {ET}
 end
 
 """
-    eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} -> Vector{Float64}  
+    eelis_Fibo_state(N::Int64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
 
-# params: a int of lattice number, `state` is the state vector in anyon basis, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
-# Return the entanglement entropy list for a given state from the left to the right.
+Calculate entanglement entropy profile along the chain for given quantum state.
 
+# Arguments
+- `N::Int64`: System size
+- `state::Vector{ET}`: Quantum state vector in anyon basis
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{Float64}`: Entanglement entropy at each bipartition from left to right
 """
-function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
+function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     # Generate ee list for a given state from the left to the right
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         if m<= div(N,2)
-            subrho=rdm_Fibo(N, collect(1:m), state, pbc, measure_class=measure_class)
+            subrho=rdm_Fibo(N, collect(1:m), state, pbc, anyon_type=anyon_type)
             EE_lis[m]=ee(subrho)
         else
-            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc, measure_class=measure_class)
+            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc, anyon_type=anyon_type)
             EE_lis[m]=ee(subrho)
         end
     end
@@ -60,10 +71,15 @@ function eelis_Fiboladder_state(N::Int64,state::Vector{ET},pbc::Bool=true) where
 end
 
 """
-    translation_matrix(::Type{T}) where {N, T <: BitStr{N}} -> Matrix{Float64}
+    translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
 
-# params: a type `T` of BitStr{N, Int}
-# Return the translation matrix for the Fibonacci basis, which is used to translate the state from one site to another.
+Generate translation operator matrix for Fibonacci basis states.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+
+# Returns
+- `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
 """
 function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
     basis=Fibonacci_basis(T) 
@@ -80,9 +96,15 @@ end
 translation_matrix(N::Int) = translation_matrix(BitStr{N, Int})
 
 """
-    inversion_matrix(::Type{T}) where {N, T <: BitStr{N}} -> Matrix{Float64}
-# params: a type `T` of BitStr{N, Int}
-# Return the inversion matrix for the Fibonacci basis, which is used to invert the state from one site to another.
+    inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
+
+Generate spatial inversion operator matrix for Fibonacci basis states.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+
+# Returns
+- `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
 """
 function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
     basis=Fibonacci_basis(T)
@@ -101,11 +123,21 @@ end
 inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
 
 """
-    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
-    
- # params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
-# Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
+Apply braiding squared operation to quantum state at specified site.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `state::Vector{ET}`: Quantum state vector in anyon basis
+- `idx::Int`: Site index for braiding operation
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{ET}`: Transformed state after braiding operation
+
+Braiding is a fundamental topological operation that exchanges adjacent anyons.
 """
 function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system
@@ -185,9 +217,9 @@ function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: B
 end
 
 """
-    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
 
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `anyon_type` is a symbol, which default to be :Fibo
 # Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
 """
 function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
@@ -216,21 +248,32 @@ end
 braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
 """
-    spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} -> Float64
+    spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
 
-# Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
-# params: a int of lattice number, `state` is the state vector in anyon basis, `site1` and `site2` are the indices of the sites to be correlated, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
-# Return the spatial correlation between the two sites.
+Calculate mutual information between two sites as spatial correlation measure.
+
+# Arguments
+- `N::Int64`: System size
+- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
+- `site1::Int64`: First site index (1 ≤ site1 ≤ N)
+- `site2::Int64`: Second site index (1 ≤ site2 ≤ N, site2 ≠ site1)
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Float64`: Mutual information I(1:2) = S(1) + S(2) - S(1,2)
+
+Computes quantum mutual information as measure of spatial correlations.
 """
-function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
     # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
     @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
     @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
     @assert site1 != site2 "Site1 and Site2 must be different"
 
-    ρ1 = rdm_Fibo(N, [site1], state, pbc, measure_class=measure_class)
-    ρ2 = rdm_Fibo(N, [site2], state, pbc, measure_class=measure_class)
-    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, measure_class=measure_class)
+    ρ1 = rdm_Fibo(N, [site1], state, pbc, anyon_type=anyon_type)
+    ρ2 = rdm_Fibo(N, [site2], state, pbc, anyon_type=anyon_type)
+    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, anyon_type=anyon_type)
     
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
@@ -238,18 +281,27 @@ function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, sit
 end
 
 """
-    temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} -> Float64
+    temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
 
-# Calculate the temporal correlation between two time slices at one site in a given initial_state
-# params: a int of lattice number, `state_addref2` is the state vector
-# Return the temporal correlation between two time slices at one site in a given initial_state
+Calculate temporal correlation using state with two reference qubits.
+
+# Arguments
+- `N::Int64`: System size
+- `state_addref2::Vector{ET}`: Quantum state with two reference qubits added
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Float64`: Temporal correlation measure between time slices
+
+Uses reference qubit protocol to measure temporal correlations at single site.
 """
-function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET}
+function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
 
-    ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, measure_class=measure_class)
-    ρ2 = reference_rdm(N, [1], state_addref2, pbc=pbc, measure_class=measure_class) 
-    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, measure_class=measure_class)
+    ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, anyon_type=anyon_type)
+    ρ2 = reference_rdm(N, [1], state_addref2, pbc=pbc, anyon_type=anyon_type) 
+    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, anyon_type=anyon_type)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation

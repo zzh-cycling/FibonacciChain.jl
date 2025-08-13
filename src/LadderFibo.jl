@@ -1,14 +1,25 @@
 """
-    ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+    ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
-# Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
+Apply braiding squared operation to density matrix state in vectorized form.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `state::Vector{ET}`: Density matrix state in vectorized form
+- `idx::Int`: Site index for braiding operation
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{ET}`: Transformed density matrix state after braiding
+
+Operates on superposition states represented as vectorized density matrices.
 """
-function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
+function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
     # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
+    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     
@@ -50,47 +61,63 @@ function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=t
     
     return mapped_state
 end
-ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc, measure_class=measure_class)
+ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc, anyon_type=anyon_type)
 
 """
-    ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Vector{ET}    
+    ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
-# params: a type `T` of BitStr{N, Int}, `p` is the probability of braiding, `state` is the state vector in anyon basis, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
-# The PBC anyon relation with basis like:
-#  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
-# Return the state vector after braiding the anyons in the state with a given probability.
+Apply probabilistic braiding noise channel to density matrix state.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N  
+- `p::Float64`: Braiding probability (0 ≤ p ≤ 1)
+- `state::Vector{ET}`: Density matrix state in vectorized form
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{ET}`: State after applying Choi map with braiding noise
+
+Implements noise channel: ρ → (1-p)ρ + p B(ρ) where B is braiding operation.
 """
-function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # The PBC anyon relation with basis like:
     #  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
     @assert 0 <= p <= 1 "probability is expected to be in [0, 1], but got $p"
 
     if pbc
         for i in 2:2:N
-            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, measure_class=measure_class)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, anyon_type=anyon_type)
             state/=norm(state) # normalize the state after each braiding
         end
     else
         for i in 2:2:N-1
-            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, measure_class=measure_class)
+            state=(1-p)*state+p*ladderbraidingsqmap(T, state, i, pbc, anyon_type=anyon_type)
         end
     end
 
     return state
 end
-ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc, measure_class=measure_class)
+ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc, anyon_type=anyon_type)
 
 """
-    ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Matrix{Float64}
+    ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
-# params: a type `T` of BitStr{N, Int}, `subsystems` is the indices of the subsystems to be reduced, `state` is the state vector in anyon basis, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
-# Usually subsystem indices count from the right of binary string.
-# The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-# The disjoin_rdm function need to be careful about the combing order of subsystems, as the order of subsystems in the disjoint basis matters. For example, if input state is 2*3 (counting from the left), the disjoint basis counts from the right, is 3*2. So must ensure the order of subsystems is consistent with the input state.
-# However, in this ladder_rdm function, the order of subsystems doesn't matter, because of two subsystems have the same length.
-# Return the reduced density matrix of the subsystems in the state.
+Compute reduced density matrix for specified subsystem from vectorized density matrix.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `subsystems::Vector{Int64}`: Indices of subsystem sites to trace out
+- `state::Vector{ET}`: Full density matrix state in vectorized form
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Matrix{Float64}`: Reduced density matrix of the subsystem
+
+For ladder systems where both subsystems have equal dimensions.
 """
-function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # The disjoin_rdm function need to be careful about the combing order of subsystems, as the order of subsystems in the disjoint basis matters. For example, if input state is 2*3 (counting from the left), the disjoint basis counts from the right, is 3*2. So must ensure the order of subsystems is consistent with the input state.
@@ -101,9 +128,18 @@ end
 ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
 
 """
-    laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} -> Vector{ET}
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis
-# input a superposition state, and output the translated state
+    laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET}
+
+Apply translation operator to vectorized density matrix state.
+
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `state::Vector{ET}`: Density matrix state in vectorized form
+
+# Returns
+- `Vector{ET}`: Translated density matrix state
+
+Translates both bra and ket parts of the density matrix consistently.
 """
 function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} 
     # input a superposition state, and output the translated state

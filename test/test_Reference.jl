@@ -28,15 +28,15 @@ using Random
     @test extended_basis == basis
 
     # Test for Ising basis
-    basis_ising = Fibonacci_basis(N, pbc, measure_class=:IsingX)
+    basis_ising = Fibonacci_basis(N, pbc, anyon_type=:IsingX)
     extended_basis_ising = FibonacciChain.build_extended_basis(0, basis_ising)
     @testset extended_basis_ising == basis_ising
 
     extended_basis_ising1 = FibonacciChain.build_extended_basis(1, basis_ising)
-    @test extended_basis_ising1 == Fibonacci_basis(N+1, pbc, measure_class=:IsingX)
+    @test extended_basis_ising1 == Fibonacci_basis(N+1, pbc, anyon_type=:IsingX)
 
     extended_basis_ising2 = FibonacciChain.build_extended_basis(2, basis_ising)
-    @test extended_basis_ising2 == Fibonacci_basis(N+2, pbc, measure_class=:IsingX)
+    @test extended_basis_ising2 == Fibonacci_basis(N+2, pbc, anyon_type=:IsingX)
 end
 
 @testset "add_reference_qubits" begin
@@ -89,17 +89,17 @@ end
     N = 3
     seed = 90
     st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), measure_class=:IsingX)
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), measure_class=:IsingX)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), anyon_type=:IsingX)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), anyon_type=:IsingX)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), anyon_type=:IsingX)
     @test add_st_ising1[[1,13]] == [1/√2, 1/√2]
     @test add_st_ising2[[1,11]] == [1/√2, 1/√2]
     @test add_st_ising3[[1,10]] == [1/√2, 1/√2]
 
     seed=100
-    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), measure_class=:IsingX)
-    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), measure_class=:IsingX)
-    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), measure_class=:IsingX)
+    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), anyon_type=:IsingX)
+    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), anyon_type=:IsingX)
+    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), anyon_type=:IsingX)
     @test add_st_ising4[[4,end]] == [1/√2, 1/√2]
     @test add_st_ising5[[6,end]] == [1/√2, 1/√2]
     @test add_st_ising6[[7,end]] == [1/√2, 1/√2]
@@ -112,7 +112,7 @@ end
     pbc = true
     k_old = 1
     T = BitStr{N, Int}
-    basislis = Fibonacci_basis(N, pbc, measure_class=:Fibo)
+    basislis = Fibonacci_basis(N, pbc, anyon_type=:Fibo)
     l = length(basislis)
     output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0)
     output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
@@ -150,47 +150,47 @@ end
     pbc = true
     k_old = 1
     T = BitStr{N, Int}
-    measure_class1 = :IsingX
-    measure_class2 = :IsingZZ
-    basislis = Fibonacci_basis(N, pbc, measure_class=measure_class1)
+    anyon_type1 = :IsingX
+    anyon_type2 = :IsingZZ
+    basislis = Fibonacci_basis(N, pbc, anyon_type=anyon_type1)
     l = length(basislis)
-    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, measure_class = measure_class1)
-    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, measure_class = measure_class1)
-    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0, measure_class = measure_class1)
-    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, measure_class = measure_class1)
-    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0, measure_class = measure_class1)
-    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, measure_class = measure_class1)
+    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type1)
+    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type1)
+    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type1)
     @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
     @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
     @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, measure_class = measure_class1)
-    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, measure_class = measure_class1)
-    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, measure_class = measure_class1)
+    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type1)
 
     @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
 
     extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
-    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2, measure_class = measure_class1)
-    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2, measure_class = measure_class1)
-    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2, measure_class = measure_class1)
+    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2, anyon_type = anyon_type1)
 
     @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
     @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
     @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
 
     # Test the IsingZZ
-    output12zz = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, measure_class = measure_class2)
-    output22zz = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, measure_class = measure_class2)
-    output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, measure_class = measure_class2)
+    output12zz = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type2)
+    output22zz = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type2)
+    output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type2)
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, measure_class = measure_class2)
-    output23zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, measure_class = measure_class2)
-    output33zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, measure_class = measure_class2)
+    output13zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output23zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output33zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
 
     @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
@@ -231,13 +231,13 @@ end
     k_old = 1
     T = BitStr{N, Int}
     st = zeros(2^N); st[1] = 1 
-    measure_class1 = :IsingX
-    measure_class2 = :IsingZZ
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, measure_class = measure_class1)
+    anyon_type1 = :IsingX
+    anyon_type2 = :IsingZZ
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type1)
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, measure_class = measure_class1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, measure_class = measure_class1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, measure_class = measure_class2)
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
     @test output13[[1, 5, 9, 13]] == 1/2√2*ones(4)
     @test output23[[1, 3, 13, 15]] == 1/2√2*ones(4)
     @test output33[[1]] == [1/√2]
@@ -273,11 +273,11 @@ end
     rdm = reference_rdm(N, [1], add_site1)
     @test rdm == [0.75 0.0; 0.0 0.25]
 
-    # Trace the first ref qubit with measure_class = :IsingX
+    # Trace the first ref qubit with anyon_type = :IsingX
     full_st = zeros(2^(N+1));
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
-    @test rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == rdm
+    @test rdm_Fibo(4, [1], full_st, anyon_type=:IsingX) == rdm
 
     # Add another ref qubit to site 1 with reset 0, the 1st rdm should be the same as above, but the 2nd rdm should be |0><0|
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90))
@@ -292,9 +292,9 @@ end
     # add a ref qubit to a Bell state, the entanglement entropy should not change
     N=4
     st = zeros(2^N); st[1] = 1; st[end] = 1; st ./= norm(st)
-    @test ee(rdm_Fibo(N, collect(1:div(N,2)), st, measure_class=:IsingX)) ≈ log(2)
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), measure_class=:IsingX)
-    rdm = reference_rdm(N, collect(1:2), add_st, measure_class=:IsingX, traceref=false)
+    @test ee(rdm_Fibo(N, collect(1:div(N,2)), st, anyon_type=:IsingX)) ≈ log(2)
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), anyon_type=:IsingX)
+    rdm = reference_rdm(N, collect(1:2), add_st, anyon_type=:IsingX, traceref=false)
     @test ee(rdm) ≈ log(2)
     # Only for GHZ state, the entanglement entropy is not changed after adding reference qubits, if is W state, Haar Random state, NO.
 end
@@ -303,21 +303,21 @@ end
     N = 3
     st = ones(2^N); st /= norm(st)  # Normalize the state
     site = 1
-    measure_class = :IsingX
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90), measure_class = measure_class)
+    anyon_type = :IsingX
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90), anyon_type = anyon_type)
 
-    rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
+    rdm = reference_rdm(N, [1], add_site1, anyon_type = anyon_type)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
     
-    rdm_system = reference_rdm(N, [2, 3], add_site1, measure_class = measure_class)
+    rdm_system = reference_rdm(N, [2, 3], add_site1, anyon_type = anyon_type)
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90), measure_class = measure_class)
-    rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
-    rdm3 = reference_rdm(N, [2], add_st2, measure_class = measure_class)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90), anyon_type = anyon_type)
+    rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
+    rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
     @test rdm == rdm2
     @test rdm3  ≈ [1.0 0.0; 0.0 0.0]
  
-    rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
+    rdm4 = reference_rdm(N, [1, 2], add_st2, anyon_type = anyon_type)
     @test diag(rdm4) ≈ [0.4999999999999999, 0.0, 0.4999999999999999, 0.0]
 end
 

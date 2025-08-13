@@ -81,7 +81,7 @@ using Random
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] === nothing
 
-    output = measure_basismap.(T, 1000.0, basis0, idx, sign, measure_class=:resetFibo)
+    output = measure_basismap.(T, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), 1.0)
     @test output[2] == (T(bit"001"), 0.0)
@@ -183,9 +183,9 @@ end
     @test Mmpbc == expected_matrix 
     @test Mppbc^2+Mmpbc^2 ≈ I(4) 
 
-    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, measure_class=:reset) 
+    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, anyon_type=:reset) 
     @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, measure_class=:reset) # pbc
+    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, anyon_type=:reset) # pbc
     @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
 end
 

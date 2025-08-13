@@ -136,13 +136,13 @@ end
 
 
     # Test disjoint system joint_basis
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:Fibo)
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:Fibo)
     @test res == [join(l1, l2) for l1 in Fibonacci_basis(1) for l2 in Fibonacci_basis(2,false)]
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:IsingX)
-    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:Fibo)
-    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, false)])
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:IsingX)
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, anyon_type=:IsingX) for l2 in Fibonacci_basis(2, anyon_type=:IsingX, false)])
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:Fibo)
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, anyon_type=:IsingX) for l2 in Fibonacci_basis(2, false)])
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:IsingX)
 
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
@@ -183,10 +183,10 @@ end
     rdm = rdm_Fibo(N, Int[], st)
     @test rdm ≈ ones(Float64, 1,1)
 
-    rdm = rdm_Fibo(N, collect(1:N), st, measure_class=:IsingX)
+    rdm = rdm_Fibo(N, collect(1:N), st, anyon_type=:IsingX)
     @test rdm ≈ st*st'
     
-    rdm = rdm_Fibo(N, [1], st, measure_class=:IsingX) ≈ 0.5*I(2)
+    rdm = rdm_Fibo(N, [1], st, anyon_type=:IsingX) ≈ 0.5*I(2)
 end
 
 @testset "rdm_Fibo_matrix" begin
@@ -200,10 +200,10 @@ end
 
     st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm = rdm_Fibo(N, [1,2], st*st', measure_class=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
+    rdm = rdm_Fibo(N, [1,2], st*st', anyon_type=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
 
     st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # 
-    rdm = rdm_Fibo(2, [1], st*st', measure_class=:IsingX) ≈ 0.5 * I(2)
+    rdm = rdm_Fibo(2, [1], st*st', anyon_type=:IsingX) ≈ 0.5 * I(2)
 end
 
 @testset "Fibonacci_basis_K" begin
@@ -270,19 +270,19 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = zeros(length(Fibonacci_basis(N1, measure_class = :IsingX)) * length(Fibonacci_basis(N2, measure_class=:IsingX))); state[1] = 1; state[end] = 1
+    state = zeros(length(Fibonacci_basis(N1, anyon_type = :IsingX)) * length(Fibonacci_basis(N2, anyon_type=:IsingX))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
     
-    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 
-    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
 
-    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
 
 end
@@ -292,38 +292,38 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2, measure_class = :IsingX))); state[1] = 1; state[end] = 1
+    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2, anyon_type = :IsingX))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
     
-    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classB=:IsingX)
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, anyon_typeB=:IsingX)
     @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
     
     # Test for one subsystem is empty
-    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, anyon_typeB=:IsingX)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
 
-    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, anyon_typeB=:IsingX)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end
 
 @testset "disjoint_rdm and ref qubit" begin
     L=6
     pbc=true
-    measure_class = :IsingX
+    anyon_type = :IsingX
     sample = ones(Int, 20, L)
     τ = log(1 + √2)
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
 
-    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, measure_class=:IsingX)
-    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, measure_classA=:IsingX, measure_classB=:IsingX)
-    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, measure_classA=:IsingX, measure_classB=:IsingX)
-    ρ2r = rdm_Fibo(L, collect(1:div(L,2)), ρ2, measure_class=:IsingX)
+    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, anyon_type=:IsingX)
+    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    ρ2r = rdm_Fibo(L, collect(1:div(L,2)), ρ2, anyon_type=:IsingX)
     S1 = ee(ρ1)
     S2 = ee(ρ2r)
     @test S1 ≈ S2

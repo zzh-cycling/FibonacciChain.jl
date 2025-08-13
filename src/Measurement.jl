@@ -1,11 +1,23 @@
 """
-    measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> Tuple{T, T, Float64, Float64}
+    measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-# params: a type `T` of BitStr{N, Int}, `τ` is the evolution time, `state` is the state vector in anyon basis, `i` is the index of the site to be measured, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+Map single basis state under measurement operation at site i.
 
-# The function is to map the basis (not state!!!) of the system to the measured state, and return the measured state and the weight of the measurement.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `τ::Float64`: Evolution time parameter
+- `state::T`: Input basis state
+- `i::Int`: Measurement site index (1 ≤ i ≤ N)
+- `sign::Int64`: Measurement outcome (0 for +, 1 for -)
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- Basis-dependent output: Either `(basis, coefficient)` or `(basis1, basis2, coeff1, coeff2)`
+
+Maps individual basis states according to measurement protocols and fusion rules.
 """
-function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
@@ -14,7 +26,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
     
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         
         if τ >= 1e2
             cstτ = 0.5
@@ -71,7 +83,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 end
             end
         end
-    elseif measure_class == :IsingX
+    elseif anyon_type == :IsingX
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -82,7 +94,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
 
         return state, X(state,i), cstτ, coef
 
-    elseif measure_class == :IsingZZ
+    elseif anyon_type == :IsingZZ
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -106,7 +118,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 return state, cstτ-coef
             end
         end
-    elseif (measure_class ∈ (:reset, :resetFibo) && τ >= 1e2)|| measure_class == :IsingZ
+    elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -117,29 +129,29 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
 
         return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
     else
-        error("Unknown measure class: $measure_class")
+        error("Unknown measure class: $anyon_type")
     end
 end
 
 
-function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif measure_class == :IsingZZ
+    elseif anyon_type == :IsingZZ
         @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif measure_class ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
         @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
-        error("Unknown measure class: $measure_class")
+        error("Unknown measure class: $anyon_type")
     end
 
-    basis = Fibonacci_basis(T, pbc; measure_class = measure_class)
+    basis = Fibonacci_basis(T, pbc; anyon_type = anyon_type)
     l = length(basis)
     Bmatrix = zeros(l, l)
 
     for i in 1:l
-        outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc; measure_class = measure_class)
+        outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc; anyon_type = anyon_type)
 
         if length(outcome) == 4
             s1, s2, w1, w2 = outcome
@@ -155,25 +167,25 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool
     return Bmatrix
 end
 
-function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif measure_class == :IsingZZ
+    elseif anyon_type == :IsingZZ
         @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif measure_class ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
         @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
-        error("Unknown measure class: $measure_class")
+        error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
+    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
-        output = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class=measure_class)
+        output = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
         if length(output) == 4
             outputstate1, outputstate2, output1, output2=output
             j2=searchsortedfirst(basis, outputstate2)
@@ -187,21 +199,21 @@ function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::I
     
     return mapped_state
 end
-measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class=measure_class)
+measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type)
 
-function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
+    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
         for j in 1:l
-            output1 = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class=measure_class)
-            output2 = measure_basismap(T, τ, basis[j], idx, sign, pbc, measure_class=measure_class)
+            output1 = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
+            output2 = measure_basismap(T, τ, basis[j], idx, sign, pbc, anyon_type=anyon_type)
             if length(output1) == 4 && length(output2) == 4
                 basisi1, basisi2, coefi1, coefi2=output1
                 basisj1, basisj2, coefj1, coefj2=output2
@@ -234,9 +246,9 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
     
     return mapped_state
 end
-laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, measure_class=measure_class)
+laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type)
 
-function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     """
     enumerating all trajectories of measurements on a given initial state.
     
@@ -262,7 +274,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
             current_trajectory = current_level_trajectories[state_idx]
             current_prob = current_level_probabilities[state_idx]
             
-            state_after_p = measuremap(T, τ, state, site, 0, pbc, measure_class=measure_class)
+            state_after_p = measuremap(T, τ, state, site, 0, pbc, anyon_type=anyon_type)
             prob_p = state_after_p' * state_after_p  
             
             # if prob_p > 1e-12  
@@ -275,7 +287,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
                 push!(next_level_probabilities, new_prob_p)
             # end
             
-            state_after_m = measuremap(T, τ, state, site, 1, pbc, measure_class=measure_class)
+            state_after_m = measuremap(T, τ, state, site, 1, pbc, anyon_type=anyon_type)
             prob_m = state_after_m' * state_after_m
             
             # if prob_m > 1e-12 
@@ -300,8 +312,8 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
     return current_level_states, current_level_trajectories, current_level_probabilities
 end
 
-measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = 
-measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc, measure_class=measure_class)
+measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = 
+measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc, anyon_type=anyon_type)
 
 
 function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
@@ -336,13 +348,27 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
 end
 
 """
-    Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}
+    Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
-# params: a type `T` of BitStr{N, Int}, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `num_samples` is the number of samples to be generated, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+Generate measurement samples at boundary sites with probabilistic outcomes.
 
-# The function is to measure the state at the given measurement sites, and return the measured states, the measurement sequences, and the free energy of each sample.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `τ::Float64`: Evolution time parameter
+- `state::Vector{ET}`: Initial quantum state vector
+- `measurement_sites::Vector{Int}`: Sites to perform measurements
+- `num_samples::Int=1000`: Number of measurement samples to generate
+- `rng::MersenneTwister`: Random number generator
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+  (post-measurement states, measurement sequences, free energies)
+
+Samples measurement outcomes probabilistically based on Born rule.
 """
-function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
@@ -360,7 +386,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
         # meaure from the left to the right
         for (site_idx, measurement_site) in enumerate(measurement_sites)
            
-            state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc, measure_class=measure_class)
+            state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc, anyon_type=anyon_type)
             
             
             prob_p = state_after_p' * state_after_p
@@ -372,7 +398,7 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
                 current_state = state_after_p ./ sqrt(prob_p)
                 total_free_energy += -log(prob_p)
             else
-                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc, measure_class = measure_class)
+                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc, anyon_type = anyon_type)
                 current_sequence[site_idx] = 1
                 current_state = state_after_m ./ sqrt(prob_m)
                 total_free_energy += -log(prob_m)
@@ -387,16 +413,16 @@ function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement
     return sample_measured_states, samples, sample_free_energy
 end
 
-Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, measure_class = measure_class)
+Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, anyon_type = anyon_type)
 
 """
-    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{ET}, Vector{Int64}, Float64}
+    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{ET}, Vector{Int64}, Float64}
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
 
 # The function is to measure the state at the given measurement sites, and return the measured state, the measurement sequence, and the free energy of the post-selected state.
 """
-function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
+function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     num_sites = length(measurement_sites)
@@ -408,7 +434,7 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     # meaure from the left to the right
     for (site_idx, measurement_site) in enumerate(measurement_sites)
        
-        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc, measure_class=measure_class)
+        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc, anyon_type=anyon_type)
 
         prob = state_after_measure' * state_after_measure
 
@@ -421,19 +447,19 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 end
 
 """
-    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the number of layers, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the number of layers, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
 # The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
 """
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
+function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
     
     current_state = copy(state)  
     
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         sample = zeros(Int, D, div(N,2))
         for layer in 1:D
             current_sequence = zeros(Int, div(N,2))
@@ -450,7 +476,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
             # measure :sqrtp is Pi 0/tau, measure :sqrtm is Pi 1, measure 0 is Pi 0/tau, measure 1 is Pi 1
                 
             for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, measure_class = measure_class)
+                state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, anyon_type = anyon_type)
                 
                 prob_sqrtp = state_after_p' * state_after_p
                 prob_sqrtm = 1 - prob_sqrtp
@@ -460,7 +486,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
                     current_state = state_after_p ./ sqrt(prob_sqrtp)
                     total_free_energy += -log(prob_sqrtp)
                 else
-                    state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, measure_class = measure_class)
+                    state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, anyon_type = anyon_type)
                     current_sequence[site_idx] = 1
                     current_state = state_after_m ./ sqrt(prob_sqrtm)
                     total_free_energy += -log(prob_sqrtm)
@@ -472,7 +498,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
             sample_free_energy[layer] = total_free_energy
         end
 
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
+    elseif anyon_type == :IsingX || anyon_type == :IsingZZ
         sample = zeros(Int, D, N)
         for layer in 1:D
             current_sequence = zeros(Int, N)
@@ -483,7 +509,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
             if layer % 2 == 1
                # odd layers: even sites, measure X
                for (site_idx, measurement_site) in enumerate(measurement_sites)
-                   state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, measure_class = :IsingX)
+                   state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, anyon_type = :IsingX)
                    
                    prob_sqrtp = state_after_p' * state_after_p
                    prob_sqrtm = 1 - prob_sqrtp
@@ -493,7 +519,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
                        current_state = state_after_p ./ sqrt(prob_sqrtp)
                        total_free_energy += -log(prob_sqrtp)
                    else
-                       state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, measure_class = :IsingX)
+                       state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, anyon_type = :IsingX)
                        current_sequence[site_idx] = 1
                        current_state = state_after_m ./ sqrt(prob_sqrtm)
                        total_free_energy += -log(prob_sqrtm)
@@ -506,7 +532,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
             else
                # even layers: odd sites, measure ZZ
                for (site_idx, measurement_site) in enumerate(measurement_sites)
-                   state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, measure_class = :IsingZZ)
+                   state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, 0, pbc, anyon_type = :IsingZZ)
                    
                    prob_sqrtp = state_after_p' * state_after_p
                    prob_sqrtm = 1 - prob_sqrtp
@@ -516,7 +542,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
                        current_state = state_after_p ./ sqrt(prob_sqrtp)
                        total_free_energy += -log(prob_sqrtp)
                    else
-                       state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, measure_class = :IsingZZ)
+                       state_after_m = measuremap(N, measurement_τ, current_state, measurement_site, 1, pbc, anyon_type = :IsingZZ)
                        current_sequence[site_idx] = 1
                        current_state = state_after_m ./ sqrt(prob_sqrtm)
                        total_free_energy += -log(prob_sqrtm)
@@ -530,27 +556,27 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
         
         end
     else
-        error("Unknown measure class: $measure_class")
+        error("Unknown measure class: $anyon_type")
     end
 
     return sample_measured_states, sample, sample_free_energy
 end
 
 """
-    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the layer depth of the measurement tree, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the layer depth of the measurement tree, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
 
 # The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
 """
-function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
+function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     sample = Vector{Vector{Int64}}(undef, D)
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
 
     current_state = copy(state)  
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         for layer in 1:D
             current_sequence = Vector{Int64}(undef, div(N,2))
             total_free_energy = 0.0
@@ -566,7 +592,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             measurement_τ = (layer == D) ? τ/2 : τ
             
             for (site_idx, measurement_site) in enumerate(measurement_sites)
-                state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, measure_class = measure_class)
+                state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, anyon_type = anyon_type)
                 current_sequence[site_idx] = sign
                 prob_p = state_after_p' * state_after_p
                 current_state = state_after_p ./ sqrt(prob_p)
@@ -589,7 +615,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             if layer % 2 == 1
                 # odd layers:  measure X
                 for (site_idx, measurement_site) in enumerate(measurement_sites)
-                    state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, measure_class = :IsingX)
+                    state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, anyon_type = :IsingX)
                     current_sequence[site_idx] = sign
                     prob_p = state_after_p' * state_after_p
                     current_state = state_after_p ./ sqrt(prob_p)
@@ -603,7 +629,7 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
             else
                 # even layers: odd sites, measure ZZ
                 for (site_idx, measurement_site) in enumerate(measurement_sites)
-                    state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, measure_class = :IsingZZ)
+                    state_after_p = measuremap(N, measurement_τ, current_state, measurement_site, sign, pbc, anyon_type = :IsingZZ)
                     current_sequence[site_idx] = sign
                     prob_p = state_after_p' * state_after_p
                     current_state = state_after_p ./ sqrt(prob_p)
@@ -622,62 +648,62 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
 end
 
 """
-    apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Vector{T}
+    apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Vector{T}
 
-# params: a type `T` of BitStr{N, Int}, `N` is the number of sites, `state` is the state vector in anyon basis, `τ` is the evolution time, `layer_sample` is the measurement sequence for the layer, `layer_idx` is the index of the layer, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `T` of BitStr{N, Int}, `N` is the number of sites, `state` is the state vector in anyon basis, `τ` is the evolution time, `layer_sample` is the measurement sequence for the layer, `layer_idx` is the index of the layer, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
 
 # The function is to apply the measurement layer to the state, and return the measured state.
 """
 # Helper function to apply measurements to a layer
-function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {T}
-    if measure_class == :Fibo
+function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {T}
+    if anyon_type == :Fibo
         if layer_idx % 2 == 1
             measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
         else
             measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
         end
         for (idx, measurement_type) in enumerate(layer_sample)
-            state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = measure_class)
+            state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, anyon_type = anyon_type)
             normalize!(state)
         end
         return state
     
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
+    elseif anyon_type == :IsingX || anyon_type == :IsingZZ
         # measure at all sites!!!
         measurement_sites = collect(1:N)
         if layer_idx % 2 == 1
             # odd layers: measure X
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = :IsingX)
+                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, anyon_type = :IsingX)
                 normalize!(state)
             end
             return state
         else
             # even layers: measure ZZ
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, measure_class = :IsingZZ)
+                state = measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, anyon_type = :IsingZZ)
                 normalize!(state)
             end
             return state
         end
     else
-        error("Unknown measure class: $measure_class")
+        error("Unknown measure class: $anyon_type")
     end
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=false, measure_class::Symbol=:Fibo) where{T, ET}
+function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=false, anyon_type::Symbol=:Fibo) where{T, ET}
 
     if ET == Vector{Int}
-        if measure_class == :Fibo
+        if anyon_type == :Fibo
             N = 2 * length(sample)
         else
             N = length(sample)
         end
-        return apply_measurement_layer!(N, state, τ, sample, 1, pbc, measure_class=measure_class)
+        return apply_measurement_layer!(N, state, τ, sample, 1, pbc, anyon_type=anyon_type)
 
     elseif ET == Matrix{Int}
         D = size(sample, 1)
-        if measure_class == :Fibo
+        if anyon_type == :Fibo
             N = 2 * size(sample, 2) 
         else
             N = size(sample, 2) 
@@ -686,7 +712,7 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
         # if ET is Vector{Int64} and temp is true, we return temporary states.
         for layer in 1:D
             τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, measure_class = measure_class)
+            state = apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, anyon_type = anyon_type)
             
             if temp
                 statelis[layer] = copy(state)

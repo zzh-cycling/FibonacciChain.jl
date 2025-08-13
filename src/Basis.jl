@@ -14,13 +14,20 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
 end
 
 """
-Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> prod(::Float64)
+    Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-is a function that computes the topological symmetry coefficient for a given state and base in the Fibonacci chain. It checks the state and base at each site to determine the coefficient based on the Fibonacci anyon fusion rules.
+Compute topological symmetry coefficient for state in given base configurations for Fibonacci anyon chain.
 
-Return the topological symmetry coefficient.    
+# Arguments
+- `state::T`: Target state configuration
+- `base::T`: Base state configuration  
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Measurement class
+
+# Returns
+- `Float64`: Topological symmetry coefficient based on Fibonacci fusion rules
 """
-function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
     #  %%
@@ -33,7 +40,7 @@ function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol
     ϕ = (1+√5)/2
     prod=1
     
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         @assert pbc || site != N "For OBC, site must not be $N, but got $site"
         for site in 1:N-1
             # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
@@ -78,21 +85,26 @@ function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, measure_class::Symbol
         return prod
 
     else
-        error("Unsupported measure_class: $measure_class")
+        error("Unsupported anyon_type: $anyon_type")
     end
 end
 
 """
-    topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}} -> Vector{Float64}
+    topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
 
-# Compute the topological symmetry map for a given state using the topological symmetry site map for all sites
-# This function returns a vector of coefficients for each basis state in the Fibonacci chain.
-# The coefficients are computed based on the topological symmetry of the state.
+Compute topological symmetry coefficients for all basis states relative to given state.
+
+# Arguments
+- `state::T`: Reference state configuration
+- `pbc::Bool=true`: Periodic boundary conditions
+
+# Returns
+- `Vector{Float64}`: Coefficients for each basis state
 """
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
 
-    basis = Fibonacci_basis(T, pbc, measure_class = :Fibo)
+    basis = Fibonacci_basis(T, pbc, anyon_type = :Fibo)
     coeflis = Vector{Float64}(undef, length(basis))
     
     # For each base in basis, check the state at each site
@@ -106,27 +118,34 @@ end
 function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
     
-    basis=Fibonacci_basis(T, pbc, measure_class = :Fibo)
+    basis=Fibonacci_basis(T, pbc, anyon_type = :Fibo)
     Ymatrix=hcat(topological_symmetry_basismap.(basis)...)
 
     return Ymatrix
 end
 
 """
-    Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> Vector{T}
+    Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-# params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
+Generate basis states for 1D anyon chain.
 
-# Generate basis for 1D anyon chain, depending on the `measure_class`. Now we support `IsingX, IsingZZ, IsingZ, :Fibo, reset`, which is the SU(2)_2, SU(2)_3, SU(2)_∞, the Ising anyon/Majorana fermions, Fibonacci anyon basis and 1/2 spin basis. `Y` is the topological charge, which can be `nothing`, `0`, `1`, `:tau`, `:trivial`, or `:nontrivial`. If `Y` is not `nothing`, the basis will be filtered by the topological charge.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `pbc::Bool=true`: Periodic boundary conditions
+- `Y`: Topological charge filter (`:tau`, `:trivial`, `0`, `1`, or `nothing`)
+- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`, `:reset`)
 
-Return BitBasis form, which can be used as binary and decimal form. Here we both consider `PBC` and `OBC` in ascending order.
+# Returns
+- `Vector{T}`: Sorted basis states satisfying constraints
+
+Supports Fibonacci anyons, Ising anyons/Majorana fermions, and spin-1/2 systems.
 """
-function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
-    if measure_class ∈ (:Fibo, :resetFibo)
+    if anyon_type ∈ (:Fibo, :resetFibo)
         # Generate Fibonacci chain basis
         # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
         if pbc
@@ -147,30 +166,38 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
         end
     
         return sorted_basis
-    elseif measure_class ∈ (:IsingX, :IsingZZ, :IsingZ, :reset)
+    elseif anyon_type ∈ (:IsingX, :IsingZZ, :IsingZ, :reset)
         # Generate basis for Ising model
         return [T(i) for i in 0:(2^N - 1)]
     else
-        error("Unsupported measure_class: $measure_class")
+        error("Unsupported anyon_type: $anyon_type")
     end
 end
-Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, measure_class=measure_class)
+Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, anyon_type=anyon_type)
 
 """
-    Fibonacci_basis(N::Int, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) -> Vector{T}, Dict{T, Vector{T}}
+    Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-#params: a int of chain particle number `N`, momentum of system `k`, topological_charge `Y`, which default to be nothing
+Generate basis states in specific momentum sector `k` and topological sector `Y`.
 
-#return: computational basis in given momentum kinetically constrained subspace with decimal int form in anyon chain.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `k::Int64`: Momentum sector (0 ≤ k ≤ N-1)
+- `Y`: Topological charge sector
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Vector{T}`: Basis states in momentum sector k
+- `Dict{T, Vector{T}}`: Representative mapping for translation equivalence classes
 """
-function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
     basisK = Vector{T}(undef, 0)
-    basis = Fibonacci_basis(T, Y=Y, measure_class=measure_class)
+    basis = Fibonacci_basis(T, Y=Y, anyon_type=anyon_type)
     basis_dic = Dict{T, Vector{T}}()
 
     for i in basis
@@ -192,7 +219,7 @@ function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, measure_class::Symbol=:
 
     return basisK, basis_dic
 end
-Fibonacci_basis(N::Int64, k::Int64; Y=nothing, measure_class::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, k, Y=Y, measure_class=measure_class)
+Fibonacci_basis(N::Int64, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type)
     
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
@@ -267,7 +294,7 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function actingHam(::Type{T}, state::T, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -275,7 +302,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
 
-    if measure_class == :Fibo
+    if anyon_type == :Fibo
         mask=bmask(T, N, N-2)
         output = Dict{T, Float64}()
     
@@ -316,7 +343,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
-    elseif measure_class == :Ferro
+    elseif anyon_type == :Ferro
         mask=bmask(T, N, N-2)
         
         output = Dict{T, Float64}()
@@ -358,7 +385,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
+    elseif anyon_type == :IsingX || anyon_type == :IsingZZ
         # Generate Ising model Hamiltonian
         output = Dict{T, Float64}()
         for i in 1:N-1
@@ -378,26 +405,34 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
 
         return output
     else
-        error("Unsupported measure_class: $measure_class")
+        error("Unsupported anyon_type: $anyon_type")
     end
 end
 
 """
-    Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{Float64}
+    Fibonacci_Ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
-# params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+Construct Hamiltonian matrix for anyon chain models.
 
-# Generate Hamiltonian for anyon chain, automotically contain `pbc` or `obc`.
-# Return the Hamiltonian matrix in given symmetric sector Hilbert space
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+- `kwargs...`: Additional model parameters
+
+# Returns
+- `Matrix{Float64}`: Hamiltonian matrix in chosen basis
+
+Supports various anyon models including Fibonacci and Ising anyons.
 """
-function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
+    basis=Fibonacci_basis(T,pbc, anyon_type=anyon_type)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(T, basis[i], pbc; measure_class=measure_class, kwargs...) 
+        output=actingHam(T, basis[i], pbc; anyon_type=anyon_type, kwargs...) 
         states, weights = keys(output), values(output)
         for m in states
             j=searchsortedfirst(basis, m)
@@ -407,7 +442,7 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, k
 
     return H
 end
-Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class, kwargs...)
+Fibonacci_Ham(N::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, pbc; anyon_type=anyon_type, kwargs...)
 # Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
@@ -438,27 +473,27 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
+    Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
 
-# params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `anyon_type` is a symbol, which default to be :Fibo
 
 # return: the Hamiltonian matrix in given symmetric sector Hilbert space
 """
-function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic =Fibonacci_basis(T, k, Y=Y, measure_class=measure_class)
+    basisK, basis_dic =Fibonacci_basis(T, k, Y=Y, anyon_type=anyon_type)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(T, n, true; measure_class=measure_class, kwargs...)
+        output = actingHam(T, n, true; anyon_type=anyon_type, kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
@@ -485,12 +520,12 @@ function process_join(a, b)
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
-function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
+function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;anyon_type::Symbol=:Fibo)
     # The element order in lengthlis doesn't matter, i.e., [2, 3] is only different with [3, 2] in basis order. Only your input state must consistent with the basis order. 
     if isempty(lengthlis)
         return BitStr{0, Int}[]
     else
-        return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
+        return sort(mapreduce(len -> Fibonacci_basis(len, pbc, anyon_type=anyon_type), process_join, lengthlis))
     end
 end
 
@@ -530,17 +565,27 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
 """
-    rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
+    rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
-# params: a type `T` of BitStr{N, Int}, `subsystems` is a vector of subsystem indices, `state` is the state vector or matrix, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+Compute reduced density matrix for specified subsystems from quantum state.
 
-# Return the reduced density matrix for the given subsystems in anyon basis.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
+- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Matrix{ET}`: Reduced density matrix for specified subsystems
+
+Subsystem indices are counted from right in binary representation.
 """
-function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
+    unsorted_basis = Fibonacci_basis(T, pbc; anyon_type=anyon_type)
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -572,7 +617,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET},
     end
 
     
-    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, anyon_type=anyon_type), Ref(subsystems))
     # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
     # TIPS: mask must have common non-zero part with reduced_basis (thus for comparing)
     len = length(reduced_basis)
@@ -603,20 +648,20 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET},
 
     return reduced_dm
 end
-rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
+rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; anyon_type=anyon_type)
 
 """
-    mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+    mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
 
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system, `measure_class` is a symbol, which default to be :Fibo
+# params: a type `T` of BitStr{N, Int}, `state` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system, `anyon_type` is a symbol, which default to be :Fibo
 
 # Map the symmetric sector Hilbert space state to total space state, which is used to calculate the reduced density matrix in total space.
 """
-function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
 
-    basis = Fibonacci_basis(T, measure_class=measure_class)
+    basis = Fibonacci_basis(T, anyon_type=anyon_type)
     k_dic = Dict{Int, Vector{Int64}}()
     basisK = Vector{T}(undef, 0)
     for i in eachindex(basis)
@@ -646,7 +691,7 @@ function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Sym
 
     return total_state
 end
-mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; measure_class::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, measure_class=measure_class)
+mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, anyon_type=anyon_type)
 
 """
     rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
@@ -664,21 +709,21 @@ end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
-function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo)
+function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo)
     # subpbc is used to indicate whether the subsystem is periodic or not
-    lisA = sort(mapreduce(len -> Fibonacci_basis(len, subApbc, measure_class=measure_classA), process_join, lengthlisA))
-    lisB = sort(mapreduce(len -> Fibonacci_basis(len, subBpbc, measure_class=measure_classB), process_join, lengthlisB))
+    lisA = sort(mapreduce(len -> Fibonacci_basis(len, subApbc, anyon_type=anyon_typeA), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> Fibonacci_basis(len, subBpbc, anyon_type=anyon_typeB), process_join, lengthlisB))
     return vec([join(i, j) for i in lisA for j in lisB])
 end
 
 """
-    disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET} -> Matrix{ET}
+    disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET} -> Matrix{ET}
 
-# params: Two system's info. `T1` of BitStr{N1, Int}, `T2` of BitStr{N2, Int}, `subsystemsA` is a vector of subsystem indices to be kept for the first system, `subsystemsB` is a vector of subsystem indices to be kept for the second system, `state` is the state vector in disjoint basis, `pbc` is a boolean value, `totalsubApbc` and `totalsubBpbc` are used to indicate whether the total subsystem is periodic or not, `measure_classA` and `measure_classB` are symbols, which default to be :Fibo
+# params: Two system's info. `T1` of BitStr{N1, Int}, `T2` of BitStr{N2, Int}, `subsystemsA` is a vector of subsystem indices to be kept for the first system, `subsystemsB` is a vector of subsystem indices to be kept for the second system, `state` is the state vector in disjoint basis, `pbc` is a boolean value, `totalsubApbc` and `totalsubBpbc` are used to indicate whether the total subsystem is periodic or not, `anyon_typeA` and `anyon_typeB` are symbols, which default to be :Fibo
 
 # Return the reduced density matrix for the given subsystems in disjoint basis, which can be viewed as two parallel chains or two joint systems.
 """
-function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
@@ -689,8 +734,8 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
         return state * state'
     end
 
-    unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
-    unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
+    unsorted_basisA = Fibonacci_basis(T1, pbc, anyon_type=anyon_typeA)
+    unsorted_basisB = Fibonacci_basis(T2, pbc, anyon_type=anyon_typeB)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
@@ -715,12 +760,12 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
     subsystemsB = vcat(subsystemsB...)
 
     if isempty(subsystemsA)
-        # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, measure_classB
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubBpbc, measure_class = measure_classB), Ref(subsystems))
+        # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, anyon_typeB
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubBpbc, anyon_type = anyon_typeB), Ref(subsystems))
     elseif isempty(subsystemsB)
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubApbc, measure_class = measure_classA), Ref(subsystems))
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubApbc, anyon_type = anyon_typeA), Ref(subsystems))
     else
-        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc, anyon_typeA = anyon_typeA, anyon_typeB = anyon_typeB), Ref(vcat(subsystemsA, subsystemsB)))
     end
 
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
@@ -754,7 +799,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {ET} = 
+disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {ET} = 
 disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
 totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
-measure_classA=measure_classA, measure_classB=measure_classB)
+anyon_typeA=anyon_typeA, anyon_typeB=anyon_typeB)

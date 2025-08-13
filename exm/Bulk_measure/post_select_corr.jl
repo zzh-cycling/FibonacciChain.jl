@@ -55,11 +55,11 @@ end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24)
     pbc = true
-    measure_class = :Fibo
+    anyon_type = :Fibo
     # sample = ones(Int, D, length(2:2:L))
     sample = zeros(Int, D, length(2:2:L))
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true)

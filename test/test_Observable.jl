@@ -324,7 +324,7 @@ end
 
 @testset "spatial_correlation" begin
     N=12
-    mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    mes = zeros(length(Fibonacci_basis(12, true, anyon_type=:Fibo)))
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
@@ -332,17 +332,17 @@ end
     @test sclis ≈ log(2)*ones(12*11)
 
     N=6
-    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:IsingX)))
     mes[22] = 1/√2 
     mes[43] = 1/√2
-    sclis = [spatial_correlation(N, mes, i, j, measure_class=:IsingX) for i in 1:N for j in 1:N if j!=i]
+    sclis = [spatial_correlation(N, mes, i, j, anyon_type=:IsingX) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2)*ones(6*5)
 end
 
 @testset "temporal_correlation" begin
     # N=12
     # τ = 1000.0
-    # mes = zeros(length(Fibonacci_basis(N, true, measure_class=:Fibo)))
+    # mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:Fibo)))
     # mes[233] = 1/√2 
     # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
@@ -356,20 +356,20 @@ end
 
     N=4
     τ = 1000.0
-    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:IsingX)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
     
     D= 10 
 
     sample = zeros(Int, D, N)
-    statelis = generate_state(τ, mes, sample, temp= true, measure_class=:IsingX)
+    statelis = generate_state(τ, mes, sample, temp= true, anyon_type=:IsingX)
     # Noting that the first state of statelis is not mes.
-    spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, measure_class=:IsingX)
+    spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, anyon_type=:IsingX)
     @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
 
-    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, measure_class=:IsingX)
+    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX)
     
-    tc = temporal_correlation(N, final_st, measure_class=:IsingX)
-    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, measure_class=:IsingX) for i in 1:D-1 for j in i+1:D]
+    tc = temporal_correlation(N, final_st, anyon_type=:IsingX)
+    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol=1e-6)
 end
