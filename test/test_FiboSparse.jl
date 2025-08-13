@@ -5,16 +5,16 @@ using Arpack
 
 @testset "FibonacciChain Tests" begin
     N = 8
-    H = Fibonacci_Ham(N)
-    H_sparse = Fibonacci_Ham_sparse(N)
+    H = anyon_ham(N)
+    H_sparse = anyon_ham_sparse(N)
 
     @test Matrix(H_sparse) ≈ H
 end
 
-@testset "Fibonacci_Ham_sparse_K" begin
+@testset "anyon_ham_sparse_K" begin
     N = 8
-    H = Fibonacci_Ham(N)
-    H_sparse = Fibonacci_Ham_sparse(N, 0)
+    H = anyon_ham(N)
+    H_sparse = anyon_ham_sparse(N, 0)
     energy = eigvals(H)[1]
     energy_sparse, state_sparse = Arpack.eigs(H_sparse, nev=1, which=:SR)
     @test energy ≈ energy_sparse[1]

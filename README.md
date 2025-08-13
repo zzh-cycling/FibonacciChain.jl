@@ -6,6 +6,6 @@
 [![Coverage](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl)
 
 
-Such repo is designed to simulate interacting anyons based on idea that like in Heisenberg model, we choose singlet with less energy, here we choose trivial fusion outcome less energy.
+Such repo is designed to simulate interacting anyons based on idea that like in Heisenberg model we choose singlet with less energy, here we choose trivial fusion outcome less energy. Nowadays we support $SU(2)_2$, $SU(2)_3$, $SU(2)_{\infty}$ three types anyons, which is Ising anyon/Majorana fermions, Fibonacci anyons, normal 1/2 spin basis respetively.
 
 Ref: Phys. Rev. Lett. 98, 160409 [DOI](https://doi.org/10.1103/PhysRevLett.98.160409) 

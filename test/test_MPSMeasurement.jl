@@ -94,7 +94,7 @@ end
     ψ_p, prob_p = apply_measurement_mps(ψ0, sites, 1, τ, 0; pbc=pbc)
     ψ_m, prob_m = apply_measurement_mps(ψ0, sites, 1, τ, 1; pbc=pbc)
 
-    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(N))); st[1] = 1.0
     state_after_p = measuremap(N, τ, st, 1, 0)
     p = state_after_p'*state_after_p
 
@@ -119,7 +119,7 @@ end
     
     # Create initial product state (vacuum state)
     state = ["0" for _ in 1:N]
-    state_exact = zeros(length(Fibonacci_basis(N)))
+    state_exact = zeros(length(anyon_basis(N)))
     state_exact[1] = 1.0  # Vacuum state
     # Use minimal measurement sites for enumeration
     measurement_sites = collect(2:2:N)
@@ -155,7 +155,7 @@ end
     measurement_sites = collect(2:2:N)
     seed=10
     # Perform sampling
-    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(N))); st[1] = 1.0
     samples_mps, samples_free_energy_mps = mps_boundary_measure(ψ, sites, measurement_sites, τ; num_samples=num_samples, rng=MersenneTwister(seed), pbc=pbc)
     sample_measured_states, samples, samples_free_energy = Boundary_measure(N, τ, st, measurement_sites,num_samples, MersenneTwister(seed))
 
@@ -175,7 +175,7 @@ end
     measurement_sites = collect(2:2:N)
     seed=10
     # Perform sampling
-    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(N))); st[1] = 1.0
     
     # Perform bulk measurements
     bulk_states, bulk_samples, bulk_free_energy = mps_bulk_measurement(
@@ -196,7 +196,7 @@ end
 
     seed=10
     # Perform sampling
-    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(N))); st[1] = 1.0
     
     # Apply measurement to a specific layer
     measurement_layer = 2
@@ -206,7 +206,7 @@ end
     
     st_exact= FibonacciChain.apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
 
-    inds = [i.buf for i in Fibonacci_basis(N)] .+1
+    inds = [i.buf for i in anyon_basis(N)] .+1
 
     ψ_dense = reduce(*, ψ_layer).tensor.storage[inds]
     @test ψ_dense[ψ_dense .>0] ≈ st_exact[st_exact .>0]
@@ -220,7 +220,7 @@ end
 
     seed=10
     # Perform sampling
-    st = zeros(length(Fibonacci_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(N))); st[1] = 1.0
     
     # Generate a specific state
     measurement_sites = collect(2:2:N)  # Example measurement sites
@@ -229,7 +229,7 @@ end
     generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true; pbc= pbc)
     generated_state_exact = generate_state(τ, st, bulk_samples, pbc, temp = true)
 
-    inds = [i.buf for i in Fibonacci_basis(N)] .+1
+    inds = [i.buf for i in anyon_basis(N)] .+1
 
     ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_state]
     ψ_dense = [sort(ψ[ψ.>0]) for ψ in ψ_dense] 
@@ -249,7 +249,7 @@ end
 
     ψ = randomMPS(sites, state)
     # Calculate entanglement entropy at different cuts
-    EElis = eelis_Fibo_mps(N, ψ)
+    EElis = anyon_eelis_mps(N, ψ)
     @test all(EElis .>= 0)  # Entanglement entropy should be non-negative
 end
 
@@ -288,7 +288,7 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = eelis_Fibo_mps(L, final_state)
+    final_EElis = anyon_eelis_mps(L, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end
@@ -296,14 +296,14 @@ end
 function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     rng = MersenneTwister(seed)
     
-    st = zeros(length(Fibonacci_basis(L)))
+    st = zeros(length(anyon_basis(L)))
     st[1] = 1.0
     
     sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng, true) 
     
-    halfchain_EE_tlis = [ee(rdm_Fibo(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
+    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = eelis_Fibo_state(L, final_state)
+    final_EElis = anyon_eelis(L, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end

@@ -6,8 +6,8 @@ using Random
 
 @testset "ee" begin
     N=6
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
-    rdm=rdm_Fibo(N, collect(1:div(N,2)), state)
+    state=eigvecs(anyon_ham(N))[:,1]
+    rdm=anyon_rdm(N, collect(1:div(N,2)), state)
     @test size(rdm)==(5,5)
     @test isapprox(FibonacciChain.ee(rdm), 0.7619577865215983
     , atol=1e-5)
@@ -15,16 +15,16 @@ end
 
 @testset "eelis" begin
     N=6
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
-    EE_lis=eelis_Fibo_state(N,state)
+    state=eigvecs(anyon_ham(N))[:,1]
+    EE_lis=anyon_eelis(N,state)
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
 end
 
 @testset "ee_Fiboladder_lis" begin
     N=3
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
-    EE_lis=eelis_Fiboladder_state(N, kron(state, state))
+    state=eigvecs(anyon_ham(N))[:,1]
+    EE_lis=anyonladder_eelis(N, kron(state, state))
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
 end
@@ -283,7 +283,7 @@ end
     0.0 0.0 0.0 exp(-6im*π/5)]
 
     ⊗(A,B) = kron(A,B)
-    idx = [i.buf+1 for i in Fibonacci_basis(3,false)]
+    idx = [i.buf+1 for i in anyon_basis(3,false)]
     Z=[1 0;0 -1]
     X=[0 1;1 0]
     P0=[1 0;0 0]
@@ -324,7 +324,7 @@ end
 
 @testset "spatial_correlation" begin
     N=12
-    mes = zeros(length(Fibonacci_basis(12, true, measure_class=:Fibo)))
+    mes = zeros(length(anyon_basis(12, true, anyon_type=:Fibo)))
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
@@ -332,17 +332,17 @@ end
     @test sclis ≈ log(2)*ones(12*11)
 
     N=6
-    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes = zeros(length(anyon_basis(N, true, anyon_type=:IsingX)))
     mes[22] = 1/√2 
     mes[43] = 1/√2
-    sclis = [spatial_correlation(N, mes, i, j, measure_class=:IsingX) for i in 1:N for j in 1:N if j!=i]
+    sclis = [spatial_correlation(N, mes, i, j, anyon_type=:IsingX) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2)*ones(6*5)
 end
 
 @testset "temporal_correlation" begin
     # N=12
     # τ = 1000.0
-    # mes = zeros(length(Fibonacci_basis(N, true, measure_class=:Fibo)))
+    # mes = zeros(length(anyon_basis(N, true, anyon_type=:Fibo)))
     # mes[233] = 1/√2 
     # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
@@ -356,20 +356,20 @@ end
 
     N=4
     τ = 1000.0
-    mes = zeros(length(Fibonacci_basis(N, true, measure_class=:IsingX)))
+    mes = zeros(length(anyon_basis(N, true, anyon_type=:IsingX)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
     
     D= 10 
 
     sample = zeros(Int, D, N)
-    statelis = generate_state(τ, mes, sample, temp= true, measure_class=:IsingX)
+    statelis = generate_state(τ, mes, sample, temp= true, anyon_type=:IsingX)
     # Noting that the first state of statelis is not mes.
-    spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, measure_class=:IsingX)
+    spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, anyon_type=:IsingX)
     @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
 
-    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, measure_class=:IsingX)
+    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX)
     
-    tc = temporal_correlation(N, final_st, measure_class=:IsingX)
-    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, measure_class=:IsingX) for i in 1:D-1 for j in i+1:D]
+    tc = temporal_correlation(N, final_st, anyon_type=:IsingX)
+    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol=1e-6)
 end

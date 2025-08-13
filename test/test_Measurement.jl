@@ -81,7 +81,7 @@ using Random
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] === nothing
 
-    output = measure_basismap.(T, 1000.0, basis0, idx, sign, measure_class=:resetFibo)
+    output = measure_basismap.(T, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), 1.0)
     @test output[2] == (T(bit"001"), 0.0)
@@ -183,9 +183,9 @@ end
     @test Mmpbc == expected_matrix 
     @test Mppbc^2+Mmpbc^2 ≈ I(4) 
 
-    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, measure_class=:reset) 
+    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, anyon_type=:reset) 
     @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, measure_class=:reset) # pbc
+    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, anyon_type=:reset) # pbc
     @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
 end
 
@@ -288,7 +288,7 @@ end
 
 @testset "measurement_enumeration" begin
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigen(anyon_ham(N))
     antiGS= states[:, 1]
 
     τ = 0.0
@@ -307,7 +307,7 @@ end
 
 @testset "Boundary_measure" begin
     N=6
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     τ = 3.802
     measurement_sites = collect(2:2:N)
@@ -324,7 +324,7 @@ end
 @testset "Boundarypost_selection" begin
     N = 10
     τ = 1e3
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
     final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
@@ -335,11 +335,11 @@ end
 @testset "Bulkmeasure" begin
     L = 10
     D = 2L
-    st=zeros(length(Fibonacci_basis(L)))
+    st=zeros(length(anyon_basis(L)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(2)) 
-    EElis = [eelis_Fibo_state(L, state_t)[5] for state_t in sample_measured_states]
+    EElis = [anyon_eelis(L, state_t)[5] for state_t in sample_measured_states]
     @test size(samples) == (20, 5)
     @test EElis[1] ≈ 0.0 atol = 1e-4
     @test EElis[end] > 0.5098675501545762 
@@ -350,14 +350,14 @@ end
     τ = 0.1
     D = 15L
     pbc = true
-    st=zeros(length(Fibonacci_basis(L)))
+    st=zeros(length(anyon_basis(L)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
     sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc)
     state_t = sample_measured_states[end]
-    EE = eelis_Fibo_state(L, state_t)[5]
+    EE = anyon_eelis(L, state_t)[5]
     @test samples[end] == fill(0, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
 end
@@ -365,7 +365,7 @@ end
 @testset "generate_state" begin
     N = 10
     τ = 1e3
-    energy, states = Arpack.eigs(Fibonacci_Ham(N), nev=1, which=:SR)
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
     
@@ -373,7 +373,7 @@ end
     state = generate_state(τ, antiGS, samples[1])
     @test state ≈ sample_measured_states[1]
 
-    st = zeros(length(Fibonacci_basis(N)))
+    st = zeros(length(anyon_basis(N)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)

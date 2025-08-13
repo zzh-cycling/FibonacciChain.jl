@@ -5,14 +5,14 @@ include("../FitEntEntScal.jl")
 
 function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
     pbc = true
-    st=zeros(length(Fibonacci_basis(L)))
+    st=zeros(length(anyon_basis(L)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
     @time sample_measured_states, sample, sample_free_energy = Bulkpost_selection(L, τ, st, D, sign, pbc)
-    EE_tlis = [ee(rdm_Fibo(L, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
+    EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
     final_state = sample_measured_states[end]
-    average_EElis = eelis_Fibo_state(L, final_state)
+    average_EElis = anyon_eelis(L, final_state)
 
     
     return average_EElis, EE_tlis, sample_free_energy

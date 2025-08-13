@@ -55,39 +55,39 @@ end
 
 function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start_point::Int64=15)
     pbc = true
-    measure_class = :IsingX
+    anyon_type = :IsingX
     sample = ones(Int, D, L)
     # sample = zeros(Int, D, L)
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
     
     timeslice1 = L*start_point
     final_st= statelis[L*start_point]
-    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc=pbc, measure_class=measure_class)
+    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc=pbc, anyon_type=anyon_type)
 
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, measure_class=:IsingX) for j in timeslice1+2:2:timeslice1+2L]
+    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, anyon_type=:IsingX) for j in timeslice1+2:2:timeslice1+2L]
 
     save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
 function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3, seed::Int64=100)
     pbc = true
-    measure_class = :IsingX
+    anyon_type = :IsingX
     sample = zeros(Int, D, L)
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
     block = round(Int, block_size*L)
     block = iseven(block) ? block : block - 1
 
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
-    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, measure_class=measure_class)
+    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
 
-    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed, measure_class=:IsingX), measure_class=:IsingX) for timeslice in 2:2:D-block]
+    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed, anyon_type=:IsingX), anyon_type=:IsingX) for timeslice in 2:2:D-block]
 
     save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
     # return temporal_corr_lis, spatial_corr_lis

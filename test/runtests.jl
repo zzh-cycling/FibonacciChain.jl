@@ -9,8 +9,8 @@ end
     include("./test_Observable.jl")
 end
 
-@testset "ladderFibo.jl" begin
-    include("./test_LadderFibo.jl")
+@testset "AnyonLadder.jl" begin
+    include("./test_AnyonLadder.jl")
 end
 
 @testset "Measurement.jl" begin

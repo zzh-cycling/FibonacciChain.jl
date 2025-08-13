@@ -14,6 +14,14 @@ makedocs(;
     ),
     pages=[
         "Home" => "index.md",
+        "Manual" => [
+            "Basis Functions" => "basis.md",
+            "Observables" => "observables.md", 
+            "Measurements" => "measurements.md",
+            "MPS Methods" => "mps.md",
+            "Examples" => "examples.md",
+        ],
+        "API Reference" => "api.md",
     ],
 )
 

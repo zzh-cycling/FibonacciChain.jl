@@ -55,11 +55,11 @@ end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24)
     pbc = true
-    measure_class = :Fibo
+    anyon_type = :Fibo
     # sample = ones(Int, D, length(2:2:L))
     sample = zeros(Int, D, length(2:2:L))
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true)
@@ -78,7 +78,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, bloc
     pbc = true
     sample = zeros(Int, D, div(L,2))
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
     block = round(Int, block_size*L)
     block = iseven(block) ? block : block - 1

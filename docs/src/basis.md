@@ -1,0 +1,61 @@
+# Basis Functions
+
+This section covers the fundamental basis generation and manipulation functions for anyon chains.
+
+## Anyon Basis Generation
+
+The `anyon_basis` function generates the computational basis states for various anyon models in different symmetry sector:
+
+### Fibonacci Anyons
+For Fibonacci anyons, where quantum dimension is $\phi = \frac{1+\sqrt{5}}{2}$, the basis consists of configurations that satisfy the fusion constraints. Each site can be in state `0` (vacuum) or `1` ($\tau$ particle), with the constraint that no two adjacent $\tau$ particles can fuse to vacuum (forbidden configurations `11`are excluded). If you are familiar with PXP model, you will quickly get it.
+
+### Ising Anyons  
+For Ising anyons (Majorana fermions), where quantum dimension $d=\sqrt{2}$, the basis includes all possible $\sigma$ and 1 configurations, representing the two types of Ising anyons.
+
+
+### Nomral Spin 
+quantum dimension $d=2$.
+
+### Symmetry
+The symmetry you can choose nowadays is:
+
+- Translational symmetry $T$
+- Topological symmetry $Y$
+
+Potential symmetry:
+- Inversion symmetry $I$
+
+### Usage Examples
+
+```julia
+using FibonacciChain
+
+# Generate Fibonacci basis for 6 sites with PBC
+N = 6
+basis_pbc = anyon_basis(N, true, measure_class=:Fibo)
+
+# Generate Ising anyon basis  
+basis_ising = anyon_basis(N, true, measure_class=:IsingX)
+
+# Generate basis in momentum sector k=0
+basis_k0, rep_dict = anyon_basis(N, 0)
+```
+
+## Hamiltonian Construction
+
+Now we support 
+
+- Ising interaction: $H = -\sum_i Z_iZ_{i+1} - \sum_i X_i$
+- Ferromagnetic Fibonacci anyon interaction: $H = -\sum_i \Pi_{i}^0$
+- Antiferromagnetic Fibonacci anyon interaction: $H = -\sum_i \Pi_{i}^1$
+  
+## Topological Symmetries
+
+
+The topological symmetry operations are crucial for understanding the anyonic nature of the system. They encode how the fusion outcomes transform under topological operations.
+
+## Reduced Density Matrices
+
+Both for state and density matrix in specific symmetry sector: `anyon_rdm(N, subsystems, state, k=0)`
+
+And we also have `disjoint_rdm` for two parallel chains with two different anyon type.

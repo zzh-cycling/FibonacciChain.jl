@@ -102,17 +102,17 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = Fibonacci_basis(5)
+    fib_basis = anyon_basis(5)
     @test length(fib_basis) == 11
-    fib_basis = Fibonacci_basis(5,false)
+    fib_basis = anyon_basis(5,false)
     @test length(fib_basis) == 13
     # Test the Fibonacci Hamiltonian
-    fib_ham = Fibonacci_Ham(5)
+    fib_ham = anyon_ham(5)
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
-    @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-    @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
+    @test anyon_ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
+    @test anyon_ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
 end
 
 @testset "process_join" begin
@@ -126,8 +126,8 @@ end
     res = FibonacciChain.joint_basis([2, 3])
     @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
-    lis1 = Fibonacci_basis(1,false)
-    lis2 = Fibonacci_basis(2,false)
+    lis1 = anyon_basis(1,false)
+    lis2 = anyon_basis(2,false)
     res = FibonacciChain.joint_basis([1, 2])  
     # Ensureing the order is 2*1, not 1*2
     # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
@@ -136,13 +136,13 @@ end
 
 
     # Test disjoint system joint_basis
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:Fibo)
-    @test res == [join(l1, l2) for l1 in Fibonacci_basis(1) for l2 in Fibonacci_basis(2,false)]
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:IsingX)
-    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:Fibo)
-    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, false)])
-    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:IsingX)
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:Fibo)
+    @test res == [join(l1, l2) for l1 in anyon_basis(1) for l2 in anyon_basis(2,false)]
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(1, anyon_type=:IsingX) for l2 in anyon_basis(2, anyon_type=:IsingX, false)])
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:Fibo)
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(1, anyon_type=:IsingX) for l2 in anyon_basis(2, false)])
+    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:IsingX)
 
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
@@ -162,84 +162,84 @@ end
     @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
 end
 
-@testset "rdm_Fibo" begin
+@testset "anyon_rdm" begin
     N = 3
-    st = ones(length(Fibonacci_basis(N))); st /= norm(st)  # Normalize the state
+    st = ones(length(anyon_basis(N))); st /= norm(st)  # Normalize the state
     # The empty subsystem
-    rdm = rdm_Fibo(N, Int64[], st)
+    rdm = anyon_rdm(N, Int64[], st)
     @test rdm ≈ ones(Float64, 1,1)
 
     # The total system
-    rdm = rdm_Fibo(N, collect(1:N), st)
+    rdm = anyon_rdm(N, collect(1:N), st)
     @test rdm ≈ st*st'
 
-    rdm = rdm_Fibo(N, [1], st)
+    rdm = anyon_rdm(N, [1], st)
     @test rdm ≈ [0.75 0.25; 0.25 0.25]
 end
 
-@testset "rdm_Fibo_Ising" begin
+@testset "anyon_rdm_Ising" begin
     N = 3
     st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
-    rdm = rdm_Fibo(N, Int[], st)
+    rdm = anyon_rdm(N, Int[], st)
     @test rdm ≈ ones(Float64, 1,1)
 
-    rdm = rdm_Fibo(N, collect(1:N), st, measure_class=:IsingX)
+    rdm = anyon_rdm(N, collect(1:N), st, anyon_type=:IsingX)
     @test rdm ≈ st*st'
     
-    rdm = rdm_Fibo(N, [1], st, measure_class=:IsingX) ≈ 0.5*I(2)
+    rdm = anyon_rdm(N, [1], st, anyon_type=:IsingX) ≈ 0.5*I(2)
 end
 
-@testset "rdm_Fibo_matrix" begin
+@testset "anyon_rdm_matrix" begin
     N = 4
-    st = zeros(length(Fibonacci_basis(N)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    st = zeros(length(anyon_basis(N)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm = rdm_Fibo(N, collect(1:2), st*st')
+    rdm = anyon_rdm(N, collect(1:2), st*st')
     @test rdm ≈ diagm([0.0, 0.5, 0.5])
-    rdm = rdm_Fibo(N, collect(1:N), st*st')
+    rdm = anyon_rdm(N, collect(1:N), st*st')
     @test rdm ≈ st*st'
 
     st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm = rdm_Fibo(N, [1,2], st*st', measure_class=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
+    rdm = anyon_rdm(N, [1,2], st*st', anyon_type=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
 
     st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # 
-    rdm = rdm_Fibo(2, [1], st*st', measure_class=:IsingX) ≈ 0.5 * I(2)
+    rdm = anyon_rdm(2, [1], st*st', anyon_type=:IsingX) ≈ 0.5 * I(2)
 end
 
-@testset "Fibonacci_basis_K" begin
+@testset "anyon_basis_K" begin
     N = 8
     T = BitStr{N}
     k = 0
-    fib_basis_k = Fibonacci_basis(T, k)[1]
+    fib_basis_k = anyon_basis(T, k)[1]
     @test length(fib_basis_k) == 8  # Check the length of the basis
     @test [i.buf for i in fib_basis_k] == [0, 1, 5, 9, 17, 21, 37, 85]
 end
 
-@testset "Fibonacci_Ham_K" begin
+@testset "anyon_ham_K" begin
     N = 8
     T = BitStr{N}
     k = 0
-    fib_ham_k = Fibonacci_Ham(T, k)
-    H = Fibonacci_Ham(N)
+    fib_ham_k = anyon_ham(T, k)
+    H = anyon_ham(N)
     @test size(fib_ham_k) == (8, 8)  # Check the size of the Hamiltonian matrix
     @test ishermitian(fib_ham_k)  # Check if the Hamiltonian is Hermitian
     @test eigvals(H)[1] ≈ eigvals(fib_ham_k)[1]  # Check if the ground state energy matches
 end
 
-@testset "mapst_sec2tot, rdm_Fibo_sec" begin
+@testset "mapst_sec2tot, anyon_rdm_sec" begin
     N = 8
     k = 0
     T = BitStr{N}
-    fib_ham_k = Fibonacci_Ham(T, k)
-    H = Fibonacci_Ham(N)
+    fib_ham_k = anyon_ham(T, k)
+    H = anyon_ham(N)
     
     sec_gs = eigvecs(fib_ham_k)[:, 1]
     gs = eigvecs(H)[:, 1]
     mapped_st = FibonacciChain.mapst_sec2tot(T, sec_gs, k)
     @test mapped_st ≈ gs  # Check if the mapped state matches the ground state
 
-    rdm_sec = rdm_Fibo_sec(N, collect(1:div(N,2)), sec_gs, k)
-    rdm = rdm_Fibo(N, collect(1:div(N,2)), gs)
+    rdm_sec = anyon_rdm_sec(N, collect(1:div(N,2)), sec_gs, k)
+    rdm = anyon_rdm(N, collect(1:div(N,2)), gs)
     @test rdm_sec ≈ rdm  # Check if the reduced density matrix matches
 end
 
@@ -248,7 +248,7 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(N1)) * length(anyon_basis(N2))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
@@ -270,19 +270,19 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = zeros(length(Fibonacci_basis(N1, measure_class = :IsingX)) * length(Fibonacci_basis(N2, measure_class=:IsingX))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(N1, anyon_type = :IsingX)) * length(anyon_basis(N2, anyon_type=:IsingX))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
     
-    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 
-    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
 
-    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
 
 end
@@ -292,38 +292,38 @@ end
     N2 = 4
     T1 = BitStr{N1}
     T2 = BitStr{N2}
-    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2, measure_class = :IsingX))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(N1)) * length(anyon_basis(N2, anyon_type = :IsingX))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
     
-    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classB=:IsingX)
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, anyon_typeB=:IsingX)
     @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
     
     # Test for one subsystem is empty
-    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, anyon_typeB=:IsingX)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
 
-    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, anyon_typeB=:IsingX)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end
 
 @testset "disjoint_rdm and ref qubit" begin
     L=6
     pbc=true
-    measure_class = :IsingX
+    anyon_type = :IsingX
     sample = ones(Int, 20, L)
     τ = log(1 + √2)
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
 
-    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, measure_class=:IsingX)
-    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, measure_classA=:IsingX, measure_classB=:IsingX)
-    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, measure_classA=:IsingX, measure_classB=:IsingX)
-    ρ2r = rdm_Fibo(L, collect(1:div(L,2)), ρ2, measure_class=:IsingX)
+    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, anyon_type=:IsingX)
+    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    ρ2r = anyon_rdm(L, collect(1:div(L,2)), ρ2, anyon_type=:IsingX)
     S1 = ee(ρ1)
     S2 = ee(ρ2r)
     @test S1 ≈ S2
