@@ -6,8 +6,8 @@ using Random
 
 @testset "ee" begin
     N=6
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
-    rdm=rdm_Fibo(N, collect(1:div(N,2)), state)
+    state=eigvecs(anyon_ham(N))[:,1]
+    rdm=anyon_rdm(N, collect(1:div(N,2)), state)
     @test size(rdm)==(5,5)
     @test isapprox(FibonacciChain.ee(rdm), 0.7619577865215983
     , atol=1e-5)
@@ -15,7 +15,7 @@ end
 
 @testset "eelis" begin
     N=6
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
+    state=eigvecs(anyon_ham(N))[:,1]
     EE_lis=eelis_Fibo_state(N,state)
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
@@ -23,7 +23,7 @@ end
 
 @testset "ee_Fiboladder_lis" begin
     N=3
-    state=eigvecs(Fibonacci_Ham(N))[:,1]
+    state=eigvecs(anyon_ham(N))[:,1]
     EE_lis=eelis_Fiboladder_state(N, kron(state, state))
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
@@ -283,7 +283,7 @@ end
     0.0 0.0 0.0 exp(-6im*π/5)]
 
     ⊗(A,B) = kron(A,B)
-    idx = [i.buf+1 for i in Fibonacci_basis(3,false)]
+    idx = [i.buf+1 for i in anyon_basis(3,false)]
     Z=[1 0;0 -1]
     X=[0 1;1 0]
     P0=[1 0;0 0]
@@ -324,7 +324,7 @@ end
 
 @testset "spatial_correlation" begin
     N=12
-    mes = zeros(length(Fibonacci_basis(12, true, anyon_type=:Fibo)))
+    mes = zeros(length(anyon_basis(12, true, anyon_type=:Fibo)))
     mes[233] = 1/√2 
     mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
@@ -332,7 +332,7 @@ end
     @test sclis ≈ log(2)*ones(12*11)
 
     N=6
-    mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:IsingX)))
+    mes = zeros(length(anyon_basis(N, true, anyon_type=:IsingX)))
     mes[22] = 1/√2 
     mes[43] = 1/√2
     sclis = [spatial_correlation(N, mes, i, j, anyon_type=:IsingX) for i in 1:N for j in 1:N if j!=i]
@@ -342,7 +342,7 @@ end
 @testset "temporal_correlation" begin
     # N=12
     # τ = 1000.0
-    # mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:Fibo)))
+    # mes = zeros(length(anyon_basis(N, true, anyon_type=:Fibo)))
     # mes[233] = 1/√2 
     # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
     
@@ -356,7 +356,7 @@ end
 
     N=4
     τ = 1000.0
-    mes = zeros(length(Fibonacci_basis(N, true, anyon_type=:IsingX)))
+    mes = zeros(length(anyon_basis(N, true, anyon_type=:IsingX)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
     
     D= 10 

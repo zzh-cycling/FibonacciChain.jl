@@ -96,12 +96,12 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = Fibonacci_basis(5, false, anyon_type=:IsingX)
+    fib_basis = anyon_basis(5, false, anyon_type=:IsingX)
     @test length(fib_basis) == 32
-    fib_basis = Fibonacci_basis(5, anyon_type=:IsingX)
+    fib_basis = anyon_basis(5, anyon_type=:IsingX)
     @test length(fib_basis) == 32
     # Test the Fibonacci Hamiltonian
-    fib_ham = Fibonacci_Ham(5, anyon_type=:IsingX)
+    fib_ham = anyon_ham(5, anyon_type=:IsingX)
     @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
 
@@ -113,14 +113,14 @@ end
     ⊗(A::AbstractArray, B::AbstractArray) = kron(A, B)
     H_temp = - (Z ⊗ Z ⊗ Id + Id ⊗ Z ⊗ Z  + X ⊗ Id ⊗ Id + Id ⊗ Id ⊗ X + Id ⊗ X ⊗ Id)
 
-    @test Fibonacci_Ham(3,false, anyon_type=:IsingX) == H_temp
+    @test anyon_ham(3,false, anyon_type=:IsingX) == H_temp
 
-    H = Fibonacci_Ham(3, anyon_type=:IsingX)
+    H = anyon_ham(3, anyon_type=:IsingX)
     @test H == H_temp - Z ⊗ Id ⊗ Z
 
     gs = eigvecs(fib_ham)[:,1]
     # Test the reduced density matrix function
-    rdm = rdm_Fibo(5, collect(1:1), gs, anyon_type=:IsingX)
+    rdm = anyon_rdm(5, collect(1:1), gs, anyon_type=:IsingX)
     @test size(rdm) == (2, 2)
     @test rdm ≈ [0.49999999999995276 0.3236067977499789; 0.3236067977499789 0.5000000000000473]
 end
@@ -363,7 +363,7 @@ end
 
 @testset "measurement_enumeration" begin
     N=6
-    st = zeros(length(Fibonacci_basis(N, anyon_type=:IsingX)))
+    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
     τ = 0.0
     measurement_sites = collect(2:2:N)
@@ -392,7 +392,7 @@ end
 
 @testset "Boundary_measure" begin
     N=6
-    st = zeros(length(Fibonacci_basis(N, anyon_type=:IsingX)))
+    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
     τ = 3.802
     measurement_sites = collect(2:2:N)
@@ -409,7 +409,7 @@ end
 @testset "Boundarypost_selection" begin
     N = 6
     τ = 1e3
-    st = zeros(length(Fibonacci_basis(N, anyon_type=:IsingX)))
+    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
  
     measurement_sites = collect(2:2:N)
@@ -428,7 +428,7 @@ end
     L = 6
     D = 2L
     τ = 1e3
-    st = zeros(length(Fibonacci_basis(L, anyon_type=:IsingX)))
+    st = zeros(length(anyon_basis(L, anyon_type=:IsingX)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
@@ -443,7 +443,7 @@ end
     τ = 1000.0
     D = 10L
     pbc = true
-    st=zeros(length(Fibonacci_basis(L, anyon_type=:IsingX)))
+    st=zeros(length(anyon_basis(L, anyon_type=:IsingX)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
@@ -458,7 +458,7 @@ end
 @testset "apply_measurement_layer" begin
     N = 6
     τ = 1e3
-    st = zeros(length(Fibonacci_basis(N, anyon_type=:IsingX)))
+    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
@@ -471,7 +471,7 @@ end
 @testset "generate_state" begin
     N = 6
     τ = 1e3
-    st=zeros(length(Fibonacci_basis(N, anyon_type=:IsingX)))
+    st=zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, anyon_type=:IsingX)

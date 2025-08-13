@@ -28,8 +28,8 @@ using LinearAlgebra
     st1 = zeros(18); st1[end] = 1.0 # |101010> state
     st2 = zeros(18); st2[13] = 1.0 # |010101> state
     splitlis = collect(1:3)
-    rdm1 = rdm_Fibo(N, splitlis, st1) # |101><101|
-    rdm2 = rdm_Fibo(N, splitlis, st2)
+    rdm1 = anyon_rdm(N, splitlis, st1) # |101><101|
+    rdm2 = anyon_rdm(N, splitlis, st2)
     # |010><010|
     rdm = ladderrdm(N, splitlis, kron(st1, st2)) # |101010><101010|
     @test kron(rdm1,rdm2) == rdm
@@ -38,9 +38,9 @@ using LinearAlgebra
     st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1) # |000101>+|000010> state
     st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2) # |101000>+|101010> state
     splitlis = collect(1:3) 
-    rdm1 = rdm_Fibo(N, splitlis, st1)
+    rdm1 = anyon_rdm(N, splitlis, st1)
     # |000><000|
-    rdm2 = rdm_Fibo(N, splitlis, st2)
+    rdm2 = anyon_rdm(N, splitlis, st2)
     # |101><101|
     rdm = ladderrdm(N, splitlis, kron(st1, st2))
     # |000101><000101|
@@ -49,9 +49,9 @@ using LinearAlgebra
     st1 = zeros(18); st1[3] = 1.0; st1[5] = 1.0; st1/=norm(st1) # |000101>+|000010> state
     st2 = zeros(18); st2[end-1] = 1.0; st2[end] = 1.0; st2/=norm(st2) # |101000>+|101010> state
     splitlis = collect(4:6) 
-    rdm1 = rdm_Fibo(N, splitlis, st1)
+    rdm1 = anyon_rdm(N, splitlis, st1)
     # 1/2(|101><101|+|010><010|)
-    rdm2 = rdm_Fibo(N, splitlis, st2)
+    rdm2 = anyon_rdm(N, splitlis, st2)
     # 1/2(|000><000|+|010><010|)
     rdm = ladderrdm(N, splitlis, kron(st1, st2))
     # 1/4（|101000><101000|+|101010><101010|+|010000><010000|+|010010><010010|） 
@@ -60,7 +60,7 @@ using LinearAlgebra
 
     # test whether the ladderChoi is product state of two mapped anti-GS states
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigen(anyon_ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
     vecGS = kron(antiGS, antiGS)
@@ -75,7 +75,7 @@ using LinearAlgebra
     splitlis = collect(1:N-1)
     for m in eachindex(splitlis)
         subrho=ladderrdm(N, collect(1:splitlis[m]), Choistate)
-        rdm_antiGS = rdm_Fibo(N, collect(1:splitlis[m]), antiGS)
+        rdm_antiGS = anyon_rdm(N, collect(1:splitlis[m]), antiGS)
         @test subrho ≈ kron(rdm_antiGS, rdm_antiGS)
     end
     
@@ -95,7 +95,7 @@ end
  
     # At least for N = 4, the ladder Choi state is invariant under the ladder translation map twice.
     N=4
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigen(anyon_ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
     vecGS = kron(antiGS, antiGS)
@@ -106,7 +106,7 @@ end
     end
     
     N=6
-    energy, states = eigen(Fibonacci_Ham(N))
+    energy, states = eigen(anyon_ham(N))
     antiGS= states[:, 1]
     len= length(antiGS)
     vecGS = kron(antiGS, antiGS)

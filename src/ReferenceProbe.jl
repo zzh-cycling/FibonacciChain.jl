@@ -33,7 +33,7 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
     
     # Noting that basis is not consisten with state, but extended_basis is.
     extended_basis = build_extended_basis(k_old, basis) 
@@ -143,7 +143,7 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
     1 >= k_new >= 0 || error("k_new must be in [0,1]")
     # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
-    basis_F = Fibonacci_basis(N, pbc, anyon_type=anyon_type)
+    basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
     len_F   = length(basis_F)
     l = length(state)
     
@@ -236,7 +236,7 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # N is the particle number of system, while k_old is the number of reference qubit, which is deduced from the state length.
-    unsorted_basis = Fibonacci_basis(T, pbc; anyon_type=anyon_type)
+    unsorted_basis = anyon_basis(T, pbc; anyon_type=anyon_type)
     len_F   = length(unsorted_basis)
     k_old = round(Int, log2(length(state) ÷ len_F))
     

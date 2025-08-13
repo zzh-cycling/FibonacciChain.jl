@@ -1,5 +1,5 @@
 """
-    Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_ham_sparse(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Construct Fibonacci chain Hamiltonian as sparse matrix.
 
@@ -11,7 +11,7 @@ Construct Fibonacci chain Hamiltonian as sparse matrix.
 # Returns
 - `SparseMatrixCSC{Float64, Int}`: Hamiltonian matrix in anyon basis
 """
-function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     basis=Fibonacci_basis(T,pbc, anyon_type=anyon_type)
 
     l=length(basis)
@@ -29,10 +29,10 @@ function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo
     
     return H
 end
-Fibonacci_Ham_sparse(N::Int64, pbc::Bool=true) = Fibonacci_Ham_sparse(BitStr{N, Int}, pbc)
+anyon_ham_sparse(N::Int64, pbc::Bool=true) = anyon_ham_sparse(BitStr{N, Int}, pbc)
 
 """
-    Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Construct Hamiltonian in momentum-topological sector as sparse matrix.
 
@@ -45,7 +45,7 @@ Construct Hamiltonian in momentum-topological sector as sparse matrix.
 # Returns
 - `SparseMatrixCSC{ComplexF64, Int}`: Hamiltonian in symmetric sector
 """
-function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing
 #return: the Hamiltonian matrix in given symmetric sector
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
@@ -81,5 +81,5 @@ function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:
     end
     return H
 end
-Fibonacci_Ham_sparse(N::Int64, k::Int, Y=nothing) = Fibonacci_Ham_sparse(BitStr{N, Int}, k, Y)
+anyon_ham_sparse(N::Int64, k::Int, Y=nothing) = anyon_ham_sparse(BitStr{N, Int}, k, Y)
 

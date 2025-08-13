@@ -9,7 +9,7 @@ using Random
     pbc = true
     k_total = 2
     T = BitStr{N+k_total, Int}
-    basis = Fibonacci_basis(N)
+    basis = anyon_basis(N)
     extended_basis = FibonacciChain.build_extended_basis(k_total,basis)
 
     @test length(extended_basis) == 4 * length(basis)
@@ -28,15 +28,15 @@ using Random
     @test extended_basis == basis
 
     # Test for Ising basis
-    basis_ising = Fibonacci_basis(N, pbc, anyon_type=:IsingX)
+    basis_ising = anyon_basis(N, pbc, anyon_type=:IsingX)
     extended_basis_ising = FibonacciChain.build_extended_basis(0, basis_ising)
     @testset extended_basis_ising == basis_ising
 
     extended_basis_ising1 = FibonacciChain.build_extended_basis(1, basis_ising)
-    @test extended_basis_ising1 == Fibonacci_basis(N+1, pbc, anyon_type=:IsingX)
+    @test extended_basis_ising1 == anyon_basis(N+1, pbc, anyon_type=:IsingX)
 
     extended_basis_ising2 = FibonacciChain.build_extended_basis(2, basis_ising)
-    @test extended_basis_ising2 == Fibonacci_basis(N+2, pbc, anyon_type=:IsingX)
+    @test extended_basis_ising2 == anyon_basis(N+2, pbc, anyon_type=:IsingX)
 end
 
 @testset "add_reference_qubits" begin
@@ -112,7 +112,7 @@ end
     pbc = true
     k_old = 1
     T = BitStr{N, Int}
-    basislis = Fibonacci_basis(N, pbc, anyon_type=:Fibo)
+    basislis = anyon_basis(N, pbc, anyon_type=:Fibo)
     l = length(basislis)
     output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0)
     output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
@@ -152,7 +152,7 @@ end
     T = BitStr{N, Int}
     anyon_type1 = :IsingX
     anyon_type2 = :IsingZZ
-    basislis = Fibonacci_basis(N, pbc, anyon_type=anyon_type1)
+    basislis = anyon_basis(N, pbc, anyon_type=anyon_type1)
     l = length(basislis)
     output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
     output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type1)
@@ -249,7 +249,7 @@ end
     sign = 1
     pbc = true
     k_old = 1
-    st = zeros(length(Fibonacci_basis(N, pbc))); st[1] = 1
+    st = zeros(length(anyon_basis(N, pbc))); st[1] = 1
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
     sample = zeros(Int, (3, length(2:2:N)))
 
@@ -277,7 +277,7 @@ end
     full_st = zeros(2^(N+1));
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
-    @test rdm_Fibo(4, [1], full_st, anyon_type=:IsingX) == rdm
+    @test anyon_rdm(4, [1], full_st, anyon_type=:IsingX) == rdm
 
     # Add another ref qubit to site 1 with reset 0, the 1st rdm should be the same as above, but the 2nd rdm should be |0><0|
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90))
@@ -292,7 +292,7 @@ end
     # add a ref qubit to a Bell state, the entanglement entropy should not change
     N=4
     st = zeros(2^N); st[1] = 1; st[end] = 1; st ./= norm(st)
-    @test ee(rdm_Fibo(N, collect(1:div(N,2)), st, anyon_type=:IsingX)) ≈ log(2)
+    @test ee(anyon_rdm(N, collect(1:div(N,2)), st, anyon_type=:IsingX)) ≈ log(2)
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), anyon_type=:IsingX)
     rdm = reference_rdm(N, collect(1:2), add_st, anyon_type=:IsingX, traceref=false)
     @test ee(rdm) ≈ log(2)
@@ -324,7 +324,7 @@ end
 @testset "spatial_corr_matrix and reference rdm" begin
     # The spatial correlation should be the same after adding reference qubits
     N=6
-    mes = zeros(length(Fibonacci_basis(N)))
+    mes = zeros(length(anyon_basis(N)))
     mes[13] = 1/√2 
     mes[end] = 1/√2
     sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]

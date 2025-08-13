@@ -44,10 +44,10 @@ function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; anyon_type:
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         if m<= div(N,2)
-            subrho=rdm_Fibo(N, collect(1:m), state, pbc, anyon_type=anyon_type)
+            subrho=anyon_rdm(N, collect(1:m), state, pbc, anyon_type=anyon_type)
             EE_lis[m]=ee(subrho)
         else
-            subrho=rdm_Fibo(N, collect(m+1:N), state, pbc, anyon_type=anyon_type)
+            subrho=anyon_rdm(N, collect(m+1:N), state, pbc, anyon_type=anyon_type)
             EE_lis[m]=ee(subrho)
         end
     end
@@ -82,7 +82,7 @@ Generate translation operator matrix for Fibonacci basis states.
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
 """
 function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
-    basis=Fibonacci_basis(T) 
+    basis=anyon_basis(T) 
     l = length(basis) 
     Mat=zeros(Float64,(l,l))
     translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
@@ -107,7 +107,7 @@ Generate spatial inversion operator matrix for Fibonacci basis states.
 - `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
 """
 function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
-    basis=Fibonacci_basis(T)
+    basis=anyon_basis(T)
     l=length(basis)
     Imatrix=zeros((l,l))
     # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
@@ -197,7 +197,7 @@ end
 function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=Fibonacci_basis(T, pbc)
+    basis=anyon_basis(T, pbc)
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
@@ -226,7 +226,7 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
     # input a superposition state, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=Fibonacci_basis(T, pbc)
+    basis=anyon_basis(T, pbc)
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
@@ -271,9 +271,9 @@ function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, sit
     @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
     @assert site1 != site2 "Site1 and Site2 must be different"
 
-    ρ1 = rdm_Fibo(N, [site1], state, pbc, anyon_type=anyon_type)
-    ρ2 = rdm_Fibo(N, [site2], state, pbc, anyon_type=anyon_type)
-    ρ12 = rdm_Fibo(N, [site1, site2], state, pbc, anyon_type=anyon_type)
+    ρ1 = anyon_rdm(N, [site1], state, pbc, anyon_type=anyon_type)
+    ρ2 = anyon_rdm(N, [site2], state, pbc, anyon_type=anyon_type)
+    ρ12 = anyon_rdm(N, [site1, site2], state, pbc, anyon_type=anyon_type)
     
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 

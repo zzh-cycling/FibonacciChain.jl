@@ -146,7 +146,7 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool
         error("Unknown measure class: $anyon_type")
     end
 
-    basis = Fibonacci_basis(T, pbc; anyon_type = anyon_type)
+    basis = anyon_basis(T, pbc; anyon_type = anyon_type)
     l = length(basis)
     Bmatrix = zeros(l, l)
 
@@ -180,7 +180,7 @@ function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::I
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
@@ -206,7 +206,7 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=Fibonacci_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))

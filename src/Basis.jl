@@ -104,7 +104,7 @@ Compute topological symmetry coefficients for all basis states relative to given
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
 
-    basis = Fibonacci_basis(T, pbc, anyon_type = :Fibo)
+    basis = anyon_basis(T, pbc, anyon_type = :Fibo)
     coeflis = Vector{Float64}(undef, length(basis))
     
     # For each base in basis, check the state at each site
@@ -118,14 +118,14 @@ end
 function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
     
-    basis=Fibonacci_basis(T, pbc, anyon_type = :Fibo)
+    basis=anyon_basis(T, pbc, anyon_type = :Fibo)
     Ymatrix=hcat(topological_symmetry_basismap.(basis)...)
 
     return Ymatrix
 end
 
 """
-    Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Generate basis states for 1D anyon chain.
 
@@ -140,7 +140,7 @@ Generate basis states for 1D anyon chain.
 
 Supports Fibonacci anyons, Ising anyons/Majorana fermions, and spin-1/2 systems.
 """
-function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
@@ -173,10 +173,10 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbo
         error("Unsupported anyon_type: $anyon_type")
     end
 end
-Fibonacci_basis(N::Int, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, pbc; Y=Y, anyon_type=anyon_type)
+anyon_basis(N::Int, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, pbc; Y=Y, anyon_type=anyon_type)
 
 """
-    Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Generate basis states in specific momentum sector `k` and topological sector `Y`.
 
@@ -190,14 +190,14 @@ Generate basis states in specific momentum sector `k` and topological sector `Y`
 - `Vector{T}`: Basis states in momentum sector k
 - `Dict{T, Vector{T}}`: Representative mapping for translation equivalence classes
 """
-function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
     basisK = Vector{T}(undef, 0)
-    basis = Fibonacci_basis(T, Y=Y, anyon_type=anyon_type)
+    basis = anyon_basis(T, Y=Y, anyon_type=anyon_type)
     basis_dic = Dict{T, Vector{T}}()
 
     for i in basis
@@ -219,7 +219,7 @@ function Fibonacci_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fib
 
     return basisK, basis_dic
 end
-Fibonacci_basis(N::Int64, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) = Fibonacci_basis(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type)
+anyon_basis(N::Int64, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type)
     
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
@@ -410,7 +410,7 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; anyon_type::Symbol=:Fibo
 end
 
 """
-    Fibonacci_Ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
 Construct Hamiltonian matrix for anyon chain models.
 
@@ -425,9 +425,9 @@ Construct Hamiltonian matrix for anyon chain models.
 
 Supports various anyon models including Fibonacci and Ising anyons.
 """
-function Fibonacci_Ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=Fibonacci_basis(T,pbc, anyon_type=anyon_type)
+    basis=anyon_basis(T,pbc, anyon_type=anyon_type)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
@@ -442,7 +442,7 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwar
 
     return H
 end
-Fibonacci_Ham(N::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, pbc; anyon_type=anyon_type, kwargs...)
+anyon_ham(N::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham(BitStr{N, Int}, pbc; anyon_type=anyon_type, kwargs...)
 # Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
@@ -473,20 +473,20 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
+    anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
 
 # params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `anyon_type` is a symbol, which default to be :Fibo
 
 # return: the Hamiltonian matrix in given symmetric sector Hilbert space
 """
-function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic =Fibonacci_basis(T, k, Y=Y, anyon_type=anyon_type)
+    basisK, basis_dic =anyon_basis(T, k, Y=Y, anyon_type=anyon_type)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
@@ -511,7 +511,7 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, k
     H=(H+H')/2
     return H
 end
-Fibonacci_Ham(N::Int, k::Int, Y=nothing, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, k, Y, kwargs...)
+anyon_ham(N::Int, k::Int, Y=nothing, kwargs...) = anyon_ham(BitStr{N, Int}, k, Y, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
@@ -525,7 +525,7 @@ function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;anyon_type::Symbol=
     if isempty(lengthlis)
         return BitStr{0, Int}[]
     else
-        return sort(mapreduce(len -> Fibonacci_basis(len, pbc, anyon_type=anyon_type), process_join, lengthlis))
+        return sort(mapreduce(len -> anyon_basis(len, pbc, anyon_type=anyon_type), process_join, lengthlis))
     end
 end
 
@@ -565,7 +565,7 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
 """
-    rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+    anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
 Compute reduced density matrix for specified subsystems from quantum state.
 
@@ -581,11 +581,11 @@ Compute reduced density matrix for specified subsystems from quantum state.
 
 Subsystem indices are counted from right in binary representation.
 """
-function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = Fibonacci_basis(T, pbc; anyon_type=anyon_type)
+    unsorted_basis = anyon_basis(T, pbc; anyon_type=anyon_type)
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -648,7 +648,7 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET},
 
     return reduced_dm
 end
-rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; anyon_type=anyon_type)
+anyon_rdm(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = anyon_rdm(BitStr{N, Int}, subsystems, state, pbc; anyon_type=anyon_type)
 
 """
     mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
@@ -661,7 +661,7 @@ function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;anyon_type::Symbol
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
 
-    basis = Fibonacci_basis(T, anyon_type=anyon_type)
+    basis = anyon_basis(T, anyon_type=anyon_type)
     k_dic = Dict{Int, Vector{Int64}}()
     basisK = Vector{T}(undef, 0)
     for i in eachindex(basis)
@@ -694,25 +694,25 @@ end
 mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, anyon_type=anyon_type)
 
 """
-    rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
+    anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
 
 # params: a type `T` of BitStr{N, Int}, `subsystems` is a vector of subsystem indices, `kstate` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system
 
 # Return the reduced density matrix for the given subsystems in anyon basis, which is in symmetric sector Hilbert space.
 """
-function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
-    @assert length(kstate) == length(Fibonacci_basis(T,k)[1]) "state length is expected to be $(length(Fibonacci_basis(T, k)[1])), but got $(length(kstate))"
+function anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
+    @assert length(kstate) == length(anyon_basis(T,k)[1]) "state length is expected to be $(length(anyon_basis(T, k)[1])), but got $(length(kstate))"
     state = mapst_sec2tot(T, kstate, k)
-    reduced_dm = rdm_Fibo(T, subsystems, state)
+    reduced_dm = anyon_rdm(T, subsystems, state)
     return reduced_dm
 end
-rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
+anyon_rdm_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = anyon_rdm_sec(BitStr{N, Int}, subsystems, state, k)
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
 function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo)
     # subpbc is used to indicate whether the subsystem is periodic or not
-    lisA = sort(mapreduce(len -> Fibonacci_basis(len, subApbc, anyon_type=anyon_typeA), process_join, lengthlisA))
-    lisB = sort(mapreduce(len -> Fibonacci_basis(len, subBpbc, anyon_type=anyon_typeB), process_join, lengthlisB))
+    lisA = sort(mapreduce(len -> anyon_basis(len, subApbc, anyon_type=anyon_typeA), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> anyon_basis(len, subBpbc, anyon_type=anyon_typeB), process_join, lengthlisB))
     return vec([join(i, j) for i in lisA for j in lisB])
 end
 
@@ -734,8 +734,8 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
         return state * state'
     end
 
-    unsorted_basisA = Fibonacci_basis(T1, pbc, anyon_type=anyon_typeA)
-    unsorted_basisB = Fibonacci_basis(T2, pbc, anyon_type=anyon_typeB)
+    unsorted_basisA = anyon_basis(T1, pbc, anyon_type=anyon_typeA)
+    unsorted_basisB = anyon_basis(T2, pbc, anyon_type=anyon_typeB)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
