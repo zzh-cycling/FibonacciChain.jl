@@ -24,7 +24,6 @@ mapst_sec2tot
 ```@docs
 ee
 anyon_eelis
-anyonladder_eelis
 ee_mps
 anyon_eelis_mps
 ```
@@ -52,26 +51,19 @@ laddertranslationmap
 
 ```@docs
 measure_basismap
-measuremap
-laddermeasuremap
 measurement_enumeration
-measurement_tree_visualization
 Boundary_measure
 Boundarypost_selection
 Bulkmeasure
 Bulkpost_selection
-generate_state
-apply_measurement_layer!
 ```
 
 ## MPS Functions
 
 ```@docs
-fibonacci_mps_ground_state
 fibonacci_hamiltonian_mps
 measurement_operator_mps
 apply_measurement_mps
-generate_state_mps
 initial_mps
 mps_measurement_enumeration
 mps_boundary_measure
@@ -81,12 +73,6 @@ mps_bulk_measurement
 ## Reference Qubit Functions
 
 ```@docs
-add_reference_qubits!
-reference_measuremap
 spatial_correlation
 temporal_correlation
-reference_generate_state
-reference_apply_measurement_layer!
-reference_evolution
-reference_rdm
 ```

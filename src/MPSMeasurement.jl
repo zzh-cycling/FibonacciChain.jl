@@ -25,17 +25,14 @@ Find ground state of Fibonacci chain Hamiltonian using DMRG.
 ```jldoctest
 julia> using FibonacciChain, ITensorMPS, ITensors
 
-julia> # Find ground state for small system
-       N = 8;
+julia> N = 8;
 
-julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10);
+julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
 
-julia> # Check that we got an MPS
-       ψ_gs isa MPS
+julia> ψ_gs isa MPS
 true
 
-julia> # Energy should be real and negative
-       E0 < 0 && imag(E0) ≈ 0
+julia> E0 < 0 && imag(E0) ≈ 0
 true
 ```
 """
@@ -52,7 +49,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10)
+function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10, outputlevel=2)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
     sites = siteinds("Qubit", N)
     
@@ -70,7 +67,7 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxd
     setmaxdim!(sweeps, maxdim)
     setcutoff!(sweeps, cutoff)
     
-    energy, ψ = dmrg(H, ψ0, sweeps)
+    energy, ψ = dmrg(H, ψ0, sweeps, outputlevel = outputlevel)
     
     return ψ, energy
 end
@@ -436,6 +433,37 @@ function ee_mps(ψ::MPS, b::Int)
     return SvN
 end
 
+
+"""
+    anyon_eelis_mps(N::Int64, ψ::MPS)
+
+Calculate entanglement entropy profile along the chain for MPS state.
+
+# Arguments
+- `N::Int64`: System size
+- `ψ::MPS`: MPS state
+
+# Returns
+- `Vector{Float64}`: Entanglement entropy at each bipartition from left to right
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, ITensorMPS, ITensors
+
+julia> N = 6;
+
+julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
+
+julia> # Calculate entanglement entropy profile
+       ee_profile = anyon_eelis_mps(N, ψ_gs);
+
+julia> length(ee_profile) == N - 1  # Profile has N-1 points
+true
+
+julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
+true
+```
+"""
 function anyon_eelis_mps(N::Int64, ψ::MPS)
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))

@@ -269,15 +269,17 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
 end
 laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type)
 
+"""
+    measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+
+Enumerating all trajectories of measurements on a given initial state.
+
+Args:T, τ, initial_state, measurement_sites, pbc
+
+Returns:
+    final_states, trajectories, probabilities
+"""
 function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
-    """
-    enumerating all trajectories of measurements on a given initial state.
-    
-    Args:T, τ, initial_state, measurement_sites, pbc
-    
-    Returns:
-        final_states, trajectories, probabilities
-    """
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     
     # Initialize, only one initial state

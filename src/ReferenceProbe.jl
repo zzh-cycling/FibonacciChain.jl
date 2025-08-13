@@ -100,25 +100,6 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
     end
 end
 
-function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=true, k_old::Int64=1, anyon_type::Symbol=:Fibo) where{T, ET}
-    @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
-
-    D = size(sample, 1)
-    N = (anyon_type == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
-    
-    statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
- 
-    for layer in 1:D
-        τ_eff = (layer == D) ? τ/2 : τ
-        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type)
-
-        if temp
-            statelis[layer] = copy(state)
-        end
-    end
-    
-    return temp ? statelis : state
-end
 
 """
     reference_generate_state(N::Int64, τ::Float64, state::Vector{ET}, sample; pbc::Bool=true, temp::Bool=true, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET}
@@ -140,25 +121,48 @@ Generate quantum state evolution under measurement protocol with reference qubit
 
 # Examples
 ```jldoctest
-julia> using FibonacciChain, Random
+julia> using FibonacciChain, Random, LinearAlgebra
 
-julia> N = 4; 
+julia> N = 4;
 
-julia> initial_state = normalize!(ones(Float64, length(anyon_basis(N))));  add_ref = add_reference_qubits!(N, initial_state, 1);  # Initialize a simple state with 1 reference qubit
+julia> initial_state = normalize!(ones(Float64, length(anyon_basis(N))));
 
-julia> Random.seed!(42); # Create measurement sample (2 layers, 2 measurement sites each)
+julia> add_ref = add_reference_qubits!(N, initial_state, 1, verbose=false);
 
-julia> sample = ones(Int, 2, 2);  # Example measurement sample with 2 layers, each with 2 measurements
+julia> Random.seed!(42);
+
+julia> sample = ones(Int, 2, 2);
 
 julia> τ = 0.5;
 
-julia> trajectory = reference_generate_state(τ, add_ref, sample, temp=true); # Generate evolution trajectory
+julia> trajectory = reference_generate_state(τ, add_ref, sample, temp=true);
 
-julia> length(trajectory) == size(sample, 1)  # Should have D time steps
+julia> length(trajectory) == size(sample, 1)
 true
 ```
 """
-function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+
+function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=true, k_old::Int64=1, anyon_type::Symbol=:Fibo, verbose=false) where{T, ET}
+    @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
+
+    D = size(sample, 1)
+    N = (anyon_type == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
+    
+    statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
+ 
+    for layer in 1:D
+        τ_eff = (layer == D) ? τ/2 : τ
+        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type)
+
+        if temp
+            statelis[layer] = copy(state)
+        end
+    end
+    
+    return temp ? statelis : state
+end
+
+function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
     1 >= k_new >= 0 || error("k_new must be in [0,1]")
@@ -190,8 +194,10 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
     prob_sqrt0 = state_after_0' * state_after_0
     prob_sqrt1 = 1 - prob_sqrt0
-    random_number = rand(rng)  
-    @show random_number, prob_sqrt0, prob_sqrt1
+    random_number = rand(rng)
+
+    verbose && @show random_number, prob_sqrt0, prob_sqrt1
+
     if random_number < prob_sqrt0
         current_state = state_after_0 ./ sqrt(prob_sqrt0)
         

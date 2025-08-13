@@ -33,14 +33,14 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4; T = BitStr{N, Int};
 
-julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2  # Example state configuration
+julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2;  # Example state configuration
 
 julia> base = T(0b0101);   # Example base configuration
 
-julia> coef = Fsymmetry_coef(state, base, true, :Fibo)
-0.3819660112501051
+julia> coef = Fsymmetry_coef(state, base, true, :Fibo); coef ≈ 0.3819660112501051
+true
 
-julia> abs(coef - ϕ)) < 1e-10  # Should equal φ for this configuration
+julia> abs(coef - (1-1/ϕ)) < 1e-10  # Should equal φ for this configuration
 true
 ```
 """
@@ -187,7 +187,7 @@ julia> length(basis_fibo)  # Fibonacci numbers give the dimension
 7
 
 julia> basis_fibo[1]  # First basis state (vacuum)
-0000
+0000 ₍₂₎
 
 julia> # Generate Ising basis for comparison
        basis_ising = anyon_basis(T, true, anyon_type=:IsingX);
@@ -664,16 +664,23 @@ Subsystem indices are counted from right in binary representation.
 # Examples
 ```jldoctest
 julia> using FibonacciChain, BitBasis, LinearAlgebra
+
 julia> N = 4; T = BitStr{N, Int};
+
 julia> basis = anyon_basis(T, true, anyon_type=:Fibo);
-julia> state = randn(ComplexF64, length(basis)); state ./= norm(state)  
+
+julia> state = randn(ComplexF64, length(basis)); state ./= norm(state);  
+
 julia> rdm = anyon_rdm(T, [1, 2], state, true, anyon_type=:Fibo);
+
 julia> size(rdm)  # Reduced density matrix dimension
 (3, 3)
+
 julia> ishermitian(rdm)  # RDM should be Hermitian
 true
-julia> trace = tr(rdm)  # Trace should be 1
-1.0 + 0.0im
+
+julia> tr(rdm) ≈ 1.0 + 0.0im  # Trace should be 1
+true
 ```
 """
 function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
@@ -870,8 +877,8 @@ julia> size(rdm)          # reduced density matrix dimension
 julia> ishermitian(rdm)   # should be Hermitian
 true
 
-julia> tr(rdm)            # trace should be 1
-1.0 + 0.0im
+julia> tr(rdm) ≈ 0.9999999999999999 + 0.0im  # trace should be 1
+true
 ```
 """
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
