@@ -1,5 +1,5 @@
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # default for PBC system, map basis (not state!!!)
+    # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
     
@@ -99,7 +99,16 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 return state, cstτ-coef
             end
         end
-    
+    elseif (measure_class ∈ (:reset, :resetFibo) && τ >= 1e2)|| measure_class == :IsingZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = cosh(τ/2) / √(2cosh(τ))
+            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        end
+
+        return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
     else
         error("Unknown measure class: $measure_class")
     end
@@ -107,56 +116,49 @@ end
 
 
 function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    
+
     if measure_class == :Fibo
-        @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions for Fibonacci measure class"
-        
-        basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
-        l=length(basis)
-        Bmatrix=zeros((l,l))
-        for i in 1:l
-            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class=measure_class)
-            if length(outcome) == 4
-                outputstate1, outputstate2, output1, output2=outcome
-                j2=searchsortedfirst(basis, outputstate2)
-                Bmatrix[i,i]+=output1
-                Bmatrix[i,j2]+=output2
-            else
-                outputstate, output=outcome
-                Bmatrix[i,i]+=output
-            end
-        end
-        
-        return Bmatrix
-        
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
-        @assert pbc || (1 <= idx <= N-1) "Index idx must be in the range [1, N-1] for open boundary conditions for Ising measure class"
-        
-        basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
-        l=length(basis)
-        Bmatrix=zeros((l,l))
-        for i in 1:l
-            outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc, measure_class=measure_class)
-            if length(outcome) == 4
-                outputstate1, outputstate2, output1, output2=outcome
-                j2=searchsortedfirst(basis, outputstate2)
-                Bmatrix[i,i]+=output1
-                Bmatrix[i,j2]+=output2
-            elseif length(outcome) == 2
-                outputstate, output=outcome
-                Bmatrix[i,i]+=output
-            end
-        end
-        
-        return Bmatrix
+        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif measure_class == :IsingZZ
+        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
+    elseif measure_class ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
         error("Unknown measure class: $measure_class")
     end
+
+    basis = Fibonacci_basis(T, pbc; measure_class = measure_class)
+    l = length(basis)
+    Bmatrix = zeros(l, l)
+
+    for i in 1:l
+        outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc; measure_class = measure_class)
+
+        if length(outcome) == 4
+            s1, s2, w1, w2 = outcome
+            j2 = searchsortedfirst(basis, s2)
+            Bmatrix[i, i] += w1
+            Bmatrix[i, j2] += w2
+        else
+            s, w = outcome
+            Bmatrix[i, i] += w
+        end
+    end
+
+    return Bmatrix
 end
 
 function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+    if measure_class == :Fibo
+        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif measure_class == :IsingZZ
+        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
+    elseif measure_class ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
+    else
+        error("Unknown measure class: $measure_class")
+    end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     basis=Fibonacci_basis(T, pbc, measure_class=measure_class)
@@ -625,7 +627,11 @@ end
 function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=false, measure_class::Symbol=:Fibo) where{T, ET}
 
     if ET == Vector{Int}
-        N = 2 * length(sample)
+        if measure_class == :Fibo
+            N = 2 * length(sample)
+        else
+            N = length(sample)
+        end
         return apply_measurement_layer!(N, state, τ, sample, 1, pbc, measure_class=measure_class)
 
     elseif ET == Matrix{Int}
@@ -652,7 +658,7 @@ end
 
 function bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
     """
-    Distort the measurement trajectories based on a Bayesian distortion factor γ.
+    Distort the measurement trajectories based on a Bayesian distortion factor γ. Noting that it only works for one layer measurement to generate new sample for the other factor γ based on Projective limit measurement.
     
     This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
     P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2

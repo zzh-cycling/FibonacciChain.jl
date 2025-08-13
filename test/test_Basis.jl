@@ -113,10 +113,6 @@ end
 
     @test Fibonacci_Ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
     @test Fibonacci_Ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
-    # Test the reduced density matrix function
-    # rdm = FibonacciChain.rdm_Fibo(fib_basis, 2)
-    # @test size(rdm) == (2, 2)
-
 end
 
 @testset "process_join" begin
@@ -124,19 +120,29 @@ end
     lis1 = BitStr{2}[0, 1, 2]
     lis2 = BitStr{3}[0, 1, 2, 4, 5]
     res = FibonacciChain.process_join(lis1, lis2) 
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
+    @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
     # joint_basis
     res = FibonacciChain.joint_basis([2, 3])
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    
+    @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
+
     lis1 = Fibonacci_basis(1,false)
     lis2 = Fibonacci_basis(2,false)
     res = FibonacciChain.joint_basis([1, 2])  
     # Ensureing the order is 2*1, not 1*2
     # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
-    @test res == vec([join(l2, l1) for l1 in lis1, l2 in lis2])
-    @test res != [join(l1, l2) for l1 in lis1 for l2 in lis2]
+    @test res == vec([join(l1, l2) for l1 in lis1 for l2 in lis2])
+    @test res != [join(l2, l1) for l1 in lis1, l2 in lis2]
+
+
+    # Test disjoint system joint_basis
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:Fibo)
+    @test res == [join(l1, l2) for l1 in Fibonacci_basis(1) for l2 in Fibonacci_basis(2,false)]
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:IsingX)
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, measure_class=:IsingX, false)])
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:IsingX, measure_classB=:Fibo)
+    @test res == vec([join(l1, l2) for l1 in Fibonacci_basis(1, measure_class=:IsingX) for l2 in Fibonacci_basis(2, false)])
+    res = FibonacciChain.joint_basis([1], [2], measure_classA=:Fibo, measure_classB=:IsingX)
 
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
@@ -156,48 +162,48 @@ end
     @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
 end
 
-@testset "reference_rdm" begin
+@testset "rdm_Fibo" begin
     N = 3
-    st = ones(4)/2;
-    site = 1
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
-    
-    rdm = reference_rdm(N, [1], add_site1)
-    @test rdm == [0.75 0.0; 0.0 0.25]
+    st = ones(length(Fibonacci_basis(N))); st /= norm(st)  # Normalize the state
+    # The empty subsystem
+    rdm = rdm_Fibo(N, Int64[], st)
+    @test rdm ≈ ones(Float64, 1,1)
 
-    full_st = zeros(2^(N+1))
-    inds = [1, 3, 5, 10]
-    full_st[inds] .= 0.5
-    rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == [0.75 0.0; 0.0 0.25]
+    # The total system
+    rdm = rdm_Fibo(N, collect(1:N), st)
+    @test rdm ≈ st*st'
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site)
-    rdm2 = reference_rdm(N, [1], add_st2)
-    rdm3 = reference_rdm(N, [2], add_st2)
-    @test rdm == rdm2
-    @test rdm2 == rdm3
-
-    rdm4 = reference_rdm(N, [1, 2], add_st2)
-    @test rdm4 == [0.75 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.25]
+    rdm = rdm_Fibo(N, [1], st)
+    @test rdm ≈ [0.75 0.25; 0.25 0.25]
 end
 
-@testset "reference_rdm_Ising" begin
+@testset "rdm_Fibo_Ising" begin
     N = 3
-    st = ones(2^N); st /= norm(st)  # Normalize the state
-    site = 1
-    measure_class = :IsingX
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, measure_class = measure_class)
+    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    rdm = rdm_Fibo(N, Int[], st)
+    @test rdm ≈ ones(Float64, 1,1)
+
+    rdm = rdm_Fibo(N, collect(1:N), st, measure_class=:IsingX)
+    @test rdm ≈ st*st'
     
-    rdm = reference_rdm(N, [1], add_site1, measure_class = measure_class)
-    @test rdm ≈ [0.5 0.0; 0.0 0.5]
+    rdm = rdm_Fibo(N, [1], st, measure_class=:IsingX) ≈ 0.5*I(2)
+end
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, measure_class = measure_class)
-    rdm2 = reference_rdm(N, [1], add_st2, measure_class = measure_class)
-    rdm3 = reference_rdm(N, [2], add_st2, measure_class = measure_class)
-    @test rdm == rdm2
-    @test rdm2 == rdm3
+@testset "rdm_Fibo_matrix" begin
+    N = 4
+    st = zeros(length(Fibonacci_basis(N)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm4 = reference_rdm(N, [1, 2], add_st2, measure_class = measure_class)
-    @test rdm4 ≈ [0.4999999999999999 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.4999999999999999]
+    rdm = rdm_Fibo(N, collect(1:2), st*st')
+    @test rdm ≈ diagm([0.0, 0.5, 0.5])
+    rdm = rdm_Fibo(N, collect(1:N), st*st')
+    @test rdm ≈ st*st'
+
+    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+
+    rdm = rdm_Fibo(N, [1,2], st*st', measure_class=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
+
+    st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # 
+    rdm = rdm_Fibo(2, [1], st*st', measure_class=:IsingX) ≈ 0.5 * I(2)
 end
 
 @testset "Fibonacci_basis_K" begin
@@ -250,4 +256,75 @@ end
     rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+    
+    # Test for one subsystem is empty
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state)
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
+
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state)
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+end
+
+@testset "disjoint_rdm_Ising" begin
+    N1 = 4
+    N2 = 4
+    T1 = BitStr{N1}
+    T2 = BitStr{N2}
+    state = zeros(length(Fibonacci_basis(N1, measure_class = :IsingX)) * length(Fibonacci_basis(N2, measure_class=:IsingX))); state[1] = 1; state[end] = 1
+    state = state ./ norm(state)  # Normalize the state
+    subsystemsA = [1, 2]
+    subsystemsB = [1, 2]
+    
+    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
+    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+
+    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
+
+    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, measure_classA=:IsingX, measure_classB=:IsingX)
+    @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
+
+end
+
+@testset "disjoint_rdm_mixed" begin
+    N1 = 4
+    N2 = 4
+    T1 = BitStr{N1}
+    T2 = BitStr{N2}
+    state = zeros(length(Fibonacci_basis(N1)) * length(Fibonacci_basis(N2, measure_class = :IsingX))); state[1] = 1; state[end] = 1
+    state = state ./ norm(state)  # Normalize the state
+    subsystemsA = [1, 2]
+    subsystemsB = [1, 2]
+    
+    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, measure_classB=:IsingX)
+    @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
+    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+    
+    # Test for one subsystem is empty
+    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, measure_classB=:IsingX)
+    @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
+
+    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, measure_classB=:IsingX)
+    @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+end
+
+@testset "disjoint_rdm and ref qubit" begin
+    L=6
+    pbc=true
+    measure_class = :IsingX
+    sample = ones(Int, 20, L)
+    τ = log(1 + √2)
+    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
+    initial_state[1] = 1.0
+    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+
+
+    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, measure_class=:IsingX)
+    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, measure_classA=:IsingX, measure_classB=:IsingX)
+    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, measure_classA=:IsingX, measure_classB=:IsingX)
+    ρ2r = rdm_Fibo(L, collect(1:div(L,2)), ρ2, measure_class=:IsingX)
+    S1 = ee(ρ1)
+    S2 = ee(ρ2r)
+    @test S1 ≈ S2
 end

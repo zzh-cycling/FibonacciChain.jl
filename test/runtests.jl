@@ -28,3 +28,7 @@ end
 @testset "Ising" begin
     include("./test_Ising.jl")
 end
+
+@testset "test_Reference.jl" begin
+    include("./test_Reference.jl")
+end

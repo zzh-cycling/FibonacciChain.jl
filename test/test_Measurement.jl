@@ -80,6 +80,14 @@ using Random
     @test output[3] == (T(bit"010"), cstτ+coef)
     @test output[4] == (T(bit"100"), cstτ+coef)
     @test output[5] === nothing
+
+    output = measure_basismap.(T, 1000.0, basis0, idx, sign, measure_class=:resetFibo)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), 1.0)
+    @test output[2] == (T(bit"001"), 0.0)
+    @test output[3] == (T(bit"010"), 1.0)
+    @test output[4] == (T(bit"100"), 1.0)
+    @test output[5] == (T(bit"101"), 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin
@@ -175,7 +183,10 @@ end
     @test Mmpbc == expected_matrix 
     @test Mppbc^2+Mmpbc^2 ≈ I(4) 
 
-
+    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, measure_class=:reset) 
+    @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, measure_class=:reset) # pbc
+    @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
 end
 
 @testset "measure_matrix" begin
@@ -206,6 +217,23 @@ end
     Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
     @test Mmpbc == expected_matrix    
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
+end
+
+@testset "Temperley Lieb algebra" begin
+    N = 8
+    T = BitStr{N, Int}
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+    Xlis = ϕ .* [FibonacciChain.measure_matrix(T, τ, idx, 1) for idx in 1:N]
+
+    # X_i ^2 = d X_i
+    @test all(Xlis[i] * Xlis[i] ≈ ϕ .* Xlis[i] for i in 1:N)
+    # X_i * X_{i+1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i+1] * Xlis[i] ≈ Xlis[i] for i in 1:N-1)
+    # X_i * X_{i-1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i-1] * Xlis[i] ≈ Xlis[i] for i in 2:N)
+    # [X_i, X_{j}] = 0, |i-j|>=2
+    @test all(Xlis[i] * Xlis[j] ≈ Xlis[j] * Xlis[i] for i in 1:N for j in i+2:N-1)
 end
 
 @testset "measuremap" begin

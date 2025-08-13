@@ -104,7 +104,7 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
     @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
-    if measure_class == :Fibo
+    if measure_class ∈ (:Fibo, :resetFibo)
         # Generate Fibonacci chain basis
         # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
         if pbc
@@ -125,7 +125,7 @@ function Fibonacci_basis(::Type{T}, pbc::Bool=true; Y=nothing, measure_class::Sy
         end
     
         return sorted_basis
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
+    elseif measure_class ∈ (:IsingX, :IsingZZ, :IsingZ, :reset)
         # Generate basis for Ising model
         return [T(i) for i in 0:(2^N - 1)]
     else
@@ -174,7 +174,7 @@ function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
 
     X(state,i) = flip(state, fl >> (i-1))
 
-    if (state & (1 << (N-i))) == 0
+    if readbit(state, N +1 -i) == 0
         return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
     else
         return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
@@ -187,34 +187,34 @@ function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
 
     X(state,i) = flip(state, fl >> (i-1))
 
-    if (state & (1 << (N-i))) == 0
+    if readbit(state, N +1 -i) == 0
         return state, X(state,i), ϕ^(-1), ϕ^(-3/2)
     else
         return state, X(state,i), ϕ^(-2), ϕ^(-3/2)
     end
 end
 
-function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
     
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
-
+    J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
     if i == N
         if pbc
-             if ((state >> (N - 1)) & 1) == (state & 1)
-                return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+            if readbit(state, 1) == readbit(state, N)
+                return state, X(state,i), -J, -h # If same, return -zz and -x
             else
-                return state, X(state,i), 1.0, -1.0
+                return state, X(state,i), J, -h
             end
         else
-            return X(state,i), -1.0
+            return X(state,i), -h # If OBC, only return -x_N
         end
     else
-        if ((state >> (N - i - 1)) & 1) == ((state >> (N - i - 2)) & 1)
-            return state, X(state,i), -1.0, -1.0 # If same, return -zz and -x
+        if readbit(state, N - i + 1) == readbit(state, N - i)
+            return state, X(state,i), -J, -h # If same, return -zz and -x
         else
-            return state, X(state,i), 1.0, -1.0
+            return state, X(state,i), J, -h
         end
     end
 end
@@ -238,7 +238,7 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -287,25 +287,9 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
-    elseif measure_class == :IsingX || measure_class == :IsingZZ
-        # Generate Ising model Hamiltonian
-        output = Dict{T, Float64}()
-        for i in 1:N-1
-            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-
-        if pbc 
-            state1, state2, weight1, weight2 = Isingmap(T, state, N)
-            output[state1] = get(output, state1, 0.0) + weight1
-            output[state2] = get(output, state2, 0.0) + weight2
-        end
-
-        return output
     elseif measure_class == :Ferro
         mask=bmask(T, N, N-2)
-
+        
         output = Dict{T, Float64}()
         
         # count 101, 100, 001
@@ -345,20 +329,39 @@ function actingHam(::Type{T}, state::T, pbc::Bool=true; measure_class::Symbol=:F
             end
         end
         return output
+    elseif measure_class == :IsingX || measure_class == :IsingZZ
+        # Generate Ising model Hamiltonian
+        output = Dict{T, Float64}()
+        for i in 1:N-1
+            state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        end
+
+        if pbc
+            state1, state2, weight1, weight2 = Isingmap(T, state, N, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
+            output[state2] = get(output, state2, 0.0) + weight2
+        else
+            state1, weight1 = Isingmap(T, state, N, pbc; kwargs...)
+            output[state1] = get(output, state1, 0.0) + weight1
+        end
+
+        return output
     else
         error("Unsupported measure_class: $measure_class")
     end
 end
 
 
-function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(T, basis[i], pbc; measure_class=measure_class) 
+        output=actingHam(T, basis[i], pbc; measure_class=measure_class, kwargs...) 
         states, weights = keys(output), values(output)
         for m in states
             j=searchsortedfirst(basis, m)
@@ -368,8 +371,8 @@ function Fibonacci_Ham(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) w
 
     return H
 end
-Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class)
-
+Fibonacci_Ham(N::Int, pbc::Bool=true; measure_class::Symbol=:Fibo, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, pbc; measure_class=measure_class, kwargs...)
+# Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
     #params: t is an integer, N is the length of the binary string
@@ -399,7 +402,7 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 
-function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
@@ -413,7 +416,7 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(T, n, true)
+        output = actingHam(T, n, true; measure_class=measure_class, kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
@@ -431,23 +434,27 @@ function Fibonacci_Ham(::Type{T}, k::Int; Y=nothing, measure_class::Symbol=:Fibo
     H=(H+H')/2
     return H
 end
-Fibonacci_Ham(N::Int, k::Int, Y=nothing) = Fibonacci_Ham(BitStr{N, Int}, k, Y)
+Fibonacci_Ham(N::Int, k::Int, Y=nothing, kwargs...) = Fibonacci_Ham(BitStr{N, Int}, k, Y, kwargs...)
 
-# join two lists of basis by make a product of two lists, noting that a is smalller site, b is larger site, but b is placed before a (In BitString Order)
+# join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
-    # effectively, [join(b, a) for b in b for a in a] # seems slower
-    return vec([join(b, a) for a in a, b in b])
+    # effectively, vec([join(a, b) for a in a for b in b]) # seems faster
+    return [join(a, b) for a in a for b in b]
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
 function joint_basis(lengthlis::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
     # The element order in lengthlis doesn't matter, i.e., [2, 3] is only different with [3, 2] in basis order. Only your input state must consistent with the basis order. 
-    return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
+    if isempty(lengthlis)
+        return BitStr{0, Int}[]
+    else
+        return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlis))
+    end
 end
 
 function connected_components(v::Vector{Int})
     if isempty(v)
-        return []
+        return Int[]
     end
 
     sort!(v)
@@ -480,12 +487,11 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 # take system part of a basis
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
-function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+
     unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
-    @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
-    
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -494,7 +500,28 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
 
     
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
-    basis, state = unsorted_basis[order], state[order]
+
+    if state isa Vector
+        if isempty(subsystems)
+            return ones(ET, 1, 1) # Return empty matrix if no subsystems
+        elseif subsystems == collect(1:N)
+            # If subsystems is all sites, return the full density matrix
+            return state * state' # Full density matrix
+        end
+        @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
+
+        basis, state = unsorted_basis[order], state[order]
+    elseif state isa Matrix
+        if isempty(subsystems)
+            return ones(ET, 1, 1) # Return empty matrix if no subsystems
+        elseif subsystems == collect(1:N)
+            return state
+        end
+        @assert length(unsorted_basis) == size(state, 2) "state size is expected to be $(length(unsorted_basis)), but got $(size(state, 2))"
+
+        basis, state = unsorted_basis[order], state[order, order]
+    end
+
     
     reduced_basis = move_subsystem.(T, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
     # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
@@ -522,12 +549,12 @@ function rdm_Fibo(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::
         range = result_indices[i]:result_indices[i+1]-1         
         # Get indices in the reduced basis
         indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
+        view(reduced_dm, indices, indices) .+= (state isa Vector) ? view(state, range) .* view(state, range)' : view(state, range, range)
     end
 
     return reduced_dm
 end
-rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
+rdm_Fibo(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = rdm_Fibo(BitStr{N, Int}, subsystems, state, pbc; measure_class=measure_class)
 
 function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
@@ -573,34 +600,62 @@ function rdm_Fibo_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k
 end
 rdm_Fibo_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = rdm_Fibo_sec(BitStr{N, Int}, subsystems, state, k)
 
-# # create Fibonacci basis composed of multiple disjoint chains with different basis type
-# function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int}, pbc::Bool=false;measure_class::Symbol=:Fibo)
-#     return sort(mapreduce(len -> Fibonacci_basis(len, pbc, measure_class=measure_class), process_join, lengthlisA, lengthlisB))
-# end
+# create Fibonacci basis composed of multiple disjoint chains with different basis type
+function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo)
+    # subpbc is used to indicate whether the subsystem is periodic or not
+    lisA = sort(mapreduce(len -> Fibonacci_basis(len, subApbc, measure_class=measure_classA), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> Fibonacci_basis(len, subBpbc, measure_class=measure_classB), process_join, lengthlisB))
+    return vec([join(i, j) for i in lisA for j in lisB])
+end
 
-function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+    # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
+    @assert all(subsystemsB .<= N2) "subsystemsB is expected to be in [1, $N2], but got $(subsystemsB)"
+    if isempty(subsystemsA) && isempty(subsystemsB)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystemsA == collect(1:N1) && subsystemsB == collect(1:N2)
+        return state * state'
+    end
+
     unsorted_basisA = Fibonacci_basis(T1, pbc, measure_class=measure_classA)
     unsorted_basisB = Fibonacci_basis(T2, pbc, measure_class=measure_classB)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
-    doublebasis = reshape([join(j,i) for i in unsorted_basisA, j in unsorted_basisB], lenubasisA*lenubasisB)
+    doublebasis = reshape([join(i,j) for i in unsorted_basisA for j in unsorted_basisB], lenubasisA*lenubasisB)
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
-    subsystems = vcat(subsystemsA, subsystemsB.+N1) # add the second half of the system to the subsystems
-    subsystems=connected_components(subsystems)
-    lengthlis=length.(subsystems)
-    subsystems=vcat(subsystems...)
-    # mask = bmask(newT, subsystems...)
     mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
     
     
+    subsystems = vcat(subsystemsA, subsystemsB .+N1)
+    subsystems = connected_components(subsystems)
+    lengthlis = length.(subsystems)
+    subsystems = vcat(subsystems...)
+    
+    subsystemsB = subsystemsB.+N1 # add the second half of the system to the subsystems
+    subsystemsA = connected_components(subsystemsA)
+    subsystemsB = connected_components(subsystemsB)
+    lengthlisA = length.(subsystemsA)
+    lengthlisB = length.(subsystemsB)
+    subsystemsA = vcat(subsystemsA...)
+    subsystemsB = vcat(subsystemsB...)
+
+    if isempty(subsystemsA)
+        # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, measure_classB
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubBpbc, measure_class = measure_classB), Ref(subsystems))
+    elseif isempty(subsystemsB)
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, totalsubApbc, measure_class = measure_classA), Ref(subsystems))
+    else
+        reduced_basis = move_subsystem.(newT, joint_basis(lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc, measure_classA = measure_classA, measure_classB = measure_classB), Ref(vcat(subsystemsA, subsystemsB)))
+    end
+
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
     basis, state = doublebasis[order], state[order]
-    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis), Ref(subsystems))
+    
     len = length(reduced_basis)
     
     # Initialize the reduced density matrix
@@ -629,55 +684,7 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc)
-
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
-    # Usually subsystem indices count from the right of binary string.
-    # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    unsorted_basis = Fibonacci_basis(T, pbc; measure_class=measure_class)
-    len_F   = length(unsorted_basis)
-    k_old = round(Int, log2(length(state) ÷ len_F))
-    
-    length(state) == (2^k_old * len_F) || error("state length is not compatible with (k_old, N), can not deduce k_old from state length")
-    @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
-    extended_basis = build_extended_basis(k_old, unsorted_basis)
-
-    # the subsystems are the first k_old bits
-    lengthlis=length.(subsystems)
-    subsystems=vcat(subsystems...)
-    newT = BitStr{k_old+N, Int} 
-    mask = bmask(newT, (N + k_old.-subsystems .+1)...)
-    # This mask only masks the reference qubit, which are placed at 1, 2.(counts starting from the left)
-
-    order = sortperm(extended_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
-    basis, state = extended_basis[order], state[order]
-
-    reduced_basis = move_subsystem.(newT, joint_basis(lengthlis, measure_class=measure_class), Ref(subsystems))
-    len = length(reduced_basis)
-    # Initialize the reduced density matrix
-    reduced_dm = zeros(ET, (len, len))
-
-    # Keep track of indices where the key changes
-    result_indices = Int[]
-    current_key = -1
-    for (idx, i) in enumerate(basis)
-        key = takeenviron(i, mask)  # Get environment l bits
-        if key != current_key
-            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
-            push!(result_indices, idx)
-            current_key = key
-        end
-    end
-    # Add the final index to get complete ranges
-    push!(result_indices, length(basis) + 1)
-
-    for i in 1:length(result_indices)-1
-        range = result_indices[i]:result_indices[i+1]-1         
-        # Get indices in the reduced basis
-        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
-    end
-
-    return reduced_dm
-end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, measure_class::Symbol=:Fibo) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, measure_class=measure_class)
+disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, measure_classA::Symbol=:Fibo, measure_classB::Symbol=:Fibo) where {ET} = 
+disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
+totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
+measure_classA=measure_classA, measure_classB=measure_classB)

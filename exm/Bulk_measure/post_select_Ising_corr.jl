@@ -73,24 +73,26 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start
     save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
-function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3)
+function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3, seed::Int64=100)
     pbc = true
     measure_class = :IsingX
-    sample = ones(Int, D, L)
+    sample = zeros(Int, D, L)
 
     initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, measure_class=measure_class)))
     initial_state[1] = 1.0 # initial state is all zero state
-
-    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
-    
-    spatial_corr_lis = spatial_correlation.(L, statelis, 1, div(L,2), pbc=pbc, measure_class=measure_class)
     block = round(Int, block_size*L)
     block = iseven(block) ? block : block - 1
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice, timeslice+block, measure_class=:IsingX) for timeslice in 2:2:D-block]
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1_$(block).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
+    statelis = generate_state(τ, initial_state, sample, temp= true, measure_class=measure_class)
+
+    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, measure_class=measure_class)
+
+    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed, measure_class=:IsingX), measure_class=:IsingX) for timeslice in 2:2:D-block]
+
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
+    # return temporal_corr_lis, spatial_corr_lis
 end
-
+# temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D20_ps0_2_seed100.jld", "temporal_corr_lis", "spatial_corr_lis")
 function get_system_params_corr(τ)
     if τ == log(1 + √2)
         D = 20
@@ -184,7 +186,7 @@ function alpha_compute_corr(L, τ)
 
     temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
 
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis[1:2:end] ./ spatial_corr)
+    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis ./ spatial_corr)
     Δt = (collect(1:2:length(temporal_corr_lis))./L)[inds][end-1]
     α = 2*log(1+√2)/π/Δt
     return α
@@ -213,4 +215,18 @@ else
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
     compute_post_selection(L, τ, D)
+end
+
+function trace_distance(ρ1, ρ2)
+    diff = ρ1 - ρ2
+    # 迹距离 = 1/2 * ||ρ1 - ρ2||₁
+    return 0.5 * tr(sqrt(diff' * diff))
+end
+
+function fidelity(ρ1, ρ2)
+    # 对于密度矩阵，保真度定义为 F(ρ1,ρ2) = tr(√(√ρ1 * ρ2 * √ρ1))²
+    # 简化计算：
+    sqrt_ρ1 = sqrt(ρ1)
+    F = tr(sqrt(sqrt_ρ1 * ρ2 * sqrt_ρ1))^2
+    return real(F)
 end

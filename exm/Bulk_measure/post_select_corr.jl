@@ -74,6 +74,27 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point
     # save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
+function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3, seed::Int64=90)
+    pbc = true
+    sample = zeros(Int, D, div(L,2))
+
+    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc)))
+    initial_state[1] = 1.0 # initial state is all zero state
+    block = round(Int, block_size*L)
+    block = iseven(block) ? block : block - 1
+
+    statelis = generate_state(τ, initial_state, sample, temp= true)
+
+    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc)
+
+    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed)) for timeslice in 2:2:D-block]
+
+    # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
+    return temporal_corr_lis, spatial_corr_lis
+end
+
+# plot(temporal_corr_lis, label="Temporal Correlation", xlabel="Time", ylabel="Correlation", title="Temporal Correlation vs Time")
+# plot!(spatial_corr_lis)
 # function get_system_params_corr(τ)
 #     if τ == log(1 + √2)
 #         D = 35
