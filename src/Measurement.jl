@@ -1,3 +1,10 @@
+```
+    measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> Tuple{T, T, Float64, Float64}
+
+# params: a type `T` of BitStr{N, Int}, `τ` is the evolution time, `state` is the state vector in anyon basis, `i` is the index of the site to be measured, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+
+# The function is to map the basis (not state!!!) of the system to the measured state, and return the measured state and the weight of the measurement.
+```
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
@@ -328,6 +335,13 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
+```
+    Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}
+
+# params: a type `T` of BitStr{N, Int}, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `num_samples` is the number of samples to be generated, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+
+# The function is to measure the state at the given measurement sites, and return the measured states, the measurement sequences, and the free energy of each sample.
+```
 function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
@@ -375,6 +389,13 @@ end
 
 Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, measure_class = measure_class)
 
+```
+    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{ET}, Vector{Int64}, Float64}
+
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+
+# The function is to measure the state at the given measurement sites, and return the measured state, the measurement sequence, and the free energy of the post-selected state.
+```
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
@@ -399,6 +420,12 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
     return current_state, current_sequence, total_free_energy
 end
 
+```
+    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the number of layers, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
+```
 function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
     
     sample_free_energy = Vector{Float64}(undef, D)
@@ -509,6 +536,13 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
     return sample_measured_states, sample, sample_free_energy
 end
 
+```
+    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+
+# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the layer depth of the measurement tree, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+
+# The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
+```
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET}
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
     sample = Vector{Vector{Int64}}(undef, D)
@@ -587,6 +621,13 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
     return sample_measured_states, sample, sample_free_energy
 end
 
+```
+    apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) -> Vector{T}
+
+# params: a type `T` of BitStr{N, Int}, `N` is the number of sites, `state` is the state vector in anyon basis, `τ` is the evolution time, `layer_sample` is the measurement sequence for the layer, `layer_idx` is the index of the layer, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+
+# The function is to apply the measurement layer to the state, and return the measured state.
+```
 # Helper function to apply measurements to a layer
 function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; measure_class::Symbol=:Fibo) where {T}
     if measure_class == :Fibo
@@ -656,24 +697,24 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
     end
 end
 
+"""
+Distort the measurement trajectories based on a Bayesian distortion factor γ. Noting that it only works for one layer measurement to generate new sample for the other factor γ based on Projective limit measurement.
+
+This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
+P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2
+
+Args:
+    γ: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1).
+    trajectories: Vector of measurement trajectories.
+    probabilities: Corresponding probabilities for each trajectory.
+    
+Returns:
+    Tuple of (distorted_trajectories, distorted_probabilities) where:
+    - distorted_trajectories: All possible distorted trajectories
+    - distorted_probabilities: Their corresponding probabilities after distortion
+    in corresponding order.
+"""
 function bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
-    """
-    Distort the measurement trajectories based on a Bayesian distortion factor γ. Noting that it only works for one layer measurement to generate new sample for the other factor γ based on Projective limit measurement.
-    
-    This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
-    P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2
-    
-    Args:
-        γ: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1).
-        trajectories: Vector of measurement trajectories.
-        probabilities: Corresponding probabilities for each trajectory.
-        
-    Returns:
-        Tuple of (distorted_trajectories, distorted_probabilities) where:
-        - distorted_trajectories: All possible distorted trajectories
-        - distorted_probabilities: Their corresponding probabilities after distortion
-        in corresponding order.
-    """
     
     # Dictionary to store the distorted trajectory probabilities
     distorted_prob_dict = Dict{Vector{Int64}, Float64}()

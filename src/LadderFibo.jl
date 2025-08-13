@@ -1,3 +1,9 @@
+```
+    ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+
+# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+# Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
+```
 function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
     # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
@@ -46,6 +52,14 @@ function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=t
 end
 ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderbraidingsqmap(BitStr{N, Int}, state, idx, pbc, measure_class=measure_class)
 
+```
+    ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Vector{ET}    
+
+# params: a type `T` of BitStr{N, Int}, `p` is the probability of braiding, `state` is the state vector in anyon basis, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# The PBC anyon relation with basis like:
+#  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
+# Return the state vector after braiding the anyons in the state with a given probability.
+```
 function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # The PBC anyon relation with basis like:
     #  _1 τ1 _2 τ2 _3 τ3 _4 τ4 _5(1), with _ representing the basis, if PBC, thus head tail _ are connected.
@@ -66,6 +80,16 @@ function ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; me
 end
 ladderChoi(N::Int, probability::Float64, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {ET} = ladderChoi(BitStr{N, Int}, probability, state, pbc, measure_class=measure_class)
 
+```
+    ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET} -> Matrix{Float64}
+
+# params: a type `T` of BitStr{N, Int}, `subsystems` is the indices of the subsystems to be reduced, `state` is the state vector in anyon basis, `pbc` is a boolean value, which default to be true, `measure_class` is a symbol, which default to be :Fibo
+# Usually subsystem indices count from the right of binary string.
+# The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+# The disjoin_rdm function need to be careful about the combing order of subsystems, as the order of subsystems in the disjoint basis matters. For example, if input state is 2*3 (counting from the left), the disjoint basis counts from the right, is 3*2. So must ensure the order of subsystems is consistent with the input state.
+# However, in this ladder_rdm function, the order of subsystems doesn't matter, because of two subsystems have the same length.
+# Return the reduced density matrix of the subsystems in the state.
+```
 function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
@@ -76,7 +100,11 @@ function ladderrdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc:
 end
 ladderrdm(N::Int, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {ET} = ladderrdm(BitStr{N, Int}, subsystems, state, pbc)
 
-
+```
+    laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis
+# input a superposition state, and output the translated state
+```
 function laddertranslationmap(::Type{T}, state::Vector{ET}) where {N, T <: BitStr{N}, ET} 
     # input a superposition state, and output the translated state
     basis=Fibonacci_basis(T)

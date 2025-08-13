@@ -1,9 +1,15 @@
+```
+
+    Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> SparseMatrixCSC{Float64, Int}
+
+# params: a type `T` of BitStr{N, Int}, `pbc` is a boolean value, `measure_class` is a symbol, which default to be :Fibo
+
+# Return the Hamiltonian matrix in anyon basis, which is automatically contain periodic boundary condition (pbc) or open boundary condition (obc).
+```
 function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # Generate Hamiltonian for PXP model, automotically contain pbc or obc
     basis=Fibonacci_basis(T,pbc, measure_class=measure_class)
 
     l=length(basis)
-    # H=spzeros(Float64,(l,l))
     I, J, V = Int[], Int[], Float64[]
     for i in 1:l
         output=actingHam(T, basis[i], pbc)
@@ -20,6 +26,12 @@ function Fibonacci_Ham_sparse(::Type{T}, pbc::Bool=true;measure_class::Symbol=:F
 end
 Fibonacci_Ham_sparse(N::Int64, pbc::Bool=true) = Fibonacci_Ham_sparse(BitStr{N, Int}, pbc)
 
+```
+    Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}} -> SparseMatrixCSC{ComplexF64, Int}   
+    
+# params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `measure_class` is a symbol, which default to be :Fibo
+# Return the Hamiltonian matrix in given symmetric sector Hilbert space.
+```
 function Fibonacci_Ham_sparse(::Type{T}, k::Int, Y=nothing; measure_class::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing
 #return: the Hamiltonian matrix in given symmetric sector
