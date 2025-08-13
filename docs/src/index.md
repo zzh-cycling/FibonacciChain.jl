@@ -4,11 +4,11 @@ CurrentModule = FibonacciChain
 
 # FibonacciChain.jl
 
-**FibonacciChain.jl** is a Julia package for simulating quantum many-body systems with interacting anyons, particularly focusing on Fibonacci anyons and related topological systems.
+**FibonacciChain.jl** is a Julia package for simulating 1D interacting anyons chain, particularly focusing on Fibonacci anyons and related topological systems.
 
 ## Overview
 
-This package provides comprehensive tools for studying anyon chains based on the principle that, similar to the Heisenberg model where singlet states have lower energy, fusion outcomes with trivial topological charge are energetically preferred.
+This package provides comprehensive tools for studying anyon chains based on the principle that, $(2+1) D$ bulk TQFT has correspondence to $(1+1) D$ boundary CFT. Similar to the Heisenberg model where singlet states have lower energy, fusion outcomes with trivial topological charge are energetically preferred. Then we can write down a interacting Hamiltonian.
 
 ### Supported Anyon Types
 
@@ -16,15 +16,15 @@ The package currently supports three types of anyonic systems:
 
 - **Ising Anyons** (SU(2)₂): Majorana fermions with non-Abelian statistics
 - **Fibonacci Anyons** (SU(2)₃): Universal anyons for quantum computation
-- **Spin-1/2 Systems** (SU(2)∞): Regular fermionic systems
+- **Spin-1/2 Systems** (SU(2)∞): Regular spin systems
 
 ### Key Features
 
 - **Exact Diagonalization**: Full quantum many-body calculations for small systems
 - **Matrix Product States (MPS)**: Efficient simulation of larger systems using ITensors.jl
 - **Measurement Protocols**: Quantum measurement and post-selection dynamics
-- **Topological Properties**: Calculation of entanglement entropy, topological correlations
-- **Braiding Operations**: Implementation of anyonic braiding and exchange statistics
+- **Topological Properties**: Utilizing topological symmetry sector.
+- **Anyon Operations**: Implementation of anyonic braiding and exchange statistics, fusion operation.
 
 ## Installation
 
