@@ -296,6 +296,7 @@ end
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), measure_class=:IsingX)
     rdm = reference_rdm(N, collect(1:2), add_st, measure_class=:IsingX, traceref=false)
     @test ee(rdm) ≈ log(2)
+    # Only for GHZ state, the entanglement entropy is not changed after adding reference qubits, if is W state, Haar Random state, NO.
 end
 
 @testset "reference_rdm_Ising" begin

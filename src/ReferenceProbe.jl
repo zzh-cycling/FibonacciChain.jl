@@ -104,7 +104,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
     D = size(sample, 1)
-    N = (measure_class == :Fibo) ? round(Int, size(sample, 2) / 2) : size(sample, 2)
+    N = (measure_class == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
     
     statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
  
@@ -222,7 +222,7 @@ reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true
 function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
 pbc=true, seed::Int64=100, measure_class::Symbol=:Fibo, temp::Bool=false)
     # time_slice1 and time_slice2 are the indices of the time slices in the sample.
-    N = (measure_class == :Fibo) ? round(Int, size(sample, 2) / 2) : size(sample, 2)
+    N = (measure_class == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
     D = size(sample, 1)
     @assert 1 <= site <= N "Site index must be in the range [1, N]"    
     @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
