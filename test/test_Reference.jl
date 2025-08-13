@@ -263,20 +263,23 @@ end
     site = 1
     add_site2 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(100))
 
+    # Trace the first ref qubit with reset 1
     rdm = reference_rdm(N, [1], add_site2)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
 
+    # Add a ref qubit to site 1 with reset 0
     add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90))
     
     rdm = reference_rdm(N, [1], add_site1)
     @test rdm == [0.75 0.0; 0.0 0.25]
 
-
+    # Trace the first ref qubit with measure_class = :IsingX
     full_st = zeros(2^(N+1));
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
     @test rdm_Fibo(4, [1], full_st, measure_class=:IsingX) == rdm
 
+    # Add another ref qubit to site 1 with reset 0, the 1st rdm should be the same as above, but the 2nd rdm should be |0><0|
     add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90))
     rdm2 = reference_rdm(N, [1], add_st2)
     rdm3 = reference_rdm(N, [2], add_st2)
@@ -285,6 +288,14 @@ end
 
     rdm4 = reference_rdm(N, [1, 2], add_st2)
     @test diag(rdm4) == [0.75, 0.0, 0.25, 0.0]
+
+    # add a ref qubit to a Bell state, the entanglement entropy should not change
+    N=4
+    st = zeros(2^N); st[1] = 1; st[end] = 1; st ./= norm(st)
+    @test ee(rdm_Fibo(N, collect(1:div(N,2)), st, measure_class=:IsingX)) ≈ log(2)
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), measure_class=:IsingX)
+    rdm = reference_rdm(N, collect(1:2), add_st, measure_class=:IsingX, traceref=false)
+    @test ee(rdm) ≈ log(2)
 end
 
 @testset "reference_rdm_Ising" begin
