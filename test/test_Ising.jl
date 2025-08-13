@@ -468,20 +468,19 @@ end
     @test new_state ≈ sample_measured_states[1]
 end
 
-# @testset "generate_state" begin
-#     N = 6
-#     τ = 1e3
-#     st=zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
-#     st[1] = 1.0
+@testset "generate_state" begin
+    N = 6
+    τ = 1e3
+    st=zeros(length(Fibonacci_basis(N, measure_class=:IsingX)))
+    st[1] = 1.0
 
-#     sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, measure_class=:IsingX)
-#     state = generate_state(τ, st, samples[1], measure_class=:IsingX)
-#     @test state ≈ sample_measured_states[1]
+    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, measure_class=:IsingX)
+    state = generate_state(τ, st, samples[1], measure_class=:IsingX)
+    @test state ≈ sample_measured_states[1]
 
-#     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), measure_class=:IsingX)
-#     state_t = generate_state(τ, st, samples, measure_class=:IsingX)
-#     statelis = generate_state(τ, st, samples, true, temp = true, measure_class=:IsingX)
-#     @test statelis ≈ sample_measured_states
-#     @test state_t ≈ sample_measured_states[end]
-
-# end
+    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), measure_class=:IsingX)
+    state_t = generate_state(τ, st, samples, measure_class=:IsingX)
+    statelis = generate_state(τ, st, samples, true, temp = true, measure_class=:IsingX)
+    @test statelis ≈ sample_measured_states
+    @test state_t ≈ sample_measured_states[end]
+end
