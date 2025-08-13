@@ -418,7 +418,7 @@ function ee_mps(ψ::MPS, b::Int)
     return SvN
 end
 
-function eelis_Fibo_mps(N::Int64, ψ::MPS)
+function anyon_eelis_mps(N::Int64, ψ::MPS)
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)

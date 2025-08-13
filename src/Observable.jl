@@ -25,20 +25,20 @@ function ee(subrm::Matrix{ET}) where {ET}
 end
 
 """
-    eelis_Fibo_state(N::Int64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+    anyon_eelis(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
 
 Calculate entanglement entropy profile along the chain for given quantum state.
 
 # Arguments
 - `N::Int64`: System size
-- `state::Vector{ET}`: Quantum state vector in anyon basis
+- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or reduced density matrix in anyon basis
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
+- `anyon_type::Symbol=:Fibo`: anyon type
 
 # Returns
 - `Vector{Float64}`: Entanglement entropy at each bipartition from left to right
 """
-function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+function anyon_eelis(N::Int64,state::Union{Vector{ET}, Matrix{ET}},pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     # Generate ee list for a given state from the left to the right
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
@@ -54,7 +54,7 @@ function eelis_Fibo_state(N::Int64,state::Vector{ET},pbc::Bool=true; anyon_type:
     return EE_lis
 end
 
-function eelis_Fiboladder_state(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
+function anyonladder_eelis(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
     # Generate ee list for a given state from the left to the right
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))

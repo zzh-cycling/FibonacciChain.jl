@@ -16,7 +16,7 @@ end
 @testset "eelis" begin
     N=6
     state=eigvecs(anyon_ham(N))[:,1]
-    EE_lis=eelis_Fibo_state(N,state)
+    EE_lis=anyon_eelis(N,state)
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
 end
@@ -24,7 +24,7 @@ end
 @testset "ee_Fiboladder_lis" begin
     N=3
     state=eigvecs(anyon_ham(N))[:,1]
-    EE_lis=eelis_Fiboladder_state(N, kron(state, state))
+    EE_lis=anyonladder_eelis(N, kron(state, state))
     @test length(EE_lis)==length(collect(1:N-1))
     @test all(EE_lis .> 0)
 end

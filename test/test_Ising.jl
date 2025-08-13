@@ -432,7 +432,7 @@ end
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
-    EElis = [eelis_Fibo_state(L, state_t, anyon_type=:IsingX)[div(L,2)] for state_t in sample_measured_states]
+    EElis = [anyon_eelis(L, state_t, anyon_type=:IsingX)[div(L,2)] for state_t in sample_measured_states]
     @test size(samples) == (D, L)
     # Each layer will erase previous info.
     @test EElis ≈ [i % 2 == 1 ? 0.0 : log(2) for i in 1:D] atol = 1e-6
@@ -450,7 +450,7 @@ end
     EE_tlis = zeros(D)
     sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc, anyon_type=:IsingX)
     state_t = sample_measured_states[end]
-    EE = eelis_Fibo_state(L, state_t, anyon_type=:IsingX)
+    EE = anyon_eelis(L, state_t, anyon_type=:IsingX)
     @test samples[end] == fill(0, L)
     @test EE ≈ log(2)*ones(L-1) atol = 1e-4
 end

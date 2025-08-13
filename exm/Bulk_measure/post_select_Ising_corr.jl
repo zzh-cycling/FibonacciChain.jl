@@ -59,7 +59,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start
     sample = ones(Int, D, L)
     # sample = zeros(Int, D, L)
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
@@ -78,7 +78,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, bloc
     anyon_type = :IsingX
     sample = zeros(Int, D, L)
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
     block = round(Int, block_size*L)
     block = iseven(block) ? block : block - 1

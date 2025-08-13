@@ -13,7 +13,7 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = eelis_Fibo_mps(L, final_state)
+    final_EElis = anyon_eelis_mps(L, final_state)
 
     save("exm/data/Bulk_measure/monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
     "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed, 
@@ -30,7 +30,7 @@ function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::In
     final_state = sample_measured_states[end]
 
     new_halfchain_EE_tlis = vcat(halfchain_EE_tlis, [ee_mps(j, div(L,2)) for j in sample_measured_states])
-    new_final_EElis = vcat(final_EElis, eelis_Fibo_mps(L, final_state))
+    new_final_EElis = vcat(final_EElis, anyon_eelis_mps(L, final_state))
 
     
     save("exm/data/Bulk_measure/monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
@@ -84,7 +84,7 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=5L)
     
         ensemble_EE_dynamics[i, :] = [ee_mps(j, div(L,2)) for j in sample_measured_states]
         final_state = sample_measured_states[end]
-        final_EElis[i, :] = eelis_Fibo_mps(L, final_state)
+        final_EElis[i, :] = anyon_eelis_mps(L, final_state)
 
         all_FE_tlis[i, :] = sample_free_energy
         final_FElis[i] = sample_free_energy[end]
