@@ -1,7 +1,7 @@
 """
     anyon_ham_sparse(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-Construct Fibonacci chain Hamiltonian as sparse matrix.
+Construct anyon chain Hamiltonian as sparse matrix.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
@@ -9,7 +9,7 @@ Construct Fibonacci chain Hamiltonian as sparse matrix.
 - `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
-- `SparseMatrixCSC{Float64, Int}`: Hamiltonian matrix in anyon basis
+- `SparseMatrixCSC{Float64, Int}`: Sparse Hamiltonian matrix in anyon basis
 """
 function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     basis=anyon_basis(T,pbc, anyon_type=anyon_type)
@@ -43,7 +43,7 @@ Construct Hamiltonian in momentum-topological sector as sparse matrix.
 - `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
-- `SparseMatrixCSC{ComplexF64, Int}`: Hamiltonian in symmetric sector
+- `SparseMatrixCSC{ComplexF64, Int}`: Sparse Hamiltonian in symmetric sector
 """
 function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing

@@ -133,7 +133,7 @@ Generate basis states for 1D anyon chain.
 - `T::Type`: BitStr type specifying chain length N
 - `pbc::Bool=true`: Periodic boundary conditions
 - `Y`: Topological charge filter (`:tau`, `:trivial`, `0`, `1`, or `nothing`)
-- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`, `:reset`)
+- `anyon_type::Symbol=:Fibo`: anyon type (`:Fibo`, `:resetFibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`, `:reset`)
 
 # Returns
 - `Vector{T}`: Sorted basis states satisfying constraints
@@ -412,13 +412,13 @@ end
 """
     anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
-Construct Hamiltonian matrix for anyon chain models.
+Construct Hamiltonian matrix for 1D anyon chain.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `kwargs...`: Additional model parameters
+- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model.
 
 # Returns
 - `Matrix{Float64}`: Hamiltonian matrix in chosen basis
@@ -473,11 +473,18 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}} -> Matrix{ComplexF64}
+    anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
-# params: a type `T` of BitStr{N, Int}, `k` is the momentum of the system, `Y` is the topological charge, which default to be nothing, `anyon_type` is a symbol, which default to be :Fibo
+Construct Hamiltonian matrix in specific symmetry sector for 1D anyon chain.
+    
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model.
 
-# return: the Hamiltonian matrix in given symmetric sector Hilbert space
+# Returns
+- `Matrix{Float64}`: Hamiltonian matrix in chosen basis
 """
 function anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
@@ -567,7 +574,7 @@ takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 """
     anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
-Compute reduced density matrix for specified subsystems from quantum state.
+Compute reduced density matrix for specified subsystems from quantum state or density matrix.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
@@ -651,13 +658,19 @@ end
 anyon_rdm(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = anyon_rdm(BitStr{N, Int}, subsystems, state, pbc; anyon_type=anyon_type)
 
 """
-    mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+    mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
 
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system, `anyon_type` is a symbol, which default to be :Fibo
+map state in symmetric sector to total Hilbert space.
 
-# Map the symmetric sector Hilbert space state to total space state, which is used to calculate the reduced density matrix in total space.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `state::Vector{ET}`: State vector in symmetric sector Hilbert space
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Vector{ET}`: Total space state vector
 """
-function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64;anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
 
@@ -694,19 +707,28 @@ end
 mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, anyon_type=anyon_type)
 
 """
-    anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} -> Matrix{ET}
+    anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} 
 
-# params: a type `T` of BitStr{N, Int}, `subsystems` is a vector of subsystem indices, `kstate` is the state vector in symmetric sector Hilbert space, `k` is the momentum of the system
+Compute reduced density matrix for specified subsystems from quantum state or density matrix in specific symmetry sector.
 
-# Return the reduced density matrix for the given subsystems in anyon basis, which is in symmetric sector Hilbert space.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
+- `kstate::Vector{ET}`: State vector in symmetric sector Hilbert space
+- `k::Int64`: Momentum sector (0 ≤ k ≤ N-1)
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Matrix{ET}`: Reduced density matrix in total Hilbert basis
 """
-function anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET}
-    @assert length(kstate) == length(anyon_basis(T,k)[1]) "state length is expected to be $(length(anyon_basis(T, k)[1])), but got $(length(kstate))"
+function anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64},kstate::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+    l = length(anyon_basis(T, k, anyon_type=anyon_type)[1])
+    @assert length(kstate) == l "state length is expected to be $(l), but got $(length(kstate))"
     state = mapst_sec2tot(T, kstate, k)
-    reduced_dm = anyon_rdm(T, subsystems, state)
+    reduced_dm = anyon_rdm(T, subsystems, state, true; anyon_type=anyon_type)
     return reduced_dm
 end
-anyon_rdm_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64) where {ET} = anyon_rdm_sec(BitStr{N, Int}, subsystems, state, k)
+anyon_rdm_sec(N::Int, subsystems::Vector{Int64},state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {ET} = anyon_rdm_sec(BitStr{N, Int}, subsystems, state, k, anyon_type=anyon_type)
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
 function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo)
@@ -717,11 +739,24 @@ function joint_basis(lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::B
 end
 
 """
-    disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET} -> Matrix{ET}
+    disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
 
-# params: Two system's info. `T1` of BitStr{N1, Int}, `T2` of BitStr{N2, Int}, `subsystemsA` is a vector of subsystem indices to be kept for the first system, `subsystemsB` is a vector of subsystem indices to be kept for the second system, `state` is the state vector in disjoint basis, `pbc` is a boolean value, `totalsubApbc` and `totalsubBpbc` are used to indicate whether the total subsystem is periodic or not, `anyon_typeA` and `anyon_typeB` are symbols, which default to be :Fibo
+Compute reduced density matrix for two joint different systems, or two parallel chains. Where specified subsystems is given, output quantum state or density matrix.
 
-# Return the reduced density matrix for the given subsystems in disjoint basis, which can be viewed as two parallel chains or two joint systems.
+# Arguments
+- `T1::Type`: BitStr type specifying chain length N1
+- `T2::Type`: BitStr type specifying chain length N2
+- `subsystemsA::Vector{Int64}`: Indices of subsystem sites to keep
+- `subsystemsB::Vector{Int64}`: Indices of subsystem sites to keep
+- `state::Vector{ET}`: Quantum state vector in total Hilbert space
+- `pbc::Bool=true`: Periodic boundary conditions
+- `totalsubApbc::Bool=false`: Whether the total subsystem A is periodic
+- `totalsubBpbc::Bool=false`: Whether the total subsystem B is periodic
+- `anyon_typeA::Symbol=:Fibo`: anyon type for subsystem A
+- `anyon_typeB::Symbol=:Fibo`: anyon type for subsystem B
+
+# Returns
+- `Matrix{ET}`: Reduced density matrix in total Hilbert basis
 """
 function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.

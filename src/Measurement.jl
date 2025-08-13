@@ -5,17 +5,17 @@ Map single basis state under measurement operation at site i.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
-- `τ::Float64`: Evolution time parameter
+- `τ::Float64`: Measurement strength parameter
 - `state::T`: Input basis state
 - `i::Int`: Measurement site index (1 ≤ i ≤ N)
 - `sign::Int64`: Measurement outcome (0 for +, 1 for -)
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
+- `anyon_type::Symbol=:Fibo`: anyon type
 
 # Returns
 - Basis-dependent output: Either `(basis, coefficient)` or `(basis1, basis2, coeff1, coeff2)`
 
-Maps individual basis states according to measurement protocols and fusion rules.
+Maps individual basis states according to measurement protocols and fusion rules. Here we choose Heisenberg-like preferring way, selecting specific fusion outcome.
 """
 function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
     # default for PBC system, map basis (not state!!!), and index count from the left.
@@ -350,17 +350,17 @@ end
 """
     Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
-Generate measurement samples at boundary sites with probabilistic outcomes.
+Generate measurement samples at boundary sites with probabilistic outcomes, i.e., without time axis evolution.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
-- `τ::Float64`: Evolution time parameter
+- `τ::Float64`: Measurement strength parameter
 - `state::Vector{ET}`: Initial quantum state vector
 - `measurement_sites::Vector{Int}`: Sites to perform measurements
 - `num_samples::Int=1000`: Number of measurement samples to generate
 - `rng::MersenneTwister`: Random number generator
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
+- `anyon_type::Symbol=:Fibo`: anyon type
 
 # Returns
 - `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
@@ -416,11 +416,23 @@ end
 Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, anyon_type = anyon_type)
 
 """
-    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{ET}, Vector{Int64}, Float64}
+    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `measurement_sites` is a vector of measurement sites, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
+Generate measurement samples at boundary sites with post_selection outcomes, i.e., given spatial evolution without time axis evolution.
 
-# The function is to measure the state at the given measurement sites, and return the measured state, the measurement sequence, and the free energy of the post-selected state.
+# Arguments
+- `N::Int`: Chain length N
+- `τ::Float64`: Measurement strength parameter
+- `state::Vector{ET}`: Initial quantum state vector
+- `measurement_sites::Vector{Int}`: Sites to perform measurements
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+  (post-measurement states, measurement sequences, free energies)
+
+Samples measurement outcomes with given measurement outcomes.
 """
 function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -447,10 +459,24 @@ function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measur
 end
 
 """
-    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the number of layers, `rng` is the random number generator, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
-# The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
+Generate measurement samples at bulk sites with probabilistic outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
+
+# Arguments
+- `N::Int`: Chain length N
+- `τ::Float64`: Measurement strength parameter
+- `state::Vector{ET}`: Initial quantum state vector
+- `D::Int64`: Number of measurement layers (depth), or time step (over 2)
+- `rng::MersenneTwister`: Random number generator
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+  (post-measurement states, measurement sequences, free energies)
+
+Samples measurement outcomes probabilistically based on Born rule.
 """
 function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     
@@ -563,11 +589,24 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
 end
 
 """
-    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}
+    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
-# params: a type `ET` of Float or Complex, `N` is the number of sites, `τ` is the evolution time, `state` is the state vector in anyon basis, `D` is the layer depth of the measurement tree, `sign` is the sign of the measurement, which can be 0 or 1, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
+Generate measurement samples at bulk sites with post_selection outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
 
-# The function is to measure the state in a bulk manner, and return the measured states, the measurement sequences, and the free energy of each sample.
+# Arguments
+- `N::Int`: Chain length N
+- `τ::Float64`: Measurement strength parameter
+- `state::Vector{ET}`: Initial quantum state vector
+- `D::Int64`: Number of measurement layers (depth), or time step (over 2)
+- `sign::Int64`: Measurement sign, 0 for positive, 1 for negative
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+  (post-measurement states, measurement sequences, free energies)
+
+Samples measurement outcomes with given measurement outcomes.
 """
 function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
     # N is the number of sites, τ is the measurement parameter, state is the initial state vector, D is the layer depth of the measurement tree
@@ -648,11 +687,24 @@ function Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, 
 end
 
 """
-    apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) -> Vector{T}
+    apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
-# params: a type `T` of BitStr{N, Int}, `N` is the number of sites, `state` is the state vector in anyon basis, `τ` is the evolution time, `layer_sample` is the measurement sequence for the layer, `layer_idx` is the index of the layer, `pbc` is a boolean value, which default to be true, `anyon_type` is a symbol, which default to be :Fibo
+Generate measurement samples at 1 layer with post_selection outcomes, i.e., with time step 1.
 
-# The function is to apply the measurement layer to the state, and return the measured state.
+# Arguments
+- `N::Int`: Chain length N
+- `state::Vector{ET}`: Initial quantum state vector
+- `τ::Float64`: Measurement strength parameter
+- `layer_sample::Vector{Int64}`: Measurement outcomes for the layer
+- `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+
+# Returns
+- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+  (post-measurement states, measurement sequences, free energies)
+
+Samples measurement outcomes with given measurement outcomes.
 """
 # Helper function to apply measurements to a layer
 function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {T}

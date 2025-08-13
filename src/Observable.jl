@@ -27,11 +27,11 @@ end
 """
     anyon_eelis(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
 
-Calculate entanglement entropy profile along the chain for given quantum state.
+Calculate entanglement entropy profile along the chain for given quantum state or density matrix.
 
 # Arguments
 - `N::Int64`: System size
-- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or reduced density matrix in anyon basis
+- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix in anyon basis
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 
@@ -217,10 +217,18 @@ function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: B
 end
 
 """
-    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} -> Vector{ET}
+    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
 
-# params: a type `T` of BitStr{N, Int}, `state` is the state vector in anyon basis, `idx` is the index of the site to be braided, `pbc` is a boolean value, `anyon_type` is a symbol, which default to be :Fibo
-# Return the braided state vector. In anyon basis, braiding is a fundamental operation that changes the state of the system by braiding the anyons at the specified index.
+Apply braiding squared operation to quantum state at specified site.
+# Arguments
+- `T::Type`: BitStr type specifying chain length N
+- `state::Vector{ET}`: Quantum state vector in anyon basis
+- `idx::Int`: Site index for braiding operation
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{ET}`: Transformed state after braiding operation
 """
 function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # input a superposition state, and output the braided state

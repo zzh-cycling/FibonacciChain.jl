@@ -1,7 +1,7 @@
 """
     ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
-Apply braiding squared operation to density matrix state in vectorized form.
+Apply braiding squared operation to density matrix state in vectorized form. Effectively, it's the noise induced by inter-two layer chain braiding.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
@@ -66,7 +66,7 @@ ladderbraidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_t
 """
     ladderChoi(::Type{T}, p::Float64, state::Vector{ET}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
 
-Apply probabilistic braiding noise channel to density matrix state.
+Apply probabilistic braiding noise channel to density matrix state in vec form.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N  
