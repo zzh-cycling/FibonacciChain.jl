@@ -1,7 +1,7 @@
 using FibonacciChain
 using JLD
 using Statistics
-include("../FitEntEntScal.jl")
+# include("../FitEntEntScal.jl")
 
 function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
     pbc = true
@@ -48,8 +48,9 @@ for τ in τlis
     for L in 8:2:20
         D = get_system_params(τ, L)[1]
         @show L
-        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, 1)
-        save("exm/data/post_selection1/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
+        sign = 0
+        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, sign)
+        save("exm/data/post_selection$(sign)/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
     end
 end
 
