@@ -1,4 +1,4 @@
-using Fibonacci
+using FibonacciChain
 include("../FitEntEntScal.jl")
 
 binary_distribution(p, rng) = rand(rng) < p ? 1 : 0
