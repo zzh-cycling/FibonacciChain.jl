@@ -44,7 +44,7 @@ function initial_mps(N::Int)
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ0 = randomMPS(sites, state)
+    ψ0 = random_mps(sites, state)
     
     return ψ0, sites
 end
@@ -57,7 +57,7 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxd
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ0 = randomMPS(sites, state)
+    ψ0 = random_mps(sites, state)
     
     # Create Fibonacci Hamiltonian
     H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
