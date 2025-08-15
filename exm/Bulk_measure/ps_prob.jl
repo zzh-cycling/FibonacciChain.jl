@@ -28,7 +28,7 @@ else
     seed=parse(Int64, ARGS[1])
     stlis = [ps_prob_evolution(L, τ, D, p, seed=seed) for p in problis]
     eelis = [anyon_eelis(L, st) for st in stlis]
-    save("exm/Bulk_measure/data/ps_prob_sample_$(seed).jld", "seed", seed, "eelis", eelis, "problis", problis)
+    save("exm/Bulk_measure/data/ps_prob_evolution/L$(L)_D$(div(D,L))_τ$(τ)_sample_$(seed).jld", "seed", seed, "eelis", eelis, "problis", problis)
 end
 
 

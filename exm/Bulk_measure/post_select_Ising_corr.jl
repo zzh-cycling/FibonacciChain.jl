@@ -2,6 +2,8 @@ using FibonacciChain
 using JLD
 using Statistics
 using BitBasis
+using LaTeXStrings
+using Plots
 
 function get_system_params(τ, L)
     if τ == log(1 + √2)
