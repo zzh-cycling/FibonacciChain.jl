@@ -73,62 +73,6 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start
     save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
-function Ising_temporal(L::Int64, τ::Float64, t1::Int, block_size::Float64=0.3, D::Int64=10L,  seed::Int64=100)
-    pbc = true
-    anyon_type = :IsingX
-    sample = zeros(Int, D, L)
-
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
-    initial_state[1] = 1.0 # initial state is all zero state
-    δt = round(Int, block_size*L)
-    δt = iseven(δt) ? δt : δt - 1
-
-    sample = zeros(Int, t1+ δt + D, L)
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
-    ref2st = reference_evolution(τ, statelis, sample, div(L,2), t1, t1 + δt, seed=seed, anyon_type=:IsingX, verbose=true)
-
-    sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
-    EE = ee(sysrdm)
-
-    tc = temporal_correlation(L, ref2st, anyon_type=:IsingX)
-    return EE, tc
-end
-tlis = collect(2:2:80)
-EElis = zeros(Float64, length(tlis))
-tclis = zeros(Float64, length(tlis))
-for (idx, i) in enumerate(tlis)
-    EE, tc = Ising_temporal(L, τ, i, 1.4)
-    EElis[idx] = EE
-    tclis[idx] = tc
-end
-
-function ref_ee_evolution(L::Int64, τ::Float64, D::Int64=10L, block_size::Float64=0.3, seed::Int64=100)
-    pbc = true
-    anyon_type = :IsingX
-    δt = round(Int, block_size*L)
-    δt = iseven(δt) ? δt : δt - 1
-
-    sample = zeros(Int, D, L)
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
-    initial_state[1] = 1.0 # initial state is all zero state
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
-
-    timeslice1 = collect(2:2:D)
-
-    eelis = zeros(Float64, length(timeslice1))
-    for (idx, i) in enumerate(timeslice1)
-        timeslice2 = i + δt
-        ref_sample = vcat(sample[1:i, :], zeros(Int, δt + D, L))
-        
-        ref2st = reference_evolution(τ, statelis, ref_sample, div(L,2), i, timeslice2, seed=seed, anyon_type=:IsingX, verbose=true)
-        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
-        eelis[idx] = ee(sysrdm)
-    end
-
-    # save("exm/data/Bulk_measure/ref_ee_evolution_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1_$(δt)_seed$(seed).jld", "ref_ee", ref_ee)
-    return eelis
-end
-
 function plot_ref_ee(eelis, gamma)
     # Plot the entanglement entropy evolution
     fig = plot(
@@ -180,11 +124,11 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, bloc
     # return temporal_corr_lis, spatial_corr_lis, eelis
 end
 
-temporal_corr_lis, spatial_corr_lis, eelis = load("./exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_8_seed100.jld", "temporal_corr_lis", "spatial_corr_lis", "eelis")
+# temporal_corr_lis, spatial_corr_lis, eelis = load("./exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_8_seed100.jld", "temporal_corr_lis", "spatial_corr_lis", "eelis")
 
-fig = plot_ref_ee(eelis, 0.707)
-plot(temporal_corr_lis, ylim=(0, maximum(temporal_corr_lis)))
-plot!(spatial_corr_lis)
+# fig = plot_ref_ee(eelis, 0.707)
+# plot(temporal_corr_lis, ylim=(0, maximum(temporal_corr_lis)))
+# plot!(spatial_corr_lis)
 
 function get_system_params_corr(τ)
     if τ == log(1 + √2)
@@ -293,19 +237,21 @@ end
 τlis[end] = 1000.0  # Last value is for γ=1
 τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
 gamma=tanh(log(1 + √2))
-fig = plot_corr(collect(8:2:12))
+# fig = plot_corr(collect(8:2:12))
 
-fig_corr = plot_spatial_temporal_corr(10)
+# fig_corr = plot_spatial_temporal_corr(10)
 
 if length(ARGS) == 0
     println("No arguments provided.")
 else
     L=parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
+    block_size = parse(Float64, ARGS[3])
     println("Received argument: $L, $inds")
     τ = τlis[inds]
-    D, _, _ = get_system_params(τ, L)
-    compute_post_selection(L, τ, D)
+    # D, _, _ = get_system_params(τ, L)
+    # compute_post_selection(L, τ, D)
+    spatial_temporal_corr_varying(L, τ, 10L, block_size, 100)
 end
 
 function trace_distance(ρ1, ρ2)
