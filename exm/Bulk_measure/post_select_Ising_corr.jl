@@ -185,7 +185,7 @@ function plot_corr(L_list=collect(8:2:24))
 end
 
 function plot_spatial_temporal_corr(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2))
-    δtlis = vcat(collect(2:2:10), 14)
+    δtlis = collect(2:2:14)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
 
 
