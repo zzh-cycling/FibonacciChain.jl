@@ -88,7 +88,7 @@ end
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ0 = randomMPS(sites, state)
+    ψ0 = random_mps(sites, state)
     
     # Apply measurements
     ψ_p, prob_p = apply_measurement_mps(ψ0, sites, 1, τ, 0; pbc=pbc)
@@ -124,7 +124,7 @@ end
     # Use minimal measurement sites for enumeration
     measurement_sites = collect(2:2:N)
     
-    ψ = randomMPS(sites, state)
+    ψ = random_mps(sites, state)
     # Enumerate trajectories
     final_states, trajectories, probabilities = mps_measurement_enumeration(
         ψ, sites, measurement_sites, τ; pbc=pbc)
@@ -247,7 +247,7 @@ end
     # Create initial product state (vacuum state)
     state = ["0" for _ in 1:N]
 
-    ψ = randomMPS(sites, state)
+    ψ = random_mps(sites, state)
     # Calculate entanglement entropy at different cuts
     EElis = anyon_eelis_mps(N, ψ)
     @test all(EElis .>= 0)  # Entanglement entropy should be non-negative

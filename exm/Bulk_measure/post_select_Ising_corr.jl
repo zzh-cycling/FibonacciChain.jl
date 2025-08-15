@@ -2,6 +2,8 @@ using FibonacciChain
 using JLD
 using Statistics
 using BitBasis
+using LaTeXStrings
+using Plots
 
 function get_system_params(τ, L)
     if τ == log(1 + √2)
@@ -53,11 +55,10 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start_point::Int64=15)
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start_point::Int64=15, sign::Int64=0)
     pbc = true
     anyon_type = :IsingX
-    sample = ones(Int, D, L)
-    # sample = zeros(Int, D, L)
+    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
 
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
@@ -70,29 +71,66 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=20L, start
 
     temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, anyon_type=:IsingX) for j in timeslice1+2:2:timeslice1+2L]
 
-    save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps1.jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
+    save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
 end
 
-function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, block_size::Float64=0.3, seed::Int64=100)
+function plot_ref_ee(eelis, gamma)
+    # Plot the entanglement entropy evolution
+    fig = plot(
+        label=false,
+        legend_background_color=nothing,
+        legend_foreground_color=nothing, 
+        xlabel=L"\Delta t /L",
+        ylabel=L"S_{vN}",
+        title=latexstring("γ= $(round(gamma, digits=3))"),
+    )
+    plot!(fig, collect(1:length(eelis))./L, eelis, color=:blues, linewidth=2, label=false)
+
+    return fig
+end
+
+function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, block_size::Float64=0.3, seed::Int64=100, sign::Int64=0)
     pbc = true
     anyon_type = :IsingX
-    sample = zeros(Int, D, L)
+    sample = (sign==0) ? zeros(Int, D+2, L) : ones(Int, D+2, L)
 
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
-    block = round(Int, block_size*L)
-    block = iseven(block) ? block : block - 1
+    δt = round(Int, block_size*L)
+    δt = iseven(δt) ? δt : δt - 1
 
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
-    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-block], 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
+    spatial_corr_lis = spatial_correlation.(L, statelis[2:2:D-δt], 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
 
-    temporal_corr_lis = [temporal_correlation(L, reference_evolution(τ, statelis, sample, div(L,2), timeslice, timeslice + block, seed=seed, anyon_type=:IsingX), anyon_type=:IsingX) for timeslice in 2:2:D-block]
+    timeslice1 = collect(2:2:D)
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps0_$(block)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis)
-    # return temporal_corr_lis, spatial_corr_lis
+    eelis = zeros(Float64, length(timeslice1))
+    temporal_corr_lis = zeros(Float64, length(timeslice1))
+
+    for (idx, t1) in enumerate(timeslice1)
+        t2 = t1 + δt
+        if t1+δt + D > 20L
+            ref_sample = (sign == 0) ? zeros(Int, t1+δt + D, L) : ones(Int, t1+δt + D, L)
+        else
+            ref_sample = (sign == 0) ? zeros(Int, 20L, L) : ones(Int, 20L, L)
+        end
+        ref2st = reference_evolution(τ, statelis, ref_sample, div(L,2), t1, t2, seed=seed, anyon_type=:IsingX, verbose=true)
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+        eelis[idx] = ee(sysrdm)
+        temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
+    end
+    
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+    # return temporal_corr_lis, spatial_corr_lis, eelis
 end
-# temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D20_ps0_2_seed100.jld", "temporal_corr_lis", "spatial_corr_lis")
+
+# temporal_corr_lis, spatial_corr_lis, eelis = load("./exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_8_seed100.jld", "temporal_corr_lis", "spatial_corr_lis", "eelis")
+
+# fig = plot_ref_ee(eelis, 0.707)
+# plot(temporal_corr_lis, ylim=(0, maximum(temporal_corr_lis)))
+# plot!(spatial_corr_lis)
+
 function get_system_params_corr(τ)
     if τ == log(1 + √2)
         D = 20
@@ -148,8 +186,8 @@ function plot_corr(L_list=collect(8:2:24))
     return fig
 end
 
-function plot_spatial_temporal_corr(L::Int64=10)
-    δtlis = [2, 4, 6, 8]
+function plot_spatial_temporal_corr(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2))
+    δtlis = collect(2:2:14)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
 
 
@@ -159,20 +197,18 @@ function plot_spatial_temporal_corr(L::Int64=10)
         legend_foreground_color=nothing, 
         xlabel=L"t /L",
         ylabel=L"g(0, \Delta t), g_{space}",
-        title=latexstring("γ= $(round(gamma, digits=3))"),
+        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
     )
     # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
     δt = δtlis[end]
-    temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
+    temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
     
-    tlis = collect(1:length(temporal_corr_lis))./L
-    plot!(fig, tlis, spatial_corr_lis[2:2:end-δt], color=c[1], linewidth=2, label=latexstring("(δx,δt) = (L/2, 0)"))
+    # tlis = collect(1:length(temporal_corr_lis))./L
+    # plot!(fig, tlis, spatial_corr_lis, color=c[1], linewidth=2, label=latexstring("(δx,δt) = (L/2, 0)"))
 
     for (idx, δt) in enumerate(δtlis)
-        D = get_system_params_corr(τ)
 
-        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
-
+        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
         
         tlis = collect(1:length(temporal_corr_lis))./L
         plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
@@ -192,6 +228,42 @@ function alpha_compute_corr(L, τ)
     return α
 end
 
+function plot_tc()
+    # Plot the temporal correlations
+    fig = plot(
+        label=false,
+        legend_background_color=nothing,
+        legend_foreground_color=nothing,
+        xlabel=L"δt /L",
+        ylabel=L"g(0, \Delta t)/g_{space}",
+        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+    )
+    
+    δtlis = collect(2:2:14)
+
+    tc0lis = Vector{Float64}(undef, length(δtlis))
+    sc0 = 0
+    for (idx, δt) in enumerate(δtlis)
+        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
+        tc0lis[idx] = temporal_corr_lis[end]
+        sc0 = spatial_corr_lis[30]
+    end
+
+    tc1lis = Vector{Float64}(undef, length(δtlis))
+    sc1 = 0
+    for (idx, δt) in enumerate(δtlis)
+        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
+        tc1lis[idx] = temporal_corr_lis[end]
+        sc1 = spatial_corr_lis[30]
+    end
+
+    plot!(fig, δtlis./10, tc0lis./sc0, label=L"s=0", xticks=δtlis./10, color=:blues, linewidth=2, marker=:circle, markersize=4)
+    plot!(fig, δtlis./10, tc1lis./sc1, label=L"s=1", xticks=δtlis./10, color=:reds, linewidth=2, marker=:circle, markersize=4)
+
+    return fig
+end
+
+
 function alphalis_corr(γlis)
     αlis = [alpha_compute_corr(L, τ) for (L, τ) in zip(L_list[end], τlis)]
     return αlis
@@ -202,19 +274,21 @@ end
 τlis[end] = 1000.0  # Last value is for γ=1
 τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
 gamma=tanh(log(1 + √2))
-fig = plot_corr(collect(8:2:12))
+# fig = plot_corr(collect(8:2:12))
 
-fig_corr = plot_spatial_temporal_corr(10)
+# fig_corr = plot_spatial_temporal_corr(10)
 
 if length(ARGS) == 0
     println("No arguments provided.")
 else
     L=parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
+    block_size = parse(Float64, ARGS[3])
     println("Received argument: $L, $inds")
     τ = τlis[inds]
-    D, _, _ = get_system_params(τ, L)
-    compute_post_selection(L, τ, D)
+    # D, _, _ = get_system_params(τ, L)
+    # compute_post_selection(L, τ, D)
+    spatial_temporal_corr_varying(L, τ, 10L, block_size, 100)
 end
 
 function trace_distance(ρ1, ρ2)
