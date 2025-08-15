@@ -1,5 +1,7 @@
 using FibonacciChain
-include("../FitEntEntScal.jl")
+using JLD
+using Random
+# include("../FitEntEntScal.jl")
 
 binary_distribution(p, rng) = rand(rng) < p ? 1 : 0
 function ps_prob_evolution(L::Int64, τ::Float64,  D::Int, prob::Float64; seed::Int=100, temp::Bool=false)
