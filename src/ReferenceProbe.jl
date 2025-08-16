@@ -208,8 +208,16 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     mask = bmask(BitStr{N+k_total, Int}, 1:N...)
     X(state,i) = flip(state, fl >> (i-1))
     
-    # NEED to do RESET qubit to 0!!! then concat with the new reference qubit. 
-    resettype = (anyon_type ∈ (:Fibo,)) ? :resetFibo : :reset
+    # NEED to do RESET qubit to 0 or +!!! then concat with the new reference qubit. 
+    resettable = Dict(
+            :Fibo  => :resetFibo,
+            :IsingX => :IsingX,
+            :IsingZ => :reset,
+            :IsingZZ => :reset,
+        )
+    anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
+    resettype = resettable[anyon_type]
+    
     state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
     prob_sqrt0 = state_after_0' * state_after_0
     prob_sqrt1 = 1 - prob_sqrt0

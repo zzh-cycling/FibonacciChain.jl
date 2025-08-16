@@ -65,32 +65,22 @@ end
 
 # plot(temporal_corr_lis, label="Temporal Correlation", xlabel="Time", ylabel="Correlation", title="Temporal Correlation vs Time")
 # plot!(spatial_corr_lis)
-# function get_system_params_corr(τ)
-#     if τ == log(1 + √2)
-#         D = 35
-#     elseif τ == atanh(0.1)
-#         D = 2500
-#     elseif τ == atanh(0.2)
-#         D = 500
-#     elseif τ == atanh(0.3)
-#         D = 120
-#     elseif τ == atanh(0.4)
-#         D = 100
-#     elseif τ == atanh(0.5)
-#         D=80
-#     elseif τ == atanh(0.6)
-#         D=45
-#     elseif τ == atanh(0.8)
-#         D=25
-#     elseif τ == atanh(0.9) || τ == atanh(0.95)
-#         D=8
-#     elseif τ == atanh(0.999)
-#         D=5
-#     else
-#         D = 5  # Default value for τ=1000.0
-#     end
-#     return D
-# end
+function get_system_params_corr(τ, L)
+    D = Dict(
+        atanh(0.1)  => 2500,
+        atanh(0.2)  => 500,
+        atanh(0.3)  => 120,
+        atanh(0.4)  => 100,
+        atanh(0.5)  => 80,
+        atanh(0.6)  => 45,
+        log(1 + √2) => 35,
+        atanh(0.8)  => 25,
+        atanh(0.9)  => 8,
+        atanh(0.95) => 8,
+        atanh(0.999)=> 5,
+    )
+    return get(D, τ, 5)   # 5 is the default value for τ=1000.0
+end
 
 function plot_corr(L_list=collect(8:2:24))
     c = cgrad(:blues, length(L_list), categorical=true)

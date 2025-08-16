@@ -61,9 +61,13 @@ end
 
 function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, block_size::Float64=0.3, seed::Int64=100, sign::Int64=0)
     pbc = true
-    anyon_type = :IsingX
+    anyon_type = :IsingX # Reset to |+> state, if IsingZ, reset to |0>
     sample = (sign==0) ? zeros(Int, D+2, L) : ones(Int, D+2, L)
-
+    if anyon_type == :IsingZ
+        savesign = (sign == 0) ? 0 : 1
+    elseif anyon_type == :IsingX
+        savesign = (sign == 0) ? :p : :m
+    end
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
     δt = round(Int, block_size*L)
@@ -91,7 +95,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, bloc
         temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
     end
     
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(δt)_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
     # return temporal_corr_lis, spatial_corr_lis, eelis
 end
 
@@ -102,30 +106,20 @@ end
 # plot!(spatial_corr_lis)
 
 function get_system_params_corr(τ)
-    if τ == log(1 + √2)
-        D = 20
-    elseif τ == atanh(0.1)
-        D = 2500
-    elseif τ == atanh(0.2)
-        D = 500
-    elseif τ == atanh(0.3)
-        D = 120
-    elseif τ == atanh(0.4)
-        D = 100
-    elseif τ == atanh(0.5)
-        D=80
-    elseif τ == atanh(0.6)
-        D=45
-    elseif τ == atanh(0.8)
-        D=25
-    elseif τ == atanh(0.9) || τ == atanh(0.95)
-        D=8
-    elseif τ == atanh(0.999)
-        D=5
-    else
-        D = 5  # Default value for τ=1000.0
-    end
-    return D
+    D = Dict(
+        atanh(0.1)  => 2500,
+        atanh(0.2)  => 500,
+        atanh(0.3)  => 120,
+        atanh(0.4)  => 100,
+        atanh(0.5)  => 80,
+        atanh(0.6)  => 45,
+        log(1 + √2) => 35,
+        atanh(0.8)  => 25,
+        atanh(0.9)  => 8,
+        atanh(0.95) => 8,
+        atanh(0.999)=> 5,
+    )
+    return get(D, τ, 5)   # 5 is the default value for τ=1000.0
 end
 
 function plot_corr(L_list=collect(8:2:24))
