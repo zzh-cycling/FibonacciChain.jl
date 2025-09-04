@@ -50,7 +50,7 @@ function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo, kw
     
     return H
 end
-anyon_ham_sparse(N::Int64, pbc::Bool=true) = anyon_ham_sparse(BitStr{N, Int}, pbc)
+anyon_ham_sparse(N::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, pbc, anyon_type=anyon_type, kwargs...)
 
 """
     anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
@@ -103,5 +103,5 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
     end
     return H
 end
-anyon_ham_sparse(N::Int64, k::Int, Y=nothing) = anyon_ham_sparse(BitStr{N, Int}, k, Y)
+anyon_ham_sparse(N::Int64, k::Int, Y=nothing; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, k, Y, anyon_type=anyon_type, kwargs...)
 
