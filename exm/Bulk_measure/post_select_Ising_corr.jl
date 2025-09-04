@@ -1,4 +1,5 @@
 using FibonacciChain
+using LinearAlgebra
 using JLD
 using Statistics
 using BitBasis
