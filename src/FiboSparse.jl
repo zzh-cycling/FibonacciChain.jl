@@ -38,7 +38,7 @@ function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo, kw
     l=length(basis)
     I, J, V = Int[], Int[], Float64[]
     for i in 1:l
-        output=actingHam(T, basis[i], pbc, anyon_type=anyon_type, kwargs...)
+        output=actingHam(T, basis[i], pbc; anyon_type=anyon_type, kwargs...)
         states, weights = keys(output), values(output)
         for (idx, m) in enumerate(states)
             j=searchsortedfirst(basis, m)
@@ -50,7 +50,7 @@ function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo, kw
     
     return H
 end
-anyon_ham_sparse(N::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, pbc, anyon_type=anyon_type, kwargs...)
+anyon_ham_sparse(N::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, pbc; anyon_type=anyon_type, kwargs...)
 
 """
     anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
@@ -81,7 +81,7 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(T, n, true, anyon_type=anyon_type, kwargs...)
+        output = actingHam(T, n, true; anyon_type=anyon_type, kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
@@ -103,5 +103,5 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
     end
     return H
 end
-anyon_ham_sparse(N::Int64, k::Int, Y=nothing; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, k, Y, anyon_type=anyon_type, kwargs...)
+anyon_ham_sparse(N::Int64, k::Int, Y=nothing; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, k, Y; anyon_type=anyon_type, kwargs...)
 

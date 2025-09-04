@@ -72,8 +72,8 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, bloc
     end
     timeslice = (anyon_type == :IsingX) ? collect(1:2:D) :  collect(2:2:D)
 
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
-    initial_state[1] = 1.0 # initial state is all zero state
+    initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state /= norm(initial_state) # initial state is all plus state
     δt = round(Int, block_size*L)
     δt = iseven(δt) ? δt : δt - 1
 
