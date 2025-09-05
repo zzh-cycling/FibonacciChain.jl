@@ -170,7 +170,6 @@ Add reference qubits to quantum state at specified site for correlation measurem
 - `N::Int`: System size
 - `state::Vector{ET}`: Quantum state vector
 - `site_idx::Int64`: Site index for reference qubit insertion (1 ≤ site_idx ≤ N)
-- `rng::MersenneTwister`: Random number generator
 - `k_new::Int=1`: Number of new reference qubits to add (0 or 1)
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
@@ -181,7 +180,7 @@ Add reference qubits to quantum state at specified site for correlation measurem
 
 For multiple reference qubits, call this function multiple times at different sites.
 """
-function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false) where {ET}
+function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
     1 >= k_new >= 0 || error("k_new must be in [0,1]")
@@ -220,48 +219,29 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::
     
     state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
     prob_sqrt0 = state_after_0' * state_after_0
-    prob_sqrt1 = 1 - prob_sqrt0
-    random_number = rand(rng)
 
-    verbose && @show random_number, prob_sqrt0, prob_sqrt1
+    verbose && @show random_number, prob_sqrt0
 
-    if random_number < prob_sqrt0
-        current_state = state_after_0 ./ sqrt(prob_sqrt0)
-        
-        # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
-        inds = findall(x -> x!=0.0, current_state)
-        flipped_basis = X.(extended_basis_old[inds], site_idx)
+    current_state = state_after_0 ./ sqrt(prob_sqrt0)
     
-        added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
-        
-        flipped_inds = indexin(added_flipped_basis, extended_basis)
-        existed = findall(!isnothing, flipped_inds)
-        
-        flipped_inds = flipped_inds[existed]
-        new_state[inds] = current_state[inds]
-        new_state[flipped_inds] = current_state[inds[existed]]
-        new_state ./= norm(new_state)
-        return new_state
-    else
-        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, k_old=k_old, anyon_type = resettype)
-        current_state = state_after_1 ./ sqrt(prob_sqrt1)
+    # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
+    inds = findall(x -> x!=0.0, current_state)
 
-        inds = findall(x -> x!=0.0, current_state)
-        flipped_basis = X.(extended_basis_old[inds], site_idx)
-
-        # added_basis = join.(BitStr{1, Int}.(readbit.(extended_basis_old[inds], N-site_idx+1)), extended_basis_old[inds])
-        added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
-        
-        flipped_inds = indexin(added_flipped_basis, extended_basis)
-        existed = findall(!isnothing, flipped_inds)
-        
-        offset = l  # new k_new qubit starting position
-        flipped_inds = flipped_inds[existed]
-        new_state[inds .+ offset] = current_state[inds]
-        new_state[flipped_inds] = current_state[inds[existed]]
-        new_state ./= norm(new_state)
-        return new_state
-    end
+    flipped_basis = X.(extended_basis_old[inds], site_idx)
+    added_basis = join.(BitStr{1, Int}.(readbit.(extended_basis_old[inds], N-site_idx+1)), extended_basis_old[inds])
+    added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
+    
+    flipped_inds = indexin(added_flipped_basis, extended_basis)
+    added_inds = indexin(added_basis, extended_basis)
+    existed = findall(!isnothing, flipped_inds)
+    existed_added = findall(!isnothing, added_inds)
+    flipped_inds = flipped_inds[existed]
+    added_inds = added_inds[existed_added]
+    
+    new_state[added_inds] += current_state[inds[existed_added]]
+    new_state[flipped_inds] += current_state[inds[existed]]
+    new_state ./= norm(new_state)
+    return new_state
     
 end
 
@@ -303,7 +283,6 @@ Compute temporal correlation between two time slices using cached forward evolut
 - `time_slice1`: First time slice index
 - `time_slice2`: Second time slice index (must be > time_slice1)
 - `pbc=true`: Periodic boundary conditions
-- `seed::Int64=100`: Random seed for reproducibility
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `temp::Bool=false`: Return trajectory if true
 - `verbose::Bool=false`: Enable verbose output
@@ -314,7 +293,7 @@ Compute temporal correlation between two time slices using cached forward evolut
 Avoids redundant computation by reusing forward evolution results.
 """
 function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2;
-pbc=true, seed::Int64=100, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
+pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
     # This function is used to compute the temporal_correlation at different time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
     # time_slice1 and time_slice2 are the indices of the time slices in the sample.
     N = (anyon_type == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
@@ -324,12 +303,11 @@ pbc=true, seed::Int64=100, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=f
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
 
-    rng = MersenneTwister(seed)
     # 1) 0 → t₁
     state = forward[time_slice1]
 
     # 2) add reference qubit 1 at site
-    state1 = add_reference_qubits!(N, state, site, rng, pbc=pbc,
+    state1 = add_reference_qubits!(N, state, site, pbc=pbc,
                                    anyon_type=anyon_type, verbose=verbose)
     
     # 3) t₁ → t₂ evolution
@@ -338,8 +316,8 @@ pbc=true, seed::Int64=100, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=f
     if temp
         statelis = Vector{eltype(forward)}(undef, D)
         # 4) add reference qubit 2 at site
-        state2 = add_reference_qubits!(N, final_stlis1[end], site, rng, pbc=pbc,
-                                       anyon_type=anyon_type, verbose=verbose) 
+        state2 = add_reference_qubits!(N, final_stlis1[end], site, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
+
         # 5) t₂ → D evolution
         final_stlis2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, anyon_type=anyon_type, temp=temp)
         statelis[1:time_slice1] = forward[1:time_slice1]
@@ -347,8 +325,7 @@ pbc=true, seed::Int64=100, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=f
         statelis[time_slice2+1:end] = final_stlis2
         return statelis
     else
-        state2 = add_reference_qubits!(N, final_stlis1, site, rng, pbc=pbc,
-                                       anyon_type=anyon_type)
+        state2 = add_reference_qubits!(N, final_stlis1, site, pbc=pbc, anyon_type=anyon_type)
         final_stlis2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, k_old=2, anyon_type=anyon_type, temp=temp)
         return final_stlis2
     end

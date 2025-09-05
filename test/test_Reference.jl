@@ -42,67 +42,47 @@ end
 @testset "add_reference_qubits" begin
     N = 3
     st = ones(4)/2; 
-    # Test add_reference_qubit with Proj 0
-    seed = 90
-    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(seed))
-    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, MersenneTwister(seed))
-    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, MersenneTwister(seed))
+    # Test add_reference_qubit reset to 0
+    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1)
+    @test add_st[[collect(1:5)..., 13,14]] ≈ 0.37796447300922725*ones(7)
+ 
+    add_stp = FibonacciChain.add_reference_qubits!(N+1, add_st, 1)
+    @test add_stp[[collect(1:5)..., 20,21]] ≈ 0.37796447300922725*ones(7)
+    
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2)
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3)
     @test add_st1 ≈ [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5] 
     @test add_st2 ≈ [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
     @test add_st3 ≈ [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
 
-    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, MersenneTwister(90))
-    @test add_st == [0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.37796447300922725, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.37796447300922725, 0.37796447300922725]
-    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, MersenneTwister(100))
-    @test add_st[[1,3,13,14]] == [0.5, 0.5, 0.5, 0.5]
-    add_st = FibonacciChain.add_reference_qubits!(N+1, add_st, 1, MersenneTwister(90))
-    @test add_st[[1,3, 20, 21]] == [0.5, 0.5, 0.5, 0.5]
-
-    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, MersenneTwister(seed))
-    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
-    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
+    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1)
+    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2)
+    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3)
 
     @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
     @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
     @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
-
-    seed = 100
-    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, MersenneTwister(seed))
-    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, MersenneTwister(seed))
-    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, MersenneTwister(seed))
-
-    @test add2_st1[[5,16]] == [1/√2, 1/√2]
-    @test add2_st2[[5,15]] == [1/√2, 1/√2]
-    @test add2_st3[[5,14]] == [1/√2, 1/√2]
-
-    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(seed))
-    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, MersenneTwister(seed))
-    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, MersenneTwister(seed))
-    @test add_st1[[1,8]] ≈ [1/√2, 1/√2]
-    @test add_st2[[1,7]] ≈ [1/√2, 1/√2]
-    @test add_st3[[1,6]] ≈ [1/√2, 1/√2]
-
 end
 
 @testset "add_reference_qubits_Ising" begin
     # Test for Ising basis
     N = 3
-    seed = 90
     st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), anyon_type=:IsingX)
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), anyon_type=:IsingX)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), anyon_type=:IsingX)
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingZ)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingZ)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingZ)
     @test add_st_ising1[[1,13]] == [1/√2, 1/√2]
     @test add_st_ising2[[1,11]] == [1/√2, 1/√2]
     @test add_st_ising3[[1,10]] == [1/√2, 1/√2]
 
-    seed=100
-    add_st_ising4 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, MersenneTwister(seed), anyon_type=:IsingX)
-    add_st_ising5 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, MersenneTwister(seed), anyon_type=:IsingX)
-    add_st_ising6 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, MersenneTwister(seed), anyon_type=:IsingX)
-    @test add_st_ising4[[4,end]] == [1/√2, 1/√2]
-    @test add_st_ising5[[6,end]] == [1/√2, 1/√2]
-    @test add_st_ising6[[7,end]] == [1/√2, 1/√2]
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingX)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingX)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingX)
+    @test add_st_ising1[[1, 4, 13, 16]] == 1/2*ones(4)
+    @test add_st_ising2[[1, 6, 11, 16]] == 1/2*ones(4)
+    @test add_st_ising3[[1, 7, 10, 16]] == 1/2*ones(4)
 end
 
 @testset "reference_measure_basismap" begin
@@ -206,7 +186,7 @@ end
     T = BitStr{N, Int}
     st = ones(4)/2;
     ϕ = (1 + √5) / 2  
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90))
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1)
 
     output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
     output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
@@ -238,9 +218,9 @@ end
     output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
     output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
     output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    @test output13[[1, 5, 9, 13]] == 1/2√2*ones(4)
-    @test output23[[1, 3, 13, 15]] == 1/2√2*ones(4)
-    @test output33[[1]] == [1/√2]
+    @test output13[[1, 5, 9, 13]] ≈ 1/2√2*ones(4)
+    @test output23[[1, 3, 13, 15]] ≈ 1/2√2*ones(4)
+    @test output33[[1]] ≈ [1/√2]
 end
 
 @testset "reference_generate_state" begin
@@ -261,14 +241,9 @@ end
     N = 3
     st = ones(4)/2;
     site = 1
-    add_site2 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(100))
-
-    # Trace the first ref qubit with reset 1
-    rdm = reference_rdm(N, [1], add_site2)
-    @test rdm ≈ [0.5 0.0; 0.0 0.5]
 
     # Add a ref qubit to site 1 with reset 0
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90))
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site)
     
     rdm = reference_rdm(N, [1], add_site1)
     @test rdm == [0.75 0.0; 0.0 0.25]
@@ -280,38 +255,41 @@ end
     @test anyon_rdm(4, [1], full_st, anyon_type=:IsingX) == rdm
 
     # Add another ref qubit to site 1 with reset 0, the 1st rdm should be the same as above, but the 2nd rdm should be |0><0|
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90))
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site)
     rdm2 = reference_rdm(N, [1], add_st2)
     rdm3 = reference_rdm(N, [2], add_st2)
-    @test rdm == rdm2
-    @test rdm3 == [1.0 0.0; 0.0 0.0]
+    @test rdm ≈ rdm2
+    @test rdm3 ≈ [1.0 0.0; 0.0 0.0]
 
     rdm4 = reference_rdm(N, [1, 2], add_st2)
-    @test diag(rdm4) == [0.75, 0.0, 0.25, 0.0]
+    @test diag(rdm4) ≈ [0.75, 0.0, 0.25, 0.0]
 
     # add a ref qubit to a Bell state, the entanglement entropy should not change
     N=4
     st = zeros(2^N); st[1] = 1; st[end] = 1; st ./= norm(st)
-    @test ee(anyon_rdm(N, collect(1:div(N,2)), st, anyon_type=:IsingX)) ≈ log(2)
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, MersenneTwister(90), anyon_type=:IsingX)
-    rdm = reference_rdm(N, collect(1:2), add_st, anyon_type=:IsingX, traceref=false)
+    @test ee(anyon_rdm(N, collect(1:div(N,2)), st, anyon_type=:IsingZ)) ≈ log(2)
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type=:IsingZ)
+    rdm = reference_rdm(N, collect(1:2), add_st, anyon_type=:IsingZ, traceref=false)
     @test ee(rdm) ≈ log(2)
     # Only for GHZ state, the entanglement entropy is not changed after adding reference qubits, if is W state, Haar Random state, NO.
 end
 
-@testset "reference_rdm_Ising" begin
+@testset "reference_rdm_IsingZ" begin
     N = 3
     st = ones(2^N); st /= norm(st)  # Normalize the state
     site = 1
-    anyon_type = :IsingX
-    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, MersenneTwister(90), anyon_type = anyon_type)
+    anyon_type = :IsingZ
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, anyon_type = anyon_type)
 
+    # Trace out ref of bell pair, the rdm should be maximally mixed
     rdm = reference_rdm(N, [1], add_site1, anyon_type = anyon_type)
     @test rdm ≈ [0.5 0.0; 0.0 0.5]
     
-    rdm_system = reference_rdm(N, [2, 3], add_site1, anyon_type = anyon_type)
+    # Trace to get the system, the rdm should be pure Bell state in X basis
+    rdm_system = reference_rdm(N, [2, 3], add_site1, anyon_type = anyon_type, traceref=false)
+    @test rdm_system ≈ ones(4,4)/4
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, MersenneTwister(90), anyon_type = anyon_type)
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, anyon_type = anyon_type)
     rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
     rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
     @test rdm == rdm2
@@ -321,27 +299,53 @@ end
     @test diag(rdm4) ≈ [0.4999999999999999, 0.0, 0.4999999999999999, 0.0]
 end
 
+@testset "reference_rdm_IsingX" begin
+    N = 3
+    st = zeros(2^N); st[1] = 1; st[end] = 1; st ./= norm(st)  # Bell state
+    site = 1
+    anyon_type = :IsingX
+    add_site1 = FibonacciChain.add_reference_qubits!(N, st, site, anyon_type = anyon_type)
+
+    # Trace out ref of bell pair, the rdm should be maximally mixed, no matter IsingX or IsingZ
+    rdm = reference_rdm(N, [1], add_site1, anyon_type = anyon_type)
+    @test rdm ≈ [0.5 0.0; 0.0 0.5]
+    
+    # Trace to get the system, the rdm should be pure Bell state
+    rdm_system = reference_rdm(N, [2, 3], add_site1, anyon_type = anyon_type, traceref=false)
+    @test rdm_system ≈ [0.5 0.0 0.0 0.5; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.5 0.0 0.0 0.5]
+
+    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, anyon_type = anyon_type)
+    rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
+    rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
+    @test rdm ≈ rdm2 
+    @test rdm3 ≈ [0.5 0.5; 0.5 0.5]
+ 
+    rdm4 = reference_rdm(N, [1, 2], add_st2, anyon_type = anyon_type)
+    @test rdm4 ≈ [0.24999999999999994 0.24999999999999994 0.0 0.0; 0.24999999999999994 0.24999999999999994 0.0 0.0; 0.0 0.0 0.24999999999999994 0.24999999999999994; 0.0 0.0 0.24999999999999994 0.24999999999999994]
+end
+
 @testset "spatial_corr_matrix and reference rdm" begin
     # The spatial correlation should be the same after adding reference qubits
     N=6
-    mes = zeros(length(anyon_basis(N)))
-    mes[13] = 1/√2 
+    anyon_type = :IsingZ
+    mes = zeros(length(anyon_basis(N, anyon_type=anyon_type)));
+    mes[1] = 1/√2 
     mes[end] = 1/√2
-    sclis = [spatial_correlation(N, mes, i, j) for i in 1:N for j in 1:N if j!=i]
+    sclis = [spatial_correlation(N, mes, i, j, anyon_type = anyon_type) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2) * ones(length(sclis))  
 
-    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1, MersenneTwister(100))
+    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1, anyon_type = anyon_type)
 
-    ρ1=reference_rdm(N, [1], add_mes)
-    ρ2=reference_rdm(N, [2], add_mes)
-    ρ12=reference_rdm(N, [1,2], add_mes) 
+    ρ1=reference_rdm(N, [2], add_mes, anyon_type = anyon_type, traceref=false)
+    ρ2=reference_rdm(N, [3], add_mes, anyon_type = anyon_type, traceref=false)
+    ρ12=reference_rdm(N, [2,3], add_mes, anyon_type = anyon_type, traceref=false) 
     I = ee(ρ1) + ee(ρ2) - ee(ρ12)
-    @test I ≈ 2*log(2)
-    # Two qubit form a Bell pair, so the mutual information is 2*log(2)
+    # Two qubit form a 000 state, so the mutual information is 0
+    @test I ≈ 0.0 atol=1e-12
 
     # Counting for system, need to add traceref = false
-    ρ = reference_rdm(N, collect(1:N), add_mes, traceref=false)
-    sclis_ref = [spatial_correlation(N, ρ, i, j) for i in 1:N for j in 1:N if j!=i]
+    ρ = reference_rdm(N, collect(1:N), add_mes, anyon_type = anyon_type, traceref=false)
+    sclis_ref = [spatial_correlation(N, ρ, i, j, anyon_type = anyon_type) for i in 1:N for j in 1:N if j!=i]
 
     @test all([isapprox(sc, 0.0, atol=1e-12) for sc in sclis_ref])
 end
