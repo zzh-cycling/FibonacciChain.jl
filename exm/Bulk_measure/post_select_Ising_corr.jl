@@ -306,18 +306,8 @@ spatial_corr1 = spatial_correlation(L, fst1, 1, div(L,2),  pbc=pbc, anyon_type=a
 ref_sample0 = zeros(Int, 20L, L)
 ref_sample1 = ones(Int, 20L, L)
 
-seedlis = collect(90:190)
-ref2st0lis = Vector{Vector{Float64}}(undef, length(seedlis))
-ref2st1lis = Vector{Vector{Float64}}(undef, length(seedlis))
-
-for (idx, seed) in enumerate(seedlis)
-    println("Processing seed: $seed ($(idx)/$(length(seedlis)))")
-    ref2st0lis[idx] = reference_evolution(τ, stlis0, ref_sample0, 1, 2L, 8L, seed=seed, anyon_type=:IsingX, verbose=false)
-    ref2st1lis[idx] = reference_evolution(τ, stlis1, ref_sample1, 1, 2L, 8L, seed=seed, anyon_type=:IsingX, verbose=false)
-end 
-
-ref2st0 = reference_evolution(τ, statelis, ref_sample0, 1, 2L, 8L, seed=100, anyon_type=:IsingX, verbose=true)
-ref2st1 = reference_evolution(τ, statelis, ref_sample1, 1, 2L, 8L, seed=90, anyon_type=:IsingX, verbose=true)
+ref2st0 = reference_evolution(τ, statelis, ref_sample0, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
+ref2st1 = reference_evolution(τ, statelis, ref_sample1, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
 sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
 sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
 

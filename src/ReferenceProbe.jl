@@ -161,6 +161,30 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     return temp ? statelis : state
 end
 
+function concat_bell_pair(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1) where {ET}
+    # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
+    inds = findall(x -> x!=0.0, current_state)
+
+    T = BitStr{N + k_old, Int}
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+
+    basis0 = extended_basis_old[inds] .& bmask(BitStr{N, Int}, setdiff(1:N, N-site_idx+1)...)
+    basis1 = X.(basis0, site_idx)
+    basis00 = join.(Ref(BitStr{1, Int}(bit"0")), basis0)
+    basis11 = join.(Ref(BitStr{1, Int}(bit"1")), basis1)
+    inds00 = indexin(basis00, extended_basis)
+    inds11 = indexin(basis11, extended_basis)
+    existed00 = findall(!isnothing, inds00)
+    existed11 = findall(!isnothing, inds11)
+    inds00 = inds00[existed00]
+    inds11 = inds11[existed11]
+    
+    new_state[inds00] = current_state[inds[existed00]]
+    new_state[inds11] = current_state[inds[existed11]]
+    new_state ./= norm(new_state)
+end
+
 """
     add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64, rng::MersenneTwister=MersenneTwister(); k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
 
@@ -174,13 +198,14 @@ Add reference qubits to quantum state at specified site for correlation measurem
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `verbose::Bool=false`: Enable verbose output
+- `entangle_way::Symbol=:copy`: Method to entangle reference qubit, either `:copy` or `:reset`
 
 # Returns
 - `Vector{ET}`: New state with reference qubits in maximally entangled configuration
 
 For multiple reference qubits, call this function multiple times at different sites.
 """
-function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false) where {ET}
+function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false, entangle_way::Symbol = :copy) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
     @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
     1 >= k_new >= 0 || error("k_new must be in [0,1]")
@@ -207,42 +232,60 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     mask = bmask(BitStr{N+k_total, Int}, 1:N...)
     X(state,i) = flip(state, fl >> (i-1))
     
-    # NEED to do RESET qubit to 0 or +!!! then concat with the new reference qubit. 
-    resettable = Dict(
-            :Fibo  => :resetFibo,
-            :IsingX => :IsingX,
-            :IsingZ => :reset,
-            :IsingZZ => :reset,
-        )
-    anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
-    resettype = resettable[anyon_type]
-    
-    state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
-    prob_sqrt0 = state_after_0' * state_after_0
+    # entangle the reference qubit with the system qubit at site_idx
+    if entangle_way == :reset
+        verbose && @info "Using reset way to add reference qubit"
+        # NEED to do RESET qubit to 0 or +!!! then concat with the new reference qubit. 
+        resettable = Dict(
+                :Fibo  => :resetFibo,
+                :IsingX => :IsingX,
+                :IsingZ => :reset,
+                :IsingZZ => :reset,
+            )
+        anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
+        resettype = resettable[anyon_type]
+        
+        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
+        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc,k_old=k_old, anyon_type = resettype)
 
-    verbose && @show random_number, prob_sqrt0
+        prob_sqrt0 = state_after_0' * state_after_0
+        prob_sqrt1 = 1 - prob_sqrt0
 
-    current_state = state_after_0 ./ sqrt(prob_sqrt0)
-    
-    # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
-    inds = findall(x -> x!=0.0, current_state)
+        verbose && @show prob_sqrt0, prob_sqrt1
 
-    flipped_basis = X.(extended_basis_old[inds], site_idx)
-    added_basis = join.(BitStr{1, Int}.(readbit.(extended_basis_old[inds], N-site_idx+1)), extended_basis_old[inds])
-    added_flipped_basis = join.(BitStr{1, Int}.(readbit.(flipped_basis, N-site_idx+1)), flipped_basis)
-    
-    flipped_inds = indexin(added_flipped_basis, extended_basis)
-    added_inds = indexin(added_basis, extended_basis)
-    existed = findall(!isnothing, flipped_inds)
-    existed_added = findall(!isnothing, added_inds)
-    flipped_inds = flipped_inds[existed]
-    added_inds = added_inds[existed_added]
-    
-    new_state[added_inds] += current_state[inds[existed_added]]
-    new_state[flipped_inds] += current_state[inds[existed]]
-    new_state ./= norm(new_state)
-    return new_state
-    
+        current_statep = state_after_0 ./ sqrt(prob_sqrt0)
+        current_statem = state_after_1 ./ sqrt(prob_sqrt1)
+
+        new_statep = concat_bell_pair(N, current_statep, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old)
+
+        new_statem = concat_bell_pair(N, current_statem, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old)
+
+        return prob_sqrt0, prob_sqrt1, new_statep, new_statem
+
+    elseif entangle_way == :copy
+        verbose && @info "Using copy way to add reference qubit"
+      
+        inds = findall(x -> x!=0.0, state)
+
+        basis00 = join.(Ref(BitStr{1, Int}(bit"0")), BitStr{N, Int}.(readbit.(extended_basis_old[inds], setdiff(1:N, N-site_idx+1)...)))
+        flipped_basis = X.(extended_basis_old[inds], N-site_idx+1)
+        basis11 = join.(Ref(BitStr{1, Int}(bit"1")), BitStr{N, Int}.(readbit.(flipped_basis, setdiff(1:N, N-site_idx+1)...)))
+
+        inds00 = indexin(basis00, extended_basis)
+        inds11 = indexin(basis11, extended_basis)
+        existed00 = findall(!isnothing, inds00)
+        existed11 = findall(!isnothing, inds11)
+        inds00 = inds00[existed00]
+        inds11 = inds11[existed11]
+        
+        new_state[inds00] = state[inds[existed00]]/√2
+        new_state[inds11] = state[inds[existed11]]/√2
+        new_state ./= norm(new_state)
+
+        return new_state
+    else
+        error("Unknown entangle way: $entangle_way")
+    end
 end
 
 
