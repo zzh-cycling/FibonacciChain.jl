@@ -293,6 +293,7 @@ end
 
 # initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
 # initial_state[1] = 1.0 # initial state is all zero state
+L=8; pbc=true; anyon_type=:IsingX; D=5L;
 τ =  log(1+√2)
 initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
 initial_state /= norm(initial_state) # initial state is all plus state
@@ -306,8 +307,8 @@ spatial_corr1 = spatial_correlation(L, fst1, 1, div(L,2),  pbc=pbc, anyon_type=a
 ref_sample0 = zeros(Int, 20L, L)
 ref_sample1 = ones(Int, 20L, L)
 
-ref2st0 = reference_evolution(τ, statelis, ref_sample0, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
-ref2st1 = reference_evolution(τ, statelis, ref_sample1, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
+ref2st0 = reference_evolution(τ, stlis0, ref_sample0, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
+ref2st1 = reference_evolution(τ, stlis1, ref_sample1, 1, 4L, 10L, anyon_type=:IsingX, verbose=true)
 sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
 sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
 
@@ -319,8 +320,5 @@ tc1= temporal_correlation(L, ref2st1, anyon_type=:IsingX)
 
 eelis0 = anyon_eelis(L, fst0, pbc, anyon_type=anyon_type)
 eelis1 = anyon_eelis(L, fst1, pbc, anyon_type=anyon_type)
-
-tc0lis = temporal_correlation.(L, ref2st0lis, anyon_type=:IsingX)
-tc1lis = temporal_correlation.(L, ref2st1lis, anyon_type=:IsingX)
 
 [ρeelis0 ρeelis1 eelis0 eelis1]
