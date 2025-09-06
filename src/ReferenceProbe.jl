@@ -161,15 +161,16 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     return temp ? statelis : state
 end
 
-function concat_bell_pair(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1) where {ET}
+function concat_bell_pair!(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1, new_dim::Int64=2^(N+k_old), verbose =false) where {ET}
     # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
     inds = findall(x -> x!=0.0, current_state)
 
+    new_state = zeros(ET, new_dim)
     T = BitStr{N + k_old, Int}
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
 
-    basis0 = extended_basis_old[inds] .& bmask(BitStr{N, Int}, setdiff(1:N, N-site_idx+1)...)
+    basis0 = extended_basis_old[inds] .& bmask(BitStr{N + k_old, Int}, setdiff(1:N, N-site_idx+1)...)
     basis1 = X.(basis0, site_idx)
     basis00 = join.(Ref(BitStr{1, Int}(bit"0")), basis0)
     basis11 = join.(Ref(BitStr{1, Int}(bit"1")), basis1)
@@ -180,9 +181,15 @@ function concat_bell_pair(N::Int, current_state::Vector{ET}, extended_basis_old,
     inds00 = inds00[existed00]
     inds11 = inds11[existed11]
     
-    new_state[inds00] = current_state[inds[existed00]]
-    new_state[inds11] = current_state[inds[existed11]]
+    verbose && @show current_state, basis0, basis1, basis00, basis11, inds00, inds11, new_state
+
+    new_state[inds00] += current_state[inds[existed00]]
+    new_state[inds11] += current_state[inds[existed11]]
     new_state ./= norm(new_state)
+
+    verbose && @show new_state
+
+    return new_state
 end
 
 """
@@ -224,7 +231,6 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     # new reference prefix
     k_total = k_old + k_new
     new_dim = 2^k_total * len_F
-    new_state = zeros(ET, new_dim)
     extended_basis = build_extended_basis(k_total, basis_F)
     extended_basis_old = build_extended_basis(k_old, basis_F)
     T = BitStr{N + k_old, Int}
@@ -251,14 +257,16 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         prob_sqrt0 = state_after_0' * state_after_0
         prob_sqrt1 = 1 - prob_sqrt0
 
-        verbose && @show prob_sqrt0, prob_sqrt1
+        verbose && @show prob_sqrt0, prob_sqrt1, state_after_1
 
         current_statep = state_after_0 ./ sqrt(prob_sqrt0)
         current_statem = state_after_1 ./ sqrt(prob_sqrt1)
 
-        new_statep = concat_bell_pair(N, current_statep, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old)
+        verbose && @show current_statem
+        
+        new_statep = concat_bell_pair!(N, current_statep, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old, new_dim = new_dim)
 
-        new_statem = concat_bell_pair(N, current_statem, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old)
+        new_statem = concat_bell_pair!(N, current_statem, extended_basis_old, extended_basis, site_idx = site_idx, k_old = k_old, new_dim = new_dim)
 
         return prob_sqrt0, prob_sqrt1, new_statep, new_statem
 
@@ -266,10 +274,12 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         verbose && @info "Using copy way to add reference qubit"
       
         inds = findall(x -> x!=0.0, state)
+        new_state = zeros(ET, new_dim)
 
-        basis00 = join.(Ref(BitStr{1, Int}(bit"0")), BitStr{N, Int}.(readbit.(extended_basis_old[inds], setdiff(1:N, N-site_idx+1)...)))
-        flipped_basis = X.(extended_basis_old[inds], N-site_idx+1)
-        basis11 = join.(Ref(BitStr{1, Int}(bit"1")), BitStr{N, Int}.(readbit.(flipped_basis, setdiff(1:N, N-site_idx+1)...)))
+        basis0_inds = findall(x -> (x .& bmask(BitStr{N, Int}, N-site_idx+1)) == 0, basis_F[inds])
+        basis1_inds = findall(x -> (x .& bmask(BitStr{N, Int}, N-site_idx+1)) == 1 << (N-site_idx), basis_F[inds])
+        basis00 = join.(Ref(BitStr{1, Int}(bit"0")), basis_F[inds[basis0_inds]])
+        basis11 = join.(Ref(BitStr{1, Int}(bit"1")), basis_F[inds[basis1_inds]])
 
         inds00 = indexin(basis00, extended_basis)
         inds11 = indexin(basis11, extended_basis)
@@ -277,9 +287,9 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         existed11 = findall(!isnothing, inds11)
         inds00 = inds00[existed00]
         inds11 = inds11[existed11]
-        
-        new_state[inds00] = state[inds[existed00]]/√2
-        new_state[inds11] = state[inds[existed11]]/√2
+
+        new_state[inds00] = state[inds[basis0_inds[existed00]]]
+        new_state[inds11] = state[inds[basis1_inds[existed11]]]
         new_state ./= norm(new_state)
 
         return new_state
