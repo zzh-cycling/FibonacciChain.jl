@@ -60,47 +60,67 @@ function plot_ref_ee(eelis, gamma)
     return fig
 end
 
-function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, block_size::Float64=0.3, seed::Int64=100, sign::Int64=0)
+function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=10L, block_size::Float64=0.3, seed::Int64=100, sign::Int64=0, entangle_way::Symbol=:copy)
+    # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. block_size is the time interval δt between two ref qubits divided by L
     pbc = true
-    anyon_type = :IsingX # Reset to |+> state, if IsingZ, reset to |0>
-
+    anyon_type = :IsingX # Reset to |+> state, if IsingZ, reset to |0>; If copy entangle, irrelevant.
+ 
+    # 1). First evolve to steady state with D time steps
     sample = (sign==0) ? zeros(Int, D+2, L) : ones(Int, D+2, L)
-
-    if anyon_type == :IsingZ
-        savesign = (sign == 0) ? 0 : 1
-    elseif anyon_type == :IsingX
-        savesign = (sign == 0) ? :p : :m
-    end
-    timeslice = (anyon_type == :IsingX) ? collect(1:2:D) :  collect(2:2:D)
-
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all plus state
     δt = round(Int, block_size*L)
     δt = iseven(δt) ? δt : δt - 1
-
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
-
-    spatial_corr_lis = spatial_correlation.(L, statelis[timeslice], 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
-
-
-    eelis = zeros(Float64, length(timeslice))
-    temporal_corr_lis = zeros(Float64, length(timeslice))
-
-    for (idx, t1) in enumerate(timeslice)
-        t2 = t1 + δt
-        if t1+δt + D > 20L
-            ref_sample = (sign == 0) ? zeros(Int, t1+δt + D, L) : ones(Int, t1+δt + D, L)
-        else
-            ref_sample = (sign == 0) ? zeros(Int, 20L, L) : ones(Int, 20L, L)
-        end
-        ref2st = reference_evolution(τ, statelis, ref_sample, 1, t1, t2, seed=seed, anyon_type=:IsingX, verbose=true)
-        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
-        eelis[idx] = ee(sysrdm)
-        temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
-    end
+    final_st = generate_state(τ, initial_state, sample, temp= false, anyon_type=anyon_type)
     
-    # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L))_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
-    return temporal_corr_lis, spatial_corr_lis, eelis
+    # 
+    tlis = (anyon_type == :IsingX) ? collect(0:2:D) :  collect(1:2:D)
+    spatial_corr_lis = zeros(Float64, length(tlis))
+    temporal_corr_lis = zeros(Float64, length(tlis))
+    eelis = zeros(Float64, length(tlis))
+
+    # 2). Then add two ref qubits at different time slices and evolve for δt time, and to final δt + t time.
+    # The entangle_way is reset, need to do measurement, then form bell pair.
+    if entangle_way == :reset
+        if anyon_type == :IsingZ
+            savesign = (sign == 0) ? 0 : 1
+        elseif anyon_type == :IsingX
+            savesign = (sign == 0) ? :p : :m
+        end
+    
+        for (idx, t1) in enumerate(tlis)
+            t2 = t1 + δt    
+            ref_sample = (sign == 0) ? zeros(Int, t1+δt, L) : ones(Int, t1+δt, L)
+        
+            ref2st = reference_evolution(τ, statelis, ref_sample, 1, t1, t2, seed=seed, anyon_type=:IsingX, verbose=true)
+            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+            eelis[idx] = ee(sysrdm)
+            temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
+            # spatial_correlation.(L, final_st, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
+        end
+        
+        # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L))_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+        return temporal_corr_lis, spatial_corr_lis, eelis
+    # entangle_way is copy, conditioned by the given site qubit.
+    elseif entangle_way == :copy
+        for (idx, t1) in enumerate(tlis)
+            t2 = t1 + δt
+            if t1+δt + D > 20L
+                ref_sample = (sign == 0) ? zeros(Int, t1+δt + D, L) : ones(Int, t1+δt + D, L)
+            else
+                ref_sample = (sign == 0) ? zeros(Int, 20L, L) : ones(Int, 20L, L)
+            end
+            ref2st = reference_evolution(τ, statelis, ref_sample, 1, t1, t2, seed=seed, anyon_type=:IsingX, verbose=true)
+            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+            eelis[idx] = ee(sysrdm)
+            temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
+        end
+        
+        # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L))_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+        return temporal_corr_lis, spatial_corr_lis, eelis
+    else
+        error("Unknown entanglement way")
+    end
 end
 
 # temporal_corr_lis, spatial_corr_lis, eelis = load("./exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_8_seed100.jld", "temporal_corr_lis", "spatial_corr_lis", "eelis")
@@ -262,7 +282,7 @@ gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
 # fig_corr = plot_spatial_temporal_corr(10, anyon_type= :IsingZ)
-fig, t1lis, t2lis = plot_tc(10, :IsingX)
+# fig, t1lis, t2lis = plot_tc(10, :IsingX)
 
 if length(ARGS) == 0
     println("No arguments provided.")

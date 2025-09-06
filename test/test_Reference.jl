@@ -354,18 +354,42 @@ end
     sclis = [spatial_correlation(N, mes, i, j, anyon_type = anyon_type) for i in 1:N for j in 1:N if j!=i]
     @test sclis ≈ log(2) * ones(length(sclis))  
 
-    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1, anyon_type = anyon_type, entangle_way = :reset)
+    add_mes = FibonacciChain.add_reference_qubits!(N, mes, 1, anyon_type = anyon_type, entangle_way = :reset)[3]
 
-    ρ1=reference_rdm(N, [2], add_mes, anyon_type = anyon_type, traceref=false)
-    ρ2=reference_rdm(N, [3], add_mes, anyon_type = anyon_type, traceref=false)
-    ρ12=reference_rdm(N, [2,3], add_mes, anyon_type = anyon_type, traceref=false) 
+    add_mes2 = FibonacciChain.add_reference_qubits!(N, add_mes, 1, anyon_type = anyon_type, entangle_way = :reset)[3]
+    ρ1=reference_rdm(N, [1], add_mes, anyon_type = anyon_type)
+    ρ2=reference_rdm(N, [2], add_mes, anyon_type = anyon_type)
+    ρ12=reference_rdm(N, [1, 2], add_mes, anyon_type = anyon_type) 
     I = ee(ρ1) + ee(ρ2) - ee(ρ12)
-    # Two qubit form a 000 state, so the mutual information is 0
-    @test I ≈ 0.0 atol=1e-12
+    # Two qubit each form a bell pair, while together is pure state
+    @test I ≈ 2*log(2) atol=1e-12
 
-    # Counting for system, need to add traceref = false
-    ρ = reference_rdm(N, collect(1:N), add_mes, anyon_type = anyon_type, traceref=false)
+    add_mes_copy = FibonacciChain.add_reference_qubits!(N, mes, 1, anyon_type = anyon_type, entangle_way = :copy)
+    # Counting for system, need to add traceref = false, add a ref qubit of Z eigenst does not change the spatial correlation
+    ρ = reference_rdm(N, collect(1:N), add_mes_copy, anyon_type = anyon_type, traceref=false)
     sclis_ref = [spatial_correlation(N, ρ, i, j, anyon_type = anyon_type) for i in 1:N for j in 1:N if j!=i]
 
-    @test all([isapprox(sc, 0.0, atol=1e-12) for sc in sclis_ref])
+    @test sclis_ref ≈ sclis
+
+    plus_st = ones(length(anyon_basis(N, anyon_type=anyon_type)));
+    minus_st = zeros(length(anyon_basis(N, anyon_type=anyon_type)));
+
+    for i in eachindex(minus_st)
+        num_1 = count_ones(anyon_basis(N, anyon_type=anyon_type)[i])
+        if iseven(num_1)
+            minus_st[i] = 1
+        else
+            minus_st[i] = -1
+        end
+    end
+
+    mes = plus_st + minus_st
+    mes /= norm(mes)
+    sc = spatial_correlation(N, mes, 2, 4, anyon_type = anyon_type) 
+
+    add_mes_copy = FibonacciChain.add_reference_qubits!(N, mes, 1, anyon_type = anyon_type, entangle_way = :copy)
+    # Counting for system, need to add traceref = false, add a ref qubit of X eigenst seems change the spatial correlation
+    ρ = reference_rdm(N, collect(1:N), add_mes_copy, anyon_type = anyon_type, traceref=false)
+    sc_ref = spatial_correlation(N, ρ, 2, 4, anyon_type = anyon_type)
+    @test sc_ref ≈ sc
 end
