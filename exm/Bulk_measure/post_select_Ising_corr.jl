@@ -173,7 +173,8 @@ function plot_corr(L_list=collect(8:2:24))
     return fig
 end
 
-function plot_spatial_temporal_corr(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+function plot_tc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+    # Plot the temporal correlations vs t for different δt
     δtlis = collect(2:2:14)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
 
@@ -190,22 +191,17 @@ function plot_spatial_temporal_corr(L::Int64=10, D::Int64=10, τ::Float64=log(1+
         legend_background_color=nothing,
         legend_foreground_color=nothing, 
         xlabel=L"t /L",
-        ylabel=L"g(0, \Delta t), g_{space}",
+        ylabel=L"g(0, \Delta t)/g_{space}",
         title=latexstring("γ= $(round(tanh(τ), digits=3))"),
     )
     # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
-    δt = δtlis[end]
-    temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign0)_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
-
-    # tlis = collect(1:length(temporal_corr_lis))./L
-    # plot!(fig, tlis, spatial_corr_lis, color=c[1], linewidth=2, label=latexstring("(δx,δt) = (L/2, 0)"))
-
+  
     for (idx, δt) in enumerate(δtlis)
 
-        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign0)_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
+        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr")
 
         tlis = collect(1:length(temporal_corr_lis))./L
-        plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
+        plot!(fig, tlis, temporal_corr_lis ./ spatial_corr, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
     end
 
     return fig
@@ -222,8 +218,8 @@ function alpha_compute_corr(L, τ)
     return α
 end
 
-function plot_tc(L::Int, anyon_type::Symbol=:IsingX)
-    # Plot the temporal correlations
+function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+    # Plot the temporal correlations vs δt
 
     if anyon_type == :IsingZ
         sign0 = 0
@@ -248,7 +244,7 @@ function plot_tc(L::Int, anyon_type::Symbol=:IsingX)
     tc0lis = Vector{Float64}(undef, length(δtlis))
     sc0 = 0
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps$(sign0)_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
+        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr")
         tc0lis[idx] = temporal_corr_lis[end]
         sc0 = spatial_corr_lis[20]
     end
@@ -280,7 +276,7 @@ end
 gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
-# fig_corr = plot_spatial_temporal_corr(10, anyon_type= :IsingZ)
+fig_corr = plot_tc_tlis(8, anyon_type= :IsingZ)
 # fig, t1lis, t2lis = plot_tc(10, :IsingX)
 
 if length(ARGS) == 0
@@ -342,16 +338,18 @@ end
 
 # [ρeelis0 ρeelis1 eelis0 eelis1]
 
-# add1_st0 = add_reference_qubits!(L, fst0, site, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add1_st1 = add_reference_qubits!(L, fst1, site, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add2_st0 = add_reference_qubits!(L, add1_st0, site, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add2_st1 = add_reference_qubits!(L, add1_st1, site, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# temporal_correlation(L, add2_st0, anyon_type=:IsingZ)
-# temporal_correlation(L, add2_st1, anyon_type=:IsingZ)
+add1_st0 = add_reference_qubits!(L, fst0, site, pbc=pbc,
+                                   anyon_type=anyon_type)
+add1_st1 = add_reference_qubits!(L, fst1, site, pbc=pbc,
+                                   anyon_type=anyon_type)
+add2_st0 = add_reference_qubits!(L, add1_st0, site, pbc=pbc,
+                                   anyon_type=anyon_type)
+add2_st1 = add_reference_qubits!(L, add1_st1, site, pbc=pbc,
+                                   anyon_type=anyon_type)
+add3_st0 = add_reference_qubits!(L, add2_st0, site, pbc=pbc,
+                                   anyon_type=anyon_type)
+temporal_correlation(L, add3_st0, anyon_type=:IsingZ)
+temporal_correlation(L, add2_st1, anyon_type=:IsingZ)
 
 # ρ1 = reference_rdm(L, [2], add2_st1, pbc=pbc, anyon_type=anyon_type)
 

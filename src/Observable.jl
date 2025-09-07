@@ -356,3 +356,39 @@ function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=tru
 
     return correlation
 end
+
+"""
+    ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+
+Calculate spatio-temporal correlation using state with three reference qubits.
+
+# Arguments
+- `N::Int64`: System size
+- `state_addref3::Vector{ET}`: Quantum state with three reference qubits added
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Float64`: Spatio-temporal correlation measure between two any spacetime points.
+
+Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
+"""
+function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+    # Calculate the spatio-temporal correlation between two any spacetime points in a given initial_state
+    # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
+    #                 Ref3
+    #                  |
+    #                  |
+    #  Ref1 --------> Ref2
+
+    ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
+    ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+
+    spatial_correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
+    temporal_correlation = ee(ρ2) + ee(ρ3) - ee(ρ23)
+
+    return spatial_correlation, temporal_correlation
+end
