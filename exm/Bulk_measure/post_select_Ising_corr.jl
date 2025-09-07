@@ -60,7 +60,7 @@ function plot_ref_ee(eelis, gamma)
     return fig
 end
 
-function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block_size::Float64=0.3, sign::Int64=0, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. block_size is the time interval δt between two ref qubits divided by L
@@ -71,7 +71,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
     sample = (sign==0) ? zeros(Int, D, L) : ones(Int, D, L)
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all plus state
-    δt = round(Int, block_size*L)
+    
     δt = iseven(δt) ? δt : δt - 1
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
     
@@ -106,16 +106,16 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
     # entangle_way is copy, conditioned by the given site qubit.
     elseif entangle_way == :copy
         for (idx, t) in enumerate(tlis)
-            if t ==0 
-                ref_sample = (sign == 0) ? zeros(Int, D, L) : ones(Int, D, L)
+            # if δt ==0 
+            #     ref_sample = (sign == 0) ? zeros(Int, t+D, L) : ones(Int, t+D, L)
             
-                ref2st = reference_evolution(τ, statelis, ref_sample, 1, D, D, anyon_type=:IsingX, verbose=true)
-                sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
-                eelis[idx] = ee(sysrdm)
-                spatial_corr = temporal_correlation(L, ref2st, pbc=pbc, anyon_type=anyon_type)
-                spatial_corr_lis[idx] = spatial_corr
-                temporal_corr_lis[idx] = 0 # when t=0, temporal correlation equals to spatial correlation
-            else
+            #     ref2st = reference_evolution(τ, statelis, ref_sample, 1, D, D, anyon_type=:IsingX, verbose=true)
+            #     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+            #     eelis[idx] = ee(sysrdm)
+            #     spatial_corr = temporal_correlation(L, ref2st, pbc=pbc, anyon_type=anyon_type)
+            #     spatial_corr_lis[idx] = spatial_corr
+            #     temporal_corr_lis[idx] = 0 # when t=0, temporal correlation equals to spatial correlation
+            # else
                 ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
             
                 ref3st = reference_evolution(τ, statelis, ref_sample, 1, D, D+δt, anyon_type=:IsingX, verbose=true)
@@ -124,10 +124,10 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
                 spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX)
                 temporal_corr_lis[idx] = temporal_corr
                 spatial_corr_lis[idx] = spatial_corr
-            end
+            # end
         end
 
-        save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+        save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
         # return temporal_corr_lis, spatial_corr, eelis
     else
         error("Unknown entanglement way")
@@ -326,7 +326,7 @@ end
 gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
-# fig_corr = plot_stc_tlis(8, anyon_type= :IsingZ)
+fig_corr = plot_stc_tlis(8, anyon_type= :IsingZ)
 # fig, t1lis, t2lis = plot_tc(10, :IsingX)
 
 if length(ARGS) == 0
@@ -334,12 +334,12 @@ if length(ARGS) == 0
 else
     L=parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
-    block_size = parse(Float64, ARGS[3])
+    δt = parse(Int, ARGS[3])
     println("Received argument: $L, $inds")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
     # compute_post_selection(L, τ, D)
-    spatial_temporal_corr_varying(L, τ, 10L, block_size, 100)
+    spatial_temporal_corr_varying(L, τ, 10L, δt, sign=1)
 end
 
 function trace_distance(ρ1, ρ2)

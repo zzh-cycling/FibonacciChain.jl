@@ -431,16 +431,22 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
         # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
         state = forward[time_slice1]    
         # 2) add reference qubit 1 at spatial_site
-        state1 = add_reference_qubits!(N, state, spatial_site, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+        state1 = add_reference_qubits!(N, state, site, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+        # 3) t₁ → t₂ evolution, or δt
+        final_stlis1 = reference_generate_state(τ, state1, sample[time_slice1+1:time_slice2, :], pbc, anyon_type=anyon_type, temp=temp)
+
         if temp     
             statelis = Vector{eltype(forward)}(undef, D)
+            state2 = add_reference_qubits!(N, final_stlis1[end], site, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
             # 3) t₁ → D evolution
-            final_stlis2 = reference_generate_state(τ, state1, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state2, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
             statelis[1:time_slice1] = forward[1:time_slice1]
             statelis[time_slice1+1:end] = final_stlis2
             return statelis
         else
-            final_stlis2 = reference_generate_state(τ, state1, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            state2 = add_reference_qubits!(N, final_stlis1, site, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
+            final_stlis2 = reference_generate_state(τ, state2, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
             return final_stlis2
         end
     else
