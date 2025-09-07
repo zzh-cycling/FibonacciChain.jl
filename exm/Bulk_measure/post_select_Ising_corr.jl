@@ -198,13 +198,13 @@ function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_
     # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
     temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_0.jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
 
+    tlis = collect(1:length(temporal_corr_lis))./L
     plot!(fig, tlis, spatial_corr_lis, label=latexstring("(δx,δt) = (L/2, 0)"), color=c[1], linestyle=:dash, linewidth=2)
 
     for (idx, δt) in enumerate(δtlis)
 
         temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
 
-        tlis = collect(1:length(temporal_corr_lis))./L
         plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
     end
 
@@ -360,7 +360,7 @@ end
 # ref_sample0 = zeros(Int, 20L, L)
 # ref_sample1 = ones(Int, 20L, L)
 
-# ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+2, anyon_type=:IsingX, verbose=true)
+# ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D, anyon_type=:IsingX, verbose=true)
 # ref2st1 = reference_evolution(τ, stlis1, ref_sample1, L÷2, D, D+2, anyon_type=:IsingX, verbose=true)
 # sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
 # sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)

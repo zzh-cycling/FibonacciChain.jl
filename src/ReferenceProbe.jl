@@ -369,33 +369,63 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 <= time_slice2 "Time slice 1 must before time slice 2"
 
-    # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
-    state = forward[time_slice1]
+    δt = time_slice2 - time_slice1
 
-    # 2) add reference qubit 1 at spatial_site, and reference qubit 2 at site
-    state1 = add_reference_qubits!(N, state, spatial_site, pbc=pbc,
-                                   anyon_type=anyon_type, verbose=verbose)
-    state2 = add_reference_qubits!(N, state1, site, pbc=pbc,
-                                   anyon_type=anyon_type, verbose=verbose)
+    if δt > 0
+        verbose && @info "time_slice1 = $(time_slice1), time_slice2 = $(time_slice2), δt = $(δt)"
+        # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
+        state = forward[time_slice1]
     
-    # 3) t₁ → t₂ evolution, or δt
-    final_stlis1 = reference_generate_state(τ, state2, sample[time_slice1+1:time_slice2, :], pbc, anyon_type=anyon_type, temp=temp)
+        # 2) add reference qubit 1 at spatial_site, and reference qubit 2 at site
+        state1 = add_reference_qubits!(N, state, spatial_site, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, site, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        
+        # 3) t₁ → t₂ evolution, or δt
+        final_stlis1 = reference_generate_state(τ, state2, sample[time_slice1+1:time_slice2, :], pbc, anyon_type=anyon_type, temp=temp)
+        
+        if temp
+            statelis = Vector{eltype(forward)}(undef, D)
+            # 4) add reference qubit 3 at site
+            state3 = add_reference_qubits!(N, final_stlis1[end], site, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
     
-    if temp
-        statelis = Vector{eltype(forward)}(undef, D)
-        # 4) add reference qubit 3 at site
-        state3 = add_reference_qubits!(N, final_stlis1[end], site, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-
-        # 5) t₂ → D evolution
-        final_stlis2 = reference_generate_state(τ, state3, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
-        statelis[1:time_slice1] = forward[1:time_slice1]
-        statelis[time_slice1+1:time_slice2] = final_stlis1
-        statelis[time_slice2+1:end] = final_stlis2
-        return statelis
+            # 5) t₂ → D evolution
+            final_stlis2 = reference_generate_state(τ, state3, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            statelis[1:time_slice1] = forward[1:time_slice1]
+            statelis[time_slice1+1:time_slice2] = final_stlis1
+            statelis[time_slice2+1:end] = final_stlis2
+            return statelis
+        else
+            state3 = add_reference_qubits!(N, final_stlis1, site, pbc=pbc, anyon_type=anyon_type)
+            final_stlis2 = reference_generate_state(τ, state3, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            return final_stlis2
+        end
+    elseif δt == 0
+        verbose && @info "time_slice1 = $(time_slice1), time_slice2 = $(time_slice2), δt = $(δt), return the state with two reference qubits at the same time slice"
+        # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
+        state = forward[time_slice1]
+    
+        # 2) add reference qubit 1 at spatial_site, and reference qubit 2 at site
+        state1 = add_reference_qubits!(N, state, spatial_site, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, site, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+                                       
+        if temp
+            statelis = Vector{eltype(forward)}(undef, D)
+            # 3) t₁ → D evolution
+            final_stlis2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            statelis[1:time_slice1] = forward[1:time_slice1]
+            statelis[time_slice1+1:time_slice2] = final_stlis1
+            statelis[time_slice2+1:end] = final_stlis2
+            return statelis
+        else
+            final_stlis2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            return final_stlis2
+        end
     else
-        state3 = add_reference_qubits!(N, final_stlis1, site, pbc=pbc, anyon_type=anyon_type)
-        final_stlis2 = reference_generate_state(τ, state3, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
-        return final_stlis2
+        error("time_slice2 must be greater than or equal to time_slice1")
     end
 end
 
