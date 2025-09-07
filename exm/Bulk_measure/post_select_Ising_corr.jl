@@ -106,14 +106,25 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
     # entangle_way is copy, conditioned by the given site qubit.
     elseif entangle_way == :copy
         for (idx, t) in enumerate(tlis)
-            ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
+            if t ==0 
+                ref_sample = (sign == 0) ? zeros(Int, D, L) : ones(Int, D, L)
             
-            ref3st = reference_evolution(τ, statelis, ref_sample, 1, D, D+δt, anyon_type=:IsingX, verbose=true)
-            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
-            eelis[idx] = ee(sysrdm)
-            spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX)
-            temporal_corr_lis[idx] = temporal_corr
-            spatial_corr_lis[idx] = spatial_corr
+                ref2st = reference_evolution(τ, statelis, ref_sample, 1, D, D, anyon_type=:IsingX, verbose=true)
+                sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+                eelis[idx] = ee(sysrdm)
+                spatial_corr = temporal_correlation(L, ref2st, pbc=pbc, anyon_type=anyon_type)
+                spatial_corr_lis[idx] = spatial_corr
+                temporal_corr_lis[idx] = 0 # when t=0, temporal correlation equals to spatial correlation
+            else
+                ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
+            
+                ref3st = reference_evolution(τ, statelis, ref_sample, 1, D, D+δt, anyon_type=:IsingX, verbose=true)
+                sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
+                eelis[idx] = ee(sysrdm)
+                spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX)
+                temporal_corr_lis[idx] = temporal_corr
+                spatial_corr_lis[idx] = spatial_corr
+            end
         end
 
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
@@ -396,3 +407,22 @@ end
 
 # ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
 # ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)
+
+# state1 = add_reference_qubits!(L, fst0, 1, pbc=pbc,
+#                                    anyon_type=anyon_type)
+# state2 = add_reference_qubits!(L, state1, L÷2, pbc=pbc,
+#                                    anyon_type=anyon_type)
+# final_stlis2 = reference_generate_state(τ, state2, ref_sample0[D+1:end, :], pbc, anyon_type=anyon_type, temp=false)
+# ρ = reference_rdm(L, collect(1:L), final_stlis2, anyon_type=:IsingX, traceref = false)
+# temporal_correlation(L, final_stlis2, anyon_type=:IsingX)
+# sc = spatial_correlation(L, ρ, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
+
+# ref_correlation(L, final_stlis2, anyon_type=:IsingX)
+
+# state_addref3 = final_stlis2
+# ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+# ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
+# ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
+# ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+# ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+# ee(ρ1), ee(ρ2), ee(ρ3), ee(ρ12), ee(ρ23)

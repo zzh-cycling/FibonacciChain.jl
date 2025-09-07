@@ -339,6 +339,7 @@ Compute temporal correlation between two time slices using cached forward evolut
 - `site`: Site index for reference qubit insertion
 - `time_slice1`: First time slice index
 - `time_slice2`: Second time slice index (must be > time_slice1)
+- `spatial_site::Int=1`: Spatial site index for first reference qubit
 - `pbc=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `temp::Bool=false`: Return trajectory if true
@@ -352,7 +353,7 @@ Avoids redundant computation by reusing forward evolution results.
 function reference_evolution(τ, forward, sample, site, time_slice1, time_slice2; spatial_site::Int=1,
 pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
     # This function is used to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
-    # time_slice1 and time_slice2 are the indices of the time slices in the sample.
+    # time_slice1 and time_slice2 are the indices of the time slices in the sample. 
     # | ---->|
     # forward
     #       Ref1                    spatial_site = 1            
@@ -369,9 +370,10 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
     @assert time_slice1 <= time_slice2 "Time slice 1 must before time slice 2"
 
-    δt = time_slice2 - time_slice1
+    δt = time_slice2 - time_slice1 # if δt = 0, pure spatial correlation
+    δx = abs(site - spatial_site) # if δx = 0, pure temporal correlation
 
-    if δt > 0
+    if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation
         verbose && @info "time_slice1 = $(time_slice1), time_slice2 = $(time_slice2), δt = $(δt)"
         # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
         state = forward[time_slice1]
@@ -401,7 +403,7 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
             final_stlis2 = reference_generate_state(τ, state3, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
             return final_stlis2
         end
-    elseif δt == 0
+    elseif δt == 0 # 2 ref qubits
         verbose && @info "time_slice1 = $(time_slice1), time_slice2 = $(time_slice2), δt = $(δt), return the state with two reference qubits at the same time slice"
         # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
         state = forward[time_slice1]
@@ -411,7 +413,7 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
                                        anyon_type=anyon_type, verbose=verbose)
         state2 = add_reference_qubits!(N, state1, site, pbc=pbc,
                                        anyon_type=anyon_type, verbose=verbose)
-                                       
+
         if temp
             statelis = Vector{eltype(forward)}(undef, D)
             # 3) t₁ → D evolution
@@ -422,6 +424,23 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
             return statelis
         else
             final_stlis2 = reference_generate_state(τ, state2, sample[time_slice2+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            return final_stlis2
+        end
+    elseif δx == 0 # 2 ref qubits
+        verbose && @info "time_slice1 = $(time_slice1), time_slice2 = $(time_slice2), δt = $(δt), return the state with one reference qubit at the time slice"
+        # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
+        state = forward[time_slice1]    
+        # 2) add reference qubit 1 at spatial_site
+        state1 = add_reference_qubits!(N, state, spatial_site, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+        if temp     
+            statelis = Vector{eltype(forward)}(undef, D)
+            # 3) t₁ → D evolution
+            final_stlis2 = reference_generate_state(τ, state1, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            statelis[1:time_slice1] = forward[1:time_slice1]
+            statelis[time_slice1+1:end] = final_stlis2
+            return statelis
+        else
+            final_stlis2 = reference_generate_state(τ, state1, sample[time_slice1+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
             return final_stlis2
         end
     else
