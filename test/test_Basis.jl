@@ -320,7 +320,7 @@ end
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
 
-    st = reference_evolution(τ, statelis, sample, div(L,2), 10, 16, anyon_type=:IsingX)
+    st = reference_evolution(τ, statelis, sample, 1, 10, 16, anyon_type=:IsingX)
     ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     ρ2r = anyon_rdm(L, collect(1:div(L,2)), ρ2, anyon_type=:IsingX)

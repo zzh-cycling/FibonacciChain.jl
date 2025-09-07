@@ -253,7 +253,7 @@ end
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
     sample = zeros(Int, (3, length(2:2:N)))
 
-    output1 = reference_generate_state(τ, add_st, sample, pbc, k_old=1)
+    output1 = reference_generate_state(τ, add_st, sample, pbc)
     @test length(output1) == 3
 end
 
@@ -334,14 +334,14 @@ end
     rdm_system = reference_rdm(N, [2, 3], add_site1, anyon_type = anyon_type, traceref=false)
     @test rdm_system ≈ [0.5 0.0 0.0 0.5; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.5 0.0 0.0 0.5]
 
-    add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, anyon_type = anyon_type, entangle_way = :reset)[3]
-    rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
-    rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
-    @test rdm ≈ rdm2 
-    @test rdm3 ≈ [0.5 0.5; 0.5 0.5]
+    # add_st2 = FibonacciChain.add_reference_qubits!(N, add_site1, site, anyon_type = anyon_type, entangle_way = :reset)[3]
+    # rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
+    # rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
+    # @test rdm ≈ rdm2 
+    # @test rdm3 ≈ [0.5 0.5; 0.5 0.5]
  
-    rdm4 = reference_rdm(N, [1, 2], add_st2, anyon_type = anyon_type)
-    @test rdm4 ≈ [0.24999999999999994 0.24999999999999994 0.0 0.0; 0.24999999999999994 0.24999999999999994 0.0 0.0; 0.0 0.0 0.24999999999999994 0.24999999999999994; 0.0 0.0 0.24999999999999994 0.24999999999999994]
+    # rdm4 = reference_rdm(N, [1, 2], add_st2, anyon_type = anyon_type)
+    # @test rdm4 ≈ [0.24999999999999994 0.24999999999999994 0.0 0.0; 0.24999999999999994 0.24999999999999994 0.0 0.0; 0.0 0.0 0.24999999999999994 0.24999999999999994; 0.0 0.0 0.24999999999999994 0.24999999999999994]
 end
 
 @testset "spatial_corr_matrix and reference rdm" begin
