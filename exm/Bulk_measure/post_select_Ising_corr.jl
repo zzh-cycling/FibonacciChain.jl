@@ -106,16 +106,16 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, δt::
     # entangle_way is copy, conditioned by the given site qubit.
     elseif entangle_way == :copy
         for (idx, t) in enumerate(tlis)
-            # if δt ==0 
-            #     ref_sample = (sign == 0) ? zeros(Int, t+D, L) : ones(Int, t+D, L)
+            if δt ==0 
+                ref_sample = (sign == 0) ? zeros(Int, t+D, L) : ones(Int, t+D, L)
             
-            #     ref2st = reference_evolution(τ, statelis, ref_sample, 1, D, D, anyon_type=:IsingX, verbose=true)
-            #     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
-            #     eelis[idx] = ee(sysrdm)
-            #     spatial_corr = temporal_correlation(L, ref2st, pbc=pbc, anyon_type=anyon_type)
-            #     spatial_corr_lis[idx] = spatial_corr
-            #     temporal_corr_lis[idx] = 0 # when t=0, temporal correlation equals to spatial correlation
-            # else
+                ref2st = reference_evolution(τ, statelis, ref_sample, 1, D, D, anyon_type=:IsingX, verbose=true)
+                sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
+                eelis[idx] = ee(sysrdm)
+                spatial_corr = temporal_correlation(L, ref2st, pbc=pbc, anyon_type=anyon_type)
+                spatial_corr_lis[idx] = spatial_corr
+                temporal_corr_lis[idx] = 0 # when t=0, temporal correlation equals to spatial correlation
+            else
                 ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
             
                 ref3st = reference_evolution(τ, statelis, ref_sample, 1, D, D+δt, anyon_type=:IsingX, verbose=true)
@@ -124,11 +124,11 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, δt::
                 spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX)
                 temporal_corr_lis[idx] = temporal_corr
                 spatial_corr_lis[idx] = spatial_corr
-            # end
+            end
         end
 
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
-        # return temporal_corr_lis, spatial_corr, eelis
+        return temporal_corr_lis, spatial_corr_lis, eelis
     else
         error("Unknown entanglement way")
     end
