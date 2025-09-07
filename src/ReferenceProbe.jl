@@ -367,7 +367,7 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
     @assert 1 <= site <= N "Site index must be in the range [1, N]"    
     @assert 1 <= time_slice1 <= D "Time slice 1 index must be in the range [1, $(D)]"
     @assert 1 <= time_slice2 <= D "Time slice 2 index must be in the range [1, $(D)]"
-    @assert time_slice1 < time_slice2 "Time slice 1 must before time slice 2"
+    @assert time_slice1 <= time_slice2 "Time slice 1 must before time slice 2"
 
     # 1) 0 → t₁, the steady state, at the time_slice1 of forward evolution
     state = forward[time_slice1]

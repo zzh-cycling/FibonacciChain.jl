@@ -174,8 +174,8 @@ function plot_corr(L_list=collect(8:2:24))
     return fig
 end
 
-function plot_tc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
-    # Plot the temporal correlations vs t for different δt
+function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+    # Plot the spatio-temporal correlations vs t for different δt
     δtlis = collect(2:2:14)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
 
@@ -192,17 +192,55 @@ function plot_tc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_t
         legend_background_color=nothing,
         legend_foreground_color=nothing, 
         xlabel=L"t /L",
-        ylabel=L"g(0, \Delta t)/g_{space}",
+        ylabel=L"g(0, \Delta t), g_{space}",
+        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+    )
+    # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
+    temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_0.jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
+
+    plot!(fig, tlis, spatial_corr_lis, label=latexstring("(δx,δt) = (L/2, 0)"), color=c[1], linestyle=:dash, linewidth=2)
+
+    for (idx, δt) in enumerate(δtlis)
+
+        temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
+
+        tlis = collect(1:length(temporal_corr_lis))./L
+        plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
+    end
+
+    return fig
+end
+    
+function plot_sc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+    # Plot the spatial correlations vs t for different δt
+    δtlis = collect(2:2:14)
+    c = cgrad(:blues, length(δtlis)+1, categorical=true)
+
+    if anyon_type == :IsingZ
+        sign0 = 0
+        sign1 = 1
+    elseif anyon_type == :IsingX
+        sign0 = :p
+        sign1 = :m
+    end
+
+    fig = plot(
+        label=false,
+        legend_background_color=nothing,
+        legend_foreground_color=nothing, 
+        xlabel=L"t /L",
+        ylabel=L"g_{space}",
         title=latexstring("γ= $(round(tanh(τ), digits=3))"),
     )
     # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
   
     for (idx, δt) in enumerate(δtlis)
 
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr")
+        temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
 
         tlis = collect(1:length(temporal_corr_lis))./L
-        plot!(fig, tlis, temporal_corr_lis ./ spatial_corr, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
+        # plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
+        plot!(fig, tlis, spatial_corr_lis, label=latexstring("g_{space}, (δx,δt) = (L/2, $(δt/L)L)"), color=c[idx+1], linestyle=:dash, linewidth=2)
     end
 
     return fig
@@ -277,7 +315,7 @@ end
 gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
-fig_corr = plot_tc_tlis(8, anyon_type= :IsingZ)
+# fig_corr = plot_stc_tlis(8, anyon_type= :IsingZ)
 # fig, t1lis, t2lis = plot_tc(10, :IsingX)
 
 if length(ARGS) == 0
