@@ -102,7 +102,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
             # spatial_correlation.(L, final_st, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
         end
         
-        # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L))_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+        # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
         return temporal_corr_lis, spatial_corr_lis, eelis
     # entangle_way is copy, conditioned by the given site qubit.
     elseif entangle_way == :copy
@@ -114,8 +114,8 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, block
             # eelis[idx] = ee(sysrdm)
             temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
         end
-        
-        save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L))_seed$(seed).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+
+        save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr, "eelis", eelis)
         # return temporal_corr_lis, spatial_corr, eelis
     else
         error("Unknown entanglement way")
