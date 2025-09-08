@@ -373,7 +373,7 @@ Calculate spatio-temporal correlation using state with three reference qubits.
 
 Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
 """
-function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true; anyon_type::Symbol=:Fibo, spatio::Bool=false, temporal::Bool=false) where {ET}
+function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, spatio::Bool=false, temporal::Bool=false) where {ET}
     # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
     # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
     #                 Ref3  |   t₂

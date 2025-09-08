@@ -252,14 +252,7 @@ end
 
 function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
     # Plot the temporal correlations vs δt
-
-    if anyon_type == :IsingZ
-        sign0 = 0
-        sign1 = 1
-    elseif anyon_type == :IsingX
-        sign0 = :p
-        sign1 = :m
-    end
+    δtlis = collect(2:2:14)
 
     fig = plot(
         label=false,
@@ -268,29 +261,28 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
         xlabel=L"δt /L",
         ylabel=L"g(0, \Delta t)/g_{space}",
         title=latexstring("γ= $(round(tanh(τ), digits=3))"),
-        ylim =(-0.2, 3.0),
+        # ylim =(-0.2, 3.0),
     )
     
-    δtlis = collect(2:2:14)
 
     tc0lis = Vector{Float64}(undef, length(δtlis))
-    sc0 = 0
+    spatial_corr_lis0 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_0.jld", "spatial_corr_lis")
+    sc0 = spatial_corr_lis0[end]
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_$(δt).jld",  "temporal_corr_lis", "spatial_corr")
+        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
         tc0lis[idx] = temporal_corr_lis[end]
-        sc0 = spatial_corr_lis[20]
     end
 
     tc1lis = Vector{Float64}(undef, length(δtlis))
-    sc1 = 0
+    spatial_corr_lis1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr_lis")
+    sc1 = spatial_corr_lis1[end]
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps$(sign1)_$(δt)_seed100.jld",  "temporal_corr_lis", "spatial_corr_lis")
+        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
         tc1lis[idx] = temporal_corr_lis[end]
-        sc1 = spatial_corr_lis[20]
     end
 
-    plot!(fig, δtlis, tc0lis./sc0, label=L"s=0", xticks=δtlis, color=:blues, linewidth=2, marker=:circle, markersize=4)
-    plot!(fig, δtlis, tc1lis./sc1, label=L"s=1", xticks=δtlis, color=:reds, linewidth=2, marker=:circle, markersize=4)
+    plot!(fig, δtlis./L, tc0lis./sc0, label=L"s=0", xticks=δtlis./L, color=:blues, linewidth=2, marker=:circle, markersize=4)
+    plot!(fig, δtlis./L, tc1lis./sc1, label=L"s=1", xticks=δtlis./L, color=:reds, linewidth=2, marker=:circle, markersize=4)
 
     return fig, tc0lis./sc0, tc1lis./sc1
 end
@@ -309,7 +301,7 @@ gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
 fig_corr = plot_stc_tlis(8, anyon_type= :IsingZ, sign=0)
-# fig, t1lis, t2lis = plot_tc(10, :IsingX)
+fig, t1lis, t2lis = plot_tc(8, anyon_type= :IsingX)
 
 if length(ARGS) == 0
     println("No arguments provided.")
