@@ -373,22 +373,33 @@ Calculate spatio-temporal correlation using state with three reference qubits.
 
 Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
 """
-function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
-    # Calculate the spatio-temporal correlation between two any spacetime points in a given initial_state
+function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true; anyon_type::Symbol=:Fibo, spatio::Bool=false, temporal::Bool=false) where {ET}
+    # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
     # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
-    #                 Ref3
+    #                 Ref3  |   t₂
     #                  |
     #                  |
-    #  Ref1 --------> Ref2
+    #  Ref1 --------> Ref2      t₁
+    #   x₁             x₂
 
-    ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-    ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
-    ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
-    ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-    ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    if spatio # pure spatial correlation, only 2 reference qubits
+        @warn "Only spatial correlation is calculated."
+        spatial_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        return spatial_corr, 0
+    elseif temporal # pure temporal correlation, only 2 reference qubits
+        @warn "Only temporal correlation is calculated."
+        temporal_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        return 0, temporal_corr
+    else
+        ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
+        ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    
+        spatial_corr = ee(ρ1) + ee(ρ2) - ee(ρ12)
+        temporal_corr = ee(ρ2) + ee(ρ3) - ee(ρ23)
+    end
 
-    spatial_correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
-    temporal_correlation = ee(ρ2) + ee(ρ3) - ee(ρ23)
-
-    return spatial_correlation, temporal_correlation
+    return spatial_corr, temporal_corr
 end
