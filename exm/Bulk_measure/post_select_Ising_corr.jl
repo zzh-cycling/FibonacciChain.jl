@@ -108,7 +108,7 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, δt::
         for (idx, t) in enumerate(tlis)
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
         
-            ref3st = reference_evolution(τ, statelis, ref_sample, 1, D, D+δt, anyon_type=:IsingX, verbose=true)
+            ref3st = reference_evolution(τ, statelis, ref_sample, L÷2, D, D+δt, anyon_type=:IsingX, verbose=true)
             sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
             eelis[idx] = ee(sysrdm)
             spatio = (δt == 0) ? true : false
@@ -177,7 +177,7 @@ end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX, sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = collect(2:2:14)
+    δtlis = collect(2:2:10)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(
@@ -252,7 +252,7 @@ end
 
 function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
     # Plot the temporal correlations vs δt
-    δtlis = collect(2:2:14)
+    δtlis = collect(2:2:10)
 
     fig = plot(
         label=false,
@@ -300,8 +300,8 @@ end
 gamma=tanh(log(1 + √2))
 # fig = plot_corr(collect(8:2:12))
 
-fig_corr = plot_stc_tlis(8, anyon_type= :IsingZ, sign=0)
-fig, t1lis, t2lis = plot_tc(8, anyon_type= :IsingX)
+# fig_corr = plot_stc_tlis(10, anyon_type= :IsingZ, sign=0)
+# fig, t1lis, t2lis = plot_tc(10, anyon_type= :IsingX)
 
 if length(ARGS) == 0
     println("No arguments provided.")
@@ -339,16 +339,20 @@ end
 # stlis0 = generate_state(τ, initial_state, zeros(Int, D, L), temp= true, anyon_type=anyon_type)
 # fst0 = stlis0[end]
 # fst1 = stlis1[end]
-# spatial_corr0 = spatial_correlation(L, fst0, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
-# spatial_corr1 = spatial_correlation(L, fst1, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
 
-# ref_sample0 = zeros(Int, 20L, L)
-# ref_sample1 = ones(Int, 20L, L)
+# ref_sample0 = zeros(Int, D, L)
+# ref_sample1 = ones(Int, D, L)
 
 # ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D, anyon_type=:IsingX, verbose=true)
-# ref2st1 = reference_evolution(τ, stlis1, ref_sample1, L÷2, D, D+2, anyon_type=:IsingX, verbose=true)
+# ref2st1 = reference_evolution(τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
 # sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
 # sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
+
+# ρ1 = reference_rdm(L, [2], ref2st1, pbc=pbc, anyon_type=anyon_type)
+# ρ2 = reference_rdm(L, [1], ref2st1, pbc=pbc, anyon_type=anyon_type)
+# ρ12 = reference_rdm(L, [1, 2], ref2st1, pbc=pbc, anyon_type=anyon_type)
+# ee(ρ1), ee(ρ2), ee(ρ12)
+# I = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
 # ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
 # ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)

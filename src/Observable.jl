@@ -383,11 +383,11 @@ function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, an
     #   x₁             x₂
 
     if spatio # pure spatial correlation, only 2 reference qubits
-        @warn "Only spatial correlation is calculated."
+        @info "Only spatial correlation is calculated."
         spatial_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
         return spatial_corr, 0
     elseif temporal # pure temporal correlation, only 2 reference qubits
-        @warn "Only temporal correlation is calculated."
+        @info "Only temporal correlation is calculated."
         temporal_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
         return 0, temporal_corr
     else
