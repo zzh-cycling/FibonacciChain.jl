@@ -1,7 +1,7 @@
 using FibonacciChain
 using JLD
 using Statistics
-include("../FitEntEntScal.jl")
+# include("../FitEntEntScal.jl")
 
 function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
     pbc = true
@@ -19,52 +19,22 @@ function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
 end
 
 function get_system_params(τ, L)
-    if τ == log(1 + √2)
-        D = 35L
-        inds = collect(1:14:D)
-        avg_range = 20L:D-5
-    elseif τ == atanh(0.1)
-        D = 2500L
-        inds = collect(1:1000:D)
-        avg_range = 1500L:D-5
-    elseif τ == atanh(0.2)
-        D = 500L
-        inds = collect(1:100:D)
-        avg_range = 250L:D-5
-    elseif τ == atanh(0.3)
-        D = 120L
-        inds = collect(1:48:D)
-        avg_range = 100L:D-5
-    elseif τ == atanh(0.4)
-        D = 100L
-        inds = collect(1:40:D)
-        avg_range = 80L:D-5
-    elseif τ == atanh(0.5)
-        D = 80L
-        inds = collect(1:32:D)
-        avg_range = 40L:D-5
-    elseif τ == atanh(0.6)
-        D = 45L
-        inds = collect(1:20:D)
-        avg_range = 30L:D-5
-    elseif τ == atanh(0.8)
-        D = 25L
-        inds = collect(1:10:D)
-        avg_range = 10L:D-5
-    elseif τ == atanh(0.9) || τ == atanh(0.95)
-        D = 8L
-        inds = collect(1:4:D)
-        avg_range = 4L:D-5
-    elseif τ == atanh(0.999)
-        D = 5L
-        inds = collect(1:2:D)
-        avg_range = 2L:D-5
-    else
-        D = 5L  # Default value for τ=1000.0
-        inds = collect(1:2:D)
-        avg_range = 2L:D-5
-    end
-    
+    table = Dict(
+            atanh(0.1)  => (2500L, 1000, 1500L),
+            atanh(0.2)  => (500L,  100, 250L),
+            atanh(0.3)  => (120L,  48, 100L),
+            atanh(0.4)  => (100L,  40, 80L),
+            atanh(0.5)  => (80L,   32, 40L),
+            atanh(0.6)  => (45L,   20, 30L),
+            log(1 + √2) => (35L,   14, 20L),
+            atanh(0.8)  => (25L,   10, 10L),
+            atanh(0.9)  => (8L,    4, 4L),
+            atanh(0.95) => (8L,    4, 4L),
+            atanh(0.999)=> (5L,    2, 2L),
+        )
+    D, step, start = get(table, τ, (5L, 2, 2L))
+    inds = collect(1:step:D)
+    avg_range = start:D-5
     return D, inds, avg_range
 end
 
@@ -78,8 +48,9 @@ for τ in τlis
     for L in 8:2:20
         D = get_system_params(τ, L)[1]
         @show L
-        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, 1)
-        save("exm/data/post_selection1/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
+        sign = 0
+        average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, sign)
+        save("exm/data/post_selection$(sign)/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
     end
 end
 

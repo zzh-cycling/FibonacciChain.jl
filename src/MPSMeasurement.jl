@@ -49,7 +49,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10, outputlevel=2)
+function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=2)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
     sites = siteinds("Qubit", N)
     

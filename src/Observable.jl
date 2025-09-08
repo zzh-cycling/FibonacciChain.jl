@@ -356,3 +356,68 @@ function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=tru
 
     return correlation
 end
+
+"""
+    ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+
+Calculate spatio-temporal correlation using state with three reference qubits.
+
+# Arguments
+- `N::Int64`: System size
+- `state_addref3::Vector{ET}`: Quantum state with three reference qubits added
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Float64`: Spatio-temporal correlation measure between two any spacetime points.
+
+Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
+"""
+function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, spatio::Bool=false, temporal::Bool=false) where {ET}
+    # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
+    # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
+    #                 Ref3  |   t₂
+    #                  |
+    #                  |
+    #  Ref1 --------> Ref2      t₁
+    #   x₁             x₂
+
+    if spatio # pure spatial correlation, only 2 reference qubits
+        @info "Only spatial correlation is calculated."
+        spatial_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        return spatial_corr, 0
+    elseif temporal # pure temporal correlation, only 2 reference qubits
+        @info "Only temporal correlation is calculated."
+        temporal_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        return 0, temporal_corr
+    else
+        ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
+        ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+        ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+    
+        spatial_corr = ee(ρ1) + ee(ρ2) - ee(ρ12)
+        temporal_corr = ee(ρ2) + ee(ρ3) - ee(ρ23)
+    end
+
+    return spatial_corr, temporal_corr
+end
+
+function trace_distance(ρ1::AbstractMatrix, ρ2::AbstractMatrix)
+    diff = ρ1 - ρ2
+    # trace distance = 1/2 * ||ρ1 - ρ2||₁
+    return 0.5 * tr(sqrt(diff' * diff))
+end
+
+function fidelity(ρ1::AbstractMatrix, ρ2::AbstractMatrix)
+    # For density matrix, fidelity defined as F(ρ1,ρ2) = tr(√(√ρ1 * ρ2 * √ρ1))²
+    sqrt_ρ1 = sqrt(ρ1)
+    F = tr(sqrt(sqrt_ρ1 * ρ2 * sqrt_ρ1))^2
+    return real(F)
+end
+
+function fidelity(st1::AbstractVector, st2::AbstractVector)
+    # For pure states, fidelity defined as F(ψ,φ) = |<ψ|φ>|²
+    return abs(dot(st1, st2))^2
+end

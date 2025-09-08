@@ -743,7 +743,7 @@ function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer
         end
         return state
     
-    elseif anyon_type == :IsingX || anyon_type == :IsingZZ
+    elseif anyon_type ∈ (:IsingX, :IsingZZ, :IsingZ)
         # measure at all sites!!!
         measurement_sites = collect(1:N)
         if layer_idx % 2 == 1
