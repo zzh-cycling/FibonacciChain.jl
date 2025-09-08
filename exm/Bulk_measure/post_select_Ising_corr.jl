@@ -109,11 +109,6 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=5L, δt::
     end
 end
 
-# temporal_corr_lis, spatial_corr_lis, eelis = load("./exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L10/τ0.8813735870195429/D10_ps0_8_seed100.jld", "temporal_corr_lis", "spatial_corr_lis", "eelis")
-
-# fig = plot_ref_ee(eelis, 0.707)
-# plot(temporal_corr_lis, ylim=(0, maximum(temporal_corr_lis)))
-# plot!(spatial_corr_lis)
 
 function get_system_params_corr(τ)
     D = Dict(
@@ -130,34 +125,6 @@ function get_system_params_corr(τ)
         atanh(0.999)=> 5,
     )
     return get(D, τ, 5)   # 5 is the default value for τ=1000.0
-end
-
-function plot_corr(L_list=collect(8:2:24))
-    c = cgrad(:blues, length(L_list), categorical=true)
-    
-    fig = plot(
-        label=false,
-        legend_background_color=nothing,
-        legend_foreground_color=nothing, 
-        xlabel=L"\Delta t /L",
-        ylabel=L"g(0, \Delta t)/g_{space}",
-        title=latexstring("γ= $(round(gamma, digits=3))"),
-    )
-    # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
-    for (idx, L) in enumerate(L_list)
-        D = get_system_params_corr(τ)
-        
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
-        
-
-        # plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis ./spatial_corr, label=latexstring("$(L)"), legendtitle=L"L", color=c[idx], linewidth=2)
-        plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis[1:end] ./spatial_corr, label=latexstring("s=1, L=$(L)"), color=c[idx], linewidth=2)
-
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps0.jld",  "temporal_corr_lis", "spatial_corr")
-        plot!(fig ,collect(1:length(temporal_corr_lis))./L, temporal_corr_lis[1:end] ./spatial_corr, label=latexstring("s=0, L=$(L)"), color=c[idx], linewidth=2)
-    end
-
-    return fig
 end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX, sign::Int=0)
@@ -263,7 +230,7 @@ end
 τlis[end] = 1000.0  # Last value is for γ=1
 τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
 gamma=tanh(log(1 + √2))
-# fig = plot_corr(collect(8:2:12))
+
 
 # fig_corr = plot_stc_tlis(10, anyon_type= :IsingZ, sign=0)
 # fig, t1lis, t2lis = plot_tc(10, anyon_type= :IsingX)
@@ -280,21 +247,6 @@ else
     # compute_post_selection(L, τ, D)
     spatial_temporal_corr_varying(L, τ, 10L, δt, sign=1)
 end
-
-function trace_distance(ρ1, ρ2)
-    diff = ρ1 - ρ2
-    # 迹距离 = 1/2 * ||ρ1 - ρ2||₁
-    return 0.5 * tr(sqrt(diff' * diff))
-end
-
-function fidelity(ρ1, ρ2)
-    # 对于密度矩阵，保真度定义为 F(ρ1,ρ2) = tr(√(√ρ1 * ρ2 * √ρ1))²
-    # 简化计算：
-    sqrt_ρ1 = sqrt(ρ1)
-    F = tr(sqrt(sqrt_ρ1 * ρ2 * sqrt_ρ1))^2
-    return real(F)
-end
-
 
 # L=8; pbc=true; anyon_type=:IsingX; D=5L;
 # τ =  log(1+√2)

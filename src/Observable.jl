@@ -403,3 +403,21 @@ function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, an
 
     return spatial_corr, temporal_corr
 end
+
+function trace_distance(ρ1::AbstractMatrix, ρ2::AbstractMatrix)
+    diff = ρ1 - ρ2
+    # trace distance = 1/2 * ||ρ1 - ρ2||₁
+    return 0.5 * tr(sqrt(diff' * diff))
+end
+
+function fidelity(ρ1::AbstractMatrix, ρ2::AbstractMatrix)
+    # For density matrix, fidelity defined as F(ρ1,ρ2) = tr(√(√ρ1 * ρ2 * √ρ1))²
+    sqrt_ρ1 = sqrt(ρ1)
+    F = tr(sqrt(sqrt_ρ1 * ρ2 * sqrt_ρ1))^2
+    return real(F)
+end
+
+function fidelity(st1::AbstractVector, st2::AbstractVector)
+    # For pure states, fidelity defined as F(ψ,φ) = |<ψ|φ>|²
+    return abs(dot(st1, st2))^2
+end

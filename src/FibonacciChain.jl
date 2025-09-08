@@ -11,7 +11,7 @@ export anyon_ham_sparse
 # MPS-based functions
 export fibonacci_mps_ground_state, fibonacci_hamiltonian_mps, measurement_operator_mps, apply_measurement_mps, generate_state_mps
 export initial_mps, mps_measurement_enumeration, mps_boundary_measure, mps_bulk_measurement, ee_mps, anyon_eelis_mps
-export add_reference_qubits!, reference_measuremap, spatial_correlation, temporal_correlation, ref_correlation, reference_generate_state, reference_apply_measurement_layer!, reference_evolution, reference_rdm
+export add_reference_qubits!, reference_measuremap, spatial_correlation, temporal_correlation, ref_correlation, reference_generate_state, reference_apply_measurement_layer!, reference_evolution, reference_rdm, trace_distance, fidelity
 
 include("Basis.jl") 
 include("Observable.jl")
