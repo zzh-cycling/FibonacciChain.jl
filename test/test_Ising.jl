@@ -104,6 +104,7 @@ end
     fib_ham = anyon_ham(5, anyon_type=:IsingX)
     @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
+    @test eigvals(fib_ham)[1] ≈ -1/(2*sin(π/10))*4 atol=1e-10
 
     X= Float64[0 1; 1 0]
 	Z= Float64[1 0; 0 -1]
