@@ -20,7 +20,7 @@ function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, s
    
 end
 
-function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true;k_old::Int64=1,anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET, newT}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -32,13 +32,6 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-
-    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
-    
-    # Noting that basis is not consisten with state, but extended_basis is.
-    extended_basis = build_extended_basis(k_old, basis) 
-    @assert length(basis)*2^k_old == length(state) == length(extended_basis) "state length is expected to be $(length(basis)*2^k_old), but got $(length(state))"
-    l=length(extended_basis)
 
     mapped_state = zeros(ET, length(state))
 
@@ -63,9 +56,9 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
 
     return mapped_state
 end
-reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET} = reference_measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
+reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type, extended_basis=extended_basis)
 
-function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {T}
+function reference_apply_measurement_layer!(N::Int64, state::Vector{ET}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT}
     if anyon_type == :Fibo
         if layer_idx % 2 == 1
             measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
@@ -73,7 +66,7 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
             measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
         end
         for (idx, measurement_type) in enumerate(layer_sample)
-            state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, anyon_type = anyon_type)
+            state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
             normalize!(state)
         end
         return state
@@ -83,14 +76,14 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Floa
         if layer_idx % 2 == 1
             # odd layers: measure X
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, anyon_type = :IsingX)
+                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old=k_old, anyon_type = :IsingX, extended_basis=extended_basis)
                 normalize!(state)
             end
             return state
         else
             # even layers: measure ZZ
             for (idx, measurement_type) in enumerate(layer_sample)
-                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old= k_old, anyon_type = :IsingZZ)
+                state = reference_measuremap(N, τ, state, measurement_sites[idx], measurement_type, pbc, k_old= k_old, anyon_type = :IsingZZ, extended_basis=extended_basis)
                 normalize!(state)
             end
             return state
@@ -149,13 +142,19 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
     
     basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
+
     len_F   = length(basis_F)
     # old reference qubit number, k_old
     k_old = round(Int, log2(length(state) ÷ len_F))
+    
+    # Noting that basis is not consisten with state, but extended_basis is.
+    extended_basis = build_extended_basis(k_old, basis_F) 
+
+    @assert length(basis_F)*2^k_old == length(state) == length(extended_basis) "state length is expected to be $(length(basis_F)*2^k_old), but got $(length(state))"
 
     for layer in 1:D
         τ_eff = (layer == D) ? τ/2 : τ
-        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type)
+        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
         if temp
             statelis[layer] = copy(state)
@@ -254,9 +253,9 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
             )
         anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
         resettype = resettable[anyon_type]
-        
-        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc,k_old=k_old, anyon_type = resettype)
-        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc,k_old=k_old, anyon_type = resettype)
+
+        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc, extended_basis=extended_basis, k_old=k_old, anyon_type=resettype)
+        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, extended_basis=extended_basis, k_old=k_old, anyon_type=resettype)
 
         prob_sqrt0 = state_after_0' * state_after_0
         prob_sqrt1 = 1 - prob_sqrt0
