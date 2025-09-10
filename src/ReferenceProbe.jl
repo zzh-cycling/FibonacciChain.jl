@@ -89,8 +89,8 @@ function reference_apply_measurement_layer!(N::Int64, state::Vector{ET}, τ::Flo
             end
             return state
         end
-    # else
-    #     error("Unknown measure class: $anyon_type")
+    else
+        error("Unknown measure class: $anyon_type")
     end
 end
 
@@ -296,8 +296,8 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         new_state ./= norm(new_state)
 
         return new_state
-    # else
-    #     error("Unknown entangle way: $entangle_way")
+    else
+        error("Unknown entangle way: $entangle_way")
     end
 end
 
@@ -446,8 +446,8 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
             final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
             return final_stlis2
         end
-    # else
-    #     error("t₂ must be greater than or equal to t₁")
+    else
+        error("t₂ must be greater than or equal to t₁")
     end
 end
 

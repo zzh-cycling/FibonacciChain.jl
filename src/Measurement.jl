@@ -149,8 +149,8 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
         end
 
         return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
-    # else
-    #     error("Unknown measure class: $anyon_type")
+    else
+        error("Unknown measure class: $anyon_type")
     end
 end
 
@@ -299,36 +299,34 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
             
             state_after_p = measuremap(T, τ, state, site, 0, pbc, anyon_type=anyon_type)
             prob_p = state_after_p' * state_after_p  
+ 
+            normalized_state_p = state_after_p / sqrt(prob_p)
+            new_trajectory_p = [current_trajectory; 0]
+            new_prob_p = current_prob * prob_p
             
-            # if prob_p > 1e-12  
-                normalized_state_p = state_after_p / sqrt(prob_p)
-                new_trajectory_p = [current_trajectory; 0]
-                new_prob_p = current_prob * prob_p
-                
-                push!(next_level_states, normalized_state_p)
-                push!(next_level_trajectories, new_trajectory_p)
-                push!(next_level_probabilities, new_prob_p)
-            # end
+            push!(next_level_states, normalized_state_p)
+            push!(next_level_trajectories, new_trajectory_p)
+            push!(next_level_probabilities, new_prob_p)
+        
             
             state_after_m = measuremap(T, τ, state, site, 1, pbc, anyon_type=anyon_type)
             prob_m = state_after_m' * state_after_m
             
-            # if prob_m > 1e-12 
-                normalized_state_m = state_after_m / sqrt(prob_m)
-                new_trajectory_m = [current_trajectory; 1]
-                new_prob_m = current_prob * prob_m
-                
-                push!(next_level_states, normalized_state_m)
-                push!(next_level_trajectories, new_trajectory_m)
-                push!(next_level_probabilities, new_prob_m)
-            # end
+          
+            normalized_state_m = state_after_m / sqrt(prob_m)
+            new_trajectory_m = [current_trajectory; 1]
+            new_prob_m = current_prob * prob_m
+            
+            push!(next_level_states, normalized_state_m)
+            push!(next_level_trajectories, new_trajectory_m)
+            push!(next_level_probabilities, new_prob_m)
+
         end
         
         current_level_states = next_level_states
         current_level_trajectories = next_level_trajectories
         current_level_probabilities = next_level_probabilities
-        
-        # println("After measurement $(measurement_idx) at site $(site): $(length(current_level_states)) branches")
+
     end
     
 
