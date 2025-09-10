@@ -46,7 +46,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
         spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX, spatio=spatio)
     end
 
-    # save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    save("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
     return temporal_corr, spatial_corr, S
 end
 
@@ -246,10 +246,10 @@ else
     L=parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     δt = parse(Int, ARGS[3])
-    println("Received argument: $L, $inds")
+    println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection_Ising(L, τ, D, δt, sign=0)
+    compute_post_selection_Ising(L, τ, 8L, δt, sign=0)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
