@@ -249,7 +249,7 @@ else
     println("Received argument: $L, $inds")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection(L, τ, D, δt, sign=0)
+    compute_post_selection_Ising(L, τ, D, δt, sign=0)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
