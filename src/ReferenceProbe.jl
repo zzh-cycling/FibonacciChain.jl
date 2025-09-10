@@ -154,6 +154,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     @assert length(basis_F)*2^k_old == length(state) == length(extended_basis) "state length is expected to be $(length(basis_F)*2^k_old), but got $(length(state))"
 
     for layer in 1:D
+        verbose && @info "Evolving layer $layer / $D"
         τ_eff = (layer == D) ? τ/2 : τ
         state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
@@ -382,7 +383,7 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
                                        anyon_type=anyon_type, verbose=verbose)
         
         # 3) t₁ → t₂ evolution, or δt
-        final_stlis1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp)
+        final_stlis1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
         
         if temp
             statelis = Vector{eltype(forward)}(undef, D)
@@ -390,14 +391,14 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
             state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
     
             # 5) t₂ → D evolution
-            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             statelis[1:t₁] = forward[1:t₁]
             statelis[t₁+1:t₂] = final_stlis1
             statelis[t₂+1:end] = final_stlis2
             return statelis
         else
             state3 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type)
-            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             return final_stlis2
         end
     elseif δt == 0 # 2 ref qubits
@@ -414,13 +415,13 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
         if temp
             statelis = Vector{eltype(forward)}(undef, D)
             # 3) t₁ → D evolution
-            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             statelis[1:t₁] = forward[1:t₁]
             statelis[t₁+1:t₂] = final_stlis1
             statelis[t₂+1:end] = final_stlis2
             return statelis
         else
-            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             return final_stlis2
         end
     elseif δx == 0 # 2 ref qubits
@@ -431,19 +432,19 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
         state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
 
         # 3) t₁ → t₂ evolution, or δt
-        final_stlis1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp)
+        final_stlis1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
 
         if temp     
             statelis = Vector{eltype(forward)}(undef, D)
             state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
             # 3) t₁ → D evolution
-            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             statelis[1:t₁] = forward[1:t₁]
             statelis[t₁+1:end] = final_stlis2
             return statelis
         else
             state2 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp)
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             return final_stlis2
         end
     else
