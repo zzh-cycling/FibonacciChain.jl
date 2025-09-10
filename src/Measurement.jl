@@ -149,8 +149,8 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
         end
 
         return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
-    else
-        error("Unknown measure class: $anyon_type")
+    # else
+    #     error("Unknown measure class: $anyon_type")
     end
 end
 

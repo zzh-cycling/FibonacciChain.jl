@@ -253,19 +253,19 @@ else
     spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
-# L=8; pbc=true; anyon_type=:IsingX; D=5L;
-# τ =  log(1+√2)
-# initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
-# initial_state /= norm(initial_state) # initial state is all plus state
-# stlis1 = generate_state(τ, initial_state, ones(Int, D, L), temp= true, anyon_type=anyon_type)
-# stlis0 = generate_state(τ, initial_state, zeros(Int, D, L), temp= true, anyon_type=anyon_type)
-# fst0 = stlis0[end]
-# fst1 = stlis1[end]
+L=8; pbc=true; anyon_type=:IsingX; D=5L;
+τ =  log(1+√2)
+initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+initial_state /= norm(initial_state) # initial state is all plus state
+stlis1 = generate_state(τ, initial_state, ones(Int, D, L), temp= true, anyon_type=anyon_type)
+stlis0 = generate_state(τ, initial_state, zeros(Int, D, L), temp= true, anyon_type=anyon_type)
+fst0 = stlis0[end]
+fst1 = stlis1[end]
 
-# ref_sample0 = zeros(Int, D+50, L)
-# ref_sample1 = ones(Int, D, L)
-# using Profile
-# @profile ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
+ref_sample0 = zeros(Int, D+50, L)
+ref_sample1 = ones(Int, D, L)
+using Profile
+@profile ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
 # @code_warntype ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
 # ref2st1 = reference_evolution(τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
 # sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
