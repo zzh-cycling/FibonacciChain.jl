@@ -213,6 +213,39 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
     return fig
 end
 
+function plot_stc_scaling(τ::Float64=log(1+√2))
+    Llis = collect(8:2:14)
+    δtlis = collect(2:2:10)
+    
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L814_t010.jld", "scLlis", "tcLlis")
+    # fig = plot(
+    #     legend_background_color=nothing,
+    #     legend_foreground_color=nothing,
+    #     xlabel=L"L",
+    #     ylabel=L"g(0, \Delta t), g_{space}",
+    #     title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+    #     )
+
+    # plot!(fig, Llis, scLlis, label=L"(δx,δt) = (L/2, 0)", color=:red, linestyle=:dash, linewidth=2, xticks=Llis, marker=:circle, markersize=4)
+
+    # plot!(fig, Llis, tcLlis, label=(round.(Int, δtlis./2))', marker=:circle, colorbar=false, marker_z=δtlis',line_z=δtlis', color=:blues, linestyle=:dash, linewidth=2)
+
+    c = cgrad(:blues, length(Llis), categorical=true)
+    fig = plot(
+        legend_background_color=nothing,
+        legend_foreground_color=nothing,
+        xlabel=L"δt/L",
+        ylabel=L"g(0, \Delta t)/g_{space}",
+        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+        )
+
+    for (i, L) in enumerate(Llis)    
+        plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], linewidth=2, marker=:circle, markersize=4)
+    end
+
+    return fig
+end
+
 function alpha_compute_corr(L, τ)
     D = get_system_params_corr(τ)
 
