@@ -32,6 +32,7 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+    @assert newT == BitStr{N + k_old, Int} "The extended_basis should be BitStr{$(N + k_old), Int}, but got $newT"
 
     mapped_state = zeros(ET, length(state))
 
@@ -222,8 +223,7 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
     # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
     basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
     len_F   = length(basis_F)
-    l = length(state)
-    
+        
 
     # old reference qubit number, k_old
     k_old = round(Int, log2(length(state) ÷ len_F))
@@ -254,8 +254,8 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
         resettype = resettable[anyon_type]
 
-        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc, extended_basis=extended_basis, k_old=k_old, anyon_type=resettype)
-        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, extended_basis=extended_basis, k_old=k_old, anyon_type=resettype)
+        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc, extended_basis=extended_basis_old, k_old=k_old, anyon_type=resettype)
+        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, extended_basis=extended_basis_old, k_old=k_old, anyon_type=resettype)
 
         prob_sqrt0 = state_after_0' * state_after_0
         prob_sqrt1 = 1 - prob_sqrt0

@@ -208,16 +208,17 @@ end
     ϕ = (1 + √5) / 2  
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
+    ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc))
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, extended_basis=ext_basis)
     @test output13 == 0.5*[(1-ϕ^(-1)), 1, 1, -ϕ^(-3/2), -ϕ^(-3/2), 0, 0, ϕ^(-1)]
     @test output23 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), 1, ϕ^(-1)-ϕ^(-3/2), 0, 0 , 0, 0, 1]
     @test output33 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), ϕ^(-1)-ϕ^(-3/2), 1, 0, 0, 0, 0, 1]
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0)
-    output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0)
-    output33 = FibonacciChain.reference_measuremap(T, τ, st, 3, 1, pbc, k_old=0)
+    output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output33 = FibonacciChain.reference_measuremap(T, τ, st, 3, 1, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
     @test output13 == measuremap(N, τ, st, 1, 0, pbc)
     @test output23 == measuremap(N, τ, st, 2, 0, pbc)
     @test output33 == measuremap(N, τ, st, 3, 1, pbc)
@@ -235,9 +236,10 @@ end
     anyon_type2 = :IsingZZ
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type1, entangle_way = :reset)[3]
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc, anyon_type=anyon_type1))
+    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2, extended_basis=ext_basis)
     @test output13[[1, 5, 9, 13]] ≈ 1/2√2*ones(4)
     @test output23[[1, 3, 13, 15]] ≈ 1/2√2*ones(4)
     @test output33[[1]] ≈ [1/√2]
