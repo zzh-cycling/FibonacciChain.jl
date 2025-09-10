@@ -397,7 +397,7 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
             statelis[t₂+1:end] = final_stlis2
             return statelis
         else
-            state3 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type)
+            state3 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
             final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
             return final_stlis2
         end
