@@ -39,14 +39,14 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
         
     if entangle_way == :copy
-        ref3st = reference_evolution(τ, statelis, ref_sample, L÷2, D, D+δt, anyon_type=:IsingX, verbose=true)
+        ref3st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true)
         sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
         S = ee(sysrdm)
         spatio = (δt == 0) ? true : false
         spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX, spatio=spatio)
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
     return temporal_corr, spatial_corr, S
 end
 
@@ -199,12 +199,19 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
     #     tc0lis[idx] = temporal_corr_lis[end]
     # end
     @show δtlis
+    # tc1lis = zeros(length(δtlis))
+    # spatial_corr_lis1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr_lis")
+    # sc1 = spatial_corr_lis1[end]
+    # for (idx, δt) in enumerate(δtlis)
+    #     temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
+    #     tc1lis[idx] = temporal_corr_lis[end]
+    # end
+
     tc1lis = zeros(length(δtlis))
-    spatial_corr_lis1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr_lis")
-    sc1 = spatial_corr_lis1[end]
+    sc1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
-        tc1lis[idx] = temporal_corr_lis[end]
+        temporal_corr, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr", "spatial_corr")
+        tc1lis[idx] = temporal_corr
     end
 
     # plot!(fig, δtlis./2L, tc0lis./sc0, label=L"s=0", xticks=δtlis./2L, color=:blues, linewidth=2, marker=:circle, markersize=4)
@@ -214,10 +221,10 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2))
-    Llis = collect(8:2:14)
+    Llis = collect(8:2:16)
     δtlis = collect(2:2:10)
     
-    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L814_t010.jld", "scLlis", "tcLlis")
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t010.jld", "scLlis", "tcLlis")
     # fig = plot(
     #     legend_background_color=nothing,
     #     legend_foreground_color=nothing,
@@ -271,7 +278,7 @@ gamma=tanh(log(1 + √2))
 
 
 # fig_corr = plot_stc_tlis(10, anyon_type= :IsingZ, sign=0)
-# fig= plot_tc(12, anyon_type= :IsingX)
+# fig= plot_tc(11, anyon_type= :IsingX)
 
 if length(ARGS) == 0
     println("No arguments provided.")
@@ -282,7 +289,7 @@ else
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection_Ising(L, τ, 10L, δt, sign=1)
+    compute_post_selection_Ising(L, τ, 8L, δt, sign=1)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
