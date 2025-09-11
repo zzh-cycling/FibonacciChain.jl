@@ -39,14 +39,21 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
         
     if entangle_way == :copy
-        ref3st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true)
-        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
+        if δt == 0
+            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            spatial = true
+            temporal = false
+        else
+            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            temporal = true
+            spatial = false
+        end
+        spatial_corr, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
         S = ee(sysrdm)
-        spatio = (δt == 0) ? true : false
-        spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX, spatio=spatio)
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/2point_newL$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
     return temporal_corr, spatial_corr, S
 end
 
@@ -114,6 +121,23 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
     end
 end
 
+function organize()
+    Llis = collect(5:2:15)
+    δtlis = collect(2:2:12)
+    scLlis = zeros(Float64, length(Llis))
+    tcLlis = zeros(Float64, length(Llis), length(δtlis))
+    for (i, L) in enumerate(Llis)
+        τ = log(1 + √2)
+        D = (L == 11) ? 10 : 8
+        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
+        scLlis[i] = spatial_corr
+        for (j, δt) in enumerate(δtlis)
+            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr")
+            tcLlis[i, j] = temporal_corr
+        end
+    end
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newstc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+end
 
 function get_system_params_corr(τ)
     D = Dict(
@@ -176,7 +200,7 @@ function plot_ref_ee(eelis, gamma)
     return fig
 end
 
-function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX)
+function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1, anyon_type::Symbol=:IsingX)
     # Plot the temporal correlations vs δt
     
     fig = plot(
@@ -190,7 +214,7 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
         )
         
         
-    δtlis = collect(2:2:10)
+    δtlis = collect(2:2:12)
     # tc0lis = Vector{Float64}(undef, length(δtlis))
     # spatial_corr_lis0 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_0.jld", "spatial_corr_lis")
     # sc0 = spatial_corr_lis0[end]
@@ -208,23 +232,30 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=
     # end
 
     tc1lis = zeros(length(δtlis))
-    sc1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
+    sc1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld", "spatial_corr")
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr, spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr", "spatial_corr")
+        temporal_corr= load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",  "temporal_corr")
         tc1lis[idx] = temporal_corr
     end
 
     # plot!(fig, δtlis./2L, tc0lis./sc0, label=L"s=0", xticks=δtlis./2L, color=:blues, linewidth=2, marker=:circle, markersize=4)
     plot!(fig, δtlis./2L, tc1lis./sc1, label=L"s=1", xticks=δtlis./2L, color=:reds, linewidth=2, marker=:circle, markersize=4)
 
+    t_star = log(1 + √2)/ π
+    plot!(fig, t_star*[1, 1],[minimum(tc1lis./sc1), maximum(tc1lis./sc1)], linestyle=:dash, color=:gray, label = false)
+    plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
+    scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false) # 
+    annotate!(fig, t_star+0.1, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 10, :black))
+
     return fig
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2))
-    Llis = collect(8:2:16)
-    δtlis = collect(2:2:10)
-    
-    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t010.jld", "scLlis", "tcLlis")
+    Llis = collect(8:2:14)
+    # Llis = collect(5:2:15)
+    δtlis = collect(2:2:12)
+
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newstc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
     # fig = plot(
     #     legend_background_color=nothing,
     #     legend_foreground_color=nothing,
@@ -250,6 +281,11 @@ function plot_stc_scaling(τ::Float64=log(1+√2))
         plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], linewidth=2, marker=:circle, markersize=4)
     end
 
+    t_star = log(1 + √2)/ π
+    plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
+    plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
+    scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false)
+    annotate!(fig, t_star+0.1, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 10, :black))
     return fig
 end
 
