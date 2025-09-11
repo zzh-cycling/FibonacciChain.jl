@@ -53,7 +53,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
         S = ee(sysrdm)
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/2point_newL$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
     return temporal_corr, spatial_corr, S
 end
 
@@ -122,21 +122,21 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
 end
 
 function organize()
-    Llis = collect(5:2:15)
-    δtlis = collect(2:2:12)
+    Llis = collect(8:2:16)
+    δtlis = collect(2:2:16)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
     for (i, L) in enumerate(Llis)
         τ = log(1 + √2)
-        D = (L == 11) ? 10 : 8
-        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
+        D = 8
+        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
         scLlis[i] = spatial_corr
         for (j, δt) in enumerate(δtlis)
-            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newL$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr")
+            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr")
             tcLlis[i, j] = temporal_corr
         end
     end
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newstc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
 end
 
 function get_system_params_corr(τ)
@@ -251,11 +251,10 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1, anyon_
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2))
-    Llis = collect(8:2:14)
-    # Llis = collect(5:2:15)
-    δtlis = collect(2:2:12)
+    Llis = collect(8:2:16)
+    δtlis = collect(2:2:16)
 
-    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/newstc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
     # fig = plot(
     #     legend_background_color=nothing,
     #     legend_foreground_color=nothing,
