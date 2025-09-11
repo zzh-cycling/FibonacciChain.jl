@@ -6,6 +6,24 @@ using BitBasis
 using LaTeXStrings
 using Plots
 
+function organize(sign::Int64=1)
+    Llis = collect(8:2:16)
+    δtlis = collect(2:2:16)
+    scLlis = zeros(Float64, length(Llis))
+    tcLlis = zeros(Float64, length(Llis), length(δtlis))
+    for (i, L) in enumerate(Llis)
+        τ = log(1 + √2)
+        D = 8
+        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld", "spatial_corr")
+        scLlis[i] = spatial_corr
+        for (j, δt) in enumerate(δtlis)
+            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",  "temporal_corr")
+            tcLlis[i, j] = temporal_corr
+        end
+    end
+    save("exm/data/Bulk_measure/spatial_temporal_corr/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+end
+
 function get_system_params(τ, L)
     table = Dict(
             atanh(0.1)  => (2500L, 1000, 1500L),
@@ -28,40 +46,50 @@ end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24, sign::Int64=0)
     pbc = true
-    anyon_type = :Fibo
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D, length(2:2:L)) : ones(Int, D+δt+D, length(2:2:L))
 
-    final_st= statelis[L*start_point]
-    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc=pbc, anyon_type=anyon_type)
-    
-    timeslice1 = L*start_point
-    temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j, anyon_type=anyon_type) for j in timeslice1+1:2:D-10]
+    if entangle_way == :copy
+        if δt == 0
+            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            spatial = true
+            temporal = false
+        else
+            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            temporal = true
+            spatial = false
+        end
+        spatial_corr, temporal_corr = ref_correlation(L, ref2st, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, traceref = false)
+        S = ee(sysrdm)
+    end
 
-    save("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr", spatial_corr)
+    save("exm/data/Bulk_measure/spatial_temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    return temporal_corr, spatial_corr, S
+
 end
 
-function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, δt::Int=4; sign::Int64=0, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=20L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
     pbc = true
-    anyon_type = :Fibo
  
     # 1). First evolve to steady state with D time steps
     sample = (sign==0) ? zeros(Int, D, length(2:2:L)) : ones(Int, D, length(2:2:L))
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
     
     δt = iseven(δt) ? δt : δt - 1
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    statelis = generate_state(τ, initial_state, sample, temp= true)
     
     # tlis is the time list after adding two ref qubits.
-    tlis = collect(1:2:D)
+    tlis = collect(0:2:D)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
@@ -71,11 +99,18 @@ function spatial_temporal_corr_varying(L::Int64, τ::Float64, D::Int64=20L, δt:
         for (idx, t) in enumerate(tlis)
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, length(2:2:L)) : ones(Int, t+δt + D, length(2:2:L))
         
-            ref3st = reference_evolution(τ, statelis, ref_sample, L÷2, D, D+δt, anyon_type=anyon_type, verbose=true)
-            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=anyon_type, traceref = false)
+            if δt == 0
+                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) 
+                spatial = true
+                temporal = false
+            else
+                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1)
+                temporal = true
+                spatial = false
+            end
+            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, traceref = false)
             eelis[idx] = ee(sysrdm)
-            spatio = (δt == 0) ? true : false
-            spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=anyon_type, spatio=spatio)
+            spatial_corr, temporal_corr = ref_correlation(L, ref2st, spatio=spatial, temporal=temporal)
             temporal_corr_lis[idx] = temporal_corr
             spatial_corr_lis[idx] = spatial_corr
         end

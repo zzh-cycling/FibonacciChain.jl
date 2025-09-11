@@ -96,6 +96,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
             eelis[idx] = ee(sysrdm)
             temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
             # spatial_correlation.(L, final_st, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
+
         end
         
         # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
@@ -104,14 +105,21 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
     elseif entangle_way == :copy
         for (idx, t) in enumerate(tlis)
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
-        
-            ref3st = reference_evolution(τ, statelis, ref_sample, L÷2, D, D+δt, anyon_type=:IsingX, verbose=true)
-            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref3st, anyon_type=:IsingX, traceref = false)
+
+            if δt == 0
+                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+                spatial = true
+                temporal = false
+            else
+                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+                temporal = true
+                spatial = false
+            end
+            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
             eelis[idx] = ee(sysrdm)
-            spatio = (δt == 0) ? true : false
-            spatial_corr, temporal_corr = ref_correlation(L, ref3st, anyon_type=:IsingX, spatio=spatio)
+            spatial_corr, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, spatio=spatial, temporal=temporal)
             temporal_corr_lis[idx] = temporal_corr
-            spatial_corr_lis[idx] = spatial_corr
+            spatial_corr_lis[idx] = spatial_corr 
         end
 
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
@@ -272,19 +280,21 @@ function plot_stc_scaling(τ::Float64=log(1+√2))
         legend_background_color=nothing,
         legend_foreground_color=nothing,
         xlabel=L"δt/L",
-        ylabel=L"g(0, \Delta t)/g_{space}",
-        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+        ylabel=L"g(0, \delta t)/g(\delta x=L/2, 0)",
+        title="spacetime self-dual",
         )
 
-    for (i, L) in enumerate(Llis)    
-        plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], linewidth=2, marker=:circle, markersize=4)
+    for (i, L) in enumerate(Llis[1:end-1])    
+        scatter!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
+
+    plot!(fig, δtlis./(2Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
 
     t_star = log(1 + √2)/ π
     plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
     plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
     scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false)
-    annotate!(fig, t_star+0.1, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 10, :black))
+    annotate!(fig, t_star+0.15, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 8, :black))
     return fig
 end
 
