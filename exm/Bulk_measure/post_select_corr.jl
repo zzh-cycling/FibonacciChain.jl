@@ -6,14 +6,12 @@ using BitBasis
 using LaTeXStrings
 using Plots
 
-function organize(sign::Int64=1)
-    Llis = collect(8:2:16)
-    δtlis = collect(2:2:16)
+function organize(τ::Float64, sign::Int64=1)
+    δtlis, Llis = get_δtL(τ)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
     for (i, L) in enumerate(Llis)
-        τ = log(1 + √2)
-        D = 8
+        D = get_system_params_corr(τ)
         spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld", "spatial_corr")
         scLlis[i] = spatial_corr
         for (j, δt) in enumerate(δtlis)
@@ -21,7 +19,7 @@ function organize(sign::Int64=1)
             tcLlis[i, j] = temporal_corr
         end
     end
-    save("exm/data/Bulk_measure/spatial_temporal_corr/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
 end
 
 function get_system_params(τ, L)
@@ -42,6 +40,17 @@ function get_system_params(τ, L)
     inds = collect(1:step:D)
     avg_range = start:D-5
     return D, inds, avg_range
+end
+
+function get_δtL(τ)
+    table = Dict(
+            atanh(0.1)  => (collect(2:2:60), collect(8:4:16)),
+            atanh(0.2)  => (collect(2:2:40), collect(8:4:16)),
+            atanh(0.3)  => (collect(2:2:20), collect(8:4:20)),
+            atanh(0.4)  => (collect(2:2:20), collect(8:4:20)),
+        )
+    δtlis, Llis = get(table, τ, (collect(2:2:10), collect(8:4:20)))
+    return  δtlis, Llis
 end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy)
@@ -124,16 +133,16 @@ end
 
 function get_system_params_corr(τ)
     D = Dict(
-        atanh(0.1)  => 2500,
-        atanh(0.2)  => 500,
-        atanh(0.3)  => 120,
-        atanh(0.4)  => 100,
-        atanh(0.5)  => 80,
-        atanh(0.6)  => 45,
-        log(1 + √2) => 35,
-        atanh(0.8)  => 25,
-        atanh(0.9)  => 8,
-        atanh(0.95) => 8,
+        atanh(0.1)  => 600,
+        atanh(0.2)  => 125,
+        atanh(0.3)  => 30,
+        atanh(0.4)  => 25,
+        atanh(0.5)  => 20,
+        atanh(0.6)  => 12,
+        log(1 + √2) => 8,
+        atanh(0.8)  => 6,
+        atanh(0.9)  => 5,
+        atanh(0.95) => 5,
         atanh(0.999)=> 5,
     )
     return get(D, τ, 5)   # 5 is the default value for τ=1000.0
@@ -141,7 +150,7 @@ end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = collect(2:2:10)
+    δtlis = (τ>=atanh(0.5)) ? collect(2:2:10) : collect(2:2:20)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(
@@ -217,28 +226,78 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
     return fig, tc0lis./sc0, tc1lis./sc1
 end
 
-function alpha_compute_corr(L, τ)
-    D = get_system_params_corr(τ)
+function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
+    Llis = collect(8:4:20)
+    if τ >= atanh(0.5)
+        δtlis = collect(2:2:10)
+    elseif τ <= atanh(0.1)
+        δtlis = collect(2:2:60)
+    else
+        δtlis = collect(2:2:20)
+    end
 
-    temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
 
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis ./ spatial_corr)
+    c = cgrad(:blues, length(Llis), categorical=true)
+    fig = plot(
+        legend_background_color=nothing,
+        legend_foreground_color=nothing,
+        xlabel=L"δt/L",
+        ylabel=L"g(0, \delta t)/g(\delta x=L/2, 0)",
+        title=latexstring("γ= $(round(tanh(τ), digits=3)), s=$(sign)"),
+        # ylim=(0.95, 1.05),
+        )
+
+    # for (i, L) in enumerate(Llis[1:end-1])    
+    #     scatter!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
+    # end
+
+    # plot!(fig, δtlis./(2Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
+
+    for (i, L) in enumerate(Llis[1:end])    
+        plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
+    end
+
+    # t_star = log(1 + √2)/ π
+    # plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
+    plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
+    # scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false)
+    # annotate!(fig, t_star+0.15, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 8, :black))
+    return fig, tcLlis./scLlis  
+end
+
+function alpha_compute_corr(τ)
+    δtlis, Llis = get_δtL(τ)
+
+    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
+    
+    ratio = tcLlis./scLlis
+    inds = findall(x-> isapprox(x, 1.0, atol=0.1), ratio[end,:])
+    
+    linear_model(x,p) = p[1] * x .+ p[2]
+
     if !isempty(inds)
-        Δt = (collect(1:length(temporal_corr_lis))./L)[inds][end-1]
-        α = log(1+√2)/π/Δt
-        return α
+        fit = curve_fit(linear_model, δtlis[inds]./2/Llis[end], ratio[end, inds], [1.0, 1.0])
+        a = fit.param[1]
+        b = fit.param[2]
+        t = (1-b)/a
+        α = log(1+√2)/π/t
+        return α,t
     else
         return NaN
     end
 end
 
-function alphalis_corr(γlis, L_list)
-    αlis = [alpha_compute_corr(L, τ) for (L, τ) in zip(L_list[end], τlis)]
+function alphalis_corr(τlis)
+    αlis = [alpha_compute_corr(τ)[1] for (τ) in τlis]
+    tlis = [alpha_compute_corr(τ)[2] for (τ) in τlis]
+    @show tlis
     return αlis
 end
 
 # 添加辅助函数
 
+# αlis = [0.1727892970244856, 0.3400420163610316, 0.522784271836154, 0.6872600192202489, 0.9094895390374313, 1.1169076314891018, 1.410107539026646, 1.8083920281560268, 2.658491243484519, 3.6391966478869002]
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
