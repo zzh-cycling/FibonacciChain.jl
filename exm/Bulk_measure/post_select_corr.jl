@@ -182,7 +182,7 @@ function plot_ref_ee(eelis, gamma, L)
     return fig
 end
 
-function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); anyon_type::Symbol=:Fibo)
+function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
     # Plot the temporal correlations vs δt
     δtlis = collect(2:2:10)
 
