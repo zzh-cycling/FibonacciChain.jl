@@ -44,7 +44,7 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0)
+function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy)
     pbc = true
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
