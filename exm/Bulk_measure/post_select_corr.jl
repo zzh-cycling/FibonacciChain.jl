@@ -44,7 +44,7 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L, start_point::Int64=24, sign::Int64=0)
+function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L; sign::Int64=0)
     pbc = true
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
@@ -257,23 +257,8 @@ else
     
     if length(ARGS) >= 3
         δt = parse(Int, ARGS[3])
-        spatial_temporal_corr_varying(L, τ, D, δt, sign=1)
+        spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
     else
-        compute_post_selection(L, τ, D)
+        compute_post_selection(L, τ, D, sign=1)
     end
 end
-
-# 示例运行代码
-for i in 8:2:12
-    τ = τlis[findfirst(γlis .== 1.0)]
-    D, _, _ = get_system_params(τ, i)
-    compute_post_selection(i, τ, D, round(Int, 24/35*div(D,i)))
-end
-
-# 设置参数并生成图像
-gamma = 1.0
-τ = 1000.0
-L_list = collect([8, 10, 12])
-fig = plot_corr(L_list)
-
-# savefig(fig, "exm/data/Bulk_measure/corr_plot_L$(L_list[1])$((L_list[end]))_τ$(τ).pdf")
