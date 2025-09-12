@@ -48,10 +48,10 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
     pbc = true
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    statelis = generate_state(τ, initial_state, sample, temp= true)
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D, length(2:2:L)) : ones(Int, D+δt+D, length(2:2:L))
 
     if entangle_way == :copy
