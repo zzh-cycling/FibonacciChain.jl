@@ -26,16 +26,16 @@ end
 
 function get_system_params(τ, L)
     table = Dict(
-            atanh(0.1)  => (2500L, 1000, 1500L),
-            atanh(0.2)  => (500L,  100, 250L),
-            atanh(0.3)  => (120L,  48, 100L),
-            atanh(0.4)  => (100L,  40, 80L),
-            atanh(0.5)  => (80L,   32, 40L),
-            atanh(0.6)  => (45L,   20, 30L),
-            log(1 + √2) => (35L,   14, 20L),
-            atanh(0.8)  => (25L,   10, 10L),
-            atanh(0.9)  => (8L,    4, 4L),
-            atanh(0.95) => (8L,    4, 4L),
+            atanh(0.1)  => (600L, 1000, 1500L),
+            atanh(0.2)  => (125L,  100, 250L),
+            atanh(0.3)  => (30L,  48, 100L),
+            atanh(0.4)  => (25L,  40, 80L),
+            atanh(0.5)  => (20L,   32, 40L),
+            atanh(0.6)  => (12L,   20, 30L),
+            log(1 + √2) => (8L,   14, 20L),
+            atanh(0.8)  => (6L,   10, 10L),
+            atanh(0.9)  => (5L,    4, 4L),
+            atanh(0.95) => (5L,    4, 4L),
             atanh(0.999)=> (5L,    2, 2L),
         )
     D, step, start = get(table, τ, (5L, 2, 2L))
@@ -44,7 +44,7 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection(L::Int64, τ::Float64, D::Int64=35L; sign::Int64=0)
+function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0)
     pbc = true
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
@@ -139,7 +139,7 @@ function get_system_params_corr(τ)
     return get(D, τ, 5)   # 5 is the default value for τ=1000.0
 end
 
-function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:Fibo, sign::Int=0)
+function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
     δtlis = collect(2:2:10)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
@@ -251,14 +251,10 @@ if length(ARGS) == 0
 else
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
+    δt = parse(Int, ARGS[3])
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
-    
-    if length(ARGS) >= 3
-        δt = parse(Int, ARGS[3])
-        spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
-        println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
-    else
-        compute_post_selection(L, τ, D, sign=1)
-    end
+    println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
+    # spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
+    compute_post_selection(L, τ, D, δt, sign=1)
 end
