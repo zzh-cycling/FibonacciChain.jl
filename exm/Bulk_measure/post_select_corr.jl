@@ -6,6 +6,19 @@ using BitBasis
 using LaTeXStrings
 using Plots
 
+function get_δtL(τ)
+    table = Dict(
+            atanh(0.1)  => (collect(2:2:70), collect(8:4:20)),
+            atanh(0.2)  => (collect(2:2:40), collect(8:4:20)),
+            atanh(0.3)  => (collect(2:2:30), collect(8:4:20)),
+            atanh(0.4)  => (collect(2:2:20), collect(8:4:20)),
+            atanh(0.5)  => (collect(2:2:16), collect(8:4:20)),
+            atanh(0.6)  => (collect(2:2:12), collect(8:4:20)),
+        )
+    δtlis, Llis = get(table, τ, (collect(2:2:10), collect(8:4:20)))
+    return  δtlis, Llis
+end
+
 function organize(τ::Float64, sign::Int64=1)
     δtlis, Llis = get_δtL(τ)
     scLlis = zeros(Float64, length(Llis))
@@ -40,17 +53,6 @@ function get_system_params(τ, L)
     inds = collect(1:step:D)
     avg_range = start:D-5
     return D, inds, avg_range
-end
-
-function get_δtL(τ)
-    table = Dict(
-            atanh(0.1)  => (collect(2:2:60), collect(8:4:16)),
-            atanh(0.2)  => (collect(2:2:40), collect(8:4:16)),
-            atanh(0.3)  => (collect(2:2:20), collect(8:4:20)),
-            atanh(0.4)  => (collect(2:2:20), collect(8:4:20)),
-        )
-    δtlis, Llis = get(table, τ, (collect(2:2:10), collect(8:4:20)))
-    return  δtlis, Llis
 end
 
 function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy)
@@ -228,13 +230,7 @@ end
 
 function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
     Llis = collect(8:4:20)
-    if τ >= atanh(0.5)
-        δtlis = collect(2:2:10)
-    elseif τ <= atanh(0.1)
-        δtlis = collect(2:2:60)
-    else
-        δtlis = collect(2:2:20)
-    end
+    δtlis = get_δtL(τ)[1]
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
 
@@ -245,18 +241,18 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
         xlabel=L"δt/L",
         ylabel=L"g(0, \delta t)/g(\delta x=L/2, 0)",
         title=latexstring("γ= $(round(tanh(τ), digits=3)), s=$(sign)"),
-        # ylim=(0.95, 1.05),
+        ylim=(0.95, 1.05),
         )
 
-    # for (i, L) in enumerate(Llis[1:end-1])    
-    #     scatter!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
-    # end
-
-    # plot!(fig, δtlis./(2Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
-
-    for (i, L) in enumerate(Llis[1:end])    
-        plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
+    for (i, L) in enumerate(Llis[1:end-1])    
+        scatter!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
+
+    plot!(fig, δtlis./(2Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
+
+    # for (i, L) in enumerate(Llis[1:end])    
+    #     plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
+    # end
 
     # t_star = log(1 + √2)/ π
     # plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
