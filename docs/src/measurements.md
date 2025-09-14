@@ -67,7 +67,7 @@ measurement_sites = 2:2:N
 layer_sample = rand([0, 1], length(measurement_sites))
 
 # Apply measurement layer
-evolved_state = apply_measurement_layer!(N, initial_state, τ, layer_sample, 1)
+evolved_state = _apply_measurement_layer!(N, initial_state, τ, layer_sample, 1)
 ```
 
 ### Boundary Measurement Sampling

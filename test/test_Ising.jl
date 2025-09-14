@@ -456,7 +456,7 @@ end
     @test EE ≈ log(2)*ones(L-1) atol = 1e-4
 end
 
-@testset "apply_measurement_layer" begin
+@testset "_apply_measurement_layer" begin
     N = 6
     τ = 1e3
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
@@ -465,7 +465,7 @@ end
     sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = sample_measured_states[end]
 
-    new_state = FibonacciChain.apply_measurement_layer!(N, st, τ, samples[1,:], 1, anyon_type=:IsingX)
+    new_state = _apply_measurement_layer!(N, st, τ, samples[1,:], 1, anyon_type=:IsingX)
     @test new_state ≈ sample_measured_states[1]
 end
 

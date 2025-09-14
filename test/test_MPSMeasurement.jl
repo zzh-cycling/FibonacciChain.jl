@@ -187,7 +187,7 @@ end
     @test bulk_free_energy ≈ bulk_free_energy_exact
 end
 
-@testset "apply_measurement_layer_mps" begin
+@testset "_apply_measurement_layer!" begin
     N = 6
     pbc = true
     τ = 1.0
@@ -202,9 +202,9 @@ end
     measurement_layer = 2
     bulk_samples = [1, 1, 1]
     
-    ψ_layer= FibonacciChain.apply_measurement_layer_mps!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
-    
-    st_exact= FibonacciChain.apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
+    ψ_layer= FibonacciChain._apply_measurement_layer!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
+
+    st_exact= FibonacciChain._apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
 
