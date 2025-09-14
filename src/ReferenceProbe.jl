@@ -330,7 +330,7 @@ reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true
 """
     reference_evolution(τ, forward, sample, site, t₁, t₂; pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false)
 
-Compute temporal correlation between two time slices using cached forward evolution.
+Compute temporal correlation between two time slices using cached forward evolution and given trajectory (doing the post selection).
 
 # Arguments
 - `τ`: Evolution time parameter
@@ -346,13 +346,13 @@ Compute temporal correlation between two time slices using cached forward evolut
 - `verbose::Bool=false`: Enable verbose output
     
 # Returns
-- Reference qubit added state between specified time slices
+- Reference qubit added state between specified spacetime slices.
 
 Avoids redundant computation by reusing forward evolution results.
 """
 function reference_evolution(τ::Float64, forward, sample, x₂::Int, t₁, t₂; x₁::Int=1,
 pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
-    # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution.
+    # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
     # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
     # | ---->|
     # forward
@@ -370,6 +370,136 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
 
     δt = t₂ - t₁ # if δt = 0, pure spatial correlation
     δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
+
+    if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
+        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
+        state = forward[t₁]
+    
+        # 2) add reference qubit 1 at x₁, and reference qubit 2 at x₂
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        
+        # 3) t₁ → t₂ evolution, or δt
+        final_stlis1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+        
+        if temp
+            statelis = Vector{Any}(undef, D) # cause state type can be ET, ET+2 qubits, ET+3 qubits
+            # 4) add reference qubit 3 at x₂
+            state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
+    
+            # 5) t₂ → D evolution
+            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            statelis[1:t₁] = forward[1:t₁]
+            statelis[t₁+1:t₂] = final_stlis1
+            statelis[t₂+1:end] = final_stlis2
+            return statelis
+        else
+            state3 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+            final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            return final_stlis2
+        end
+    elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
+        verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
+        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
+        state = forward[t₁]
+    
+        # 2) add reference qubit 1 at x₁, and reference qubit 2 at x₂
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+
+        if temp
+            statelis = Vector{Any}(undef, D)
+            # 3) t₁ → D evolution
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            statelis[1:t₁] = forward[1:t₁]
+            statelis[t₁+1:t₂] = final_stlis1
+            statelis[t₂+1:end] = final_stlis2
+            return statelis
+        else
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            return final_stlis2
+        end
+    elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
+        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
+        state = forward[t₁]    
+        # 2) add reference qubit 1 at x₁
+        state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+        # 3) t₁ → t₂ evolution, or δt
+        final_stlis1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+
+        if temp     
+            statelis = Vector{Any}(undef, D)
+            state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
+            # 3) t₁ → D evolution
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            statelis[1:t₁] = forward[1:t₁]
+            statelis[t₁+1:end] = final_stlis2
+            return statelis
+        else
+            state2 = add_reference_qubits!(N, final_stlis1, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
+            final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
+            return final_stlis2
+        end
+    else
+        error("t₂ must be greater than or equal to t₁")
+    end
+end
+
+"""
+    reference_evolution(N, τ, forward, D, rng, site, t₁, t₂; pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false)
+
+Compute temporal correlation between two time slices using cached forward evolution and without trajectory (Born driven trajectory).
+
+# Arguments
+- `N::Int`: System size
+- `τ`: Evolution time parameter
+- `forward`: Cached forward state evolution trajectory
+- `D`: Total number of time slices
+- `rng`: Random number generator
+- `x₂`: Site index for reference qubit insertion
+- `t₁`: First time slice index
+- `t₂`: Second time slice index (must be >= t₁)
+- `x₁::Int=1`: Spatial site index for first reference qubit
+- `pbc=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+- `temp::Bool=false`: Return trajectory if true
+- `verbose::Bool=false`: Enable verbose output
+    
+# Returns
+- Reference qubit added state between specified spacetime slices.
+
+Avoids redundant computation by reusing forward evolution results.
+"""
+function reference_evolution(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, x₂::Int, t₁, t₂; x₁::Int=1,
+pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false,    rng::MersenneTwister=MersenneTwister()) where {ET}
+    # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, without the trajectory, do the Born driven trajectory.
+    # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
+    # | ---->|
+    # forward
+    #       Ref1                    x₁ = 1            
+    #        |
+    #        |
+    #       Ref2 --> Ref3               x₂ = L/2
+    # | ----> |______| -----> |
+    # 0      t₁   t₂=t₁+δt   D
+
+    @assert 1 <= t₁ <= t₂ <= D "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D)]"
+    @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
+
+    δt = t₂ - t₁ # if δt = 0, pure spatial correlation
+    δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
+
+    sample_free_energy = Vector{Float64}(undef, D)
+    sample_measured_states = Vector{Any}(undef, D)
+    
+    current_state = copy(state)  
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
@@ -451,4 +581,3 @@ pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false)
         error("t₂ must be greater than or equal to t₁")
     end
 end
-
