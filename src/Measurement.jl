@@ -387,7 +387,7 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 
 Samples measurement outcomes with given measurement outcomes.
 """
-# Helper function to apply measurements to a layer
+# Helper function to apply deterministic measurements to a layer
 function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo, return_free_energy::Bool=false) where {T}
     total_free_energy = zero(real(T))
     if anyon_type == :Fibo
@@ -404,7 +404,7 @@ function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer
             state ./= sqrt(prob_p)
         end
 
-        return return_free_energy ? (total_free_energy,  state) :  state
+        return return_free_energy ? (state, total_free_energy) :  state
 
     elseif anyon_type ∈ (:IsingX, :IsingZZ, :IsingZ)
         # measure at all sites!!!
@@ -428,7 +428,7 @@ function apply_measurement_layer!(N::Int64, state::Vector{T}, τ::Float64, layer
             end
         end
 
-        return return_free_energy ? (total_free_energy, state) : state
+        return return_free_energy ? (state, total_free_energy) : state
     else
         error("Unknown measure class: $anyon_type")
     end
@@ -477,36 +477,36 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
             τ_eff = (layer == D) ? τ/2 : τ
 
             if return_free_energy
-                state_measured, ΔF = apply_measurement_layer!(
+                state, ΔF = apply_measurement_layer!(
                                 N, state, τ_eff,
                                 sample[layer, :], layer, pbc;
                                 anyon_type=anyon_type,
                                 return_free_energy=true)
                 layer_free_energy[layer] += ΔF
             else
-                state_measured = apply_measurement_layer!(
+                state = apply_measurement_layer!(
                             N, state, τ_eff,
                             sample[layer, :], layer, pbc;
                             anyon_type=anyon_type,
                             return_free_energy=false)
             end
 
-            temp && (statelis[layer] = state_measured)
+            temp && (statelis[layer] = state)
         end
 
         # 统一返回
         if temp
             return return_free_energy ? (statelis, layer_free_energy) : statelis
         else
-            return return_free_energy ? (state_measured, layer_free_energy) : state_measured
+            return return_free_energy ? (state, layer_free_energy) : state
         end
     else
         error("Unsupported sample type: $ET")
     end
 end
 
-# return (state_measured, sample, free_energy) of one layer
-function _sample_layer!(state, τ_eff, sites, rng, N, pbc, anyon_type)
+# return (state_measured, sample, free_energy) of one layer, do the random measurement on a layer, in contrast to apply_measurement_layer! No sample input, but output the sample.
+function _sample_layer!(N, state, τ_eff, sites, rng, pbc, anyon_type)
     n = length(sites)
     sample = zeros(Int, n)
     F_layer = 0.0
@@ -519,17 +519,17 @@ function _sample_layer!(state, τ_eff, sites, rng, N, pbc, anyon_type)
 
         if rand(rng) < p0
             sample[i] = 0
-            state_measured = ψ0 ./ sqrt(p0)
+            state = ψ0 ./ sqrt(p0)
             F_layer += -log(p0)
         else
             # else 1 branch
             ψ1 = measuremap(N, τ_eff, state, site, 1, pbc, anyon_type = anyon_type)
             sample[i] = 1
-            state_measured = ψ1 ./ sqrt(p1)
+            state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
         end
     end
-    return state_measured, sample, F_layer
+    return state, sample, F_layer
 end
 
 """
@@ -549,9 +549,9 @@ Perform measurement evolution on the initial state with specified parameters, re
 - `rng`: Random number generator (default: `Random.default_rng()`)
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `mode::Symbol=:prob`: Sampling mode, one of `:prob`, `:post0`, `:post1`, `:sample`, `:Born`
+- `mode::Symbol=:prob`: evolution mode, one of `:prob`, `:post0`, `:post1`, `:sample`, `:Born`, Born is random sampling, driven by Born rule, other three are deterministic post-selection evolution, with given measurement outcomes.
 - `temp::Bool=false`: If true, return all intermediate states; if false, return only final state
-- `sample_mat::Union{Nothing,Matrix{Int}}=nothing`: Predefined measurement sequences for `:sample` mode
+- `sample::Union{Nothing,Matrix{Int}}=nothing`: Predefined measurement sequences for `:sample` mode
 
 # Returns
 - `Tuple{Union{Vector{ET}, Vector{Vector{ET}}}, Vector{Vector{Int}}, Vector{Float64}}`: 
@@ -569,21 +569,21 @@ function measure_evolution!(N::Int,
                   anyon_type::Symbol = :Fibo,
                   mode::Symbol = :prob,
                   temp::Bool = false,
-                  sample_mat::Union{Nothing,Matrix{Int}}=nothing) where {ET}
+                  sample::Union{Nothing,Matrix{Int}}=nothing) where {ET}
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
-    # ---------- Sample_mat decided according to mode ----------
+    # ---------- Sample decided according to mode ----------
     if mode == :Born
-        sample_mat = zeros(Int, D, n_measure)   # filled in during sampling
+        sample = zeros(Int, D, n_measure)   # to be filled during sampling
     elseif mode == :post0
-        sample_mat = zeros(Int, D, n_measure)
+        sample = zeros(Int, D, n_measure)
     elseif mode == :post1
-        sample_mat = ones(Int, D, n_measure)
+        sample = ones(Int, D, n_measure)
     elseif mode == :sample
-        isnothing(sample_mat) && error("When mode=:sample sample_mat must be ::Matrix{Int}")
-        size(sample_mat) == (D, n_measure) ||
-            error("sample_mat size should be ($D, $n_measure)")
+        isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
+        size(sample) == (D, n_measure) ||
+            error("sample size should be ($D, $n_measure)")
     else
         error("mode must be ∈ [:Born, :post0, :post1, :sample]")
     end
@@ -598,21 +598,25 @@ function measure_evolution!(N::Int,
             τ_eff = (layer == D) ? τ / 2 : τ
 
             # Random sampling for this layer
-            sites = anyon_type == :Fibo ? collect(2:2:N) : collect(1:N) # measurement sites for this layer
-            seq = _sample_layer!(current_state, τ_eff, sites, rng,
-                                 N, pbc, anyon_type)
+            if anyon_type == :Fibo
+                sites = iseven(D) ? collect(1:2:N) : collect(2:2:N) # measurement sites for Fibonacci different layer
+            else
+                sites = collect(1:N) # measurement sites for Ising each layer
+            end
+            
+            current_state, sample_layer, F_layer = _sample_layer!(N, current_state, τ_eff, sites, rng, pbc, anyon_type)
 
-            sample_mat[layer, :] .= seq[1]         
-            free_energies[layer] = seq[2]      
+            sample[layer, :] .= sample_layer
+            free_energies[layer] = F_layer
             if temp
-                states[layer] = copy(current_state)
+                states[layer] = current_state
             end
         end
         final_state = temp ? states : current_state
     else
         # :post0, :post1, :sample, directly deterministic trajectory
         final_state, free_energy = generate_state(
-            τ, state, sample_mat, pbc;
+            τ, state, sample, pbc;
             anyon_type = anyon_type,
             return_free_energy = true,
             temp = temp)
@@ -620,12 +624,12 @@ function measure_evolution!(N::Int,
     end
 
     # 3. Return in same format
-    samples = [sample_mat[layer, :] for layer in 1:D]
+    samples = [sample[layer, :] for layer in 1:D]
     return final_state, samples, free_energies
 end
 
 """
-    Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
 Generate measurement samples at boundary sites with probabilistic outcomes, i.e., without time axis evolution.
 
@@ -645,55 +649,56 @@ Generate measurement samples at boundary sites with probabilistic outcomes, i.e.
 
 Samples measurement outcomes probabilistically based on Born rule.
 """
-function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
-    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+# function Boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+#     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     
-    num_sites = length(measurement_sites)
+#     num_sites = length(measurement_sites)
     
-    sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
-    samples = Vector{Vector{Int64}}(undef, num_samples)
-    sample_free_energy = Vector{Float64}(undef, num_samples)
+#     sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
+#     samples = Vector{Vector{Int64}}(undef, num_samples)
+#     sample_free_energy = Vector{Float64}(undef, num_samples)
 
-    for sample_idx in 1:num_samples
-        current_sequence = Vector{Int64}(undef, num_sites)
-        current_state = copy(state)  
-        total_free_energy = 0.0
+#     for sample_idx in 1:num_samples
+#         current_sequence = Vector{Int64}(undef, num_sites)
+#         current_state = copy(state)  
+#         total_free_energy = 0.0
         
-        # meaure from the left to the right
-        for (site_idx, measurement_site) in enumerate(measurement_sites)
+#         # meaure from the left to the right
+#         for (site_idx, measurement_site) in enumerate(measurement_sites)
            
-            state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc, anyon_type=anyon_type)
+#             state_after_p = measuremap(T, τ, current_state, measurement_site, 0, pbc, anyon_type=anyon_type)
 
 
-            prob_p = real(dot(state_after_p, state_after_p))
-            prob_m = 1 - prob_p
+#             prob_p = real(dot(state_after_p, state_after_p))
+#             prob_m = 1 - prob_p
             
-            random_number = rand(rng)
-            if random_number < prob_p
-                current_sequence[site_idx] = 0
-                current_state = state_after_p ./ sqrt(prob_p)
-                total_free_energy += -log(prob_p)
-            else
-                state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc, anyon_type = anyon_type)
-                current_sequence[site_idx] = 1
-                current_state = state_after_m ./ sqrt(prob_m)
-                total_free_energy += -log(prob_m)
-            end
-        end
+#             random_number = rand(rng)
+#             if random_number < prob_p
+#                 current_sequence[site_idx] = 0
+#                 current_state = state_after_p ./ sqrt(prob_p)
+#                 total_free_energy += -log(prob_p)
+#             else
+#                 state_after_m = measuremap(T, τ, current_state, measurement_site, 1, pbc, anyon_type = anyon_type)
+#                 current_sequence[site_idx] = 1
+#                 current_state = state_after_m ./ sqrt(prob_m)
+#                 total_free_energy += -log(prob_m)
+#             end
+#         end
         
-        sample_measured_states[sample_idx] = current_state
-        samples[sample_idx] = current_sequence
-        sample_free_energy[sample_idx] = total_free_energy
-    end
+#         sample_measured_states[sample_idx] = current_state
+#         samples[sample_idx] = current_sequence
+#         sample_free_energy[sample_idx] = total_free_energy
+#     end
     
-    return sample_measured_states, samples, sample_free_energy
-end
+#     return sample_measured_states, samples, sample_free_energy
+# end
 
-Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, anyon_type = anyon_type)
+# Boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = Boundary_measure(BitStr{N, Int}, τ, state, measurement_sites, num_samples, rng, pbc, anyon_type = anyon_type)
+boundary_measure(N::Int, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int},num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}  = measure_evolution!(N, τ, state, 1; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:Born, temp=true)
 
 """
-    Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
 Generate measurement samples at boundary sites with post_selection outcomes, i.e., given spatial evolution without time axis evolution.
 
@@ -711,32 +716,33 @@ Generate measurement samples at boundary sites with post_selection outcomes, i.e
 
 Samples measurement outcomes with given measurement outcomes.
 """
-function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
-    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+# function Boundarypost_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+#     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    num_sites = length(measurement_sites)
+#     num_sites = length(measurement_sites)
 
-    current_sequence = Vector{Int64}(undef, num_sites)
-    current_state = copy(state)  
-    total_free_energy = 0.0
+#     current_sequence = Vector{Int64}(undef, num_sites)
+#     current_state = copy(state)  
+#     total_free_energy = 0.0
     
-    # meaure from the left to the right
-    for (site_idx, measurement_site) in enumerate(measurement_sites)
+#     # meaure from the left to the right
+#     for (site_idx, measurement_site) in enumerate(measurement_sites)
        
-        state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc, anyon_type=anyon_type)
+#         state_after_measure = measuremap(N, τ, current_state, measurement_site, sign, pbc, anyon_type=anyon_type)
 
-        prob = real(dot(state_after_measure, state_after_measure))
+#         prob = real(dot(state_after_measure, state_after_measure))
 
-        current_sequence[site_idx] = sign
-        current_state = state_after_measure ./ sqrt(prob)
-        total_free_energy += -log(prob)
-    end
+#         current_sequence[site_idx] = sign
+#         current_state = state_after_measure ./ sqrt(prob)
+#         total_free_energy += -log(prob)
+#     end
     
-    return current_state, current_sequence, total_free_energy
-end
+#     return current_state, current_sequence, total_free_energy
+# end
+boundary_post_selection(N::Int64, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}  = measure_evolution!(N, τ, state, 1; rng=MersenneTwister(), pbc=pbc, anyon_type=anyon_type, mode=:sample, temp=true, sample=fill(sign, 1, length(measurement_sites)))
 
 """
-    Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
 Generate measurement samples at bulk sites with probabilistic outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
 
@@ -755,8 +761,8 @@ Generate measurement samples at bulk sites with probabilistic outcomes, i.e., wi
 
 Samples measurement outcomes probabilistically based on Born rule.
 """
-function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
-    
+function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{Vector{ET}}(undef, D)
     
@@ -866,7 +872,7 @@ function Bulkmeasure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::Me
 end
 
 """
-    Bulkpost_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    bulk_post_selection(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo)
 
 Generate measurement samples at bulk sites with post_selection outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
 
@@ -885,7 +891,7 @@ Generate measurement samples at bulk sites with post_selection outcomes, i.e., w
 
 Samples measurement outcomes with given measurement outcomes.
 """
-function Bulkpost_selection(
+function bulk_post_selection(
         N::Int64,
         τ::Float64,
         state::Vector{ET},

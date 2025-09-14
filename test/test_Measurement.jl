@@ -305,14 +305,39 @@ end
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
-@testset "Boundary_measure" begin
+@testset "generate_state" begin
+    N = 10
+    τ = 1e3
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+    measurement_sites = collect(2:2:N)
+    
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, measurement_sites, 10)
+    state = generate_state(τ, antiGS, samples[1])
+    @test state ≈ sample_measured_states[1]
+    state_F, F = generate_state(τ, antiGS, samples[1], return_free_energy=true)
+    @test state_F ≈ state
+    @test F ≈ sample_free_energy[1] atol=1e-6 
+
+    st = zeros(length(anyon_basis(N)))
+    st[1] = 1.0
+
+    sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N)
+    state_t = generate_state(τ, st, samples)
+    statelis = generate_state(τ, st, samples, true, temp= true)
+    @test statelis ≈ sample_measured_states
+    @test state_t ≈ sample_measured_states[end]
+
+end
+
+@testset "boundary_measure" begin
     N=6
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     τ = 3.802
     measurement_sites = collect(2:2:N)
     
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 1000)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, measurement_sites, 1000)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
@@ -321,31 +346,31 @@ end
     
 end
 
-@testset "Boundarypost_selection" begin
+@testset "boundary_post_selection" begin
     N = 10
     τ = 1e3
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, antiGS, measurement_sites, 0)
     
     @test total_free_energy_p /5 ≈ 1.1136495433981064 
 end
 
-@testset "Bulkmeasure" begin
+@testset "bulk_measure" begin
     L = 10
     D = 2L
     st=zeros(length(anyon_basis(L)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(2)) 
+    sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(2)) 
     EElis = [anyon_eelis(L, state_t)[5] for state_t in sample_measured_states]
     @test size(samples) == (20, 5)
     @test EElis[1] ≈ 0.0 atol = 1e-4
     @test EElis[end] > 0.5098675501545762 
 end
 
-@testset "Bulkpost_selection" begin
+@testset "bulk_post_selection" begin
     L = 10
     τ = 0.1
     D = 15L
@@ -355,33 +380,11 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc)
+    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, D, 0, pbc)
     state_t = sample_measured_states[end]
     EE = anyon_eelis(L, state_t)[5]
     @test samples[end] == fill(0, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
-end
-
-@testset "generate_state" begin
-    N = 10
-    τ = 1e3
-    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
-    antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 10)
-    state = generate_state(τ, antiGS, samples[1])
-    @test state ≈ sample_measured_states[1]
-
-    st = zeros(length(anyon_basis(N)))
-    st[1] = 1.0
-
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
-    state_t = generate_state(τ, st, samples)
-    statelis = generate_state(τ, st, samples, true, temp= true)
-    @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
-
 end
 
 # Helper function to verify the distortion is working correctly

@@ -9,7 +9,7 @@ function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
-    @time sample_measured_states, sample, sample_free_energy = Bulkpost_selection(L, τ, st, D, sign, pbc)
+    @time sample_measured_states, sample, sample_free_energy = bulk_post_selection(L, τ, st, D, sign, pbc)
     EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
     final_state = sample_measured_states[end]
     average_EElis = anyon_eelis(L, final_state)

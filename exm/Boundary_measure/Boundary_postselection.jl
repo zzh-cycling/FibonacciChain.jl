@@ -26,8 +26,8 @@ function Boundarypost_selection_scaling(N)
 
     for (idx, τ) in enumerate(τlis)
         
-        @time final_state_p, final_sequence_p, total_weight_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
-        final_state_m, final_sequence_m, total_weight_m = Boundarypost_selection(N, τ, antiGS, measurement_sites, 1)
+        @time final_state_p, final_sequence_p, total_weight_p = boundary_post_selection(N, τ, antiGS, measurement_sites, 0)
+        final_state_m, final_sequence_m, total_weight_m = boundary_post_selection(N, τ, antiGS, measurement_sites, 1)
         myprint(stdout, "N = $N, τ = $τ")
 
         EE_lis_p = eelis_Fibo_state(N, final_state_p)

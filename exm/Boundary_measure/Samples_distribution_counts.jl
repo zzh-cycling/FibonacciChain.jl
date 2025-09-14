@@ -2,16 +2,16 @@ using JLD
 using FibonacciChain
 
 N=10
-energy, states = eigen(Fibonacci_Ham(N))
+energy, states = eigen(anyon_ham(N))
 antiGS= states[:, 1]
 τ = 1000.0
 measurement_sites = collect(2:2:N)
 
 
 
-sample_measured_states,  samples1000, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
+sample_measured_states,  samples1000, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites)
 sample_measured_states, samples10000, sample_weights = load("exm/data/Born_Samples_N10_τ1000.0.jld", "sample_measured_states",  "samples","sample_weights")
-sample_measured_states,  samples100000, sample_weights = Sampling(N, τ, antiGS, measurement_sites, 100000)
+sample_measured_states,  samples100000, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites, 100000)
 
 final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
 

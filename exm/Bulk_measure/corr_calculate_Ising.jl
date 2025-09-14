@@ -17,7 +17,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=20L, start_
     anyon_type = :IsingX
     sample = load("exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
 
-    initial_state = zeros(length(Fibonacci_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true)

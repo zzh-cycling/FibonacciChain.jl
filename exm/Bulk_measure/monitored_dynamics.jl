@@ -9,7 +9,7 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     st = zeros(length(anyon_basis(L)))
     st[1] = 1.0
     
-    @time sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng, true) 
+    @time sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, rng, true) 
     
     halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
@@ -27,7 +27,7 @@ function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::In
     
     sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
     st = generate_state(τ, st, sample, true, temp= true) 
-    sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st[end-1],additional_layers, rng) 
+    sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st[end-1],additional_layers, rng) 
     halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
     final_EElis = anyon_eelis(L, final_state)
@@ -96,7 +96,7 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
     final_FElis = zeros(samples_num)
     for i in 1:samples_num
         @show i
-        sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D) 
+        sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D) 
         ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
         final_state = sample_measured_states[end]
         final_EElis[i, :] = anyon_eelis(L, final_state)

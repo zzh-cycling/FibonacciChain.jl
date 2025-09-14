@@ -75,7 +75,7 @@ evolved_state = apply_measurement_layer!(N, initial_state, τ, layer_sample, 1)
 ```julia
 # Generate 1000 measurement samples
 measurement_sites = [2, 4, 6]
-states, sequences, free_energies = Boundary_measure(N, τ, initial_state, measurement_sites, 1000)
+states, sequences, free_energies = boundary_measure(N, τ, initial_state, measurement_sites, 1000)
 
 # Analyze free energy distribution
 using Statistics

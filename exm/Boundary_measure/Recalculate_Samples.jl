@@ -13,13 +13,13 @@ function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
     γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
     τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
 
-    @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
     antiGS= states[:, 1]
     
     for (idx, τ) in enumerate(τlis[end])
         myprint(stdout, "N = $N, τ = $τ")
-        sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites, num_samples)
+        sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites, num_samples)
         save("./exm/data/Born_Samples_N$(N)_τ$(τ).jld", "sample_measured_states", sample_measured_states, "samples", samples, "sample_weights", sample_weights)
         
 
@@ -93,7 +93,7 @@ function Born_eelis(N::Int64, τ::Float64, pbc::Bool=true)
     total_probabilitieslis[1:end-1] = probabilitieslis
     total_trajectorieslis[1:end-1] = trajectorieslis
 
-    energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
     initial_state= states[:, 1]
     @time final_states, trajectories, probabilities = measurement_enumeration(

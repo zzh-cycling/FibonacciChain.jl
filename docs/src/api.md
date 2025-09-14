@@ -52,10 +52,10 @@ laddertranslationmap
 ```@docs
 measure_basismap
 measurement_enumeration
-Boundary_measure
-Boundarypost_selection
-Bulkmeasure
-Bulkpost_selection
+boundary_measure
+boundary_post_selection
+bulk_measure
+bulk_post_selection
 ```
 
 ## MPS Functions

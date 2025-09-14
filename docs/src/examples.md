@@ -57,7 +57,7 @@ measurement_sites = [2, 4, 6]
 
 # Perform boundary measurements
 println("Performing $num_samples measurement samples...")
-measured_states, sequences, free_energies = Boundary_measure(
+measured_states, sequences, free_energies = boundary_measure(
     N, τ, initial_state, measurement_sites, num_samples
 )
 

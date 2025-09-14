@@ -19,7 +19,7 @@ function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
     mean_FE_tau_lis = Vector{Float64}(undef, length(τlis))
     stderr_FE_tau_lis = Vector{Float64}(undef, length(τlis))
 
-    @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
 
     for (idx, τ) in enumerate(τlis)
@@ -31,11 +31,11 @@ function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
         all_FE_values = zeros(num_samples)
         
         @time for i in 1:num_samples
-            sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites, 1)
+            sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites, 1)
             save("./exm/data/Born_Samples_N$(N)_τ$(τ)_sample$(i).jld", "sample_measured_states", sample_measured_states, "samples", samples, "sample_weights", sample_weights)
             
             # Store EE values for this sample
-            all_EE_values[i, :] = eelis_Fibo_state(N, sample_measured_states[1])
+            all_EE_values[i, :] = anyon_eelis(N, sample_measured_states[1])
             
             # Store FE value for this sample
             all_FE_values[i] = -log(sample_weights[1])

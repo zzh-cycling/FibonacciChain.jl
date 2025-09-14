@@ -32,7 +32,7 @@ function plot_compare(τ::Float64)
     τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     inds = findall(x -> x == τ, τlis)
     for (i, N) in enumerate(L_list)
-        energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+        energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
         antiGS = states[:,1]
         measurement_sites = collect(2:2:N)
         @show (τ, i, N)
@@ -90,10 +90,10 @@ end
 
 function plot_sample(N::Int64, τ::Float64)
     # sample_measured_states, samples, sample_weights = load("./exm/data/Born_Samples_N$(N)/Born_Samples_N$(N)_τ$(τ).jld", "sample_measured_states", "samples", "sample_weights")
-    energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
-    sample_measured_states, samples, sample_weights = Sampling(N, τ, antiGS, measurement_sites)
+    sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites)
     num_samples=1000
     random_variable = -log.(sample_weights)
     Sc=mean(random_variable)
@@ -107,7 +107,7 @@ function plot_sample(N::Int64, τ::Float64)
 end
 
 function plot_enum(N::Int64, τ::Float64)
-    energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
     final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)

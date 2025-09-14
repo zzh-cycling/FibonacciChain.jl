@@ -83,7 +83,7 @@ function get_exact_results(N, τ, D; rng_seed=100, pbc=true)
     initial_st = zeros(length(Fibonacci_basis(N)))
     initial_st[1] = 1.0
     
-    bulk_states, bulk_samples, bulk_weights = Bulkmeasure(N, τ, initial_st, D, rng, pbc)
+    bulk_states, bulk_samples, bulk_weights = bulk_measure(N, τ, initial_st, D, rng, pbc)
     
     exact_ee = eelis_Fibo_state(N, bulk_states[end])
     
