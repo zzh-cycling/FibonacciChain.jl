@@ -310,14 +310,13 @@ end
     τ = 1e3
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, measurement_sites, 10)
-    state = generate_state(τ, antiGS, samples[1])
+
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 10)
+    state = generate_state(τ, antiGS, samples[1, :])
     @test state ≈ sample_measured_states[1]
-    state_F, F = generate_state(τ, antiGS, samples[1], return_free_energy=true)
+    state_F, F = generate_state(τ, antiGS, samples[1, :], return_free_energy=true)
     @test state_F ≈ state
-    @test F ≈ sample_free_energy[1] atol=1e-6 
+    @test F[end] ≈ sample_free_energy[1] atol=1e-6 
 
     st = zeros(length(anyon_basis(N)))
     st[1] = 1.0
@@ -335,14 +334,13 @@ end
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     τ = 3.802
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, measurement_sites, 1000)
+ 
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1, 1000)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
 
-    @test [0 for i in 2:2:N] in samples
+    @test zeros(1,3) in samples
     
 end
 
@@ -351,8 +349,8 @@ end
     τ = 1e3
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, antiGS, measurement_sites, 0)
+   
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, antiGS,  0)
     
     @test total_free_energy_p /5 ≈ 1.1136495433981064 
 end
