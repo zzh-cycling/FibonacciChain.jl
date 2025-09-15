@@ -39,14 +39,14 @@ function get_system_params(τ, L)
     table = Dict(
             atanh(0.1)  => (600L, 1000, 1500L),
             atanh(0.2)  => (125L,  100, 250L),
-            atanh(0.3)  => (30L,  48, 100L),
-            atanh(0.4)  => (25L,  40, 80L),
-            atanh(0.5)  => (20L,   32, 40L),
-            atanh(0.6)  => (12L,   20, 30L),
-            log(1 + √2) => (8L,   14, 20L),
-            atanh(0.8)  => (6L,   10, 10L),
-            atanh(0.9)  => (5L,    4, 4L),
-            atanh(0.95) => (5L,    4, 4L),
+            atanh(0.3)  => (50L,  48, 100L),
+            atanh(0.4)  => (40L,  40, 80L),
+            atanh(0.5)  => (40L,   32, 40L),
+            atanh(0.6)  => (30L,   20, 30L),
+            log(1 + √2) => (20L,   14, 20L),
+            atanh(0.8)  => (15L,   10, 10L),
+            atanh(0.9)  => (10L,    4, 4L),
+            atanh(0.95) => (10L,    4, 4L),
             atanh(0.999)=> (5L,    2, 2L),
         )
     D, step, start = get(table, τ, (5L, 2, 2L))
@@ -137,14 +137,14 @@ function get_system_params_corr(τ)
     D = Dict(
         atanh(0.1)  => 600,
         atanh(0.2)  => 125,
-        atanh(0.3)  => 30,
-        atanh(0.4)  => 25,
-        atanh(0.5)  => 20,
-        atanh(0.6)  => 12,
-        log(1 + √2) => 8,
-        atanh(0.8)  => 6,
-        atanh(0.9)  => 5,
-        atanh(0.95) => 5,
+        atanh(0.3)  => 50,
+        atanh(0.4)  => 40,
+        atanh(0.5)  => 40,
+        atanh(0.6)  => 30,
+        log(1 + √2) => 20,
+        atanh(0.8)  => 15,
+        atanh(0.9)  => 10,
+        atanh(0.95) => 10,
         atanh(0.999)=> 5,
     )
     return get(D, τ, 5)   # 5 is the default value for τ=1000.0
@@ -152,7 +152,7 @@ end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = (τ>=atanh(0.5)) ? collect(2:2:10) : collect(2:2:20)
+    δtlis = collect(2:2:12)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(

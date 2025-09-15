@@ -144,7 +144,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
     extended_basis::Vector{newT}, k_old::Int64=1, 
-    return_free_energy::Bool=true) where {T}
+    return_free_energy::Bool=true) where {T, newT}
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
