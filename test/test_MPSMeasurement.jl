@@ -151,13 +151,11 @@ end
     
     ψ, sites = initial_mps(N)
     
-    # Define measurement sites
-    measurement_sites = collect(2:2:N)
     seed=10
     # Perform sampling
     st = zeros(length(anyon_basis(N))); st[1] = 1.0
-    samples_mps, samples_free_energy_mps = mps_boundary_measure(ψ, sites, measurement_sites, τ; num_samples=num_samples, rng=MersenneTwister(seed), pbc=pbc)
-    sample_measured_states, samples, samples_free_energy = Boundary_measure(N, τ, st, measurement_sites,num_samples, MersenneTwister(seed))
+    samples_mps, samples_free_energy_mps = mps_boundary_measure(τ, ψ, sites; num_samples=num_samples, rng=MersenneTwister(seed), pbc=pbc)
+    sample_measured_states, samples, samples_free_energy = boundary_measure(N, τ, st, 1, num_samples, MersenneTwister(seed))
 
     @test samples_mps == samples
     @test samples_free_energy_mps ≈ samples_free_energy
@@ -167,21 +165,19 @@ end
     N = 6
     pbc = true
     τ = 1.0
-    D = 2  # Small number of layers for testing
+    D = 2  # Small number of layers for testing 
     
     ψ, sites = initial_mps(N)
     
-    # Define measurement sites
-    measurement_sites = collect(2:2:N)
     seed=10
     # Perform sampling
     st = zeros(length(anyon_basis(N))); st[1] = 1.0
-    
+  
     # Perform bulk measurements
-    bulk_states, bulk_samples, bulk_free_energy = mps_bulk_measurement(
-        ψ, sites, N, τ, D; rng=MersenneTwister(seed), pbc=pbc)
+    bulk_states, bulk_samples, bulk_free_energy = mps_bulk_measure(
+        N, τ, ψ, sites, D; rng=MersenneTwister(seed), pbc=pbc)
     
-    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = Bulkmeasure(N, τ, st, D, MersenneTwister(seed))
+    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = bulk_measure(N, τ, st, D, MersenneTwister(seed))
 
     @test bulk_samples == bulk_samples_exact
     @test bulk_free_energy ≈ bulk_free_energy_exact
@@ -202,9 +198,9 @@ end
     measurement_layer = 2
     bulk_samples = [1, 1, 1]
     
-    ψ_layer= FibonacciChain._apply_measurement_layer!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
+    ψ_layer= _apply_measurement_layer!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
 
-    st_exact= FibonacciChain._apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
+    st_exact= _apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
 
@@ -284,7 +280,7 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     
     ψ, sites = initial_mps(L)
     
-    sample_measured_states, sample, sample_free_energy = mps_bulk_measurement(ψ, sites, L, τ, D;rng=rng, pbc=true) 
+    sample_measured_states, sample, sample_free_energy = mps_bulk_measure(ψ, sites, L, τ, D;rng=rng, pbc=true) 
     
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
@@ -299,7 +295,7 @@ function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     st = zeros(length(anyon_basis(L)))
     st[1] = 1.0
     
-    sample_measured_states, sample, sample_free_energy = Bulkmeasure(L, τ, st, D, rng, true) 
+    sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, rng, true) 
     
     halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]

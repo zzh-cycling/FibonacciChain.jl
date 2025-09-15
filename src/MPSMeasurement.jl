@@ -248,33 +248,33 @@ function _sample_layer!(N::Int64, τ_eff::Float64, sites, ψ::MPS,
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64=1, 
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=true) where {T}
+    anyon_type::Symbol=:Fibo, cutoff::Float64=1e-10, maxdim::Int=100,
+    return_free_energy::Bool=true)
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
-    sample = zeros(Int, n)
+    sample_layer = zeros(Int, n)
     F_layer = 0.0
 
-
+    final_state = copy(ψ)
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
         ψ0, p0 = apply_measurement_mps(ψ, sites, site, τ_eff, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
         p1 = 1 - p0
 
         if rand(rng) < p0
-            sample[i] = 0
+            sample_layer[i] = 0
             final_state = ψ0
             F_layer += -log(p0)
         else
             # else 1 branch
             ψ1, p1 = apply_measurement_mps(ψ, sites, site, τ_eff, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
-            sample[i] = 1
+            sample_layer[i] = 1
             final_state = ψ1
             F_layer += -log(p1)
         end
     end
-    return return_free_energy ? (final_state, sample, F_layer) : (final_state, sample)
+    return return_free_energy ? (final_state, sample_layer, F_layer) : (final_state, sample_layer)
 end
 
 """
@@ -340,8 +340,8 @@ function measure_evolution!(N::Int,
                   mode::Symbol = :prob,
                   temp::Bool = false,
                   t₁::Int = 1,
-                  return_free_energy::Bool = true,
-                  sample::Union{Nothing,Matrix{Int}}=nothing) where {ET}
+                  return_free_energy::Bool = true, cutoff::Float64=1e-10, maxdim::Int=100,
+                  sample::Union{Nothing,Matrix{Int}}=nothing)
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
@@ -362,10 +362,10 @@ function measure_evolution!(N::Int,
 
             # Random sampling for this layer
             if return_free_energy
-                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy)
+                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim)
                 sample_free_energy[layer-t₁+1] = F_layer
             else
-                current_state, sample_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy)
+                current_state, sample_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim)
             end
 
             sample[layer-t₁+1, :] .= sample_layer
@@ -407,16 +407,16 @@ function measure_evolution!(N::Int,
 end
 
 """
-    mps_boundary_measure(ψ::MPS, sites, τ::Float64; 
+    mps_boundary_measure(τ::Float64, ψ::MPS, sites, layer_idx::Int=1; 
                 num_samples::Int=1000, pbc::Bool=true, rng::MersenneTwister=MersenneTwister(),
                 cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
                 
 
 Perform boundary measurements on MPS state.
 # Arguments
+- `τ::Float64`: Evolution time parameter
 - `ψ::MPS`: Input quantum state
 - `sites`: ITensor site indices
-- `τ::Float64`: Evolution time parameter
 - `layer_idx`: the layer index
 - `num_samples::Int=1000`: Number of measurement samples
 - `pbc::Bool=true`: Periodic boundary conditions
@@ -429,15 +429,16 @@ Perform boundary measurements on MPS state.
 - `Vector{Vector{Int64}}`: List of measurement outcomes for each sample
 - `Vector{Float64}`: Free energy associated with each sample
 """
-function mps_boundary_measure(ψ::MPS, sites, τ::Float64, layer_idx::Int=1; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
-    samples = Vector{Vector{Int64}}(undef, num_samples)
+function mps_boundary_measure(τ::Float64, ψ::MPS, sites, layer_idx::Int=1; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
+    measurement_sites, _ = _obtain_measurement_config(length(sites), layer_idx, anyon_type)
+    samples = zeros(Int, num_samples, length(measurement_sites))
     sample_free_energy = Vector{Float64}(undef, num_samples)
     
     for sample_idx in 1:num_samples
-        final_state, sample, sample_free_energy  = _sample_layer!(length(sites), τ, sites, ψ, rng, layer_idx, pbc; anyon_type=anyon_type, return_free_energy=true, cutoff=cutoff, maxdim=maxdim)
+        final_state, sample, free_energy  =  _sample_layer!(length(sites), τ, sites, ψ, rng, layer_idx, pbc; anyon_type=anyon_type, return_free_energy=true, cutoff=cutoff, maxdim=maxdim)
 
-        samples[sample_idx] = sample
-        sample_free_energy[sample_idx] = sample_free_energy
+        samples[sample_idx, :] = sample
+        sample_free_energy[sample_idx] = free_energy
     end
     
     return samples, sample_free_energy
@@ -448,15 +449,19 @@ end
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measure(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
+function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo, return_free_energy::Bool=true)
     sample = zeros(Int, D, div(N,2))
     sample_free_energy = Vector{Float64}(undef, D)
     sample_measured_states = Vector{MPS}(undef, D)
     
-    final_state, sample, sample_free_energy = measure_evolution!()
+    if return_free_energy
+        final_state, sample, sample_free_energy = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:sample, temp=true, t₁=1, return_free_energy=true, sample=sample, cutoff=cutoff, maxdim=maxdim)
+    else
+        final_state, sample = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:sample, temp=true, t₁=1,return_free_energy=false, sample=sample, cutoff=cutoff, maxdim=maxdim)
+    end
     
     
-    return sample_measured_states, sample, sample_free_energy
+    return return_free_energy ? (final_state, sample, sample_free_energy) : (final_state, sample)
 end
 
 
