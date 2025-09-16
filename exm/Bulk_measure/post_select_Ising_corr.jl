@@ -40,11 +40,11 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
         
     if entangle_way == :copy
         if δt == 0
-            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
@@ -90,8 +90,8 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
         for (idx, t) in enumerate(tlis)
             t2 = t + δt    
             ref_sample = (sign == 0) ? zeros(Int, t+δt, L) : ones(Int, t+δt, L)
-        
-            ref2st = reference_evolution(τ, statelis, ref_sample, 1, t, t2, anyon_type=:IsingX, verbose=true)
+
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, 1, t, t2, anyon_type=:IsingX, verbose=true)
             sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
             eelis[idx] = ee(sysrdm)
             temporal_corr_lis[idx] = temporal_correlation(L, ref2st, anyon_type=:IsingX)
@@ -107,11 +107,11 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
 
             if δt == 0
-                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
                 spatial = true
                 temporal = false
             else
-                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
                 temporal = true
                 spatial = false
             end
@@ -350,9 +350,9 @@ end
 # ref_sample0 = zeros(Int, D+50, L)
 # ref_sample1 = ones(Int, D, L)
 # using Profile
-# @profile ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
-# @code_warntype ref2st0 = reference_evolution(τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
-# ref2st1 = reference_evolution(τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
+# @profile ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
+# @code_warntype ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
+# ref2st1 = reference_evolution(L, τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
 # sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
 # sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
 

@@ -189,7 +189,7 @@ sample_sequence = rand([0, 1], 5, N÷2)  # 5 time steps, N/2 measurement sites p
 # Generate forward evolution
 forward_states = reference_generate_state(N, τ, state_with_ref, sample_sequence, temp=true)
 
-# Calculate temporal correlation between time slices 1 and 4
+# Generate how temporal correlation between time slices 1 and 4
 time_corr = reference_evolution(τ, forward_states, sample_sequence, site, 1, 4)
 
 println("Temporal correlation: $(round(real(time_corr), digits=4))")

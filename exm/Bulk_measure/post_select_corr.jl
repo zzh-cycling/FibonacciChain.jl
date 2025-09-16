@@ -67,11 +67,11 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
 
     if entangle_way == :copy
         if δt == 0
-            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
@@ -111,11 +111,11 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=20L, δt
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, length(2:2:L)) : ones(Int, t+δt + D, length(2:2:L))
         
             if δt == 0
-                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) 
+                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) 
                 spatial = true
                 temporal = false
             else
-                ref2st = reference_evolution(τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1)
+                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1)
                 temporal = true
                 spatial = false
             end
