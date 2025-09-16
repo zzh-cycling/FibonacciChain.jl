@@ -371,7 +371,7 @@ function _obtain_measurement_config(N::Int, layer_idx::Int, anyon_type::Symbol=:
     if anyon_type == :Fibo
         measurement_sites = iseven(layer_idx) ? collect(1:2:N) : collect(2:2:N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites, 
         measure_type = :Fibo
-    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+    elseif anyon_type ∈ (:IsingX, :IsingZ, :IsingZZ, :reset, :resetFibo)
         # measure at all sites!!!
         measurement_sites = collect(1:N)
         measure_type = iseven(layer_idx) ? :IsingZZ : :IsingX # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
@@ -466,7 +466,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=true) where {T}
+    return_free_energy::Bool=true, verbose::Bool=false) where {T}
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
@@ -480,16 +480,20 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
         p0 = real(dot(ψ0, ψ0))
         p1 = 1 - p0
 
-        if rand(rng) < p0
+        randomNumber = rand(rng)
+        verbose && @show randomNumber
+        if randomNumber < p0
             sample[i] = 0
             state = ψ0 ./ sqrt(p0)
             F_layer += -log(p0)
+            verbose && @show -log(p0)
         else
             # else 1 branch
             ψ1 = measuremap(N, τ_eff, state, site, 1, pbc, anyon_type = measure_type)
             sample[i] = 1
             state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
+            verbose && @show -log(p1)
         end
     end
     return return_free_energy ? (state, sample, F_layer) : (state, sample)
@@ -538,7 +542,8 @@ function measure_evolution!(N::Int,
                   temp::Bool = false,
                   t₁::Int = 1,
                   return_free_energy::Bool = true,
-                  sample::Union{Nothing,Matrix{Int}}=nothing) where {ET}
+                  sample::Union{Nothing,Matrix{Int}}=nothing,
+                  verbose::Bool = false) where {ET}
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
@@ -559,10 +564,10 @@ function measure_evolution!(N::Int,
 
             # Random sampling for this layer
             if return_free_energy
-                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy)
+                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, verbose=verbose)
                 sample_free_energy[layer-t₁+1] = F_layer
             else
-                current_state, sample_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy)
+                current_state, sample_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, verbose=verbose)
             end
 
             sample[layer-t₁+1, :] .= sample_layer
@@ -649,7 +654,7 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
 end
 
 """
-    boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, measurement_sites::Vector{Int}, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, layer_idx::Int, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
 
 Generate measurement samples at boundary sites with probabilistic outcomes, i.e., without time axis evolution. DO num_samples times sampling.
 
@@ -744,7 +749,7 @@ Generate measurement samples at bulk sites with probabilistic outcomes, i.e., wi
 
 Samples measurement outcomes probabilistically based on Born rule.
 """
-function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo, verbose::Bool=false) where {ET}
 
     final_state, samples, sample_free_energy = measure_evolution!(
         N, τ, state, D;
@@ -752,8 +757,8 @@ function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::M
         pbc=pbc,
         anyon_type=anyon_type,
         mode=:Born,
-        temp=true,
-        return_free_energy=true
+        temp=true, 
+        return_free_energy=true, verbose=verbose
     )  # need all the intermediate states, measure_evolution! return each layer free energy, when temp=true return Vector{Vector{ET}}, each layer state
     return final_state, samples, sample_free_energy
 end

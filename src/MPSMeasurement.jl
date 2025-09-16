@@ -249,7 +249,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, sites, ψ::MPS,
     layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, cutoff::Float64=1e-10, maxdim::Int=100,
-    return_free_energy::Bool=true)
+    return_free_energy::Bool=true, verbose::Bool=false)
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
@@ -262,19 +262,23 @@ function _sample_layer!(N::Int64, τ_eff::Float64, sites, ψ::MPS,
         ψ0, p0 = apply_measurement_mps(ψ, sites, site, τ_eff, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
         p1 = 1 - p0
 
-        if rand(rng) < p0
+        randomNumber = rand(rng)
+        verbose && @show randomNumber
+        if randomNumber < p0
             sample_layer[i] = 0
-            final_state = ψ0
+            ψ = ψ0
             F_layer += -log(p0)
+            verbose && @show -log(p0)
         else
             # else 1 branch
             ψ1, p1 = apply_measurement_mps(ψ, sites, site, τ_eff, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
             sample_layer[i] = 1
-            final_state = ψ1
+            ψ = ψ1
             F_layer += -log(p1)
+            verbose && @show -log(p1)
         end
     end
-    return return_free_energy ? (final_state, sample_layer, F_layer) : (final_state, sample_layer)
+    return return_free_energy ? (ψ, sample_layer, F_layer) : (ψ, sample_layer)
 end
 
 """
@@ -340,7 +344,7 @@ function measure_evolution!(N::Int,
                   mode::Symbol = :prob,
                   temp::Bool = false,
                   t₁::Int = 1,
-                  return_free_energy::Bool = true, cutoff::Float64=1e-10, maxdim::Int=100,
+                  return_free_energy::Bool = true, cutoff::Float64=1e-10, maxdim::Int=100, verbose::Bool=false,
                   sample::Union{Nothing,Matrix{Int}}=nothing)
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
@@ -362,10 +366,10 @@ function measure_evolution!(N::Int,
 
             # Random sampling for this layer
             if return_free_energy
-                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim)
+                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
                 sample_free_energy[layer-t₁+1] = F_layer
             else
-                current_state, sample_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim)
+                current_state, sample_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
             end
 
             sample[layer-t₁+1, :] .= sample_layer
@@ -449,15 +453,12 @@ end
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo, return_free_energy::Bool=true)
-    sample = zeros(Int, D, div(N,2))
-    sample_free_energy = Vector{Float64}(undef, D)
-    sample_measured_states = Vector{MPS}(undef, D)
+function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo, return_free_energy::Bool=true, verbose::Bool=false)
     
     if return_free_energy
-        final_state, sample, sample_free_energy = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:sample, temp=true, t₁=1, return_free_energy=true, sample=sample, cutoff=cutoff, maxdim=maxdim)
+        final_state, sample, sample_free_energy = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:Born, temp=true, t₁=1, return_free_energy=true, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
     else
-        final_state, sample = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:sample, temp=true, t₁=1,return_free_energy=false, sample=sample, cutoff=cutoff, maxdim=maxdim)
+        final_state, sample = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:Born, temp=true, t₁=1, return_free_energy=false, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
     end
     
     
@@ -465,26 +466,24 @@ function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::Me
 end
 
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET, temp::Bool=false; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) where{ET}
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET, temp::Bool=false; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, return_free_energy::Bool=false) where{ET}
+    if ET == Vector{Int} # single layer
+        sample = reshape(sample, 1, :) 
+    end
 
-    if ET == Vector{Int}
-        N = 2 * length(sample)
-        return apply_measurement_layer_mps!(N, sites, state, τ, sample, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-        
-    elseif ET == Matrix{Int}
-        D, N = size(sample, 1), 2 * size(sample, 2)
-        statelis = temp ? Vector{MPS}(undef, D) : nothing
-        # if ET is Vector{Int64} and temp is true, we return temporary states.
-        for layer in 1:D
-            τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer_mps!(N, sites, state, τ_eff, sample[layer, :], layer; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
+    N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
+    D = size(sample, 1) # number of layers
 
-            if temp
-                statelis[layer] = copy(state)
-            end
-        end
-        
-        return temp ? statelis : state
+    if return_free_energy
+        final_state, sample, free_energy = measure_evolution!(N, τ, sites, state, D; 
+        pbc=pbc, anyon_type=anyon_type, mode=:sample, 
+        temp=temp, sample=sample, return_free_energy=true, cutoff=cutoff, maxdim=maxdim)
+        return final_state, free_energy
+    else
+        final_state, sample = measure_evolution!(N, τ, sites, state, D; 
+        pbc=pbc, anyon_type=anyon_type, mode=:sample, 
+        temp=temp, sample=sample, return_free_energy=false, cutoff=cutoff, maxdim=maxdim)
+        return final_state
     end
 end
 

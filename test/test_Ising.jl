@@ -396,33 +396,31 @@ end
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
     τ = 3.802
-    measurement_sites = collect(2:2:N)
 
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, measurement_sites, 500, anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 500,MersenneTwister(90), anyon_type=:IsingX)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 500
 
-    @test [0 for i in 2:2:N] in samples
+    @test samples[476,:] == fill(0, N)
     
 end
 
 @testset "Boundarypost_selection" begin
-    N = 6
+    N = 10
     τ = 1e3
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
- 
-    measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, st, measurement_sites, 0, anyon_type=:IsingX)
+    measurement_sites = collect(1:N)
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, st, 1, 0, anyon_type=:IsingX)
 
     # all final states should be equally probable, will give Nlog(2) free energy
     @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
 
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, final_state_p, measurement_sites, 0, anyon_type=:IsingZZ)
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, final_state_p, 2, 0, anyon_type=:IsingZZ)
 
-    @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
-    @test final_state_p[1] == 1.0
+    @test total_free_energy_p /length(measurement_sites) ≈ 0.6238324625039509 atol = 1e-6
+    @test final_state_p[1] ≈ final_state_p[end] ≈ 1/√2
 end
 
 @testset "Bulkmeasure" begin
@@ -432,7 +430,7 @@ end
     st = zeros(length(anyon_basis(L, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
+    sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
     EElis = [anyon_eelis(L, state_t, anyon_type=:IsingX)[div(L,2)] for state_t in sample_measured_states]
     @test size(samples) == (D, L)
     # Each layer will erase previous info.
@@ -449,10 +447,10 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc, anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, D, 0, pbc, anyon_type=:IsingX)
     state_t = sample_measured_states[end]
     EE = anyon_eelis(L, state_t, anyon_type=:IsingX)
-    @test samples[end] == fill(0, L)
+    @test samples[end,:] == fill(0, L)
     @test EE ≈ log(2)*ones(L-1) atol = 1e-4
 end
 
@@ -462,10 +460,10 @@ end
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = sample_measured_states[end]
 
-    new_state = _apply_measurement_layer!(N, st, τ, samples[1,:], 1, anyon_type=:IsingX)
+    new_state = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
     @test new_state ≈ sample_measured_states[1]
 end
 
@@ -475,11 +473,11 @@ end
     st=zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, anyon_type=:IsingX)
-    state = generate_state(τ, st, samples[1], anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 10, anyon_type=:IsingX)
+    state = generate_state(τ, st, samples[1,:], anyon_type=:IsingX)
     @test state ≈ sample_measured_states[1]
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = generate_state(τ, st, samples, anyon_type=:IsingX)
     statelis = generate_state(τ, st, samples, true, temp = true, anyon_type=:IsingX)
     @test statelis ≈ sample_measured_states

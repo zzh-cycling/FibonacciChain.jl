@@ -198,9 +198,9 @@ end
     measurement_layer = 2
     bulk_samples = [1, 1, 1]
     
-    ψ_layer= _apply_measurement_layer!(N, sites, ψ, τ, bulk_samples, measurement_layer; pbc=pbc)
+    ψ_layer= _apply_measurement_layer!(N, τ, sites, ψ,  bulk_samples, measurement_layer, pbc)
 
-    st_exact= _apply_measurement_layer!(N, st, τ, bulk_samples, measurement_layer, pbc)
+    st_exact= _apply_measurement_layer!(N, τ, st, bulk_samples, measurement_layer, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
 
@@ -279,9 +279,9 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     rng = MersenneTwister(seed)
     
     ψ, sites = initial_mps(L)
-    
-    sample_measured_states, sample, sample_free_energy = mps_bulk_measure(ψ, sites, L, τ, D;rng=rng, pbc=true) 
-    
+
+    sample_measured_states, sample, sample_free_energy = mps_bulk_measure(L, τ, ψ, sites, D;rng=rng, pbc=true)
+
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
     final_EElis = anyon_eelis_mps(L, final_state)
