@@ -5,6 +5,7 @@ using Statistics
 using BitBasis
 using LaTeXStrings
 using Plots
+using Random
 
 function get_system_params(τ, L)
     table = Dict(
@@ -26,7 +27,7 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
     anyon_type = :IsingX
     sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
@@ -40,11 +41,11 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
         
     if entangle_way == :copy
         if δt == 0
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true, return_free_energy=false, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, return_free_energy=false, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end

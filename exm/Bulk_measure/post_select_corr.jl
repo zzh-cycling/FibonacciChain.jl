@@ -5,6 +5,7 @@ using Statistics
 using BitBasis
 using LaTeXStrings
 using Plots
+using Random
 
 function get_δtL(τ)
     table = Dict(
@@ -55,7 +56,7 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
     sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
 
@@ -63,15 +64,15 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis = generate_state(τ, initial_state, sample, temp= true)
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D, length(2:2:L)) : ones(Int, D+δt+D, length(2:2:L))
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, length(2:2:L)) : ones(Int, D+δt+D+1, length(2:2:L))
 
     if entangle_way == :copy
         if δt == 0
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true, return_free_energy=false, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, return_free_energy=false, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
