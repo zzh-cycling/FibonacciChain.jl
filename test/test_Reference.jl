@@ -39,72 +39,6 @@ using Random
     @test extended_basis_ising2 == anyon_basis(N+2, pbc, anyon_type=:IsingX)
 end
 
-@testset "add_reference_qubits" begin
-    N = 3
-    st = ones(4)/2; 
-    entangle_way = :reset
-    # Test add_reference_qubit reset to 0
-    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, entangle_way = entangle_way)[3]
-    @test add_st[[collect(1:5)..., 13,14]] ≈ 0.37796447300922725*ones(7)
-
-    add_stp = FibonacciChain.add_reference_qubits!(N+1, add_st, 1, entangle_way = entangle_way)[3]
-    @test add_stp[[collect(1:5)..., 20,21]] ≈ 0.37796447300922725*ones(7)
-
-    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = entangle_way)[3]
-    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, entangle_way = entangle_way)[3]
-    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, entangle_way = entangle_way)[3]
-    @test add_st1 ≈ [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5] 
-    @test add_st2 ≈ [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
-    @test add_st3 ≈ [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
-
-    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, entangle_way = entangle_way)[3]
-    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, entangle_way = entangle_way)[3]
-    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, entangle_way = entangle_way)[3]
-
-    @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
-    @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
-    @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
-end
-
-@testset "add_reference_qubits_Ising" begin
-    # Test for Ising basis
-    N = 3
-    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the GHZ state.
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingZ, entangle_way = :reset)[3]
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingZ, entangle_way = :reset)[3]
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingZ, entangle_way = :reset)[3]
-    @test add_st_ising1[[1,13]] == [1/√2, 1/√2]
-    @test add_st_ising2[[1,11]] == [1/√2, 1/√2]
-    @test add_st_ising3[[1,10]] == [1/√2, 1/√2]
-
-    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingX, entangle_way = :reset)[3]
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingX, entangle_way = :reset)[3]
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingX, entangle_way = :reset)[3]
-    @test add_st_ising1[[1, 4, 13, 16]] == 1/2*ones(4)
-    @test add_st_ising2[[1, 6, 11, 16]] == 1/2*ones(4)
-    @test add_st_ising3[[1, 7, 10, 16]] == 1/2*ones(4)
-end
-
-@testset "add_reference_qubits_Ising_copy" begin
-    # Test for Ising basis
-    N = 3
-    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the GHZ state.
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingZ) # For copy way to entangle, the result is irrelevant to measurement outcome.
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingZ)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingZ)
-    @test add_st_ising1 == add_st_ising2 == add_st_ising3
-    @test add_st_ising1[[1,16]] ≈ [1/√2, 1/√2]
-
-    st_ising = ones(2^N); st_ising /= norm(st_ising); # set to be plus state
-    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingX)
-    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingX)
-    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingX)
-    @test add_st_ising1[[collect(1:4)..., collect(13:16)...]] ≈ 1/(2√2)*ones(8)
-    @test add_st_ising2[[1, 2, 5, 6, 11, 12, 15, 16]] ≈ 1/(2√2)*ones(8)
-    @test add_st_ising3[[collect(1:2:7)..., collect(10:2:16)...]] ≈ 1/(2√2)*ones(8)
-end
-
 @testset "reference_measure_basismap" begin
     N = 3
     τ = 1.0
@@ -245,6 +179,81 @@ end
     @test output33[[1]] ≈ [1/√2]
 end
 
+@testset "concat_bell_pair" begin
+    N = 3
+    st = ones(4)/2; 
+    basis_F = anyon_basis(N)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    bell_st = FibonacciChain.concat_bell_pair!(N, st, basis_F, ext_basis, site_idx = 1, k_old = 0)
+    @test bell_st[[1,2,3,8]] == 1/2*ones(4)
+end
+
+@testset "add_reference_qubits" begin
+    N = 3
+    st = ones(4)/2; 
+    entangle_way = :reset
+    # Test add_reference_qubit reset to 0
+    add_st = FibonacciChain.add_reference_qubits!(N+1, ones(7)./√7, 1, entangle_way = entangle_way)[3]
+    @test add_st[[collect(1:5)..., 13,14]] ≈ 0.37796447300922725*ones(7)
+
+    add_stp = FibonacciChain.add_reference_qubits!(N+1, add_st, 1, entangle_way = entangle_way)[3]
+    @test add_stp[[collect(1:5)..., 20,21]] ≈ 0.37796447300922725*ones(7)
+
+    add_st1 = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = entangle_way)[3]
+    add_st2 = FibonacciChain.add_reference_qubits!(N, st, 2, entangle_way = entangle_way)[3]
+    add_st3 = FibonacciChain.add_reference_qubits!(N, st, 3, entangle_way = entangle_way)[3]
+    @test add_st1 ≈ [0.5, 0.5, 0.5, 0.0, 0.0, 0.0, 0.0, 0.5] 
+    @test add_st2 ≈ [0.5, 0.5, 0.0, 0.5, 0.0, 0.0, 0.5, 0.0]
+    @test add_st3 ≈ [0.5, 0.0, 0.5, 0.5, 0.0, 0.5, 0.0, 0.0]
+
+    add2_st1 = FibonacciChain.add_reference_qubits!(N, add_st1, 1, entangle_way = entangle_way)[3]
+    add2_st2 = FibonacciChain.add_reference_qubits!(N, add_st2, 2, entangle_way = entangle_way)[3]
+    add2_st3 = FibonacciChain.add_reference_qubits!(N, add_st3, 3, entangle_way = entangle_way)[3]
+
+    @test add2_st1[[1,2,3,12]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st2[[1,2,4,11]] == [0.5, 0.5, 0.5, 0.5]
+    @test add2_st3[[1,3,4,10]] == [0.5, 0.5, 0.5, 0.5]
+end
+
+@testset "add_reference_qubits_Ising" begin
+    # Test for Ising basis
+    N = 3
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the GHZ state.
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingZ, entangle_way = :reset)[3]
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingZ, entangle_way = :reset)[3]
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingZ, entangle_way = :reset)[3]
+    @test add_st_ising1[[1,13]] == [1/√2, 1/√2]
+    @test add_st_ising2[[1,11]] == [1/√2, 1/√2]
+    @test add_st_ising3[[1,10]] == [1/√2, 1/√2]
+
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingX, entangle_way = :reset)[3]
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingX, entangle_way = :reset)[3]
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingX, entangle_way = :reset)[3]
+    @test add_st_ising1[[1, 4, 13, 16]] == 1/2*ones(4)
+    @test add_st_ising2[[1, 6, 11, 16]] == 1/2*ones(4)
+    @test add_st_ising3[[1, 7, 10, 16]] == 1/2*ones(4)
+end
+
+@testset "add_reference_qubits_Ising_copy" begin
+    # Test for Ising basis
+    N = 3
+    st_ising = zeros(2^N); st_ising[1] = 1/√2; st_ising[end] = 1/√2; # set the GHZ state.
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingZ) # For copy way to entangle, the result is irrelevant to measurement outcome.
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingZ)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingZ)
+    @test add_st_ising1 == add_st_ising2 == add_st_ising3
+    @test add_st_ising1[[1,16]] ≈ [1/√2, 1/√2]
+
+    st_ising = ones(2^N); st_ising /= norm(st_ising); # set to be plus state
+    add_st_ising1 = FibonacciChain.add_reference_qubits!(N, st_ising, 1, anyon_type=:IsingX)
+    add_st_ising2 = FibonacciChain.add_reference_qubits!(N, st_ising, 2, anyon_type=:IsingX)
+    add_st_ising3 = FibonacciChain.add_reference_qubits!(N, st_ising, 3, anyon_type=:IsingX)
+    @test add_st_ising1[[collect(1:4)..., collect(13:16)...]] ≈ 1/(2√2)*ones(8)
+    @test add_st_ising2[[1, 2, 5, 6, 11, 12, 15, 16]] ≈ 1/(2√2)*ones(8)
+    @test add_st_ising3[[collect(1:2:7)..., collect(10:2:16)...]] ≈ 1/(2√2)*ones(8)
+end
+
 @testset "reference_apply_measurement_layer!" begin
     N = 6
     τ = 1000.0
@@ -280,14 +289,6 @@ end
     @test sample_layer == [1, 1, 1, 0, 0, 1]
 end
 
-@testset "concat_bell_pair" begin
-    N = 3
-    st = ones(4)/2; 
-    basis_F = anyon_basis(N)
-    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
-    bell_st = FibonacciChain.concat_bell_pair!(N, st, basis_F, ext_basis, site_idx = 1, k_old = 0)
-    @test bell_st[[1,2,3,8]] == 1/2*ones(4)
-end
 
 @testset "reference_generate_state" begin
     N = 8
@@ -299,8 +300,13 @@ end
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
     sample = zeros(Int, (3, length(2:2:N)))
 
-    output1 = reference_generate_state(τ, add_st, sample, pbc)
+    output1, samples = reference_generate_state(τ, add_st, sample, pbc)
     @test length(output1) == 3
+    @test samples == zeros(Int, (3, length(2:2:N)))
+
+    output1, samples = reference_generate_state(τ, add_st, sample, pbc, rng = MersenneTwister(100), mode=:Born)
+    @test length(output1) == 3
+    @test samples == [1 1 1 1; 0 1 0 1; 0 0 0 0]
 end
 
 @testset "reference_rdm" begin

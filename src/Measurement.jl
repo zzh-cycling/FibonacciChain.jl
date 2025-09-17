@@ -510,7 +510,8 @@ end
              return_free_energy=true,
              sample)   
 
-Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial state with specified parameters, returning final states, measurement sequences, and free energies, with options for different sampling modes and temporal settings.
+Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial state with specified parameters, returning final states, measurement sequences, and free energies, with options for different sampling modes and temporal settings. KEEP IN MIND: In such definition, (2N+1) layers of measurements correspond to N time steps of evolution, with the last layer being half-strength. The first and end layer should not be √ZZ or √M₁ᵒ
+
 # Arguments
 - `N::Int`: Chain length N
 - `τ::Float64`: Measurement strength parameter
@@ -560,19 +561,13 @@ function measure_evolution!(N::Int,
 
         # 2. Born trajectory (only for :Born)
         for layer in t₁:t₂
-            τ_eff = (layer == t₂) ? τ / 2 : τ
+            τ_eff = (layer == t₂ || layer == t₁) ? τ / 2 : τ
 
             # Random sampling for this layer
-            if return_free_energy
-                current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, verbose=verbose)
-                sample_free_energy[layer-t₁+1] = F_layer
-            else
-                current_state, sample_layer = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = return_free_energy, verbose=verbose)
-            end
+   
+            current_state, sample[layer-t₁+1, :], sample_free_energy[layer-t₁+1] = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = true, verbose=verbose)
 
-            sample[layer-t₁+1, :] .= sample_layer
             temp && (states[layer-t₁+1] = current_state)
-
         end
         
     elseif mode == :sample
@@ -604,24 +599,17 @@ function measure_evolution!(N::Int,
         #  γ₁   γ₂   γ₃   γ₄   γ₅   γ₆   γ₇   γ₈   γ₉  γ₁₀  γ₁₁  γ₁₂  γ₁₃  γ₁₄  γ₁₅  γ₁₆
     
         for layer in t₁:t₂
-            # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
-            # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer is doesn't matter.
-            τ_eff = (layer == t₂) ? τ/2 : τ
+            # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
+            # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer is doesn't matter.
+            τ_eff = (layer == t₂ || layer == t₁) ? τ/2 : τ
 
-            if return_free_energy
-                current_state, ΔF = _apply_measurement_layer!(
-                                N, τ_eff, current_state, 
-                                sample[layer, :], layer, pbc;
-                                anyon_type=anyon_type, return_free_energy=true)
-                sample_free_energy[layer] += ΔF
-            else
-                current_state = _apply_measurement_layer!(
-                            N, τ_eff, current_state, 
+            current_state, sample_free_energy[layer] = _apply_measurement_layer!(
+                            N, τ_eff, current_state,
                             sample[layer, :], layer, pbc;
-                            anyon_type=anyon_type, return_free_energy=false)
-            end
-
+                            anyon_type=anyon_type, return_free_energy=true)
+                            
             temp && (states[layer-t₁+1] = current_state)
+
         end
 
     else
