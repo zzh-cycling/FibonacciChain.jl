@@ -446,7 +446,7 @@ end
     @test sc_ref ≈ sc
 end
 
-function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
     anyon_type = :IsingX
     sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
@@ -456,23 +456,57 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
 
     statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
 
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
-        
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
+    
     if entangle_way == :copy
         if δt == 0
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
-            
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, return_free_energy=false, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+
         else
-            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, return_free_energy=false, rng=rng,) # to compute temporal correlation, add ref qubit at site L/2+1
         end
     end
 
     return ref2st
 end
 
+function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, mode::Symbol=:Born, rng = MersenneTwister(100))
+    pbc = true
+    anyon_type = :IsingX
+    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
+
+    initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state /= norm(initial_state) # initial state is all zero state
+
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
+    
+    if entangle_way == :copy
+        if δt == 0
+            ref2st, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, return_free_energy=true, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+
+        else
+            ref2st, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, return_free_energy=true, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+        end
+    end
+
+    return ref2st, sample_layer, sample_free_energy
+end
+
 @testset "reference_evolution" begin
-    L = 4
-    τ = 1000.0
-    D = 10
-    ref2st = compute_post_selection_Ising(L, τ, D, 0, sign=0, entangle_way=:copy)
+    L = 8
+    τ = log(1+√5)/2
+    D = 10L
+    ref2st = compute_post_selection_Ising(L, τ, D, 0, sign=1, entangle_way=:copy)
+    spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
+    ref2st = compute_post_selection_Ising(L, τ, D, 4, sign=1, entangle_way=:copy)
+    _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
+    @test temporal_corr/spatial_corr ≈ 1.227197525972576    
+
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 0, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
+    spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
+    _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
+    @test temporal_corr/spatial_corr ≈ 26.740198539681632
 end

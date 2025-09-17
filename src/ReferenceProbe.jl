@@ -439,7 +439,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     
     final_st = temp ? statelis : state
 
-    return return_free_energy ? (final_st, sample, sample_free_energy) : final_st, sample
+    return return_free_energy ? (final_st, sample, sample_free_energy) : (final_st, sample)
 end
 
 
@@ -503,8 +503,8 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
     
     # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
     state = forward[t₁]
-    temp && statelis = Vector{ET}(undef, D) 
-    temp && view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    temp && (statelis = Vector{ET}(undef, D) )
+    temp && (view(statelis, 1:t₁) .= view(forward, 1:t₁))
     sample_layer = zeros(Int, size(sample, 1), n_measure)
     view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
     sample_free_energy= zeros(Float64, D)
@@ -528,20 +528,17 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
         state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
 
         # 5) t₂ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-        
-        statelis[t₁+1:t₂] = final_stlis1
-        statelis[t₂+1:end] = final_stlis2
-        
-        sample_layer[t₁+1:t₂, :] = samples1
-        sample_layer[t₂+1:end, :] = samples2
-        sample_free_energy[t₁+1:t₂] = free_energy1
-        sample_free_energy[t₂+1:end] = free_energy2
-        final_stlis3 = temp ? statelis : final_stlis2
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
 
-        return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
+        temp && (view(statelis, t₁+1:t₂) .= view(final_stlis1, :))
+        temp && (view(statelis, t₂+1:D, :) .= view(final_stlis2, :))
 
-        
+        sample_layer[t₁+1:t₂, :] .= samples1
+        sample_layer[t₂+1:end, :] .= samples2
+        sample_free_energy[t₁+1:t₂] .= free_energy1
+        sample_free_energy[t₂+1:end] .= free_energy2
+        final_stlis3 = temp ? statelis : final_stlis2[end]
+
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
         verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
     
@@ -552,15 +549,12 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
                                        anyon_type=anyon_type, verbose=verbose)
         
         # 3) t₁ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose, mode=mode, return_free_energy=true)
-        statelis[1:t₁] = forward[1:t₁]
-        statelis[t₁+1:t₂] = final_stlis1
-        statelis[t₂+1:end] = final_stlis2
-        sample_layer[t₁+1:end, :] = samples2
-        sample_free_energy[t₁+1:end] = free_energy2
-        final_stlis3 = temp ? statelis : final_stlis2
-        return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
 
+        temp && (view(statelis, t₁+1:D) .= view(final_stlis2, :))
+        sample_layer[t₁+1:end, :] .= samples2
+        sample_free_energy[t₁+1:end] .= free_energy2
+        final_stlis3 = temp ? statelis : final_stlis2[end]
 
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
@@ -569,20 +563,24 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
         state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
 
         # 3) t₁ → t₂ evolution, or δt
-        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose, mode=mode, return_free_energy=true)
-        statelis = Vector{Any}(undef, D)
-        state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-        # 3) t₁ → D evolution
-        final_stlis2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-        statelis[1:t₁] = forward[1:t₁]
-        statelis[t₁+1:end] = final_stlis2
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
 
-        sample_layer[t₁+1:t₂, :] = samples1
-        sample_layer[t₂+1:end, :] .= sample[t₂+1:end, :]
-        sample_free_energy[t₁+1:t₂] = free_energy1
-        sample_free_energy[t₂+1:end] .= 0.0
-        final_stlis3 = temp ? statelis : final_stlis2
-        return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
+        # 4) add reference qubit 2 at x₂
+        state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+        
+        # 5) t₂ → D evolution
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+
+        temp && (view(statelis, t₁+1:t₂) .= view(final_stlis2, :))
+        temp && (view(statelis, t₂+1:D) .= view(final_stlis2, :))
+        sample_layer[t₁+1:t₂, :] .= samples1
+        sample_layer[t₂+1:end, :] .= samples2
+        sample_free_energy[t₁+1:t₂] .= free_energy1
+        sample_free_energy[t₂+1:end] .= free_energy2
+
+        final_stlis3 = temp ? statelis : final_stlis2[end]
         
     end
+    
+    return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
 end
