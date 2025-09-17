@@ -561,7 +561,7 @@ function measure_evolution!(N::Int,
 
         # 2. Born trajectory (only for :Born)
         for layer in t₁:t₂
-            τ_eff = (layer == t₂ || layer == t₁) ? τ / 2 : τ
+            τ_eff = (layer == t₂) ? τ / 2 : τ
 
             # Random sampling for this layer
    
@@ -601,13 +601,13 @@ function measure_evolution!(N::Int,
         for layer in t₁:t₂
             # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
             # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer is doesn't matter.
-            τ_eff = (layer == t₂ || layer == t₁) ? τ/2 : τ
+            τ_eff = (layer == t₂) ? τ/2 : τ
 
             current_state, sample_free_energy[layer] = _apply_measurement_layer!(
                             N, τ_eff, current_state,
                             sample[layer, :], layer, pbc;
                             anyon_type=anyon_type, return_free_energy=true)
-                            
+
             temp && (states[layer-t₁+1] = current_state)
 
         end
