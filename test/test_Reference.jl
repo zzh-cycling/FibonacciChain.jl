@@ -245,6 +245,50 @@ end
     @test output33[[1]] ≈ [1/√2]
 end
 
+@testset "reference_apply_measurement_layer!" begin
+    N = 6
+    τ = 1000.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    st = zeros(18); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :copy)
+    sample = zeros(Int, length(2:2:N))
+
+    basis_F = anyon_basis(N, pbc)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    output1, free_energy = reference_apply_measurement_layer!(N, τ, add_st, sample, 1, pbc, extended_basis=ext_basis, return_free_energy=true)
+    @test length(output1) == 2*length(basis_F)
+    @test free_energy ≈ 2.8872709503576206
+end
+
+@testset "reference_sample_layer" begin
+    N = 6
+    τ = 1000.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    st = zeros(2^N); st[1] = 1 
+    anyon_type = :IsingX
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type, entangle_way = :copy)
+    sample = zeros(Int, length(2:2:N))
+
+    basis_F = anyon_basis(N, pbc, anyon_type = anyon_type)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    output1, sample_layer = reference_sample_layer!(N, τ, add_st, MersenneTwister(100), 1, pbc, anyon_type = anyon_type, extended_basis=ext_basis)
+    @test length(output1) == 2*length(basis_F)
+    @test sample_layer == [1, 1, 1, 0, 0, 1]
+end
+
+@testset "concat_bell_pair" begin
+    N = 3
+    st = ones(4)/2; 
+    basis_F = anyon_basis(N)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    bell_st = FibonacciChain.concat_bell_pair!(N, st, basis_F, ext_basis, site_idx = 1, k_old = 0)
+    @test bell_st[[1,2,3,8]] == 1/2*ones(4)
+end
+
 @testset "reference_generate_state" begin
     N = 8
     τ = 1000.0
@@ -394,4 +438,35 @@ end
     ρ = reference_rdm(N, collect(1:N), add_mes_copy, anyon_type = anyon_type, traceref=false)
     sc_ref = spatial_correlation(N, ρ, 2, 4, anyon_type = anyon_type)
     @test sc_ref ≈ sc
+end
+
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+    pbc = true
+    anyon_type = :IsingX
+    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
+
+    initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state /= norm(initial_state) # initial state is all zero state
+
+    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
+        
+    if entangle_way == :copy
+        if δt == 0
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            
+        else
+            ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+        end
+    end
+
+    return ref2st
+end
+
+@testset "reference_evolution" begin
+    L = 4
+    τ = 1000.0
+    D = 10
+    ref2st = compute_post_selection_Ising(L, τ, D, 0, sign=0, entangle_way=:copy)
 end

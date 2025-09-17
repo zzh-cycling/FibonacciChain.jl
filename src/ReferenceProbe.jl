@@ -76,6 +76,8 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 - `layer_sample::Vector{Int64}`: Measurement outcomes for the layer
 - `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
 - `pbc::Bool=true`: Periodic boundary conditions
+- `extended_basis::Vector{newT}`: Extended basis with reference qubits
+- `k_old::Int64=1`: Number of reference qubits in the state
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `return_free_energy::Bool=false`: Whether to return total free energy
 
@@ -87,7 +89,7 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 
 Samples measurement outcomes with given measurement outcomes.
 """
-function reference_apply_measurement_layer!(N::Int64, state::Vector{ET}, τ::Float64, 
+function reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{ET},
     layer_sample::Vector{Int64}, layer_idx::Int64,
     pbc::Bool=true; 
     extended_basis::Vector{newT}, k_old::Int64=1, 
@@ -113,22 +115,25 @@ end
 """
     reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
     rng::MersenneTwister = MersenneTwister(), 
-    layer_idx::Int64, 
+    layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=false) where {T}
+    extended_basis::Vector{newT}, k_old::Int64=1, 
+    return_free_energy::Bool=true) where {T, newT}
 
 Do the random measurement on a layer, in contrast to _apply_measurement_layer! No sample input, but output the sample.
 
 # Arguments
 - `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
+- `τ_eff::Float64`: Measurement strength parameter
 - `state::Vector{ET}`: Initial quantum state vector
 - `rng::MersenneTwister = MersenneTwister()`: Random number generator
 - `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `return_free_energy::Bool=false`: Whether to return total free energy
+- `extended_basis::Vector{newT}`: Extended basis with reference qubits
+- `k_old::Int64=1`: Number of reference qubits in the state
 
 # Returns
 `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
@@ -144,7 +149,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
     extended_basis::Vector{newT}, k_old::Int64=1, 
-    return_free_energy::Bool=true) where {T, newT}
+    return_free_energy::Bool=false) where {T, newT}
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
@@ -154,7 +159,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
-        ψ0 = reference_measuremap(N, τ, state, site, 0, pbc, 
+        ψ0 = reference_measuremap(N, τ_eff, state, site, 0, pbc, 
         k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
         p0 = real(dot(ψ0, ψ0))
         p1 = 1 - p0
@@ -165,8 +170,8 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
             F_layer += -log(p0)
         else
             # else 1 branch
-            ψ1 = reference_measuremap(N, τ, state, site, 1, pbc, 
-        k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
+            ψ1 = reference_measuremap(N, τ_eff, state, site, 1, pbc, 
+            k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
             sample[i] = 1
             state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
@@ -174,6 +179,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     end
     return return_free_energy ? (state, sample, F_layer) : (state, sample)
 end
+
 
 """
     reference_generate_state(N::Int64, τ::Float64, state::Vector{ET}, sample; pbc::Bool=true, temp::Bool=true, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET}
@@ -236,7 +242,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
     for layer in 1:D
         verbose && @info "Evolving layer $layer / $D"
         τ_eff = (layer == D) ? τ/2 : τ
-        state = reference_apply_measurement_layer!(N, state, τ_eff, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+        state = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
         if temp
             statelis[layer] = copy(state)
@@ -408,22 +414,24 @@ end
 reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, traceref::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, anyon_type=anyon_type, traceref=traceref)
 
 """
-    reference_evolution(N::Int, τ::Float64, forward, sample::Matrix{Int}, 
-    x₂::Int, t₁, t₂; x₁::Int=1,
-pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
-mode::Symbol = :sample, return_free_energy::Bool=false)
+    reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
+    x₂::Int, t₁, t₂; x₁::Int=1, 
+    rng=Random.default_rng(), pbc=true, 
+    anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
+mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
 
 Compute temporal correlation between two time slices using cached forward evolution and given trajectory (doing the post selection).
 
 # Arguments
 - `N::Int`: System size
 - `τ`: Evolution time parameter
-- `forward`: Cached forward state evolution trajectory
-- `sample`: Measurement sample configuration
+- `forward::Vector{ET}`: Cached forward state evolution trajectory
+- `sample::Matrix{Int}`: Measurement sample configuration
 - `x₂`: Site index for reference qubit insertion
 - `t₁`: First time slice index
 - `t₂`: Second time slice index (must be >= t₁)
 - `x₁::Int=1`: Spatial site index for first reference qubit
+- `rng=Random.default_rng()`: Random number generator
 - `pbc=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `temp::Bool=false`: Return trajectory if true
@@ -436,10 +444,11 @@ Compute temporal correlation between two time slices using cached forward evolut
 
 Avoids redundant computation by reusing forward evolution results.
 """
-function reference_evolution(N::Int, τ::Float64, forward, sample::Matrix{Int}, 
-    x₂::Int, t₁, t₂; x₁::Int=1,
-pbc=true, anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
-mode::Symbol = :sample, return_free_energy::Bool=false)
+function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
+    x₂::Int, t₁, t₂; x₁::Int=1, 
+    rng=Random.default_rng(), pbc=true, 
+    anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
+mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
     # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
     # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
     # | ---->|
@@ -449,7 +458,7 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
     #        |
     #       Ref2 --> Ref3               x₂ = N/2
     # | ----> |______| -----> |
-    # 0      t₁   t₂=t₁+δt   D
+    # 1      t₁   t₂=t₁+δt   D
 
     n_measure = (anyon_type == :Fibo) ? N÷2 : N
     D = size(sample, 1)  
@@ -461,12 +470,19 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
 
     δt = t₂ - t₁ # if δt = 0, pure spatial correlation
     δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
+    
+    # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
+    state = forward[t₁]
+    statelis = Vector{ET}(undef, D) 
+    temp && view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    sample_layer = zeros(Int, size(sample, 1), n_measure)
+    view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
+    sample_free_energy= zeros(Float64, D)
+    view(sample_free_energy, 1:t₁) .= 0.0
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
-        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
-        state = forward[t₁]
-    
+
         # 2) add reference qubit 1 at x₁, and reference qubit 2 at x₂
         state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
                                        anyon_type=anyon_type, verbose=verbose)
@@ -479,13 +495,12 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
             final_stlis1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
 
             if temp
-                statelis = Vector{Any}(undef, D) # cause state type can be ET, ET+2 qubits, ET+3 qubits
                 # 4) add reference qubit 3 at x₂
                 state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
         
                 # 5) t₂ → D evolution
                 final_stlis2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                statelis[1:t₁] = forward[1:t₁]
+                
                 statelis[t₁+1:t₂] = final_stlis1
                 statelis[t₂+1:end] = final_stlis2
                 return statelis
@@ -497,31 +512,40 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
         elseif mode == :Born
             verbose && @info "Using average mode for evolution from t₁ to t₂"
 
-            if temp 
-                statelis = Vector{Any}(undef, D)
-                final_stlis1 = reference_sample_layer!(N, τ, state2, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                # 4) add reference qubit 3 at x₂
-                state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-                # 5) t₂ → D evolution
-                final_stlis2 = reference_sample_layer!(N, τ, state3, layer_idx= t₂+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                statelis[1:t₁] = forward[1:t₁]
-                statelis[t₁+1:t₂] = final_stlis1
-                statelis[t₂+1:end] = final_stlis2
-                return statelis
-            else
-                final_stlis1 = reference_sample_layer!(N, τ, state2, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                # 4) add reference qubit 3 at x₂
-                state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-                return final_stlis2
+            for layer in t₁+1:t₂
+                τ_eff = (layer == D) ? τ/2 : τ
+
+                if return_free_energy
+                    state2, sample_layer[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=true)
+                else
+                    state2, sample_layer[layer, :] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=false)
+                end
+
+                temp && (statelis[layer] = state2)
             end
-        
+
+            state3 = add_reference_qubits!(N, state2, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+            for layer in t₂+1:D
+                τ_eff = (layer == D) ? τ/2 : τ
+
+                if return_free_energy
+                    state3, sample_layer[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state3, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=true)
+                else
+                    state3, sample_layer[layer, :] = reference_sample_layer!(N, τ_eff, state3, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=false)
+                end
+
+                temp && (statelis[layer] = state3)
+            end
+
+            final_stlis3 = temp ? statelis : state3
+
+            return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
         end
        
         
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
         verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
-        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
-        state = forward[t₁]
     
         # 2) add reference qubit 1 at x₁, and reference qubit 2 at x₂
         state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
@@ -547,24 +571,25 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
         elseif mode == :Born
             verbose && @info "Using average mode for evolution from t₁ to t₂"
            
-            if temp 
-                statelis = Vector{Any}(undef, D)
-                final_stlis2 = reference_sample_layer!(N, τ, state2, layer_idx= t₂+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                statelis[1:t₁] = forward[1:t₁]
-                statelis[t₁+1:t₂] = final_stlis1
-                statelis[t₂+1:end] = final_stlis2
-                return statelis
-            else
-                final_stlis2 = reference_sample_layer!(N, τ, state2, layer_idx= t₂+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                return final_stlis2
+            for layer in t₁+1:D
+                τ_eff = (layer == D) ? τ/2 : τ
+
+                if return_free_energy
+                    state2, sample_layer[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=true)
+                else
+                    state2, sample_layer[layer, :] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=false)
+                end
+
+                temp && (statelis[layer] = state2)
             end
-        else
-              
+            final_stlis2 = temp ? statelis : state2
+            return return_free_energy ? (final_stlis2, sample_layer, sample_free_energy) : (final_stlis2, sample_layer)
+
         end
+
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
-        # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
-        state = forward[t₁]    
+
         # 2) add reference qubit 1 at x₁
         state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
 
@@ -590,21 +615,33 @@ mode::Symbol = :sample, return_free_energy::Bool=false)
         elseif mode == :Born
             verbose && @info "Using average mode for evolution from t₁ to t₂"
             
-            if temp 
-                statelis = Vector{Any}(undef, D)
-                final_stlis1 = reference_sample_layer!(N, τ, state1, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-                # 3) t₁ → D evolution
-                final_stlis2 = reference_sample_layer!(N, τ, state2, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                statelis[1:t₁] = forward[1:t₁]
-                statelis[t₁+1:end] = final_stlis2
-                return statelis
-            else
-                final_stlis1 = reference_sample_layer!(N, τ, state1, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
-                final_stlis2 = reference_sample_layer!(N, τ, state2, layer_idx= t₁+1, pbc=pbc, anyon_type=anyon_type, temp=temp, verbose=verbose)
-                return final_stlis2
+            for layer in t₁+1:t₂
+                τ_eff = (layer == D) ? τ/2 : τ
+
+                if return_free_energy
+                    state1, sample_layer[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state1, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=true)
+                else
+                    state1, sample_layer[layer, :] = reference_sample_layer!(N, τ_eff, state1, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=false)
+                end
+
+                temp && (statelis[layer] = state1)
             end
+
+            state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+            for layer in t₂+1:D
+                τ_eff = (layer == D) ? τ/2 : τ
+
+                if return_free_energy
+                    state2, sample_layer[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=true)
+                else
+                    state2, sample_layer[layer, :] = reference_sample_layer!(N, τ_eff, state2, rng, layer, pbc, anyon_type=anyon_type, return_free_energy=false)
+                end
+
+                temp && (statelis[layer] = state2)
+            end
+
+            final_stlis2 = temp ? statelis : state2
+            return return_free_energy ? (final_stlis2, sample_layer, sample_free_energy) : (final_stlis2, sample_layer)
         end
     end
 end
