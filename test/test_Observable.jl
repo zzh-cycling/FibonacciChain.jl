@@ -367,7 +367,7 @@ end
     spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, anyon_type=:IsingX)
     @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
 
-    final_st = reference_evolution(τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX)
+    final_st, samples = reference_evolution(N, τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX, rng = MersenneTwister(1234))
     
     tc = temporal_correlation(N, final_st, anyon_type=:IsingX)
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]

@@ -502,11 +502,11 @@ end
     spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
     ref2st = compute_post_selection_Ising(L, τ, D, 4, sign=1, entangle_way=:copy)
     _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 1.227197525972576    
+    @test temporal_corr/spatial_corr ≈ 1.3473583771849356
 
     ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 0, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
     spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
     ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
     _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 26.740198539681632
+    @test temporal_corr/spatial_corr ≈ 6.69459188579601
 end

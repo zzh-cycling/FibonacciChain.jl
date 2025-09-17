@@ -362,7 +362,7 @@ function measure_evolution!(N::Int,
 
         # 2. Born trajectory (only for :Born)
         for layer in t₁:t₂
-            τ_eff = (layer == t₂ || layer == t₁) ? τ / 2 : τ
+            τ_eff = (layer == t₂) ? τ / 2 : τ
 
             # Random sampling for this layer
             if return_free_energy
@@ -383,7 +383,7 @@ function measure_evolution!(N::Int,
             error("sample size should be ($Δt, $n_measure)")
 
         for layer in t₁:t₂
-            τ_eff = (layer == t₂ || layer == t₁) ? τ/2 : τ
+            τ_eff = (layer == t₂) ? τ/2 : τ
 
             if return_free_energy
                 current_state, ΔF = _apply_measurement_layer!(
