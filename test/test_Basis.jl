@@ -317,10 +317,11 @@ end
     τ = log(1 + √2)
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state[1] = 1.0
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    statelis, free_energy = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
 
-    st, samples = reference_evolution(L, τ, statelis, sample, 1, 10, 16, anyon_type=:IsingX, rng=MersenneTwister(1234))
+    stlis, samples, sample_free_energy = reference_evolution(L, τ, statelis, sample, 1, 10, 16, anyon_type=:IsingX, rng=MersenneTwister(1234))
+    st=stlis[end]
     ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     ρ2r = anyon_rdm(L, collect(1:div(L,2)), ρ2, anyon_type=:IsingX)

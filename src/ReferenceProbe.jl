@@ -224,8 +224,7 @@ reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true
     layer_sample::Vector{Int64}, 
     layer_idx::Int64, 
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=false) where {T}
+    anyon_type::Symbol=:Fibo) where {T}
 
 Generate measurement samples at 1 layer with post_selection outcomes, i.e., with time step 1.
 
@@ -239,12 +238,10 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 - `extended_basis::Vector{newT}`: Extended basis with reference qubits
 - `k_old::Int64=1`: Number of reference qubits in the state
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `return_free_energy::Bool=false`: Whether to return total free energy
 
 # Returns
-`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}`: 
 - `post-measurement states`
-- `measurement outcomes` 
 - `free energies`
 
 Samples measurement outcomes with given measurement outcomes.
@@ -253,8 +250,7 @@ function reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector
     layer_sample::Vector{Int64}, layer_idx::Int64,
     pbc::Bool=true; 
     extended_basis::Vector{newT}, k_old::Int64=1, 
-    anyon_type::Symbol=:Fibo,
-    return_free_energy::Bool=false) where {ET, newT}
+    anyon_type::Symbol=:Fibo) where {ET, newT}
 
     total_free_energy = zero(real(ET))
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
@@ -268,9 +264,9 @@ function reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector
         state ./= sqrt(prob)
     end
 
-    return return_free_energy ? (state, total_free_energy) :  state
-
+    return state, total_free_energy
 end
+
 
 """
     reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
@@ -278,8 +274,7 @@ end
     layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
-    extended_basis::Vector{newT}, k_old::Int64=1, 
-    return_free_energy::Bool=true) where {T, newT}
+    extended_basis::Vector{newT}, k_old::Int64=1) where {T, newT}
 
 Do the random measurement on a layer, in contrast to _apply_measurement_layer! No sample input, but output the sample.
 
@@ -291,15 +286,14 @@ Do the random measurement on a layer, in contrast to _apply_measurement_layer! N
 - `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `return_free_energy::Bool=false`: Whether to return total free energy
 - `extended_basis::Vector{newT}`: Extended basis with reference qubits
 - `k_old::Int64=1`: Number of reference qubits in the state
 
 # Returns
-`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
+`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}`: 
 - `state_Born_measured`, 
 - `samples`, 
-- `free_energy` of one layer, if `return_free_energy=true`, otherwise only return `(state_Born_measured, samples)`.
+- `free_energy` of one layer.
 
 Samples measurement outcomes with Born rule driven trajectories.
 """
@@ -308,8 +302,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
-    extended_basis::Vector{newT}, k_old::Int64=1, 
-    return_free_energy::Bool=false) where {T, newT}
+    extended_basis::Vector{newT}, k_old::Int64=1) where {T, newT}
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
@@ -337,15 +330,15 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
             F_layer += -log(p1)
         end
     end
-    return return_free_energy ? (state, sample, F_layer) : (state, sample)
+    return state, sample, F_layer
 end
 
 
 """
     reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true;
-    temp::Bool=true, anyon_type::Symbol=:Fibo, verbose=false, 
+    anyon_type::Symbol=:Fibo, verbose=false, 
     rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample, return_free_energy::Bool=false) where{T, ET}
+    mode::Symbol=:sample) where{T, ET}
 
 Generate quantum state evolution under measurement protocol with reference qubits.
 
@@ -355,12 +348,10 @@ Generate quantum state evolution under measurement protocol with reference qubit
 - `state::Vector{ET}`: Initial quantum state with reference qubits
 - `sample`: Measurement sample configuration
 - `pbc::Bool=true`: Periodic boundary conditions
-- `temp::Bool=true`: Return trajectory if true, final state if false
 - `anyon_type::Symbol=:Fibo`: Model type
 - `verbose::Bool=false`: Enable verbose output
 - `rng::MersenneTwister=MersenneTwister()`: Random number generator
 - `mode::Symbol = :sample`: Evolution mode, either `:sample` for given trajectory or `:Born` for Born rule driven
-- `return_free_energy::Bool=false`: Whether to return total free energy
 
 # Returns
 - `Vector{ET}` or trajectory: Evolved state or time evolution trajectory
@@ -381,23 +372,23 @@ julia> sample = ones(Int, 2, 2);
 
 julia> τ = 0.5;
 
-julia> trajectory = reference_generate_state(τ, add_ref, sample, temp=true);
+julia> trajectory = reference_generate_state(τ, add_ref, sample);
 
 julia> length(trajectory) == size(sample, 1)
 true
 ```
 """
 function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true;
-    temp::Bool=true, anyon_type::Symbol=:Fibo, verbose=false, 
+    anyon_type::Symbol=:Fibo, verbose=false, 
     rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample, return_free_energy::Bool=false) where{T, ET}
+    mode::Symbol=:sample) where{T, ET}
 
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
     D = size(sample, 1)
     N = (anyon_type == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
     
-    statelis = temp ? Vector{Vector{T}}(undef, D) : nothing
+    statelis = Vector{Vector{T}}(undef, D)
     sample_free_energy = zeros(Float64, D) 
 
     basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
@@ -417,9 +408,9 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
             verbose && @info "Evolving layer $layer / $D"
             τ_eff = (layer == D) ? τ/2 : τ
 
-            state, sample[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state, rng, layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis, return_free_energy=true)
+            state, sample[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state, rng, layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
-            temp && (statelis[layer] = copy(state))
+            statelis[layer] = copy(state)
         end
 
     elseif mode == :sample
@@ -429,15 +420,13 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
             verbose && @info "Evolving layer $layer / $D"
             τ_eff = (layer == D) ? τ/2 : τ
 
-            state, sample_free_energy[layer] = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis, return_free_energy=true)
+            state, sample_free_energy[layer] = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
      
-            temp && (statelis[layer] = copy(state))
+            statelis[layer] = copy(state)
         end
     end  
-    
-    final_st = temp ? statelis : state
 
-    return return_free_energy ? (final_st, sample, sample_free_energy) : (final_st, sample)
+    return statelis, sample, sample_free_energy
 end
 
 
@@ -445,8 +434,8 @@ end
     reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
     x₂::Int, t₁, t₂; x₁::Int=1, 
     rng=Random.default_rng(), pbc=true, 
-    anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
-mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    mode::Symbol = :sample) where {ET}
 
 Compute temporal correlation between two time slices using cached forward evolution and given trajectory (doing the post selection).
 
@@ -462,10 +451,8 @@ Compute temporal correlation between two time slices using cached forward evolut
 - `rng=Random.default_rng()`: Random number generator
 - `pbc=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `temp::Bool=false`: Return trajectory if true
 - `verbose::Bool=false`: Enable verbose output
 - `mode::Symbol = :sample`: Evolution mode, either `:sample` for given trajectory or `:Born` for Born rule driven
-- `return_free_energy::Bool=false`: Whether to return total free energy
     
 # Returns
 - Reference qubit added state between specified spacetime slices.
@@ -475,8 +462,8 @@ Avoids redundant computation by reusing forward evolution results.
 function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
     x₂::Int, t₁, t₂; x₁::Int=1, 
     rng=Random.default_rng(), pbc=true, 
-    anyon_type::Symbol=:Fibo, temp::Bool=false, verbose=false, 
-mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    mode::Symbol = :sample) where {ET}
     # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
     # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
     # | ---->|
@@ -501,8 +488,8 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
     
     # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
     state = forward[t₁]
-    temp && (statelis = Vector{ET}(undef, D) )
-    temp && (view(statelis, 1:t₁) .= view(forward, 1:t₁))
+    statelis = Vector{ET}(undef, D) 
+    view(statelis, 1:t₁) .= view(forward, 1:t₁)
     sample_layer = zeros(Int, size(sample, 1), n_measure)
     view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
     sample_free_energy= zeros(Float64, D)
@@ -519,23 +506,22 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
         
         # 3) t₁ → t₂ evolution, or δt
         
-        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state2, sample[t₁+1:t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
         
        
         # 4) add reference qubit 3 at x₂
         state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
 
         # 5) t₂ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
 
-        temp && (view(statelis, t₁+1:t₂) .= view(final_stlis1, :))
-        temp && (view(statelis, t₂+1:D, :) .= view(final_stlis2, :))
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:D, :) .= view(final_stlis2, :)
 
         sample_layer[t₁+1:t₂, :] .= samples1
         sample_layer[t₂+1:end, :] .= samples2
         sample_free_energy[t₁+1:t₂] .= free_energy1
         sample_free_energy[t₂+1:end] .= free_energy2
-        final_stlis3 = temp ? statelis : final_stlis2[end]
 
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
         verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
@@ -547,12 +533,11 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
                                        anyon_type=anyon_type, verbose=verbose)
         
         # 3) t₁ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
 
-        temp && (view(statelis, t₁+1:D) .= view(final_stlis2, :))
+        view(statelis, t₁+1:D) .= view(final_stlis2, :)
         sample_layer[t₁+1:end, :] .= samples2
         sample_free_energy[t₁+1:end] .= free_energy2
-        final_stlis3 = temp ? statelis : final_stlis2[end]
 
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
@@ -561,24 +546,21 @@ mode::Symbol = :sample, return_free_energy::Bool=false) where {ET}
         state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
 
         # 3) t₁ → t₂ evolution, or δt
-        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[t₁+1:t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
 
         # 4) add reference qubit 2 at x₂
         state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
         
         # 5) t₂ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, temp=true, verbose=verbose, mode=mode, return_free_energy=true)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
 
-        temp && (view(statelis, t₁+1:t₂) .= view(final_stlis2, :))
-        temp && (view(statelis, t₂+1:D) .= view(final_stlis2, :))
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:D) .= view(final_stlis2, :)
         sample_layer[t₁+1:t₂, :] .= samples1
         sample_layer[t₂+1:end, :] .= samples2
         sample_free_energy[t₁+1:t₂] .= free_energy1
-        sample_free_energy[t₂+1:end] .= free_energy2
-
-        final_stlis3 = temp ? statelis : final_stlis2[end]
-        
+        sample_free_energy[t₂+1:end] .= free_energy2        
     end
-    
-    return return_free_energy ? (final_stlis3, sample_layer, sample_free_energy) : (final_stlis3, sample_layer)
+
+    return statelis, sample_layer, sample_free_energy
 end

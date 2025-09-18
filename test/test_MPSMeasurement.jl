@@ -198,14 +198,15 @@ end
     measurement_layer = 2
     bulk_samples = [1, 1, 1]
     
-    ψ_layer= _apply_measurement_layer!(N, τ, sites, ψ,  bulk_samples, measurement_layer, pbc)
+    ψ_layer, F= _apply_measurement_layer!(N, τ, sites, ψ,  bulk_samples, measurement_layer, pbc)
 
-    st_exact= _apply_measurement_layer!(N, τ, st, bulk_samples, measurement_layer, pbc)
+    st_exact, F_exact= _apply_measurement_layer!(N, τ, st, bulk_samples, measurement_layer, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
 
     ψ_dense = reduce(*, ψ_layer).tensor.storage[inds]
     @test ψ_dense[ψ_dense .>0] ≈ st_exact[st_exact .>0]
+    @test F ≈ F_exact
 end 
 
 @testset "Generate_state_mps " begin
@@ -222,16 +223,17 @@ end
     measurement_sites = collect(2:2:N)  # Example measurement sites
     τ = 1.0  # Example τ value
     bulk_samples = [1 1 1; 0 0 0]
-    generated_state = generate_state_mps(τ, sites, ψ, bulk_samples, true; pbc= pbc)
-    generated_state_exact = generate_state(τ, st, bulk_samples, pbc, temp = true)
+    generated_statelis, F = generate_state_mps(τ, sites, ψ, bulk_samples; pbc= pbc)
+    generated_statelis_exact, F_exact = generate_state(τ, st, bulk_samples, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
 
-    ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_state]
+    ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_statelis]
     ψ_dense = [sort(ψ[ψ.>0]) for ψ in ψ_dense] 
-    generated_state_exact = [sort(st_exact[st_exact .>0]) for st_exact in generated_state_exact]
+    generated_statelis_exact = [sort(st_exact[st_exact .>0]) for st_exact in generated_statelis_exact]
 
-    @test ψ_dense ≈ generated_state_exact
+    @test ψ_dense ≈ generated_statelis_exact
+    @test F ≈ F_exact
 end
 
 @testset "Entanglement Entropy" begin

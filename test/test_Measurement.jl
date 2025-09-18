@@ -312,20 +312,17 @@ end
     antiGS = states[:, 1]
 
     sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1)
-    state = generate_state(τ, antiGS, samples[1, :])
+    statelis, F = generate_state(τ, antiGS, samples[1, :])
+    state= statelis[end]
     @test state ≈ sample_measured_states[1]
-    state_F, F = generate_state(τ, antiGS, samples[1, :], return_free_energy=true)
-    @test state_F ≈ state
     @test F[1] ≈ sample_free_energy[1] atol=1e-6 
 
     st = zeros(length(anyon_basis(N)))
     st[1] = 1.0
 
     sample_measured_states, sample_bulk, sample_free_energy = bulk_measure(N, τ, st, N)
-    state_t = generate_state(τ, st, sample_bulk)
-    statelis = generate_state(τ, st, sample_bulk, true, temp= true)
+    statelis, F = generate_state(τ, st, sample_bulk)
     @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
 end
 
 @testset "boundary_measure" begin

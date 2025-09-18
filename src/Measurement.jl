@@ -384,8 +384,7 @@ end
     layer_sample::Vector{Int64}, 
     layer_idx::Int64, 
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=false) where {T}
+    anyon_type::Symbol=:Fibo) where {T}
 
 Generate measurement samples at 1 layer with post_selection outcomes, i.e., with time step 1.
 
@@ -397,12 +396,10 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 - `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `return_free_energy::Bool=false`: Whether to return total free energy
 
 # Returns
 `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
 - `post-measurement states`
-- `measurement outcomes` 
 - `free energies`
 
 Samples measurement outcomes with given measurement outcomes.
@@ -410,8 +407,7 @@ Samples measurement outcomes with given measurement outcomes.
 function _apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{T}, 
     layer_sample::Vector{Int64}, layer_idx::Int64, 
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=false) where {T}
+    anyon_type::Symbol=:Fibo) where {T}
     # Helper function to apply deterministic measurements to a layer, connect measure on each site together.
 
     total_free_energy = zero(real(T))
@@ -427,7 +423,7 @@ function _apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{T},
         state ./= sqrt(prob)
     end
 
-    return return_free_energy ? (state, total_free_energy) :  state
+    return state, total_free_energy
 end
 
 """
@@ -435,8 +431,7 @@ end
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64, 
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=false) where {T}
+    anyon_type::Symbol=:Fibo) where {T}
 
 Do the random measurement on a layer, in contrast to _apply_measurement_layer! No sample input, but output the sample.
 
@@ -448,13 +443,12 @@ Do the random measurement on a layer, in contrast to _apply_measurement_layer! N
 - `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
-- `return_free_energy::Bool=false`: Whether to return total free energy
 
 # Returns
 `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
 - `state_Born_measured`, 
 - `samples`, 
-- `free_energy` of one layer, if `return_free_energy=true`, otherwise only return `(state_Born_measured, samples)`.
+- `free_energy` of one layer.
 
 Samples measurement outcomes with Born rule driven trajectories.
 """
@@ -463,7 +457,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
     layer_idx::Int64=1, 
     pbc::Bool=true; 
     anyon_type::Symbol=:Fibo, 
-    return_free_energy::Bool=true, verbose::Bool=false) where {T}
+    verbose::Bool=false) where {T}
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
@@ -493,7 +487,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
             verbose && @show -log(p1)
         end
     end
-    return return_free_energy ? (state, sample, F_layer) : (state, sample)
+    return state, sample, F_layer
 end
 
 """
@@ -503,8 +497,6 @@ end
              anyon_type = :Fibo,
              mode = :prob,      # :prob random sampling, :sample given sample
              t₁ = 1,
-             temp = false,  # return all intermediate states
-             return_free_energy=true,
              sample)   
 
 Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial state with specified parameters, returning final states, measurement sequences, and free energies, with options for different sampling modes and temporal settings. KEEP IN MIND: In such definition, (2N+1) layers of measurements correspond to N time steps of evolution, with the last layer being half-strength. The first and end layer should not be √ZZ or √M₁ᵒ
@@ -518,14 +510,13 @@ Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `mode::Symbol=:prob`: evolution mode, one of `:prob`, `:sample`, `:Born`, Born is random sampling, driven by Born rule, the other is deterministic post-selection evolution, with given measurement outcomes.
-- `temp::Bool=false`: If true, return all intermediate states; if false, return only final state
 - `sample::Union{Nothing,Matrix{Int}}=nothing`: Predefined measurement sequences for `:sample` mode
 - `t₁::Int=1`: Starting layer index for evolution (default is 1)
 
 # Returns
 - `Tuple{Union{Vector{ET}, Vector{Vector{ET}}}, Matrix{Int}, Vector{Float64}}`: 
   (final state or all intermediate states, measurement sequences, free energies)
-- states        : final state or all intermediate states (depends on temp)
+- states        : final state
 - samples       : measurement sequences (Matrix{Int})
 - sample_free_energy : cumulative free energy for each layer (or each sample)
 """
@@ -536,10 +527,8 @@ function measure_evolution!(N::Int,
                   rng = Random.default_rng(),
                   pbc::Bool = true,
                   anyon_type::Symbol = :Fibo,
-                  mode::Symbol = :prob,
-                  temp::Bool = false,
+                  mode::Symbol = :sample,
                   t₁::Int = 1,
-                  return_free_energy::Bool = true,
                   sample::Union{Nothing,Matrix{Int}}=nothing,
                   verbose::Bool = false) where {ET}
 
@@ -548,8 +537,10 @@ function measure_evolution!(N::Int,
     # ---------- Sample decided according to mode ----------
     Δt = t₂ - t₁ + 1 # number of layers to evolve
     Δt > 0 || error("t₂ must be >= t₁")
+    mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
+
     sample_free_energy = zeros(Δt) # free energy of each layer
-    states = temp ? Vector{Vector{ET}}(undef, Δt) : nothing # states of each layer
+    states = Vector{Vector{ET}}(undef, Δt)  # states of each layer
     current_state = copy(state)
 
     if mode == :Born
@@ -562,9 +553,9 @@ function measure_evolution!(N::Int,
 
             # Random sampling for this layer
    
-            current_state, sample[layer-t₁+1, :], sample_free_energy[layer-t₁+1] = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, return_free_energy = true, verbose=verbose)
+            current_state, sample[layer-t₁+1, :], sample_free_energy[layer-t₁+1] = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, verbose=verbose)
 
-            temp && (states[layer-t₁+1] = current_state)
+            states[layer-t₁+1] = current_state
         end
         
     elseif mode == :sample
@@ -603,39 +594,28 @@ function measure_evolution!(N::Int,
             current_state, sample_free_energy[layer] = _apply_measurement_layer!(
                             N, τ_eff, current_state,
                             sample[layer, :], layer, pbc;
-                            anyon_type=anyon_type, return_free_energy=true)
+                            anyon_type=anyon_type)
 
-            temp && (states[layer-t₁+1] = current_state)
+            states[layer-t₁+1] = current_state
 
         end
-
-    else
-        error("mode must be ∈ [:Born, :sample]")
     end
-    final_state = temp ? states : current_state
     
-    return return_free_energy ? (final_state, sample, sample_free_energy) : (final_state, sample)
+    return states, sample, sample_free_energy
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; temp::Bool=false, anyon_type::Symbol=:Fibo, return_free_energy::Bool=false) where{T, ET}
+function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; anyon_type::Symbol=:Fibo) where{T, ET}
     if ET == Vector{Int} # single layer
         sample = reshape(sample, 1, :) 
     end
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
-
-    if return_free_energy
-        final_state, sample, free_energy = measure_evolution!(N, τ, state, D; 
-        pbc=pbc, anyon_type=anyon_type, mode=:sample, 
-        temp=temp, sample=sample, return_free_energy=true)
-        return final_state, free_energy
-    else
-        final_state, sample = measure_evolution!(N, τ, state, D; 
-        pbc=pbc, anyon_type=anyon_type, mode=:sample, 
-        temp=temp, sample=sample, return_free_energy=false)
-        return final_state
-    end
+    
+    final_state, sample, free_energy = measure_evolution!(N, τ, state, D; 
+    pbc=pbc, anyon_type=anyon_type, mode=:sample, 
+    sample=sample)
+    return final_state, free_energy
 end
 
 """
@@ -668,7 +648,7 @@ function boundary_measure(N::Int, τ::Float64, state::Vector{ET}, layer_idx::Int
     sample_free_energy = Vector{Float64}(undef, num_samples)
 
     for sample_idx in 1:num_samples
-        final_state, sample, free_energy = _sample_layer!(N, τ, state,  rng, layer_idx, pbc; anyon_type=anyon_type, return_free_energy=true)
+        final_state, sample, free_energy = _sample_layer!(N, τ, state,  rng, layer_idx, pbc; anyon_type=anyon_type)
 
         sample_measured_states[sample_idx] = final_state
         samples[sample_idx, :] = sample
@@ -707,7 +687,7 @@ function boundary_post_selection(N::Int64, τ::Float64, state::Vector{ET}, layer
 
     state_measured, total_free_energy =  _apply_measurement_layer!(
         N, τ, state, sample, layer_idx, pbc;
-        anyon_type=anyon_type, return_free_energy=true
+        anyon_type=anyon_type
     )  # return the final state after applying all measurements in the layer
 
     return state_measured, sample, total_free_energy
@@ -742,9 +722,8 @@ function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::M
         pbc=pbc,
         anyon_type=anyon_type,
         mode=:Born,
-        temp=true, 
-        return_free_energy=true, verbose=verbose
-    )  # need all the intermediate states, measure_evolution! return each layer free energy, when temp=true return Vector{Vector{ET}}, each layer state
+        verbose=verbose
+    )  # need all the intermediate states, measure_evolution! return each layer free energy
     return final_state, samples, sample_free_energy
 end
 
@@ -789,9 +768,8 @@ function bulk_post_selection(
         pbc=pbc,
         anyon_type=anyon_type,
         mode=:sample,
-        temp=true,
         sample=sample
-    )        # need all the intermediate states, measure_evolution! return each layer free energy, when temp=true return Vector{Vector{ET}}, each layer state    
+    )        # need all the intermediate states, measure_evolution! return each layer free energy
 
     return sample_measured_states, sample, sample_free_energy
 end

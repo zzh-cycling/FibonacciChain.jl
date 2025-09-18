@@ -266,7 +266,7 @@ end
 
     basis_F = anyon_basis(N, pbc)
     ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
-    output1, free_energy = reference_apply_measurement_layer!(N, τ, add_st, sample, 1, pbc, extended_basis=ext_basis, return_free_energy=true)
+    output1, free_energy = reference_apply_measurement_layer!(N, τ, add_st, sample, 1, pbc, extended_basis=ext_basis)
     @test length(output1) == 2*length(basis_F)
     @test free_energy ≈ 2.8872709503576206
 end
@@ -454,20 +454,20 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
     
     if entangle_way == :copy
         if δt == 0
-            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, return_free_energy=false, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
 
         else
-            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, return_free_energy=false, rng=rng,) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
         end
     end
 
-    return ref2st
+    return ref2stlis[end]
 end
 
 function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, mode::Symbol=:Born, rng = MersenneTwister(100))
@@ -478,20 +478,20 @@ function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true, anyon_type=anyon_type)
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
     
     if entangle_way == :copy
         if δt == 0
-            ref2st, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, return_free_energy=true, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
 
         else
-            ref2st, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, return_free_energy=true, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
         end
     end
 
-    return ref2st, sample_layer, sample_free_energy
+    return ref2stlis[end], sample_layer, sample_free_energy
 end
 
 @testset "reference_evolution" begin

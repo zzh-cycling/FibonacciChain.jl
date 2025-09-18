@@ -463,8 +463,9 @@ end
     sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = sample_measured_states[end]
 
-    new_state = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
+    new_state, F = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
     @test new_state ≈ sample_measured_states[1]
+    @test F ≈ sample_free_energy[1] atol=1e-6
 end
 
 @testset "generate_state" begin
@@ -474,12 +475,12 @@ end
     st[1] = 1.0
 
     sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 10, anyon_type=:IsingX)
-    state = generate_state(τ, st, samples[1,:], anyon_type=:IsingX)
-    @test state ≈ sample_measured_states[1]
+    state, F = generate_state(τ, st, samples[1,:], anyon_type=:IsingX)
+    @test state[1] ≈ sample_measured_states[1]
+    @test F[1] ≈ sample_free_energy[1] atol=1e-6
 
     sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
-    state_t = generate_state(τ, st, samples, anyon_type=:IsingX)
-    statelis = generate_state(τ, st, samples, true, temp = true, anyon_type=:IsingX)
+    statelis, F = generate_state(τ, st, samples, anyon_type=:IsingX)
     @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
+    @test F ≈ sample_free_energy atol=1e-6  
 end

@@ -362,13 +362,13 @@ end
     D= 10 
 
     sample = zeros(Int, D, N)
-    statelis = generate_state(τ, mes, sample, temp= true, anyon_type=:IsingX)
+    statelis, free_energy = generate_state(τ, mes, sample, anyon_type=:IsingX)
     # Noting that the first state of statelis is not mes.
     spatial_corr_lis = spatial_correlation.(N, statelis, 1, div(N,2),  pbc=true, anyon_type=:IsingX)
     @test spatial_corr_lis[2:2:D] ≈ log(2)*ones(div(D,2))
 
-    final_st, samples = reference_evolution(N, τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX, rng = MersenneTwister(1234))
-    
+    final_stlis, samples, sample_free_energy = reference_evolution(N, τ, statelis, sample, div(N,2), 4, 8, anyon_type=:IsingX, rng = MersenneTwister(1234))
+    final_st = final_stlis[end]
     tc = temporal_correlation(N, final_st, anyon_type=:IsingX)
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol=1e-6)
