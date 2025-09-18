@@ -20,10 +20,10 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), cstτ)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
     sign = 1
     output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc)
@@ -36,20 +36,20 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
-    
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+
     sign = 1
     coef = (1-exp(τ))/2√(exp(2τ)+1)
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     τ = 1e3
     sign = 0
@@ -58,17 +58,17 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     idx = 1
     output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"100"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
     @test output[4] == (T(bit"100"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
     @test output[5] === nothing
 
@@ -77,17 +77,17 @@ using Random
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"001"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
-    @test output[3] == (T(bit"010"), cstτ+coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] === nothing
 
     output = measure_basismap.(T, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 1.0)
-    @test output[2] == (T(bit"001"), 0.0)
-    @test output[3] == (T(bit"010"), 1.0)
-    @test output[4] == (T(bit"100"), 1.0)
-    @test output[5] == (T(bit"101"), 0.0) # Noting such basis didn't show in Fibonacci basis
+    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin

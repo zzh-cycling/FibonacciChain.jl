@@ -207,11 +207,11 @@ end
 
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ)
-    @test output[2] == (T(bit"001"), cstτ)
-    @test output[3] == (T(bit"010"), cstτ)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
     sign = 1
     output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
@@ -223,21 +223,21 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ+coef)
-    @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ-coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     sign = 1
     coef = -sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ+coef)
-    @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ-coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     idx=3
     τ = 1e3
@@ -246,21 +246,21 @@ end
     coef = 1/2
     output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 1.0)
-    @test output[2] == (T(bit"001"), 0.0)
-    @test output[3] == (T(bit"010"), 1.0)
-    @test output[4] == (T(bit"100"), 0.0)
-    @test output[5] == (T(bit"101"), 1.0)
+    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 0.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 1.0, 0.0)
 
 
     sign = 1
     output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ) # pbc is true by default
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 0.0)
-    @test output[2] == (T(bit"001"), 1.0)
-    @test output[3] == (T(bit"010"), 0.0)
-    @test output[4] == (T(bit"100"), 1.0)
-    @test output[5] == (T(bit"101"), 0.0)
+    @test output[1] == (T(bit"000"), T(bit"000"), 0.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 1.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 0.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0)
 
 end
 

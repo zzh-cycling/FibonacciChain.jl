@@ -40,18 +40,16 @@ function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Ve
     mask = bmask(newT, 1:N...)
     
     for (i, ext_basis_i) in enumerate(extended_basis)
-        output = reference_measure_basismap(T, newT, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
+        outputstate1, outputstate2, output1, output2 = reference_measure_basismap(T, newT, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
         
         prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
-        
-        if length(output) == 4
-            outputstate1, outputstate2, output1, output2=output
+
+        if output2 ==0
+            mapped_state[i]+=output1*state[i]
+        else
             j2=searchsortedfirst(extended_basis, join(prefix_i, outputstate2))
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
-        else
-            outputstate, output1=output # outputstate is the same as basis[i]
-            mapped_state[i]+=output1*state[i]
         end
     end
 

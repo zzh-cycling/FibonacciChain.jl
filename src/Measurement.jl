@@ -126,17 +126,17 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
 
         if 1<= i <= N-1
             if ((state >> (N - i)) & 1) == ((state >> (N - i -1)) & 1)
-                return state, cstτ+coef
+                return state, state, cstτ+coef, 0
             else
-                return state, cstτ-coef
+                return state, state, cstτ-coef, 0
             end
         end
 
         if pbc && i == N
             if (state & 1) == (state >> (N-1) & 1)
-                return state, cstτ+coef
+                return state, state, cstτ+coef, 0
             else
-                return state, cstτ-coef
+                return state, state, cstτ-coef, 0
             end
         end
     elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
@@ -148,7 +148,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
             coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
         end
 
-        return state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
+        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
     else
         error("Unknown measure class: $anyon_type")
     end
@@ -172,16 +172,14 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Int64, pbc::Bool
     Bmatrix = zeros(l, l)
 
     for i in 1:l
-        outcome = measure_basismap(T, τ, basis[i], idx, sign, pbc; anyon_type = anyon_type)
+        s1, s2, w1, w2 = measure_basismap(T, τ, basis[i], idx, sign, pbc; anyon_type = anyon_type)
 
-        if length(outcome) == 4
-            s1, s2, w1, w2 = outcome
+        if w2 == 0
+            Bmatrix[i, i] += w1
+        else
             j2 = searchsortedfirst(basis, s2)
             Bmatrix[i, i] += w1
             Bmatrix[i, j2] += w2
-        else
-            s, w = outcome
-            Bmatrix[i, i] += w
         end
     end
 
@@ -206,15 +204,14 @@ function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::I
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
-        output = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
-        if length(output) == 4
-            outputstate1, outputstate2, output1, output2=output
+        outputstate1, outputstate2, output1, output2 = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
+        
+        if output2 == 0
+            mapped_state[i]+=output1*state[i] # outputstate is the same as basis[i]
+        else
             j2=searchsortedfirst(basis, outputstate2)
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
-        else
-            outputstate, output1=output # outputstate is the same as basis[i]
-            mapped_state[i]+=output1*state[i]
         end
     end
     

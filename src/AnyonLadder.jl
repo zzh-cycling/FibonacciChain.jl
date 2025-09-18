@@ -52,11 +52,20 @@ function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=t
     for i in 1:l
         # NOTING that in julia the matrix is column-major order, so we reshape a reduced density matrix to vector, its element will be like a0b0, a1b0, a2b0,,,
         for j in 1:l
-            output1 = braidingsq_basismap(T, basis[i], idx, pbc)
-            output2 = braidingsq_basismap(T, basis[j], idx, pbc)
-            if length(output1) == 4 && length(output2) == 4
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj1, basisj2, coefj1, coefj2=output2
+            basisi1, basisi2, coefi1, coefi2 = braidingsq_basismap(T, basis[i], idx, pbc) 
+            basisj1, basisj2, coefj1, coefj2 = braidingsq_basismap(T, basis[j], idx, pbc)
+
+            if coefi2 == 0 # i has the same index as i1 i2
+                j2=searchsortedfirst(basis, basisj2)
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj1
+                mapped_state[(i-1)*l+j2]+=state[(i-1)*l+j]*coefi1*coefj2
+            elseif coefj2 == 0 # j has the same index as j1 j2
+                i2=searchsortedfirst(basis, basisi2)  
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj1
+                mapped_state[(i2-1)*l+j]+=state[(i-1)*l+j]*coefi2*coefj1
+            elseif coefi2 == 0 && coefj2 == 0
+                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj1
+            else
                 i2=searchsortedfirst(basis, basisi2)
                 j2=searchsortedfirst(basis, basisj2)
                 # Here noting that the state is a vertorizing density matrix, so the index is i+(j-1)*len, not state[i], state[j]
@@ -64,22 +73,6 @@ function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=t
                 mapped_state[(i-1)*l+j2]+=state[(i-1)*l+j]*coefi1*coefj2
                 mapped_state[(i2-1)*l+j]+=state[(i-1)*l+j]*coefi2*coefj1
                 mapped_state[(i2-1)*l+j2]+=state[(i-1)*l+j]*coefi2*coefj2
-            elseif length(output1) == 4 && length(output2) == 2
-                basisi1, basisi2, coefi1, coefi2=output1
-                basisj, coefj=output2
-                i2=searchsortedfirst(basis, basisi2)  
-                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi1*coefj
-                mapped_state[(i2-1)*l+j]+=state[(i-1)*l+j]*coefi2*coefj
-            elseif length(output1) == 2 && length(output2) == 4
-                basisi, coefi=output1
-                basisj1, basisj2, coefj1, coefj2=output2
-                j2=searchsortedfirst(basis, basisj2)
-                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi*coefj1
-                mapped_state[(i-1)*l+j2]+=state[(i-1)*l+j]*coefi*coefj2
-            else
-                basisi, coefi=output1
-                basisj, coefj=output2
-                mapped_state[(i-1)*l+j]+=state[(i-1)*l+j]*coefi*coefj
             end
         end
     end

@@ -48,29 +48,29 @@ end
     T = BitStr{N, Int}
     basislis = anyon_basis(N, pbc, anyon_type=:Fibo)
     l = length(basislis)
-    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0)
+    output11 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 1, sign, pbc, k_old=0)
     output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
-    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0)
+    output21 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 2, sign, pbc, k_old=0)
     output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc)
-    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0)
+    output31 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 3, sign, pbc, k_old=0)
     output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc)
     @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
     @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
     @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1)
-    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1)
-    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1)
+    output13 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 1, sign, pbc, k_old=1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 2, sign, pbc, k_old=1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 3, sign, pbc, k_old=1)
 
     @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
 
     extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
-    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2)
-    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2)
-    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2)
+    output14 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, pbc, k_old=2)
+    output24 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, pbc, k_old=2)
+    output34 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, pbc, k_old=2)
 
     @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
     @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
@@ -88,29 +88,29 @@ end
     anyon_type2 = :IsingZZ
     basislis = anyon_basis(N, pbc, anyon_type=anyon_type1)
     l = length(basislis)
-    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output11 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
     output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type1)
-    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output21 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 2, sign, pbc, k_old=0, anyon_type = anyon_type1)
     output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type1)
-    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output31 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 3, sign, pbc, k_old=0, anyon_type = anyon_type1)
     output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type1)
     @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
     @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
     @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output13 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type1)
 
     @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
 
     extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
-    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2, anyon_type = anyon_type1)
-    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2, anyon_type = anyon_type1)
-    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output14 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output24 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output34 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, pbc, k_old=2, anyon_type = anyon_type1)
 
     @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
     @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
@@ -122,9 +122,9 @@ end
     output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type2)
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    output23zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    output33zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output13zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output23zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output33zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
 
     @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
     @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
@@ -143,16 +143,16 @@ end
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
 
     ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc))
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, extended_basis=ext_basis)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, extended_basis=ext_basis)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output13 = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(N, τ, add_st, 2, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(N, τ, add_st, 3, sign, pbc, k_old=1, extended_basis=ext_basis)
     @test output13 == 0.5*[(1-ϕ^(-1)), 1, 1, -ϕ^(-3/2), -ϕ^(-3/2), 0, 0, ϕ^(-1)]
     @test output23 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), 1, ϕ^(-1)-ϕ^(-3/2), 0, 0 , 0, 0, 1]
     @test output33 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), ϕ^(-1)-ϕ^(-3/2), 1, 0, 0, 0, 0, 1]
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
-    output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
-    output33 = FibonacciChain.reference_measuremap(T, τ, st, 3, 1, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output13 = FibonacciChain.reference_measuremap(N, τ, st, 1, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output23 = FibonacciChain.reference_measuremap(N, τ, st, 2, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output33 = FibonacciChain.reference_measuremap(N, τ, st, 3, 1, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
     @test output13 == measuremap(N, τ, st, 1, 0, pbc)
     @test output23 == measuremap(N, τ, st, 2, 0, pbc)
     @test output33 == measuremap(N, τ, st, 3, 1, pbc)
@@ -171,9 +171,9 @@ end
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type1, entangle_way = :reset)[3]
 
     ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc, anyon_type=anyon_type1))
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2, extended_basis=ext_basis)
+    output13 = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(N, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(N, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2, extended_basis=ext_basis)
     @test output13[[1, 5, 9, 13]] ≈ 1/2√2*ones(4)
     @test output23[[1, 3, 13, 15]] ≈ 1/2√2*ones(4)
     @test output33[[1]] ≈ [1/√2]
