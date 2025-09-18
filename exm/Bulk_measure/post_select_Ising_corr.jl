@@ -38,19 +38,24 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
-        
+
+    basis_F = anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)
+    ext_basis = FibonacciChain.build_extended_basis(2, basis_F)
+       
     if entangle_way == :copy
         if δt == 0
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
             spatial = true
             temporal = false
         else
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
             temporal = true
             spatial = false
         end
-        spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], anyon_type=:IsingX, spatial = spatial, temporal = temporal)
-        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], anyon_type=:IsingX, traceref = false)
+        spatial_corr, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, anyon_type=:IsingX, traceref = false)
         S = ee(sysrdm)
     end
 

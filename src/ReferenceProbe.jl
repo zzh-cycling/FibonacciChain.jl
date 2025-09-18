@@ -406,7 +406,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
         verbose && @info "Using Born rule driven evolution mode"
         for layer in 1:D
             verbose && @info "Evolving layer $layer / $D"
-            τ_eff = (layer == D) ? τ/2 : τ
+            # τ_eff = (layer == D) ? τ/2 : τ
+            τ_eff = τ
 
             state, sample[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state, rng, layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
@@ -418,7 +419,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
 
         for layer in 1:D
             verbose && @info "Evolving layer $layer / $D"
-            τ_eff = (layer == D) ? τ/2 : τ
+            # τ_eff = (layer == D) ? τ/2 : τ
+            τ_eff = τ
 
             state, sample_free_energy[layer] = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
      
