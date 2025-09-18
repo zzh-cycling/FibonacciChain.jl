@@ -65,11 +65,11 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
             elseif state & mask == str010
                 return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
             elseif state & mask == str001
-                return state, cstτ+coef
+                return state, state, cstτ+coef, 0
             elseif state & mask == str100
-                return state, cstτ+coef
+                return state, state, cstτ+coef, 0
             elseif state & mask == str101
-                return state, cstτ-coef
+                return state, state, cstτ-coef, 0
             end
         end
 
@@ -82,11 +82,11 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 elseif state & mask == str010
                     return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
                 elseif state & mask == str001
-                    return state, cstτ+coef
+                    return state, state, cstτ+coef, 0
                 elseif state & mask == str100
-                    return state, cstτ+coef
+                    return state, state, cstτ+coef, 0
                 elseif state & mask == str101
-                    return state, cstτ-coef
+                    return state, state, cstτ-coef, 0
                 end
             elseif i == N #count from the left
             mask=bmask(T, N, 2, 1)
@@ -96,11 +96,11 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 elseif state & mask == str010
                     return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
                 elseif state & mask == str001
-                    return state, cstτ+coef
+                    return state, state, cstτ+coef, 0
                 elseif state & mask == str100
-                    return state, cstτ+coef
+                    return state, state, cstτ+coef, 0
                 elseif state & mask == str101
-                    return state, cstτ-coef
+                    return state, state, cstτ-coef, 0
                 end
             end
         end

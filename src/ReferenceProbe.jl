@@ -13,15 +13,15 @@ end
 function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
     # default for PBC system, map basis
     @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
-    @assert M == N + k_old "The output basis should be $(N + k_old), but got $newT"
+    @assert M == N + k_old "The output basis should be with length $(N + k_old), but got $M"
     
-    mask = bmask(BitStr{N+k_old, Int}, 1:N...)
+    mask = bmask(newT, 1:N...)
     action_state = T(takesystem(state, mask))
     return measure_basismap(T, τ, action_state, i, sign, pbc, anyon_type=anyon_type)
    
 end
 
-function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
+function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, M, k_old, T <: BitStr{N}, ET, newT <: BitStr{M}, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -33,11 +33,10 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    @assert M == N + k_old "The extended_basis should be $(N + k_old), but got $newT"
+    @assert M == N + k_old "The output basis should be with length $(N + k_old), but got $M"
 
     mapped_state = zeros(ET, length(state))
 
-    pretype = BitStr{k_old, Int}
     mask = bmask(newT, 1:N...)
     
     for (i, ext_basis_i) in enumerate(extended_basis)
@@ -58,7 +57,7 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
 
     return mapped_state
 end
-reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type, extended_basis=extended_basis)
+reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, BitStr{k_old, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type, extended_basis=extended_basis)
 
 function concat_bell_pair!(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1, new_dim::Int64=2^(N+k_old), verbose =false) where {ET}
     # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
