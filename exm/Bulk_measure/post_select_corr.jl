@@ -63,21 +63,21 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true)
+    statelis, Flis = generate_state(τ, initial_state, sample)
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, length(2:2:L)) : ones(Int, D+δt+D+1, length(2:2:L))
 
     if entangle_way == :copy
         if δt == 0
-            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true, return_free_energy=false, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true,  rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2st, sample_layer = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, return_free_energy=false, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
-        spatial_corr, temporal_corr = ref_correlation(L, ref2st, spatial = spatial, temporal = temporal)
-        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, traceref = false)
+        spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
         S = ee(sysrdm)
     end
 
