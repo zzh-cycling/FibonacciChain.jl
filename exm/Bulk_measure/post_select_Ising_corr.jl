@@ -339,77 +339,79 @@ else
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
-# L=8; pbc=true; anyon_type=:IsingX; D=5L;
-# τ =  log(1+√2)
-# initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
-# initial_state /= norm(initial_state) # initial state is all plus state
-# stlis1 = generate_state(τ, initial_state, ones(Int, D, L), temp= true, anyon_type=anyon_type)
-# stlis0 = generate_state(τ, initial_state, zeros(Int, D, L), temp= true, anyon_type=anyon_type)
-# fst0 = stlis0[end]
-# fst1 = stlis1[end]
+L=8; pbc=true; anyon_type=:IsingX; D=5L;
+τ =  log(1+√2)
+initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+initial_state /= norm(initial_state) # initial state is all plus state
+stlis1 = generate_state(τ, initial_state, ones(Int, D, L), temp= true, anyon_type=anyon_type)
+stlis0 = generate_state(τ, initial_state, zeros(Int, D, L), temp= true, anyon_type=anyon_type)
+fst0 = stlis0[end]
+fst1 = stlis1[end]
 
-# ref_sample0 = zeros(Int, D+50, L)
-# ref_sample1 = ones(Int, D, L)
-# using Profile
-# @profile ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
-# @code_warntype ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
-# ref2st1 = reference_evolution(L, τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
-# sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
-# sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
+ref_sample0 = zeros(Int, D+50, L)
+ref_sample1 = ones(Int, D, L)
+using Profile
+@profile ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true, rng= MersenneTwister(100))
+using BenchmarkTools
+@btime reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=false,rng= MersenneTwister(100))
+@code_warntype ref2st0 = reference_evolution(L, τ, stlis0, ref_sample0, L÷2, D, D+4, anyon_type=:IsingX, verbose=true)
+ref2st1 = reference_evolution(L, τ, stlis1, ref_sample1, L÷2, D, D, anyon_type=:IsingX, verbose=true)
+sys0 = reference_rdm(L, collect(1:L), ref2st0, anyon_type=:IsingX, traceref = false)
+sys1 = reference_rdm(L, collect(1:L), ref2st1, anyon_type=:IsingX, traceref = false)
 
-# ρ1 = reference_rdm(L, [2], ref2st1, pbc=pbc, anyon_type=anyon_type)
-# ρ2 = reference_rdm(L, [1], ref2st1, pbc=pbc, anyon_type=anyon_type)
-# ρ12 = reference_rdm(L, [1, 2], ref2st1, pbc=pbc, anyon_type=anyon_type)
-# ee(ρ1), ee(ρ2), ee(ρ12)
-# I = ee(ρ1) + ee(ρ2) - ee(ρ12)
+ρ1 = reference_rdm(L, [2], ref2st1, pbc=pbc, anyon_type=anyon_type)
+ρ2 = reference_rdm(L, [1], ref2st1, pbc=pbc, anyon_type=anyon_type)
+ρ12 = reference_rdm(L, [1, 2], ref2st1, pbc=pbc, anyon_type=anyon_type)
+ee(ρ1), ee(ρ2), ee(ρ12)
+I = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
-# ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
-# ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)
+ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
+ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)
 
-# tc0= temporal_correlation(L, ref2st0, anyon_type=:IsingX)
-# tc1= temporal_correlation(L, ref2st1, anyon_type=:IsingX)
+tc0= temporal_correlation(L, ref2st0, anyon_type=:IsingX)
+tc1= temporal_correlation(L, ref2st1, anyon_type=:IsingX)
 
-# eelis0 = anyon_eelis(L, fst0, pbc, anyon_type=anyon_type)
-# eelis1 = anyon_eelis(L, fst1, pbc, anyon_type=anyon_type)
+eelis0 = anyon_eelis(L, fst0, pbc, anyon_type=anyon_type)
+eelis1 = anyon_eelis(L, fst1, pbc, anyon_type=anyon_type)
 
-# [ρeelis0 ρeelis1 eelis0 eelis1]
+[ρeelis0 ρeelis1 eelis0 eelis1]
 
-# add1_st0 = add_reference_qubits!(L, fst0, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add1_st1 = add_reference_qubits!(L, fst1, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add2_st0 = add_reference_qubits!(L, add1_st0, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add2_st1 = add_reference_qubits!(L, add1_st1, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# add3_st0 = add_reference_qubits!(L, add2_st0, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# temporal_correlation(L, add3_st0, anyon_type=:IsingZ)
-# temporal_correlation(L, add2_st1, anyon_type=:IsingZ)
+add1_st0 = add_reference_qubits!(L, fst0, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+add1_st1 = add_reference_qubits!(L, fst1, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+add2_st0 = add_reference_qubits!(L, add1_st0, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+add2_st1 = add_reference_qubits!(L, add1_st1, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+add3_st0 = add_reference_qubits!(L, add2_st0, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+temporal_correlation(L, add3_st0, anyon_type=:IsingZ)
+temporal_correlation(L, add2_st1, anyon_type=:IsingZ)
 
-# ρ1 = reference_rdm(L, [2], add2_st1, pbc=pbc, anyon_type=anyon_type)
+ρ1 = reference_rdm(L, [2], add2_st1, pbc=pbc, anyon_type=anyon_type)
 
-# sys0 = reference_rdm(L, collect(1:L), add2_st0, anyon_type=:IsingX, traceref = false)
-# sys1 = reference_rdm(L, collect(1:L), add2_st1, anyon_type=:IsingX, traceref = false)
+sys0 = reference_rdm(L, collect(1:L), add2_st0, anyon_type=:IsingX, traceref = false)
+sys1 = reference_rdm(L, collect(1:L), add2_st1, anyon_type=:IsingX, traceref = false)
 
-# ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
-# ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)
+ρeelis0 = anyon_eelis(L, sys0, pbc, anyon_type=anyon_type)
+ρeelis1 = anyon_eelis(L, sys1, pbc, anyon_type=anyon_type)
 
-# state1 = add_reference_qubits!(L, fst0, 1, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# state2 = add_reference_qubits!(L, state1, L÷2, pbc=pbc,
-#                                    anyon_type=anyon_type)
-# final_stlis2 = reference_generate_state(τ, state2, ref_sample0[D+1:end, :], pbc, anyon_type=anyon_type, temp=false)
-# ρ = reference_rdm(L, collect(1:L), final_stlis2, anyon_type=:IsingX, traceref = false)
-# temporal_correlation(L, final_stlis2, anyon_type=:IsingX)
-# sc = spatial_correlation(L, ρ, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
+state1 = add_reference_qubits!(L, fst0, 1, pbc=pbc,
+                                   anyon_type=anyon_type)
+state2 = add_reference_qubits!(L, state1, L÷2, pbc=pbc,
+                                   anyon_type=anyon_type)
+final_stlis2 = reference_generate_state(τ, state2, ref_sample0[D+1:end, :], pbc, anyon_type=anyon_type, temp=false)
+ρ = reference_rdm(L, collect(1:L), final_stlis2, anyon_type=:IsingX, traceref = false)
+temporal_correlation(L, final_stlis2, anyon_type=:IsingX)
+sc = spatial_correlation(L, ρ, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
 
-# ref_correlation(L, final_stlis2, anyon_type=:IsingX)
+ref_correlation(L, final_stlis2, anyon_type=:IsingX)
 
-# state_addref3 = final_stlis2
-# ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-# ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
-# ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
-# ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-# ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
-# ee(ρ1), ee(ρ2), ee(ρ3), ee(ρ12), ee(ρ23)
+state_addref3 = final_stlis2
+ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
+ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
+ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
+ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
+ee(ρ1), ee(ρ2), ee(ρ3), ee(ρ12), ee(ρ23)

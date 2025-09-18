@@ -10,17 +10,18 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
 end
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 
-function reference_measure_basismap(::Type{T}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
     # default for PBC system, map basis
     @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
- 
+    @assert M == N + k_old "The output basis should be $(N + k_old), but got $newT"
+    
     mask = bmask(BitStr{N+k_old, Int}, 1:N...)
     action_state = T(takesystem(state, mask))
     return measure_basismap(T, τ, action_state, i, sign, pbc, anyon_type=anyon_type)
    
 end
 
-function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET, newT}
+function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -32,15 +33,15 @@ function reference_measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::In
         error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    @assert newT == BitStr{N + k_old, Int} "The extended_basis should be BitStr{$(N + k_old), Int}, but got $newT"
+    @assert M == N + k_old "The extended_basis should be $(N + k_old), but got $newT"
 
     mapped_state = zeros(ET, length(state))
 
     pretype = BitStr{k_old, Int}
-    mask = bmask(BitStr{N+k_old, Int}, 1:N...)
+    mask = bmask(newT, 1:N...)
     
     for (i, ext_basis_i) in enumerate(extended_basis)
-        output = reference_measure_basismap(T, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
+        output = reference_measure_basismap(T, newT, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
         
         prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
         
