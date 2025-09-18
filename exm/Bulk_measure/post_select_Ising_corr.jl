@@ -45,12 +45,14 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     if entangle_way == :copy
         if δt == 0
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
-            ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
+            # ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
+            ref2st = ref2stlis[end]
             spatial = true
             temporal = false
         else
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
-            ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
+            # ref2st, F= reference_apply_measurement_layer!(L, τ/2, ref2stlis[end], zeros(Int, L), D+1, pbc, anyon_type=:IsingX, extended_basis=ext_basis, k_old=2)
+            ref2st = ref2stlis[end]
             temporal = true
             spatial = false
         end
