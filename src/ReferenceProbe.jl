@@ -422,8 +422,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
             verbose && @info "Evolving period $period / $Δt"
             τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            state, sample_free_energy[2*period-1] = reference_apply_measurement_layer!(N, τ, state, sample[2*period-1, :], period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
-            state, sample_free_energy[2*period] = reference_apply_measurement_layer!(N, τ_eff, state, sample[2*period, :], period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample_free_energy[2*period-1] = reference_apply_measurement_layer!(N, τ, state, sample[2*period-1, :], 2*period-1, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample_free_energy[2*period] = reference_apply_measurement_layer!(N, τ_eff, state, sample[2*period, :], 2*period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
             statelis[period] = copy(state)
         end
@@ -464,7 +464,7 @@ Avoids redundant computation by reusing forward evolution results.
 """
 function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
     x₂::Int, t₁, t₂; x₁::Int=1, 
-    rng=Random.default_rng(), pbc=true, 
+    rng::MersenneTwister=MersenneTwister(), pbc=true, 
     anyon_type::Symbol=:Fibo, verbose=false, 
     mode::Symbol = :sample) where {ET}
     # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
@@ -497,7 +497,6 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
     sample_layer = zeros(Int, size(sample, 1), n_measure)
     view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
     sample_free_energy= zeros(Float64, D)
-    view(sample_free_energy, 1:t₁) .= 0.0
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
