@@ -611,12 +611,110 @@ function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET; pbc::Boo
  
 end
 
+
+function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Int}, 
+    x₂::Int, t₁, t₂; x₁::Int=1, 
+    rng::MersenneTwister=MersenneTwister(), pbc=true, 
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    mode::Symbol = :sample)
+    
+    N = length(sites)
+    n_measure = (anyon_type == :Fibo) ? N÷2 : N
+    Δt = size(sample, 1) ÷ 2
+    D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
+
+    @assert size(sample, 2) == n_measure "Sample size spatial dimension must be $n_measure, but got $(size(sample, 2))"
+    @assert 1 <= t₁ <= t₂ <= D÷2 "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D÷2)]"
+    @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
+    @assert mode ∈ [:sample, :Born] "mode must be either :sample or :Born, but got $mode"
+
+    δt = t₂ - t₁ 
+    δx = abs(x₂ - x₁) 
+    state = forward[t₁]
+    statelis = Vector{MPS}(undef, Δt) 
+    view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    sample_layer = zeros(Int, size(sample, 1), n_measure)
+    view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
+    sample_free_energy= zeros(Float64, D)
+
+
+    if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
+
+
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+    
+        
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state2, sample[2*t₁+1:2*t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+
+    
+        state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[2*t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:Δt, :) .= view(final_stlis2, :)
+
+        sample_layer[2*t₁+1:t₂, :] .= samples1
+        sample_layer[2*t₂+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
+        sample_free_energy[2*t₂+1:end] .= free_energy2
+
+    elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
+        verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
+    
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[2*t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:Δt) .= view(final_stlis2, :)
+        sample_layer[2*t₁+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:end] .= free_energy2
+
+    elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
+
+        
+        state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[2*t₁+1:2*t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+
+        state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+    
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[2*t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
+        sample_layer[2*t₁+1:2*t₂, :] .= samples1
+        sample_layer[2*t₂+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
+        sample_free_energy[2*t₂+1:end] .= free_energy2
+    end
+
+    return statelis, sample_layer, sample_free_energy
+end
+
 """
-    calculate_entanglement_entropy_mps(ψ::MPS, b::Int) -> Float64
+    ee_mps(ψ::MPS, b::Int)
 
 Calculate entanglement entropy of MPS state with bipartition at bond b.
+
+# Arguments
+- `ψ::MPS`: MPS state
+- `b::Int`: Bond index for bipartition (1 ≤ b < N)
+
+# Returns
+- `Float64`: Entanglement entropy (von Neumann entropy) at bond b
 """
 function ee_mps(ψ::MPS, b::Int)
+    @assert 1 ≤ b < length(ψ) "Bond index b must be in the range [1, N-1]"
     # Perform SVD at bond b
     ψ = orthogonalize(ψ, b)
     # U, S, V = svd(ψ[b], linkind(ψ, b-1), siteind(ψ, b))
@@ -659,7 +757,7 @@ julia> N = 6;
 julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
 
 julia> # Calculate entanglement entropy profile
-       ee_profile = anyon_eelis_mps(N, ψ_gs);
+       ee_profile = anyon_eelis(N, ψ_gs);
 
 julia> length(ee_profile) == N - 1  # Profile has N-1 points
 true
@@ -668,7 +766,7 @@ julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
 true
 ```
 """
-function anyon_eelis_mps(N::Int64, ψ::MPS)
+function anyon_eelis(N::Int64, ψ::MPS)
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
