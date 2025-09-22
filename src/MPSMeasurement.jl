@@ -94,7 +94,7 @@ function anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo, kwargs...)
         for i in 1:N
             os += -h, "X", i
         end
-        
+
         for i in 1:N-1
             os += -J, "Z", i, "Z", i+1
         end
@@ -487,7 +487,7 @@ function measure_evolution!(N::Int,
                   sites,
                   state::MPS,
                   t₂::Int = 1;
-                  rng = Random.default_rng(),
+                  rng::MersenneTwister = MersenneTwister(),
                   pbc::Bool = true,
                   anyon_type::Symbol = :Fibo,
                   mode::Symbol = :prob,
@@ -500,45 +500,44 @@ function measure_evolution!(N::Int,
     # ---------- Sample decided according to mode ----------
     Δt = t₂ - t₁ + 1 # number of layers to evolve
     Δt > 0 || error("t₂ must be >= t₁")
+    D = Δt * 2
     mode ∈ (:Born, :sample) || error("mode must be ∈ [:Born, :sample]")
-    sample_free_energy = zeros(Δt) # free energy of each layer
-    states =Vector{MPS}(undef, Δt)  # states of each layer
+
+    sample_free_energy = zeros(D) # free energy of each layer
+    states = Vector{MPS}(undef, Δt)  # states of each layer
     current_state = copy(state)
 
     if mode == :Born
          # 1. Initialize sample matrix
-        sample = zeros(Int, Δt, n_measure)   # to be filled during sampling
+        sample = zeros(Int, D, n_measure)   # to be filled during sampling
 
-        # 2. Born trajectory (only for :Born)
-        for layer in t₁:t₂
-            τ_eff = (layer == t₂) ? τ / 2 : τ
-
-            # Random sampling for this layer
-            
-            current_state, sample_layer, F_layer = _sample_layer!(N, τ_eff, sites, current_state, rng, layer, pbc, anyon_type = anyon_type, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
-            sample_free_energy[layer-t₁+1] = F_layer
-            
-            sample[layer-t₁+1, :] .= sample_layer
-            states[layer-t₁+1] = current_state
-
-        end
+        for period in 1:Δt
         
+            # Random sampling for this period
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+
+            current_state, sample[2*period-1, :], sample_free_energy[2*period-1] = _sample_layer!(N, τ, sites, current_state, rng, 2*period-1, pbc, anyon_type = anyon_type, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+            current_state, sample[2*period, :], sample_free_energy[2*period] = _sample_layer!(N, τ_eff, sites, current_state, rng, 2*period, pbc, anyon_type = anyon_type, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+
+            states[period] = current_state
+        end
+
     elseif mode == :sample
         isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
-        size(sample) == (Δt, n_measure) ||
-            error("sample size should be ($Δt, $n_measure)")
+        size(sample) == (D, n_measure) ||
+            error("sample size should be ($D, $n_measure)")
 
-        for layer in t₁:t₂
-            τ_eff = (layer == t₂) ? τ/2 : τ
+        for period in 1:Δt
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            
-            current_state, ΔF = _apply_measurement_layer!(
-                            N, τ_eff, sites, current_state, 
-                            sample[layer, :], layer, pbc; cutoff=cutoff, maxdim=maxdim,
+            current_state, sample_free_energy[2*period-1] = _apply_measurement_layer!(
+                            N, τ, sites, current_state, sample[2*period-1, :], 2*period-1, pbc; cutoff=cutoff, maxdim=maxdim,
                             anyon_type=anyon_type)
-            sample_free_energy[layer] += ΔF
-        
-            states[layer-t₁+1] = current_state
+            current_state, sample_free_energy[2*period] = _apply_measurement_layer!(
+                            N, τ_eff, sites, current_state, sample[2*period, :], 2*period, pbc; cutoff=cutoff, maxdim=maxdim,
+                            anyon_type=anyon_type)
+
+            states[period] = current_state
         end
     end
     return states, sample, sample_free_energy
@@ -603,8 +602,9 @@ function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET; pbc::Boo
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
+    t₂ = D ÷ 2 # number of time steps/ periods
 
-    final_state, sample, free_energy = measure_evolution!(N, τ, sites, state, D; 
+    final_state, sample, free_energy = measure_evolution!(N, τ, sites, state, t₂;
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
     sample=sample, cutoff=cutoff, maxdim=maxdim)
     return final_state, free_energy

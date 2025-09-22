@@ -491,14 +491,18 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 end
 
 """
-    measure_evolution!(N, τ, state, t₂=1;
-             rng = Random.default_rng(),
-             pbc = true,
-             anyon_type = :Fibo,
-             mode = :prob,      # :prob random sampling, :sample given sample
-             t₁ = 1,
-             sample)   
-
+    measure_evolution!(N::Int,
+                  τ::Float64,
+                  state::Vector{ET},
+                  t₂::Int = 1;
+                  rng::MersenneTwister = MersenneTwister(),
+                  pbc::Bool = true,
+                  anyon_type::Symbol = :Fibo,
+                  mode::Symbol = :sample,
+                  t₁::Int = 1,
+                  sample::Union{Nothing,Matrix{Int}}=nothing,
+                  verbose::Bool = false, enable_τ_eff::Bool = true) where {ET}
+                  
 Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial state with specified parameters, returning final states, measurement sequences, and free energies, with options for different sampling modes and temporal settings. KEEP IN MIND: In such definition, (2N+1) layers of measurements correspond to N time steps of evolution, with the last layer being half-strength. The first and end layer should not be √ZZ or √M₁ᵒ
 
 # Arguments
@@ -506,12 +510,14 @@ Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial
 - `τ::Float64`: Measurement strength parameter
 - `state::Vector{ET}`: Initial quantum state vector
 - `t₂::Int=1`: Number of measurement layers (time steps)
-- `rng`: Random number generator (default: `Random.default_rng()`)
+- `rng`: Random number generator (default: `MersenneTwister()`)
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `mode::Symbol=:prob`: evolution mode, one of `:prob`, `:sample`, `:Born`, Born is random sampling, driven by Born rule, the other is deterministic post-selection evolution, with given measurement outcomes.
 - `sample::Union{Nothing,Matrix{Int}}=nothing`: Predefined measurement sequences for `:sample` mode
 - `t₁::Int=1`: Starting layer index for evolution (default is 1)
+- `verbose::Bool=false`: Verbosity flag for detailed output
+- `enable_τ_eff::Bool=true`: Whether to enable half-strength measurement for the last layer
 
 # Returns
 - `Tuple{Union{Vector{ET}, Vector{Vector{ET}}}, Matrix{Int}, Vector{Float64}}`: 
@@ -524,7 +530,7 @@ function measure_evolution!(N::Int,
                   τ::Float64,
                   state::Vector{ET},
                   t₂::Int = 1;
-                  rng = Random.default_rng(),
+                  rng::MersenneTwister = MersenneTwister(),
                   pbc::Bool = true,
                   anyon_type::Symbol = :Fibo,
                   mode::Symbol = :sample,
