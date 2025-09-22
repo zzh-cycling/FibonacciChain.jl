@@ -385,10 +385,11 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
 
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
-    D = size(sample, 1)
+    D = size(sample, 1) # D is the number of layers, while Δt is the true time(# period)
+    Δt = D ÷ 2
     N = (anyon_type == :Fibo) ? 2*round(Int, size(sample, 2)) : size(sample, 2)
     
-    statelis = Vector{Vector{T}}(undef, D)
+    statelis = Vector{Vector{T}}(undef, Δt)
     sample_free_energy = zeros(Float64, D) 
 
     basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
@@ -404,25 +405,27 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
 
     if mode == :Born
         verbose && @info "Using Born rule driven evolution mode"
-        for layer in 1:D
-            verbose && @info "Evolving layer $layer / $D"
-            τ_eff = (layer == D && enable_τ_eff) ? τ/2 : τ
+        for period in 1:Δt
+            verbose && @info "Evolving period $period / $Δt"
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            state, sample[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state, rng, layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample[2*period-1, :], sample_free_energy[2*period-1] = reference_sample_layer!(N, τ, state, rng, 2*period-1, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample[2*period, :], sample_free_energy[2*period] = reference_sample_layer!(N, τ_eff, state, rng, 2*period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
-            statelis[layer] = copy(state)
+            statelis[period] = copy(state)
         end
 
     elseif mode == :sample
         verbose && @info "Using given sample evolution mode"
 
-        for layer in 1:D
-            verbose && @info "Evolving layer $layer / $D"
-            τ_eff = (layer == D && enable_τ_eff) ? τ/2 : τ
+        for period in 1:Δt
+            verbose && @info "Evolving period $period / $Δt"
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            state, sample_free_energy[layer] = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
-     
-            statelis[layer] = copy(state)
+            state, sample_free_energy[2*period-1] = reference_apply_measurement_layer!(N, τ, state, sample[2*period-1, :], period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample_free_energy[2*period] = reference_apply_measurement_layer!(N, τ_eff, state, sample[2*period, :], period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+
+            statelis[period] = copy(state)
         end
     end  
 
@@ -476,10 +479,10 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
     # 1      t₁   t₂=t₁+δt   D
 
     n_measure = (anyon_type == :Fibo) ? N÷2 : N
-    D = size(sample, 1)  
+    D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
 
     @assert size(sample, 2) == n_measure "Sample size spatial dimension must be $n_measure, but got $(size(sample, 2))"
-    @assert 1 <= t₁ <= t₂ <= D "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D)]"
+    @assert 1 <= t₁ <= t₂ <= D÷2 "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D÷2)]"
     @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
     @assert mode ∈ [:sample, :Born] "mode must be either :sample or :Born, but got $mode"
 
