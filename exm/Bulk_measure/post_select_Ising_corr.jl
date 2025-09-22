@@ -125,7 +125,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
             end
             sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], anyon_type=:IsingX, traceref = false)
             eelis[idx] = ee(sysrdm)
-            spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], anyon_type=:IsingX, spatio=spatial, temporal=temporal)
+            spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], anyon_type=:IsingX, spatial=spatial, temporal=temporal)
             temporal_corr_lis[idx] = temporal_corr
             spatial_corr_lis[idx] = spatial_corr 
         end
@@ -340,8 +340,8 @@ else
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    # compute_post_selection_Ising(L, τ, 8L, δt, sign=1)
-    spatial_temporal_corr_varyingt(L, τ, 8L, δt, sign=1)
+    compute_post_selection_Ising(L, τ, 10L, δt, sign=1)
+    # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
 # L=8; pbc=true; anyon_type=:IsingX; D=5L;
