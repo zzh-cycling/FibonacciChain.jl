@@ -77,7 +77,7 @@ else
 end
 
 # N=16
-# energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+# energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
 # antiGS= states[:, 1]
 
 # ee_lis=eelis_Fibo_state(N, antiGS)

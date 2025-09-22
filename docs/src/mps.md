@@ -23,7 +23,7 @@ The MPS Hamiltonian is constructed as a Matrix Product Operator (MPO) with three
 ```julia
 # Create sites and Hamiltonian MPO
 sites = siteinds("Qubit", N)
-H = fibonacci_hamiltonian_mps(sites, pbc=true)
+H = anyon_ham(sites, pbc=true)
 ```
 
 ## MPS Measurements

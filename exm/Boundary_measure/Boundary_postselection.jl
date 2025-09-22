@@ -20,7 +20,7 @@ function Boundarypost_selection_scaling(N)
     FE_tau_lis_p = Vector{Float64}(undef, length(τlis))
     FE_tau_lis_m = Vector{Float64}(undef, length(τlis))
 
-    @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     measurement_sites = collect(2:2:N)
 

@@ -62,7 +62,7 @@ measure_evolution!
 ## MPS Functions
 
 ```@docs
-fibonacci_hamiltonian_mps
+anyon_ham
 measurement_operator_mps
 _apply_measurement_layer!
 initial_mps

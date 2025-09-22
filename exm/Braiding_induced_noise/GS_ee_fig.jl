@@ -31,7 +31,7 @@ save("./exm/Fibo_antiGS_N$(N)_EElis.jld", "antiGS", antiGS, "EElis", EElis)
 # savefig(fig, "./exm/Fibo_ee_scaling_N$(N).pdf")
 # display(fig)
 
-# energy, states =  eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR) # Noting here sparse is for anti, not ferro
+# energy, states =  eigs(anyon_ham_sparse(N), nev=1, which=:SR) # Noting here sparse is for anti, not ferro
 # ferroGS= states[:, 1]
 # EElis=eelis_Fibo_state(N, ferroGS)
 # save("./exm/Fibo_ferroGS_N$(N)_EElis.jld", "ferroGS", ferroGS, "EElis", EElis)

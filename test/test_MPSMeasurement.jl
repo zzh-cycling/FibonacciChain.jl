@@ -220,7 +220,7 @@ end
     st = zeros(length(anyon_basis(N))); st[1] = 1.0
     
     # Generate a specific state
-    measurement_sites = collect(2:2:N)  # Example measurement sites
+    
     τ = 1.0  # Example τ value
     bulk_samples = [1 1 1; 0 0 0]
     generated_statelis, F = generate_state_mps(τ, sites, ψ, bulk_samples; pbc= pbc)

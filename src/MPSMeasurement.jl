@@ -60,7 +60,7 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdi
     ψ0 = random_mps(sites, state)
     
     # Create Fibonacci Hamiltonian
-    H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
+    H = anyon_ham(sites; pbc=pbc, anyon_type=:Fibo)
     
     # Find ground state using DMRG
     sweeps = Sweeps(sweep_times)
@@ -73,51 +73,68 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdi
 end
 
 """
-    fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
+    anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo)
 
 Construct Fibonacci chain Hamiltonian as Matrix Product Operator (MPO).
 
 # Arguments
 - `sites`: ITensor site indices
 - `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`)
 
 # Returns
-- `MPO`: Hamiltonian with three-body interactions based on Fibonacci fusion rules
+- `MPO`: Hamiltonian for different anyon types. Fibonacci: three-body interactions based on Fibonacci fusion rules, IsingX: transverse field Ising model.
 """
-function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
+function anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo, kwargs...)
     N = length(sites)
     os = OpSum()
     
-    # Golden ratio
-    ϕ = (1 + √5) / 2
-    coef = 1/2
-    # Three-body interactions for Fibonacci chain
-    for i in 2:(N-1)
-        # Add three-body terms based on Fibonacci fusion rules
-        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
-        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
-        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
+    if anyon_type ∈ [:IsingX, :IsingZZ, :IsingZ]
+        J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
+        for i in 1:N
+            os += -h, "X", i
+        end
+        
+        for i in 1:N-1
+            os += -J, "Z", i, "Z", i+1
+        end
+        if pbc && N > 2
+            os += -J, "Z", N, "Z", 1
+        end
+        return MPO(os, sites)
+
+    elseif anyon_type == :Fibo  
+        # Golden ratio
+        ϕ = (1 + √5) / 2
+        coef = 1/2
+        # Three-body interactions for Fibonacci chain
+        for i in 2:(N-1)
+            # Add three-body terms based on Fibonacci fusion rules
+            os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+            os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+            os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
+        end
+        
+        # Periodic boundary conditions
+        if pbc && N > 2
+            # H1 term
+            os += coef, "Proj0", N, "Z", 1, "Proj1", 2
+            os += coef, "Proj1", N, "Z", 1, "Proj0", 2
+            os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
+            # HN term (wrap around)
+            os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
+            os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
+            os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+        end
+        
+        return MPO(os, sites)
     end
-    
-    # Periodic boundary conditions
-    if pbc && N > 2
-        # H1 term
-        os += coef, "Proj0", N, "Z", 1, "Proj1", 2
-        os += coef, "Proj1", N, "Z", 1, "Proj0", 2
-        os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
-        # HN term (wrap around)
-        os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
-        os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
-        os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
-    end
-    
-    return MPO(os, sites)
 end
 
 """
@@ -155,9 +172,9 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
         end
     
         
-        s_im1_idx = i == 1 && pbc ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
+        s_im1_idx = (i == 1 && pbc) ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
         s_i_idx = i
-        s_ip1_idx = i == N && pbc ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
+        s_ip1_idx = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
     
         s_im1 = sites[s_im1_idx]
         s_i = sites[s_i_idx]
@@ -184,9 +201,45 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
         M_local += coef * (-2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)
     
         
-        return M_local
+    elseif anyon_type == :IsingX
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = cosh(τ/2) / √(2cosh(τ))
+            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        end
+        
+        M_local = cstτ * op("I", sites[i]) + coef * op("X", sites[i])
+        
+    elseif anyon_type == :IsingZZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        end
+        
+        idx_p1 = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
+        Z_i = op("Z", sites[i])
+        Z_ip1 = op("Z", sites[idx_p1])
 
+        M_local = cstτ * (op("I", sites[i]) * op("I", sites[idx_p1])) + coef * (Z_i * Z_ip1)
+
+    elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = cosh(τ/2) / √(2cosh(τ))
+            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        end
+        
+        M_local = cstτ * op("I", sites[i]) + coef * op("Z", sites[i])
     end
+
+    return M_local
 end
 
 """
@@ -326,6 +379,109 @@ pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo
     return current_level_states, current_level_trajectories, current_level_probabilities
 end
 
+"""
+    add_reference_qubits!(ψ::MPS, sites, site_idx::Int=1;
+                          k_new::Int=1, pbc::Bool=true,
+                          anyon_type::Symbol=:Fibo,
+                          verbose::Bool=false,
+                          entangle_way::Symbol=:copy)
+
+Add reference qubit(s) to MPS at specified site index in copy and reset ways.
+
+# Arguments
+- `ψ::MPS`: Input quantum state
+- `sites`: ITensor site indices
+- `site_idx::Int=1`: Site index to entangle with reference qubit
+- `k_new::Int=1`: Number of reference qubits to add
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+- `verbose::Bool=false`: Verbosity flag
+- `entangle_way::Symbol=:copy`: Method to entangle reference qubit (`:copy` or `:reset`)
+
+# Returns
+- `MPS`: New MPS with reference qubit added
+- `added_sites`: ITensor site indices after adding reference qubit in new MPS
+"""
+function add_reference_qubits!(ψ::MPS, sites, site_idx::Int=1;
+                               k_new::Int=1, pbc::Bool=true,
+                               anyon_type::Symbol=:Fibo,
+                               verbose::Bool=false,
+                               entangle_way::Symbol=:copy)
+    1 ≤ site_idx ≤ length(ψ) || error("site_idx out of range")
+
+    N = length(sites)          # 原链长
+    s = site_type(ψ)       # 原物理指标的 site type
+    d = dim(s[1])          # 局域维（2 或 3 等）
+
+    # ---------- 1. 在链最左端插入参考比特 ----------
+    #    新建一个 site，标签为 "Ref"，局域维 = d
+    sRef = add_site(sites, "Ref", d)   # 返回新的 site set
+    ψ_new = add_site(ψ, 1, sRef)       # 在位置 1 插入，MPS 长度变为 N+1
+    # 此时物理指标顺序： [Ref] [1] [2] … [N]
+
+    # ---------- 2. 根据 entangle_way 做 Bell 对 ----------
+    if entangle_way == :copy
+        # 把原 site_idx 的态拷贝到参考比特，然后做 |0⟩+|1⟩  Bell 对
+        # 步骤：先逐位做 CNOT（Ref→site_idx），再把 Ref 转到 |+⟩
+        for n in 1:(site_idx)            # 把参考比特“搬”到 target 旁边
+            n < site_idx+1 && move_site!(ψ_new, n, n+1)   # 右移 1 格
+        end
+        r = 1                            # 参考比特现在与 site_idx 相邻
+        t = r + 1                        # target 物理比特
+
+        # |+⟩_Ref
+        apply!(ψ_new, r, op("H", sRef))
+        # CNOT_{Ref,target}
+        apply!(ψ_new, [r, t], op("CNOT", sRef, s[t]))
+
+    elseif entangle_way == :reset
+        # 先对原比特做 Z 测量，再根据结果把参考比特设为 |0⟩ 或 |1⟩
+        # 这里用 ITensors 的“测量+坍缩”接口
+        result = sample!(ψ_new, site_idx+1, "Z")  # +1 因为插了 Ref
+        verbose && @info "measurement result = $result"
+
+        # 把参考比特设成 |result⟩
+        apply!(ψ_new, 1, op(result==1 ? "X" : "I", sRef))
+
+        # 再做 H 和 CNOT 形成 Bell 对
+        apply!(ψ_new, 1, op("H", sRef))
+        apply!(ψ_new, [1, 2], op("CNOT", sRef, s[2]))
+
+        # 返回测量概率（简化：假设本征值 ±1 各占 50%，可再精确算）
+        prob = 0.5
+        verbose && @show prob
+        return ψ_new, 1, prob   # 多返回一个概率
+    else
+        error("unknown entangle_way = $entangle_way")
+    end
+
+    # ---------- 3. 可选：把参考比特移回最左端 ----------
+    for n in site_idx:-1:2
+        move_site!(ψ_new, n, n-1)
+    end
+
+    verbose && @show maxlinkdim(ψ_new)
+    return ψ_new, 1
+end
+
+# ---------- 辅助：ITensors 未暴露的 move_site! ----------
+"""
+    move_site!(ψ::MPS, i::Int, j::Int)
+
+把 MPS 中第 i 个张量向右( j>i )或向左( j<i )一步一步 SWAP 到位置 j，
+全程保持规范形式。仅用于相邻移动。
+"""
+function move_site!(ψ::MPS, i::Int, j::Int)
+    step = j > i ? 1 : -1
+    cur = i
+    while cur != j
+        nxt = cur + step
+        # 做 SWAP 门
+        apply!(ψ, [min(cur,nxt), max(cur,nxt)], op("SWAP", site_type(ψ,cur), site_type(ψ,nxt)))
+        cur = nxt
+    end
+end
+
 function measure_evolution!(N::Int,
                   τ::Float64,
                   sites,
@@ -440,7 +596,7 @@ function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::Me
 end
 
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET, temp::Bool=false; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) where{ET}
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) where{ET}
     if ET == Vector{Int} # single layer
         sample = reshape(sample, 1, :) 
     end
