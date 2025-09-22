@@ -214,7 +214,7 @@ function plot_ref_ee(eelis, gamma)
     return fig
 end
 
-function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1, anyon_type::Symbol=:IsingX)
+function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1)
     # Plot the temporal correlations vs δt
     
     fig = plot(
