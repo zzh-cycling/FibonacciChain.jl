@@ -35,7 +35,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
-    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type, enable_τ_eff=false)
 
     ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
 
@@ -99,7 +99,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
             t2 = t + δt    
             ref_sample = (sign == 0) ? zeros(Int, t+δt, L) : ones(Int, t+δt, L)
 
-            ref2stlis, sample, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, 1, t, t2, anyon_type=:IsingX, verbose=true)
+            ref2stlis, sample, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, 1, t, t2, anyon_type=:IsingX, verbose=true, rng=MersenneTwister(100)) # to compute temporal correlation, add ref qubit at site 1
             sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], anyon_type=:IsingX, traceref = false)
             eelis[idx] = ee(sysrdm)
             temporal_corr_lis[idx] = temporal_correlation(L, ref2stlis[end], anyon_type=:IsingX)
@@ -115,11 +115,11 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
             ref_sample = (sign == 0) ? zeros(Int, t+δt + D, L) : ones(Int, t+δt + D, L)
 
             if δt == 0
-                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, verbose=true, rng = MersenneTwister(100)) # to compute temporal correlation, add ref qubit at site L/2+1
                 spatial = true
                 temporal = false
             else
-                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1) # to compute temporal correlation, add ref qubit at site L/2+1
+                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, verbose=true, x₁ = L÷2+1, rng = MersenneTwister(100)) # to compute temporal correlation, add ref qubit at site L/2+1
                 temporal = true
                 spatial = false
             end
@@ -132,8 +132,6 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
 
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
         return temporal_corr_lis, spatial_corr_lis, eelis
-    else
-        error("Unknown entanglement way")
     end
 end
 
@@ -342,8 +340,8 @@ else
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection_Ising(L, τ, 8L, δt, sign=1)
-    # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
+    # compute_post_selection_Ising(L, τ, 8L, δt, sign=1)
+    spatial_temporal_corr_varyingt(L, τ, 8L, δt, sign=1)
 end
 
 # L=8; pbc=true; anyon_type=:IsingX; D=5L;

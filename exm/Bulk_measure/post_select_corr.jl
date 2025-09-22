@@ -64,11 +64,11 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis, Flis = generate_state(τ, initial_state, sample)
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, length(2:2:L)) : ones(Int, D+δt+D+1, length(2:2:L))
+    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+2, length(2:2:L)) : ones(Int, D+δt+D+2, length(2:2:L))
 
     if entangle_way == :copy
         if δt == 0
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true,  rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D+1, D+1, verbose=true,  rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else

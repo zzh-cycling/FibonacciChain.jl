@@ -530,32 +530,32 @@ function measure_evolution!(N::Int,
                   mode::Symbol = :sample,
                   t₁::Int = 1,
                   sample::Union{Nothing,Matrix{Int}}=nothing,
-                  verbose::Bool = false) where {ET}
+                  verbose::Bool = false, enable_τ_eff::Bool = true) where {ET}
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
     # ---------- Sample decided according to mode ----------
     Δt = t₂ - t₁ + 1 # number of layers to evolve
     Δt > 0 || error("t₂ must be >= t₁")
+    D = Δt ÷ 2
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
     sample_free_energy = zeros(Δt) # free energy of each layer
-    states = Vector{Vector{ET}}(undef, Δt)  # states of each layer
+    states = Vector{Vector{ET}}(undef, D)  # states of each layer
     current_state = copy(state)
 
     if mode == :Born
          # 1. Initialize sample matrix
         sample = zeros(Int, Δt, n_measure)   # to be filled during sampling
 
-        # 2. Born trajectory (only for :Born)
-        for layer in t₁:t₂
-            τ_eff = (layer == t₂) ? τ / 2 : τ
+        for period in 1:D
+        
+            # Random sampling for this period
+            τ_eff = (period == D && enable_τ_eff) ? τ/2 : τ
+            current_state, sample[2*period-1, :], sample_free_energy[2*period-1] = _sample_layer!(N, τ, current_state, rng, 2*period-1, pbc, anyon_type = anyon_type, verbose=verbose)
+            current_state, sample[2*period, :], sample_free_energy[2*period] = _sample_layer!(N, τ_eff, current_state, rng, 2*period, pbc, anyon_type = anyon_type, verbose=verbose)
 
-            # Random sampling for this layer
-   
-            current_state, sample[layer-t₁+1, :], sample_free_energy[layer-t₁+1] = _sample_layer!(N, τ_eff, current_state, rng, layer, pbc, anyon_type = anyon_type, verbose=verbose)
-
-            states[layer-t₁+1] = current_state
+            states[period] = current_state
         end
         
     elseif mode == :sample
@@ -586,35 +586,38 @@ function measure_evolution!(N::Int,
         #  -------   -------   -------   -------   -------   -------   -------   ------
         #  γ₁   γ₂   γ₃   γ₄   γ₅   γ₆   γ₇   γ₈   γ₉  γ₁₀  γ₁₁  γ₁₂  γ₁₃  γ₁₄  γ₁₅  γ₁₆
     
-        for layer in t₁:t₂
+        for period in 1:D
             # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
-            # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer is doesn't matter.
-            τ_eff = (layer == t₂) ? τ/2 : τ
-
-            current_state, sample_free_energy[layer] = _apply_measurement_layer!(
+            # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer doesn't matter.
+            # Or √ZZ X √ZZ √ZZ X √ZZ ⋯ X √ZZ X √ZZ→ X ZZ X ZZ ⋯ X √ZZ, also works
+            τ_eff = (period == D && enable_τ_eff) ? τ/2 : τ
+            current_state, sample_free_energy[2*period-1] = _apply_measurement_layer!(
+                            N, τ, current_state,
+                            sample[2*period-1, :], 2*period-1, pbc;
+                            anyon_type=anyon_type)
+            current_state, sample_free_energy[2*period] = _apply_measurement_layer!(
                             N, τ_eff, current_state,
-                            sample[layer, :], layer, pbc;
+                            sample[2*period, :], 2*period, pbc;
                             anyon_type=anyon_type)
 
-            states[layer-t₁+1] = current_state
-
+            states[period] = current_state
         end
     end
     
     return states, sample, sample_free_energy
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; anyon_type::Symbol=:Fibo) where{T, ET}
+function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T, ET}
     if ET == Vector{Int} # single layer
         sample = reshape(sample, 1, :) 
     end
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
-    D = size(sample, 1) # number of layers
-    
-    final_state, sample, free_energy = measure_evolution!(N, τ, state, D; 
+    t₂ = size(sample, 1) # number of layers
+
+    final_state, sample, free_energy = measure_evolution!(N, τ, state, t₂; 
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
-    sample=sample)
+    sample=sample, enable_τ_eff=enable_τ_eff)
     return final_state, free_energy
 end
 

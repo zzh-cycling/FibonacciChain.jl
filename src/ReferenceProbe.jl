@@ -1,5 +1,4 @@
-function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
-    T = BitStr{k_total, Int}
+function build_extended_basis(basis::Vector{ET}, ::Type{T}) where {k_total, ET, T <: BitStr{k_total, Int}}
     ref_strings = [T(i) for i in 0:(2^k_total-1)] 
     extended_basis = sort(
         mapreduce(suffix -> process_join([suffix], basis),
@@ -8,6 +7,7 @@ function build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET}
 
     return extended_basis
 end
+build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET} = build_extended_basis(basis, BitStr{k_total, Int})
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 
 function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
@@ -381,7 +381,7 @@ true
 function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true;
     anyon_type::Symbol=:Fibo, verbose=false, 
     rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample) where{T, ET}
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T, ET}
 
     @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
 
@@ -406,8 +406,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
         verbose && @info "Using Born rule driven evolution mode"
         for layer in 1:D
             verbose && @info "Evolving layer $layer / $D"
-            # τ_eff = (layer == D) ? τ/2 : τ
-            τ_eff = τ
+            τ_eff = (layer == D && enable_τ_eff) ? τ/2 : τ
 
             state, sample[layer, :], sample_free_energy[layer] = reference_sample_layer!(N, τ_eff, state, rng, layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
 
@@ -419,8 +418,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
 
         for layer in 1:D
             verbose && @info "Evolving layer $layer / $D"
-            # τ_eff = (layer == D) ? τ/2 : τ
-            τ_eff = τ
+            τ_eff = (layer == D && enable_τ_eff) ? τ/2 : τ
 
             state, sample_free_energy[layer] = reference_apply_measurement_layer!(N, τ_eff, state, sample[layer, :], layer, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
      
@@ -515,7 +513,7 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
         state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose) 
 
         # 5) t₂ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
 
         view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
         view(statelis, t₂+1:D, :) .= view(final_stlis2, :)
@@ -535,7 +533,7 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
                                        anyon_type=anyon_type, verbose=verbose)
         
         # 3) t₁ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
 
         view(statelis, t₁+1:D) .= view(final_stlis2, :)
         sample_layer[t₁+1:end, :] .= samples2
@@ -554,7 +552,7 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
         state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
         
         # 5) t₂ → D evolution
-        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
 
         view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
         view(statelis, t₂+1:D) .= view(final_stlis2, :)
