@@ -27,17 +27,17 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=1; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
     anyon_type = :IsingX
-    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
+    sample = (sign == 1) ? ones(Int, 2*D, L) : zeros(Int, 2*D, L)
 
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
     statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type, enable_τ_eff=false)
 
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D, L) : ones(Int, D+δt+D, L)
+    ref_sample = (sign == 0) ? zeros(Int, 2*(D+δt+D), L) : ones(Int, 2*(D+δt+D), L)
 
     basis_F = anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)
     ext_basis = FibonacciChain.build_extended_basis(2, basis_F)
@@ -172,7 +172,7 @@ end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX, sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = collect(2:2:10)
+    δtlis = collect(2:2:12)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(
@@ -228,7 +228,7 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1, anyon_
         )
         
         
-    δtlis = collect(2:2:12)
+    δtlis = collect(1:6)
     # tc0lis = Vector{Float64}(undef, length(δtlis))
     # spatial_corr_lis0 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_0.jld", "spatial_corr_lis")
     # sc0 = spatial_corr_lis0[end]
@@ -265,7 +265,8 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1, anyon_
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2))
-    Llis = collect(8:2:16)
+    # Llis = collect(8:2:16)
+    Llis = collect(8)
     δtlis = collect(2:2:16)
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
@@ -340,7 +341,7 @@ else
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection_Ising(L, τ, 10L, δt, sign=1)
+    compute_post_selection_Ising(L, τ, 5L, δt, sign=1)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 

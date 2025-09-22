@@ -38,37 +38,36 @@ end
 
 function get_system_params(τ, L)
     table = Dict(
-            atanh(0.1)  => (600L, 1000, 1500L),
-            atanh(0.2)  => (125L,  100, 250L),
-            atanh(0.3)  => (50L,  48, 100L),
-            atanh(0.4)  => (40L,  40, 80L),
-            atanh(0.5)  => (40L,   32, 40L),
-            atanh(0.6)  => (30L,   20, 30L),
-            log(1 + √2) => (20L,   14, 20L),
-            atanh(0.8)  => (15L,   10, 10L),
-            atanh(0.9)  => (10L,    4, 4L),
-            atanh(0.95) => (10L,    4, 4L),
-            atanh(0.999)=> (5L,    2, 2L),
+            atanh(0.1)  => (300L, 1000, 1500L),
+            atanh(0.2)  => (60L,  100, 250L),
+            atanh(0.3)  => (25L,  48, 100L),
+            atanh(0.4)  => (20L,  40, 80L),
+            atanh(0.5)  => (20L,   32, 40L),
+            atanh(0.6)  => (15L,   20, 30L),
+            log(1 + √2) => (10L,   14, 20L),
+            atanh(0.8)  => (8L,   10, 10L),
+            atanh(0.9)  => (5L,    4, 4L),
+            atanh(0.95) => (5L,    4, 4L),
         )
-    D, step, start = get(table, τ, (5L, 2, 2L))
+    D, step, start = get(table, τ, (3L, 2, 2L))
     inds = collect(1:step:D)
     avg_range = start:D-5
     return D, inds, avg_range
 end
 
-function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
+function compute_post_selection(L::Int64, τ::Float64, D::Int64=5L, δt::Int64=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
-    sample = (sign == 1) ? ones(Int, D, length(2:2:L)) : zeros(Int, D, length(2:2:L))
+    sample = (sign == 1) ? ones(Int, 2*D, length(2:2:L)) : zeros(Int, 2*D, length(2:2:L))
 
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
 
     statelis, Flis = generate_state(τ, initial_state, sample)
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+2, length(2:2:L)) : ones(Int, D+δt+D+2, length(2:2:L))
+    ref_sample = (sign == 0) ? zeros(Int, 2*(D+δt+D), length(2:2:L)) : ones(Int, 2*(D+δt+D), length(2:2:L))
 
     if entangle_way == :copy
         if δt == 0
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D+1, D+1, verbose=true,  rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
@@ -86,7 +85,7 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=10L, δt::Int64=
 
 end
 
-function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=20L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
@@ -136,22 +135,21 @@ end
 
 function get_system_params_corr(τ)
     D = Dict(
-        atanh(0.1)  => 600,
-        atanh(0.2)  => 125,
-        atanh(0.3)  => 50,
-        atanh(0.4)  => 40,
-        atanh(0.5)  => 40,
-        atanh(0.6)  => 30,
-        log(1 + √2) => 20,
-        atanh(0.8)  => 15,
-        atanh(0.9)  => 10,
-        atanh(0.95) => 10,
-        atanh(0.999)=> 5,
+        atanh(0.1)  => 300,
+        atanh(0.2)  => 60,
+        atanh(0.3)  => 25,
+        atanh(0.4)  => 20,
+        atanh(0.5)  => 20,
+        atanh(0.6)  => 15,
+        log(1 + √2) => 10,
+        atanh(0.8)  => 8,
+        atanh(0.9)  => 5,
+        atanh(0.95) => 5,
     )
-    return get(D, τ, 5)   # 5 is the default value for τ=1000.0
+    return get(D, τ, 3)   # 3 is the default value for τ=1000.0
 end
 
-function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); sign::Int=0)
+function plot_stc_tlis(L::Int64=10, D::Int64=3, τ::Float64=log(1+√2); sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
     δtlis = collect(2:2:12)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
