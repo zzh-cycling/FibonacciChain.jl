@@ -9,19 +9,18 @@ using Random
 
 function get_system_params(τ, L)
     table = Dict(
-            atanh(0.1)  => (2500L, 1000, 1500L),
-            atanh(0.2)  => (500L,  100, 250L),
-            atanh(0.3)  => (120L,  48, 100L),
-            atanh(0.4)  => (100L,  40, 80L),
-            atanh(0.5)  => (80L,   32, 40L),
-            atanh(0.6)  => (45L,   20, 30L),
-            log(1 + √2) => (35L,   14, 20L),
-            atanh(0.8)  => (25L,   10, 10L),
-            atanh(0.9)  => (8L,    4, 4L),
-            atanh(0.95) => (8L,    4, 4L),
-            atanh(0.999)=> (5L,    2, 2L),
+            atanh(0.1)  => (1200L, 1000, 1500L),
+            atanh(0.2)  => (250L,  100, 250L),
+            atanh(0.3)  => (60L,  48, 100L),
+            atanh(0.4)  => (50L,  40, 80L),
+            atanh(0.5)  => (40L,   32, 40L),
+            atanh(0.6)  => (22L,   20, 30L),
+            log(1 + √2) => (16L,   14, 20L),
+            atanh(0.8)  => (12L,   10, 10L),
+            atanh(0.9)  => (4L,    4, 4L),
+            atanh(0.95) => (4L,    4, 4L),
         )
-    D, step, start = get(table, τ, (5L, 2, 2L))
+    D, step, start = get(table, τ, (3L, 2, 2L))
     inds = collect(1:step:D)
     avg_range = start:D-5
     return D, inds, avg_range
@@ -155,24 +154,23 @@ end
 
 function get_system_params_corr(τ)
     D = Dict(
-        atanh(0.1)  => 2500,
-        atanh(0.2)  => 500,
-        atanh(0.3)  => 120,
-        atanh(0.4)  => 100,
-        atanh(0.5)  => 80,
-        atanh(0.6)  => 45,
-        log(1 + √2) => 35,
-        atanh(0.8)  => 25,
-        atanh(0.9)  => 8,
-        atanh(0.95) => 8,
-        atanh(0.999)=> 5,
+        atanh(0.1)  => 1200,
+        atanh(0.2)  => 250,
+        atanh(0.3)  => 60,
+        atanh(0.4)  => 50,
+        atanh(0.5)  => 40,
+        atanh(0.6)  => 22,
+        log(1 + √2) => 16,
+        atanh(0.8)  => 12,
+        atanh(0.9)  => 4,
+        atanh(0.95) => 4,
     )
-    return get(D, τ, 5)   # 5 is the default value for τ=1000.0
+    return get(D, τ, 3)   # 5 is the default value for τ=1000.0
 end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); anyon_type::Symbol=:IsingX, sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = collect(2:2:12)
+    δtlis = collect(1:6)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(
@@ -229,21 +227,7 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1)
         
         
     δtlis = collect(1:6)
-    # tc0lis = Vector{Float64}(undef, length(δtlis))
-    # spatial_corr_lis0 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_0.jld", "spatial_corr_lis")
-    # sc0 = spatial_corr_lis0[end]
-    # for (idx, δt) in enumerate(δtlis)
-    #     temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps0_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
-    #     tc0lis[idx] = temporal_corr_lis[end]
-    # end
     @show δtlis
-    # tc1lis = zeros(length(δtlis))
-    # spatial_corr_lis1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr_lis")
-    # sc1 = spatial_corr_lis1[end]
-    # for (idx, δt) in enumerate(δtlis)
-    #     temporal_corr_lis, spatial_corr_lis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ0.8813735870195429/D10_ps1_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis")
-    #     tc1lis[idx] = temporal_corr_lis[end]
-    # end
 
     tc1lis = zeros(length(δtlis))
     sc1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld", "spatial_corr")
@@ -252,8 +236,7 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1)
         tc1lis[idx] = temporal_corr
     end
 
-    # plot!(fig, δtlis./2L, tc0lis./sc0, label=L"s=0", xticks=δtlis./2L, color=:blues, linewidth=2, marker=:circle, markersize=4)
-    plot!(fig, δtlis./2L, tc1lis./sc1, label=L"s=1", xticks=δtlis./2L, color=:reds, linewidth=2, marker=:circle, markersize=4)
+    plot!(fig, δtlis./L, tc1lis./sc1, label=L"s=1", xticks=δtlis./L, color=:reds, linewidth=2, marker=:circle, markersize=4)
 
     t_star = log(1 + √2)/ π
     plot!(fig, t_star*[1, 1],[minimum(tc1lis./sc1), maximum(tc1lis./sc1)], linestyle=:dash, color=:gray, label = false)
@@ -265,23 +248,11 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1)
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2))
-    # Llis = collect(8:2:16)
     Llis = collect(8)
-    δtlis = collect(2:2:16)
+    δtlis = collect(1:8)
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
-    # fig = plot(
-    #     legend_background_color=nothing,
-    #     legend_foreground_color=nothing,
-    #     xlabel=L"L",
-    #     ylabel=L"g(0, \Delta t), g_{space}",
-    #     title=latexstring("γ= $(round(tanh(τ), digits=3))"),
-    #     )
-
-    # plot!(fig, Llis, scLlis, label=L"(δx,δt) = (L/2, 0)", color=:red, linestyle=:dash, linewidth=2, xticks=Llis, marker=:circle, markersize=4)
-
-    # plot!(fig, Llis, tcLlis, label=(round.(Int, δtlis./2))', marker=:circle, colorbar=false, marker_z=δtlis',line_z=δtlis', color=:blues, linestyle=:dash, linewidth=2)
-
+    
     c = cgrad(:blues, length(Llis), categorical=true)
     fig = plot(
         legend_background_color=nothing,
@@ -292,10 +263,10 @@ function plot_stc_scaling(τ::Float64=log(1+√2))
         )
 
     for (i, L) in enumerate(Llis[1:end-1])    
-        scatter!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
+        scatter!(fig, δtlis./(L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
 
-    plot!(fig, δtlis./(2Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
+    plot!(fig, δtlis./(Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
 
     t_star = log(1 + √2)/ π
     plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
