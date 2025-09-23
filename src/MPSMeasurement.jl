@@ -595,10 +595,7 @@ function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::Me
 end
 
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) where{ET}
-    if ET == Vector{Int} # single layer
-        sample = reshape(sample, 1, :) 
-    end
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) 
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
@@ -608,8 +605,8 @@ function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET; pbc::Boo
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
     sample=sample, cutoff=cutoff, maxdim=maxdim)
     return final_state, free_energy
- 
 end
+generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim)
 
 
 function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Int}, 

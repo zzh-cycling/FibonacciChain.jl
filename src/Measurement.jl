@@ -613,10 +613,7 @@ function measure_evolution!(N::Int,
     return states, sample, sample_free_energy
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T, ET}
-    if ET == Vector{Int} # single layer
-        sample = reshape(sample, 1, :) 
-    end
+function generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T}
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
@@ -627,6 +624,8 @@ function generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=tru
     sample=sample, enable_τ_eff=enable_τ_eff)
     return final_state, free_energy
 end
+generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T} = generate_state(τ, state, reshape(sample, 1, :), pbc; anyon_type=anyon_type, enable_τ_eff=enable_τ_eff)
+
 
 """
     boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, layer_idx::Int, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}

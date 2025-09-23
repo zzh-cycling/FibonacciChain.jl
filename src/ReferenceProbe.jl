@@ -335,10 +335,15 @@ end
 
 
 """
-    reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true;
+    reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc::Bool=true;
     anyon_type::Symbol=:Fibo, verbose=false, 
     rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample) where{T, ET}
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T}
+
+    reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true;
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    rng::MersenneTwister=MersenneTwister(),
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T}
 
 Generate quantum state evolution under measurement protocol with reference qubits.
 
@@ -378,12 +383,10 @@ julia> length(trajectory) == size(sample, 1)
 true
 ```
 """
-function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc::Bool=true;
+function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc::Bool=true;
     anyon_type::Symbol=:Fibo, verbose=false, 
     rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T, ET}
-
-    @assert ET == Matrix{Int} "ET must be Matrix{Int} for reference_generate_state"
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T}
 
     D = size(sample, 1) # D is the number of layers, while Δt is the true time(# period)
     Δt = D ÷ 2
@@ -431,7 +434,10 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::ET, pbc
 
     return statelis, sample, sample_free_energy
 end
-
+reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true;
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    rng::MersenneTwister=MersenneTwister(),
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T} = reference_generate_state(τ, state, reshape(sample, 1, :), pbc; anyon_type=anyon_type, verbose=verbose, rng=rng, mode=mode, enable_τ_eff=enable_τ_eff)
 
 """
     reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
