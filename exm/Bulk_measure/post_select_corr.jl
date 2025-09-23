@@ -65,11 +65,11 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=5L, δt::Int64=2
 
     if entangle_way == :copy
         if δt == 0
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, rng=rng, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=true) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
@@ -83,51 +83,53 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=5L, δt::Int64=2
 
 end
 
-function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt::Int=1; sign::Int64=0, entangle_way::Symbol=:copy)
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
     pbc = true
  
     # 1). First evolve to steady state with D time steps
-    sample = (sign==0) ? zeros(Int, D, length(2:2:L)) : ones(Int, D, length(2:2:L))
+    sample = (sign==0) ? zeros(Int, 2*D, length(2:2:L)) : ones(Int, 2*D, length(2:2:L))
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
     
-    δt = iseven(δt) ? δt : δt - 1
-    statelis = generate_state(τ, initial_state, sample, temp= true)
+    statelis, Flis = generate_state(τ, initial_state, sample)
     
     # tlis is the time list after adding two ref qubits.
-    tlis = collect(0:2:D)
+    tlis = collect(0:D)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
 
+    basis_F = anyon_basis(L, pbc)
+    extended_basis = FibonacciChain.build_extended_basis(2, basis_F) 
+
     # 2). Then add two ref qubits at different time slices and evolve for δt time, and to final δt + t time.
     if entangle_way == :copy
-        for (idx, t) in enumerate(tlis)
-            ref_sample = (sign == 0) ? zeros(Int, t+δt + D, length(2:2:L)) : ones(Int, t+δt + D, length(2:2:L))
         
+        for (idx, t) in enumerate(tlis)
+            @show "calculation time t:" t
+            ref_sample = (sign == 0) ? zeros(Int, 2*(t + δt + D), length(2:2:L)) : ones(Int, 2*(t + δt + D), length(2:2:L))
             if δt == 0
-                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true) 
+                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D) 
                 spatial = true
                 temporal = false
             else
-                ref2st = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, verbose=true, x₁ = L÷2+1)
+                ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1)
                 temporal = true
                 spatial = false
             end
-            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2st, traceref = false)
+
+            sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
             eelis[idx] = ee(sysrdm)
-            spatial_corr, temporal_corr = ref_correlation(L, ref2st, spatial=spatial, temporal=temporal)
+            spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial=spatial, temporal=temporal)
             temporal_corr_lis[idx] = temporal_corr
             spatial_corr_lis[idx] = spatial_corr
         end
 
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
         return temporal_corr_lis, spatial_corr_lis, eelis
-    else
-        error("Unknown entanglement way")
     end
 end
 
@@ -308,6 +310,6 @@ else
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
-    # spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
-    compute_post_selection(L, τ, D, δt, sign=1)
+    spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
+    # compute_post_selection(L, τ, D, δt, sign=1)
 end
