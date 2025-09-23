@@ -97,7 +97,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
     statelis, Flis = generate_state(τ, initial_state, sample)
     
     # tlis is the time list after adding two ref qubits.
-    tlis = collect(0:D)
+    tlis = collect(1:D)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
@@ -167,10 +167,11 @@ function plot_stc_tlis(L::Int64=10, D::Int64=3, τ::Float64=log(1+√2); sign::I
 
     tlis = collect(1:length(temporal_corr_lis))./L
     plot!(fig, tlis, spatial_corr_lis, label=latexstring("(δx,δt) = (L/2, 0)"), color=c[1], linestyle=:dash, linewidth=2)
-
+    
     for (idx, δt) in enumerate(δtlis)
         temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
 
+        tlis = collect(1:length(temporal_corr_lis))./L
         plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/L)L)"), color=c[idx+1], linewidth=2)
     end
 
