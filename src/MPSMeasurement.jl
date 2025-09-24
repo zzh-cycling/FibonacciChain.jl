@@ -1,14 +1,14 @@
 """
-MPS-based implementation for Fibonacci chain measurements using ITensor.
+MPS-based implementation for anyon chain measurements using ITensor.
 
-This module provides Matrix Product State (MPS) implementations for efficient 
-simulation of large Fibonacci anyon chains with measurement protocols.
+This module provides Matrix Product State (MPS) implementations for efficient
+simulation of large anyon chains with measurement protocols.
 """
 
 """
-    fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10)
+    anyon_mps_gst(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1, anyon_type::Symbol=:Fibo)
 
-Find ground state of Fibonacci chain Hamiltonian using DMRG.
+Find ground state of anyon chain Hamiltonian using DMRG.
 
 # Arguments
 - `N::Int`: System size
@@ -16,6 +16,8 @@ Find ground state of Fibonacci chain Hamiltonian using DMRG.
 - `sweep_times=20`: Number of DMRG sweeps
 - `maxdim=50`: Maximum bond dimension
 - `cutoff=1e-10`: Truncation cutoff
+- `outputlevel=2`: Verbosity level
+- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`)
 
 # Returns
 - `MPS`: Ground state as Matrix Product State
@@ -27,7 +29,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> N = 8;
 
-julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(N, pbc=true, maxdim=10, outputlevel=0);
 
 julia> ψ_gs isa MPS
 true
@@ -49,7 +51,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=2)
+function anyon_mps_gst(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1, anyon_type::Symbol=:Fibo)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
     sites = siteinds("Qubit", N)
     
@@ -60,8 +62,8 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdi
     ψ0 = random_mps(sites, state)
     
     # Create Fibonacci Hamiltonian
-    H = anyon_ham(sites; pbc=pbc, anyon_type=:Fibo)
-    
+    H = anyon_ham(sites; pbc=pbc, anyon_type=anyon_type)
+
     # Find ground state using DMRG
     sweeps = Sweeps(sweep_times)
     setmaxdim!(sweeps, maxdim)
@@ -409,15 +411,15 @@ function add_reference_qubits!(ψ::MPS, sites, site_idx::Int=1;
                                entangle_way::Symbol=:copy)
     1 ≤ site_idx ≤ length(ψ) || error("site_idx out of range")
 
-    N = length(sites)          # 原链长
-    s = site_type(ψ)       # 原物理指标的 site type
-    d = dim(s[1])          # 局域维（2 或 3 等）
+    N = length(sites)         
+    d = dim(sites[site_idx])          # local physical dimension
 
-    # ---------- 1. 在链最左端插入参考比特 ----------
-    #    新建一个 site，标签为 "Ref"，局域维 = d
-    sRef = add_site(sites, "Ref", d)   # 返回新的 site set
-    ψ_new = add_site(ψ, 1, sRef)       # 在位置 1 插入，MPS 长度变为 N+1
-    # 此时物理指标顺序： [Ref] [1] [2] … [N]
+    to_add_block = copy(ψ[site_idx])
+    to_add_block = replaceind!(to_add_block, siteind(ψ, site_idx), Index(d, "Qubit, Site, n=$(N+1)"))
+
+    ψ_new = typeof(ψ)(undef, length(ψ)+1)
+    ψ_new[1] = to_add_block
+    ψ_new[2:end] = ψ[1:end]
 
     # ---------- 2. 根据 entangle_way 做 Bell 对 ----------
     if entangle_way == :copy
@@ -493,7 +495,8 @@ function measure_evolution!(N::Int,
                   mode::Symbol = :prob,
                   t₁::Int = 1,
                   cutoff::Float64=1e-10, maxdim::Int=100, verbose::Bool=false,
-                  sample::Union{Nothing,Matrix{Int}}=nothing)
+                  sample::Union{Nothing,Matrix{Int}}=nothing, 
+                  enable_τ_eff::Bool=true)
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
@@ -595,7 +598,7 @@ function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::Me
 end
 
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) 
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false) 
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
@@ -603,10 +606,10 @@ function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int};
 
     final_state, sample, free_energy = measure_evolution!(N, τ, sites, state, t₂;
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
-    sample=sample, cutoff=cutoff, maxdim=maxdim)
+    sample=sample, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
     return final_state, free_energy
 end
-generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim)
+generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
 
 
 function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Int}, 
@@ -751,7 +754,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> N = 6;
 
-julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(N, pbc=true, maxdim=10, outputlevel=0);
 
 julia> # Calculate entanglement entropy profile
        ee_profile = anyon_eelis(N, ψ_gs);

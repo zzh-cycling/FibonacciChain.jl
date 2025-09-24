@@ -22,7 +22,7 @@ end
     pbc = true
     
     # Test ground state generation
-    ψ, energy = fibonacci_mps_ground_state(N; pbc=pbc)
+    ψ, energy = anyon_mps_gst(N; pbc=pbc)
     
     @test ψ isa MPS
     @test length(ψ) == N
@@ -215,7 +215,6 @@ end
     
     ψ, sites = initial_mps(N)
 
-    seed=10
     # Perform sampling
     st = zeros(length(anyon_basis(N))); st[1] = 1.0
     
@@ -227,7 +226,8 @@ end
     generated_statelis_exact, F_exact = generate_state(τ, st, bulk_samples, pbc)
 
     inds = [i.buf for i in anyon_basis(N)] .+1
-
+    
+    # Convert MPS states to dense vectors for comparison, note the order of elements may differ, as actually we are dealing with OBC MPS, but PBC Hamiltonian.
     ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_statelis]
     ψ_dense = [sort(ψ[ψ.>0]) for ψ in ψ_dense] 
     generated_statelis_exact = [sort(st_exact[st_exact .>0]) for st_exact in generated_statelis_exact]
@@ -255,11 +255,11 @@ end
     N = 4
     
     # Test invalid system sizes
-    @test_throws BoundsError fibonacci_mps_ground_state(0)
-    @test_throws BoundsError fibonacci_mps_ground_state(-1)
+    @test_throws BoundsError anyon_mps_gst(0)
+    @test_throws BoundsError anyon_mps_gst(-1)
     
     # Generate valid state for further tests
-    ψ, _ = fibonacci_mps_ground_state(N)
+    ψ, _ = anyon_mps_gst(N)
     sites = siteinds(ψ)
     
     # Test invalid measurement parameters

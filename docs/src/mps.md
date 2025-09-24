@@ -12,7 +12,7 @@ using FibonacciChain
 
 # Find ground state for N=50 Fibonacci anyon chain
 N = 50
-ψ, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=100, cutoff=1e-10)
+ψ, E0 = anyon_mps_gst(N, pbc=true, maxdim=100, cutoff=1e-10)
 ```
 
 ## Hamiltonian Construction
@@ -76,7 +76,7 @@ maxdim = 200
 cutoff = 1e-12
 
 # Find ground state
-ψ_gs, E0 = fibonacci_mps_ground_state(N, 
+ψ_gs, E0 = anyon_mps_gst(N, 
                                       pbc=true,
                                       sweep_times=30, 
                                       maxdim=maxdim,

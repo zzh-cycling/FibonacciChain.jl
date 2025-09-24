@@ -130,11 +130,11 @@ cutoff = 1e-10
 println("Finding ground state for N=$N system...")
 
 # Find MPS ground state
-ψ_gs, E0 = fibonacci_mps_ground_state(N, 
-                                      pbc=true,
-                                      sweep_times=20,
-                                      maxdim=maxdim, 
-                                      cutoff=cutoff)
+ψ_gs, E0 = anyon_mps_gst(N, 
+                        pbc=true,
+                        sweep_times=20,
+                        maxdim=maxdim, 
+                        cutoff=cutoff)
 
 println("Ground state energy density: $(E0/N)")
 
