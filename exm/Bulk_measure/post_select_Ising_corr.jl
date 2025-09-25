@@ -64,7 +64,7 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     return temporal_corr, spatial_corr, S
 end
 
-function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt::Int=1; sign::Int64=0, entangle_way::Symbol=:copy)
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. block_size is the time interval δt between two ref qubits divided by L
@@ -76,9 +76,9 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all plus state
     
-    δt = iseven(δt) ? δt : δt - 1
-    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
-    
+
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type, enable_τ_eff=false)
+
     # tlis is the time list after adding two ref qubits.
     tlis = (anyon_type == :IsingX) ? collect(0:2:D) :  collect(1:2:D)
     spatial_corr_lis = zeros(Float64, length(tlis))

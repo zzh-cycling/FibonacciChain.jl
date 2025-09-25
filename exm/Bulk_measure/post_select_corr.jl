@@ -60,7 +60,7 @@ function compute_post_selection(L::Int64, τ::Float64, D::Int64=5L, δt::Int64=2
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis, Flis = generate_state(τ, initial_state, sample)
+    statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
     ref_sample = (sign == 0) ? zeros(Int, 2*(D+δt+D), length(2:2:L)) : ones(Int, 2*(D+δt+D), length(2:2:L))
 
     if entangle_way == :copy
@@ -93,9 +93,9 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, D::Int64=5L, δt:
     sample = (sign==0) ? zeros(Int, 2*D, length(2:2:L)) : ones(Int, 2*D, length(2:2:L))
     initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc)))
     initial_state[1] = 1.0 # initial state is all zero state
-    
-    statelis, Flis = generate_state(τ, initial_state, sample)
-    
+
+    statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
+
     # tlis is the time list after adding two ref qubits.
     tlis = collect(1:D)
     spatial_corr_lis = zeros(Float64, length(tlis))
