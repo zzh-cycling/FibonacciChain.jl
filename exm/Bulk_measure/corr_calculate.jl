@@ -55,6 +55,7 @@ end
 
 function compute_total(L::Int64, τ::Float64, index::Int64, D::Int64=35L, δt::Int64=2)
     for index in index:index+99
+        @show "Computing index=$index"
         @time compute_ratio(L, τ, index, D, δt)
     end
 end
@@ -74,12 +75,12 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
     if δt == 0
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=true, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
     else
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=true, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
