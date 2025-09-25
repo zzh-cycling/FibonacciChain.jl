@@ -89,7 +89,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
     S = ee(sysrdm)
     
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, sample_layer, "sample_layer", sample_free_energy, "sample_free_energy")
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
     return temporal_corr, spatial_corr, S, sample, sample_free_energy
 end
 
@@ -131,10 +131,9 @@ else
     seedinds = parse(Int, ARGS[4])
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
-    D = div(D, 2)
     seed = seed_interval_lis[seedinds]
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt, seedlis=$(seed):$(seed+99)")
-    # compute_ratio(L, τ, index, D, δt)
+    # compute_ratio(L, τ, seed, D, δt)
     compute_total(L, τ, seed, D, δt)
     # corr_collect(L, τ)
 end
