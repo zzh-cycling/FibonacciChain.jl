@@ -2,6 +2,8 @@ using FibonacciChain
 using JLD
 using Statistics
 using Random
+using LaTeXStrings
+using Plots
 
 function get_δtL(τ)
     table = Dict(

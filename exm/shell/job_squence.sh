@@ -25,7 +25,7 @@ for ((i=8; i<=18; i+=2)); do
     for j in 2 5 6 8 11; do
         # for ((j=1; j<=8; j+=1)); do 
         for ((k=0;k<=20;k+=1)); do
-            for ((l=1;l<=20;l+=1)); do
+            for ((l=2;l<=20;l+=1)); do
             # i is L, j is τ index, k is \delta t index, l is seed index
 
                 # RANDOM_SEED=$(( (j + i) * 1000 ))  # 通过任务ID来生成种子，确保不同任务之间不重复
