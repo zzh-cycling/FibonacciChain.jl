@@ -13,24 +13,19 @@ function get_δtL(τ)
     return  δtlis
 end
 
-function organize(τ::Float64, sign::Int64=1)
-    δtlis = get_δtL(τ)
-    Llis = collect(8:4:20)
-    scLlis = zeros(Float64, length(Llis))
-    tcLlis = zeros(Float64, length(Llis), length(δtlis))
-    seedlis = collect(1:100)
-    for (i, L) in enumerate(Llis)
-        D, _, _ = get_system_params(τ, L)
-        D = div(D, 2L)
-        seed = seedlis[i]
-        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/D$(D)_Samples$(seed).jld", "spatial_corr")
-        scLlis[i] = spatial_corr
-        for (j, δt) in enumerate(δtlis)
-            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(D)_Samples$(seed).jld",  "temporal_corr")
-            tcLlis[i, j] = temporal_corr
-        end
+function organize( L::Int=8, τ::Float64= log(1 + √2))
+    δtlis = collect(1:20)
+    tcLlis = zeros(Float64, length(δtlis))
+    tcstderrlis = zeros(Float64, length(δtlis))
+    
+    average_spatial_corr, spatial_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr")
+    for (j, δt) in enumerate(δtlis)
+        average_temporal_corr, temporal_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr")
+        tcLlis[j] = average_temporal_corr
+        tcstderrlis[j] = temporal_corr_stderr
     end
-    save("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+    
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc.jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis)
 end
 
 function get_system_params(τ, L)
@@ -96,26 +91,63 @@ end
 
 
 function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
-    samples_num = 10000
-    temporal_corr_ensemble = Vector{Vector{Float64}}(undef, samples_num)
-    spatial_corr_ensemble = Vector{Float64}(undef, samples_num)
-     for i in 1:samples_num
-        @show i
-        temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld",  "temporal_corr_lis", "spatial_corr")
-        temporal_corr_ensemble[i] = temporal_corr_lis
-        spatial_corr_ensemble[i] = spatial_corr
+    samples_num = 100
+    δtlis = collect(0:20)  # Adjust this range based on the δt values you have used
+    
+    for δt in δtlis
+        temporal_corr_ensemble = zeros(samples_num)
+        spatial_corr_ensemble = zeros(samples_num)
+        S_ensemble = zeros(samples_num)
+        sample_free_energy_ensemble = zeros(samples_num, 2*(D+δt))
+
+        for i in 1:samples_num
+            @show i
+            temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
+            temporal_corr_ensemble[i] = temporal_corr
+            spatial_corr_ensemble[i] = spatial_corr
+            sample_free_energy_ensemble[i, :] = sample_free_energy
+            S_ensemble[i] = S
+        end
+    
+        average_temporal_corr = mean(temporal_corr_ensemble)
+        average_spatial_corr = mean(spatial_corr_ensemble)
+        temporal_corr_stderr = std(temporal_corr_ensemble) ./ sqrt(samples_num)
+        spatial_corr_stderr = std(spatial_corr_ensemble) / sqrt(samples_num)
+        average_EE = mean(S_ensemble)
+        stderr_EE = std(S_ensemble) / sqrt(samples_num)
+        average_free_energy_tlis = mean(sample_free_energy_ensemble, dims=1)[:]
+        stderr_free_energy_tlis = (std(sample_free_energy_ensemble, dims=1) ./ sqrt(samples_num))[:]
+    
+        save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld", "average_temporal_corr", average_temporal_corr, 
+        "temporal_corr_stderr", temporal_corr_stderr, 
+        "average_spatial_corr", average_spatial_corr, 
+        "spatial_corr_stderr", spatial_corr_stderr, 
+        "average_EE", average_EE,
+        "stderr_EE", stderr_EE,
+        "average_free_energy_tlis", average_free_energy_tlis,
+        "stderr_free_energy_tlis", stderr_free_energy_tlis)
     end
-
-    average_temporal_corr = mean(temporal_corr_ensemble)
-    average_spatial_corr = mean(spatial_corr_ensemble)
-    temporal_corr_stderr = std(temporal_corr_ensemble) ./ sqrt(samples_num)
-    spatial_corr_stderr = std(spatial_corr_ensemble) / sqrt(samples_num)
-
-    save("exm/data/Bulk_measure/temporal_spatial_corr_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_temporal_corr", average_temporal_corr, 
-    "temporal_corr_stderr", temporal_corr_stderr, 
-    "average_spatial_corr", average_spatial_corr, 
-    "spatial_corr_stderr", spatial_corr_stderr)
 end
+
+
+function plot_tc(L::Int64, τ::Float64)
+    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc.jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+
+    # c = cgrad(:blues, length(δtlis), categorical=true)
+    
+    plt = plot(
+        label=false,
+        legend_background_color=nothing,
+        legend_foreground_color=nothing,
+        xlabel=L"δt /L",
+        ylabel=L"g(0, \Delta t)/g_{space}",
+        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+    )
+
+    plot!(plt, δtlis ./ L, tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(L)", lw=2, marker=:o, ms=6)
+    return plt
+end
+
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
