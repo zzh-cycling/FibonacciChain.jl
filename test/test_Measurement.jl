@@ -4,6 +4,7 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random 
+include("../exm/FitEntEntScal.jl")
 
 @testset "measure_basismap" begin
     N = 3
@@ -312,17 +313,18 @@ end
     antiGS = states[:, 1]
 
     sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1)
-    statelis, F = generate_state(τ, antiGS, samples[1, :])
-    state= statelis[end]
+    state, F = generate_state(τ, antiGS, samples[1, :])
+
     @test state ≈ sample_measured_states[1]
-    @test F[1] ≈ sample_free_energy[1] atol=1e-6 
+    @test F[1] ≈ sample_free_energy[1] atol=1e-6
 
     st = zeros(length(anyon_basis(N)))
     st[1] = 1.0
 
     sample_measured_states, sample_bulk, sample_free_energy = bulk_measure(N, τ, st, N)
     statelis, F = generate_state(τ, st, sample_bulk)
-    @test statelis ≈ sample_measured_states
+    state = statelis[end]
+    @test state ≈ sample_measured_states[end]
 end
 
 @testset "boundary_measure" begin
@@ -361,9 +363,9 @@ end
 
     sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(2)) 
     EElis = [anyon_eelis(L, state_t)[5] for state_t in sample_measured_states]
-    @test size(samples) == (20, 5)
-    @test EElis[1] ≈ 0.0 atol = 1e-4
-    @test EElis[end] > 0.5098675501545762 
+    @test size(samples) == (D*2, 5)
+    @test EElis[1] ≈ 0.6895721925700435 atol = 1e-4
+    @test EElis[end] > 0.7
 end
 
 @testset "bulk_post_selection" begin
@@ -376,7 +378,7 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, D, 0, pbc)
+    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, div(D,2), 0, pbc)
     state_t = sample_measured_states[end]
     EE = anyon_eelis(L, state_t)[5]
     @test samples[end,:] == fill(0, div(L,2))
@@ -422,3 +424,25 @@ end
     inds = findfirst(x -> x == [1, 1, 1, 1], distorted_trajectories)
     @test distorted_probabilities[inds] == (3/4)^2*(1/4)^2
 end
+
+@testset "central_charge" begin
+    N = 16
+    τ = atanh(0.8) # critical point for IsingX
+    st=zeros(length(anyon_basis(N)))
+    st[1] = 1.0
+
+    samples = zeros(Int, 12N, div(N,2))
+
+    generated_statelis, F = generate_state(τ, st, samples)
+    final_st = generated_statelis[end]
+    EE = anyon_eelis(N, final_st)
+    @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.8 atol=1e-1
+    
+    samples = ones(Int, 15N, div(N,2))
+    ψ0, sites = initial_mps(N)
+    generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true)
+    final_mps = generated_statelis_mps[end]
+    EE_mps = anyon_eelis(N, final_mps)
+    c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1][1]
+    @test c ≈ 0.7 atol=1e-1
+end 

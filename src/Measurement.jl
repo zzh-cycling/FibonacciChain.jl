@@ -542,7 +542,7 @@ function measure_evolution!(N::Int,
 
     # ---------- Sample decided according to mode ----------
     Δt = t₂ - t₁ + 1 
-    Δt > 0 || error("t₂ must be >= t₁")
+    Δt >= 0 || error("t₂ must be >= t₁")
     D = Δt * 2 # number of layers to evolve
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
@@ -614,7 +614,6 @@ function measure_evolution!(N::Int,
 end
 
 function generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T}
-
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
     t₂ = D ÷ 2 # number of time steps/ periods
@@ -624,7 +623,15 @@ function generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc:
     sample=sample, enable_τ_eff=enable_τ_eff)
     return final_state, free_energy
 end
-generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T} = generate_state(τ, state, reshape(sample, 1, :), pbc; anyon_type=anyon_type, enable_τ_eff=enable_τ_eff)
+
+function generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
+    N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
+
+    τ_eff = enable_τ_eff ? τ/2 : τ
+    current_state, sample_layer = _apply_measurement_layer!(N, τ_eff, state, sample, layer_idx, pbc; anyon_type=anyon_type)
+
+    return current_state, sample_layer
+end
 
 
 """
@@ -769,7 +776,7 @@ function bulk_post_selection(
     # 1. Build the sample, all 0 or all 1, each layer N/2 or N measurements, depending on anyon_type, total D layers.
     n_measure = (anyon_type == :Fibo) ? N ÷ 2 : N
 
-    sample = (sign == 1) ? ones(Int, D, n_measure) : zeros(Int, D, n_measure)
+    sample = (sign == 1) ? ones(Int, 2D, n_measure) : zeros(Int, 2D, n_measure)
 
     # 2. generate_state to run all the layers
     sample_measured_states, samples, sample_free_energy = measure_evolution!(

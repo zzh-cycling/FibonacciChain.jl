@@ -47,7 +47,7 @@ L = N ÷ 2
 S = ee_mps(ψ, L)
 
 # Get full entanglement profile
-ee_profile = anyon_eelis_mps(ψ)
+ee_profile = anyon_eelis(N, ψ)
 ```
 
 ## State Generation and Evolution
@@ -83,7 +83,7 @@ cutoff = 1e-12
                                       cutoff=cutoff)
 
 # Calculate observables
-ee_profile = anyon_eelis_mps(ψ_gs)
+ee_profile = anyon_eelis(N, ψ_gs)
 central_ee = ee_profile[N÷2]
 
 println("Ground state energy: $E0")

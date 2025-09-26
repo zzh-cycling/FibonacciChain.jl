@@ -139,7 +139,7 @@ println("Finding ground state for N=$N system...")
 println("Ground state energy density: $(E0/N)")
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis_mps(ψ_gs)
+ee_profile = anyon_eelis(N, ψ_gs)
 
 # Analyze scaling behavior
 L_values = 1:N÷2

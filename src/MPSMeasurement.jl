@@ -737,7 +737,7 @@ end
 
 
 """
-    anyon_eelis_mps(N::Int64, ψ::MPS)
+    anyon_eelis(N::Int64, ψ::MPS)
 
 Calculate entanglement entropy profile along the chain for MPS state.
 

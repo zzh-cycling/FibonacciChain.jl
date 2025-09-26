@@ -298,15 +298,16 @@ end
     k_old = 1
     st = zeros(length(anyon_basis(N, pbc))); st[1] = 1
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
-    sample = zeros(Int, (3, length(2:2:N)))
+    sample = zeros(Int, (4, length(2:2:N))) # Four layer sample, 2 peroid evolution
 
-    output1, samples = reference_generate_state(τ, add_st, sample, pbc)
-    @test length(output1) == 3
-    @test samples == zeros(Int, (3, length(2:2:N)))
+    output1, samples, free_energy = reference_generate_state(τ, add_st, sample, pbc)
+    @test length(output1) == 2
+    @test samples == zeros(Int, (4, length(2:2:N)))
 
-    output1, samples = reference_generate_state(τ, add_st, sample, pbc, rng = MersenneTwister(100), mode=:Born)
-    @test length(output1) == 3
-    @test samples == [1 1 1 1; 0 1 0 1; 0 0 0 0]
+    output1, samples, free_energy = reference_generate_state(τ, add_st, sample, pbc, rng = MersenneTwister(100), mode=:Born)
+    @test length(output1) == 2
+    @test samples == [1 1 1 1; 0 1 0 1; 0 0 0 0; 0 0 1 0]
+    @test free_energy ≈ [2.617994480798357, 2.563763819200177, 1.415477184509482, 2.8031245965479576]
 end
 
 @testset "reference_rdm" begin
@@ -449,15 +450,15 @@ end
 function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
     pbc = true
     anyon_type = :IsingX
-    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
+    sample = (sign == 1) ? ones(Int, 2D, L) : zeros(Int, 2D, L)
 
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
     statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
-    
+    ref_sample = (sign == 0) ? zeros(Int, 2(D+δt+D), L) : ones(Int, 2(D+δt+D), L)
+
     if entangle_way == :copy
         if δt == 0
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
@@ -473,15 +474,15 @@ end
 function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, mode::Symbol=:Born, rng = MersenneTwister(100))
     pbc = true
     anyon_type = :IsingX
-    sample = (sign == 1) ? ones(Int, D, L) : zeros(Int, D, L)
+    sample = (sign == 1) ? ones(Int, 2D, L) : zeros(Int, 2D, L)
 
     initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
     statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
-    ref_sample = (sign == 0) ? zeros(Int, D+δt+D+1, L) : ones(Int, D+δt+D+1, L)
-    
+    ref_sample = (sign == 0) ? zeros(Int, 2*(D+δt+D), L) : ones(Int, 2*(D+δt+D), L)
+
     if entangle_way == :copy
         if δt == 0
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
@@ -502,11 +503,11 @@ end
     spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
     ref2st = compute_post_selection_Ising(L, τ, D, 4, sign=1, entangle_way=:copy)
     _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 1.3473583771849356
+    @test temporal_corr/spatial_corr ≈ 1.1680015026758541
 
     ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 0, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
     spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
     ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
     _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 6.69459188579601
+    @test temporal_corr/spatial_corr ≈ 9.881413517280196
 end

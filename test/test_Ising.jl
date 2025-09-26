@@ -4,6 +4,7 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random
+include("../exm/FitEntEntScal.jl")
 
 @testset "Isingmap" begin
     N = 6
@@ -432,9 +433,9 @@ end
 
     sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
     EElis = [anyon_eelis(L, state_t, anyon_type=:IsingX)[div(L,2)] for state_t in sample_measured_states]
-    @test size(samples) == (D, L)
+    @test size(samples) == (2D, L)
     # Each layer will erase previous info.
-    @test EElis ≈ [i % 2 == 1 ? 0.0 : log(2) for i in 1:D] atol = 1e-6
+    @test EElis ≈ [log(2) for i in 1:D] atol = 1e-6
 end
 
 @testset "Bulkpost_selection" begin
@@ -463,9 +464,11 @@ end
     sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = sample_measured_states[end]
 
-    new_state, F = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
+    new_state, F1 = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
+    new_state, F2 = _apply_measurement_layer!(N, τ, new_state, samples[2,:], 2, anyon_type=:IsingX)
     @test new_state ≈ sample_measured_states[1]
-    @test F ≈ sample_free_energy[1] atol=1e-6
+    @test F1 ≈ sample_free_energy[1] atol=1e-6
+    @test F2 ≈ sample_free_energy[2] atol=1e-6
 end
 
 @testset "generate_state" begin
@@ -476,7 +479,7 @@ end
 
     sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 10, anyon_type=:IsingX)
     state, F = generate_state(τ, st, samples[1,:], anyon_type=:IsingX)
-    @test state[1] ≈ sample_measured_states[1]
+    @test state ≈ sample_measured_states[1]
     @test F[1] ≈ sample_free_energy[1] atol=1e-6
 
     sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
@@ -484,3 +487,25 @@ end
     @test statelis ≈ sample_measured_states
     @test F ≈ sample_free_energy atol=1e-6  
 end
+
+@testset "central_charge" begin
+    N = 12
+    τ = log(1+√2) # critical point for IsingX
+    st=zeros(length(anyon_basis(N, anyon_type=:IsingX)))
+    st[1] = 1.0
+
+    samples = zeros(Int, 10N, N)
+
+    generated_statelis, F = generate_state(τ, st, samples, anyon_type=:IsingX)
+    final_st = generated_statelis[end]
+    EE = anyon_eelis(N, final_st, anyon_type=:IsingX)
+    @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.5 atol=1e-2
+    
+    ψ0, sites = initial_mps(N)
+    generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true, anyon_type=:IsingX)
+    final_mps = generated_statelis_mps[end]
+    EE_mps = anyon_eelis(N, final_mps)
+    @test EE_mps ≈ EE atol = 1e-6
+    c = fitCCEntEntScal(EE_mps, mincut=2, pbc =true)[1][1]
+    @test c ≈ 0.5 atol=1e-2
+end 

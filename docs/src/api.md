@@ -25,7 +25,7 @@ mapst_sec2tot
 ee
 anyon_eelis
 ee_mps
-anyon_eelis_mps
+anyon_eelis
 ```
 
 ## Symmetry Operations

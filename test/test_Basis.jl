@@ -320,7 +320,7 @@ end
     statelis, free_energy = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
 
 
-    stlis, samples, sample_free_energy = reference_evolution(L, τ, statelis, sample, 1, 10, 16, anyon_type=:IsingX, rng=MersenneTwister(1234))
+    stlis, samples, sample_free_energy = reference_evolution(L, τ, statelis, sample, 1, 5, 8, anyon_type=:IsingX, rng=MersenneTwister(1234))
     st=stlis[end]
     ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
     ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)

@@ -220,11 +220,11 @@ reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true
 
 
 """
-    reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{T}, 
-    layer_sample::Vector{Int64}, 
-    layer_idx::Int64, 
+    reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{ET},
+    layer_sample::Vector{Int64}, layer_idx::Int64,
     pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo) where {T}
+    extended_basis::Vector{newT}, k_old::Int64=1, 
+    anyon_type::Symbol=:Fibo) where {ET, newT}
 
 Generate measurement samples at 1 layer with post_selection outcomes, i.e., with time step 1.
 
@@ -434,10 +434,33 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{
 
     return statelis, sample, sample_free_energy
 end
-reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true;
-    anyon_type::Symbol=:Fibo, verbose=false, 
-    rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T} = reference_generate_state(τ, state, reshape(sample, 1, :), pbc; anyon_type=anyon_type, verbose=verbose, rng=rng, mode=mode, enable_τ_eff=enable_τ_eff)
+function reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true;
+    anyon_type::Symbol=:Fibo, verbose=false, layer_idx::Int64=1, rng::MersenneTwister=MersenneTwister(),
+    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T} 
+
+    N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
+
+    basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
+
+    len_F   = length(basis_F)
+    # old reference qubit number, k_old
+    k_old = round(Int, log2(length(state) ÷ len_F))
+    
+    # Noting that basis is not consisten with state, but extended_basis is.
+    extended_basis = build_extended_basis(k_old, basis_F) 
+
+    τ_eff = enable_τ_eff ? τ/2 : τ
+    if mode == :sample
+        verbose && @info "Using given sample evolution mode"
+        current_state, sample_layer = reference_apply_measurement_layer!(N, τ_eff, state, sample, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
+    elseif mode == :Born
+        verbose && @info "Using Born rule driven evolution mode"
+        current_state, sample_layer, free_energy = reference_sample_layer!(N, τ_eff, state, rng, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
+    end
+
+    return current_state, sample_layer
+end
+
 
 """
     reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Int}, 
@@ -526,7 +549,7 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
         view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
         view(statelis, t₂+1:Δt, :) .= view(final_stlis2, :)
 
-        sample_layer[2*t₁+1:t₂, :] .= samples1
+        sample_layer[2*t₁+1:2*t₂, :] .= samples1
         sample_layer[2*t₂+1:end, :] .= samples2
         sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
         sample_free_energy[2*t₂+1:end] .= free_energy2

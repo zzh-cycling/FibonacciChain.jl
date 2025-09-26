@@ -247,7 +247,7 @@ end
 
     ψ = random_mps(sites, state)
     # Calculate entanglement entropy at different cuts
-    EElis = anyon_eelis_mps(N, ψ)
+    EElis = anyon_eelis(N, ψ)
     @test all(EElis .>= 0)  # Entanglement entropy should be non-negative
 end
 
@@ -286,7 +286,7 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
 
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis_mps(L, final_state)
+    final_EElis = anyon_eelis(L, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end
