@@ -38,10 +38,9 @@ function get_system_params(τ, L)
     return D, inds, avg_range
 end
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1
-τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
+τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
 
 for τ in τlis
     @show τ

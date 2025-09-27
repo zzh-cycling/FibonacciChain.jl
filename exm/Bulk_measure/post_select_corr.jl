@@ -7,18 +7,27 @@ using LaTeXStrings
 using Plots
 using Random
 
-function get_δtL(τ)
-    table = Dict(
-            atanh(0.1)  => (collect(25:35)),
-            atanh(0.2)  => (collect(10:20)),
-            atanh(0.3)  => (collect(5:15)),
-            atanh(0.4)  => (collect(2:10)),)
-    δtlis = get(table, τ, collect(1:8))
+function get_δtL(τ, sign::Int64=1)
+    if sign == 0
+        table = Dict(
+            atanh(0.1)  => (collect(10:30)),
+            atanh(0.2)  => (collect(10:30)),
+            atanh(0.3)  => (collect(10:30)),
+            atanh(0.4)  => (collect(10:30)),)
+        δtlis = get(table, τ, collect(1:10))
+    else
+        table = Dict(
+                atanh(0.1)  => (collect(25:35)),
+                atanh(0.2)  => (collect(10:20)),
+                atanh(0.3)  => (collect(5:15)),
+                atanh(0.4)  => (collect(2:10)),)
+        δtlis = get(table, τ, collect(1:8))
+    end
     return  δtlis
 end
 
 function organize(τ::Float64, sign::Int64=1)
-    δtlis = get_δtL(τ)
+    δtlis = get_δtL(τ, sign)
     Llis = collect(8:4:20)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
@@ -151,7 +160,7 @@ end
 
 function plot_stc_tlis(L::Int64=10, D::Int64=3, τ::Float64=log(1+√2); sign::Int=0)
     # Plot the spatio-temporal correlations vs t for different δt
-    δtlis = get_δtL(τ)
+    δtlis = get_δtL(τ, sign)
     c = cgrad(:blues, length(δtlis)+1, categorical=true)
     
     fig = plot(
@@ -195,7 +204,7 @@ end
 
 function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
     # Plot the temporal correlations vs δt
-    δtlis = get_δtL(τ)
+    δtlis = get_δtL(τ, sign)
 
     fig = plot(
         label=false,
@@ -229,11 +238,11 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
-    Llis = collect(8:4:20)
-    δtlis = get_δtL(τ)
+    Llis = collect(8:2:20)
+    δtlis = get_δtL(τ, sign)
 
     idx = findall(x->x==τ, τlis)
-    tlis = tlis = [1.5622791153697357, 0.7780581224158777, 0.5083827557773009, 0.36709846127189905, 0.2760268365466788, 0.21191890015652085, 0.1568936137623848, 0.11830701021871359, 0.07607223477091314, 0.10374056220848625] # t obtained from α fitting
+    tlis = tlis = [1.5622791153697357, 0.7780581224158777, 0.5083827557773009, 0.36709846127189905, 0.2760268365466788, 0.21191890015652085, 0.1568936137623848, 0.11830701021871359, 0.07607223477091314, 0.10374056220848625, 0.0, 0.0] # t obtained from α fitting
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
 
     c = cgrad(:blues, length(Llis), categorical=true)
@@ -243,14 +252,15 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
         xlabel=L"δt/L",
         ylabel=L"g(0, \delta t)/g(\delta x=L/2, 0)",
         title=latexstring("γ= $(round(tanh(τ), digits=3)), s=$(sign)"),
-        ylim = (0.97, 1.03),
+        # ylim = (0.97, 1.03),
         )
 
-    for (i, L) in enumerate(Llis[1:end-1])    
+    for (i, L) in enumerate(Llis[2:2:end-2])    
         scatter!(fig, δtlis./(L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
 
-    plot!(fig, δtlis./(Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
+    index = 6
+    plot!(fig, δtlis./(Llis[index]), tcLlis[index, :]./scLlis[index], label=latexstring("L=$(Llis[index])"), color=c[index], linewidth=2, marker=:circle, markersize=4)
 
     # for (i, L) in enumerate(Llis[1:end])    
     #     plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
@@ -262,7 +272,7 @@ end
 
 function alpha_compute_corr(τ; sign::Int=1)
     Llis = collect(8:4:20)
-    δtlis= get_δtL(τ)
+    δtlis= get_δtL(τ, sign)
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
     
@@ -283,9 +293,9 @@ function alpha_compute_corr(τ; sign::Int=1)
     end
 end
 
-function alphalis_corr(τlis)
-    αlis = [alpha_compute_corr(τ)[1] for (τ) in τlis]
-    tlis = [alpha_compute_corr(τ)[2] for (τ) in τlis]
+function alphalis_corr(τlis; sign::Int=1)
+    αlis = [alpha_compute_corr(τ; sign=sign)[1] for (τ) in τlis]
+    tlis = [alpha_compute_corr(τ; sign=sign)[2] for (τ) in τlis]
     @show tlis
     return αlis
 end
@@ -297,10 +307,9 @@ end
 
 # error = [2.7330430701558868, 2.0451491174598737, 2.5762720937165486, 1.7192265271295484, 1.9050739241818382, 2.1930220033566306, 3.11060266197238, 2.011001355938974, 0.05371690873624521] * 100%
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1
-τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
+τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
 
 
 if length(ARGS) == 0
