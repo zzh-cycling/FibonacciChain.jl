@@ -5,18 +5,27 @@ using Statistics
 # include("../FitEntEntScal.jl")
 
 binary_distribution(p, rng) = rand(rng) < p ? 1 : 0
-function ps_prob_evolution(L::Int64, τ::Float64,  D::Int, prob::Float64; seed::Int=100, temp::Bool=false)
+function ps_prob_evolution(L::Int64, τ::Float64, D::Int; seed::Int=100)
+    # D is the number of layers, not period
     # Generate a state based on the given sample and initial state
     # τ is the temperature parameter, initial_state is the initial state vector
     # sample is a matrix of binary values representing the state configuration
-    gate_num = round(Int, D*L / 2)
-    rng = MersenneTwister(seed)
-    sample = reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2))
+    problis = collect(0.1:0.1:0.9)
+    ee_plis = Vector{Vector{Float64}}(undef, length(problis))
     initial_state = zeros(length(anyon_basis(L)))
     initial_state[1] = 1.0  # Set the first state as the initial state
-    stlis = generate_state(τ, initial_state, sample, temp=temp)
+    gate_num = div(D*L, 2)
 
-    return stlis
+    for (idx, prob) in enumerate(problis)
+        @show idx
+
+        rng = MersenneTwister(seed)
+        sample = reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2))
+        stlis, sample_return = generate_state(τ, initial_state, sample)
+        ee_plis[idx] = anyon_eelis(L, stlis[end])
+    end
+    save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_sample$(seed).jld", "seed", seed, "ee_plis", ee_plis, "problis", problis)
+    return ee_plis
 end
 
 function average_Born_sample_p(L::Int64, τ::Float64)
@@ -66,15 +75,15 @@ seed_interval_lis = collect(1:100:2000)
 if length(ARGS) == 0
     println("No arguments provided.")
 else
-    # seed=parse(Int64, ARGS[1])
-    # stlis = [ps_prob_evolution(L, τ, D, p, seed=seed) for p in problis]
-    # eelis = [anyon_eelis(L, st) for st in stlis]
-    # save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)_D$(div(D,L))_τ$(τ)_sample_$(seed).jld", "seed", seed, "eelis", eelis, "problis", problis)
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
+    seed=parse(Int64, ARGS[3])
     τ = τlis[inds]
-    println("Computed Born Sample average for L=$L, τ=$τ")
-    average_Born_sample_p(L, τ)
+    D, _, _ = get_system_params(τ, L)
+    # println("Computed Born Sample average for L=$L, τ=$τ")
+    println("Computed Post-selection average for seed=$seed, τ=$τ")
+    # average_Born_sample_p(L, τ)
+    ps_prob_evolution(L, τ, D; seed=seed)
 end
 
 
