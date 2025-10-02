@@ -4,6 +4,8 @@ using Statistics
 using Random
 using LaTeXStrings
 using Plots
+using LsqFit
+using Measurements
 
 function get_δtL(τ)
     table = Dict(
@@ -131,40 +133,47 @@ function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     end
 end
 
-function alpha_compute_corr(τ)
-    # Llis = collect(8:4:20)
-    L = 8
+function alpha_with_error_wt(τ; L=16)
+    # ---- 读数据 ----
+    file = "exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(L)_τ$(τ).jld"
+    sc_μ = load(file, "average_spatial_corr")
+    sc_σ = load(file, "spatial_corr_stderr")
+    tc_μ = load(file, "tcLlis")
+    tc_σ = load(file, "tcstderrlis")
     δtlis= collect(1:20)
 
-    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc.jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+    ratio_μ = tc_μ ./ sc_μ
+    ratio_σ = @. sqrt( (tc_σ/tc_μ)^2 + (sc_σ/sc_μ)^2 ) * ratio_μ   # error propagation formula
+    wt = @. 1 / ratio_σ^2                                         # weights
 
-    ratio = tcLlis./average_spatial_corr
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), ratio)
-    
-    linear_model(x,p) = p[1] * x .+ p[2]
+    # ---- weighted fit y = a*x + b ----
+    model(x, p) = @. p[1] .* exp.(-x ./p[2])  + p[3]
+    fit = curve_fit(model, δtlis./L, ratio_μ, wt, [1.0, 1.0, 1.0])
+    a, b, c = fit.param                                
+    Σ = estimate_covar(fit)                            # 2×2 covariance matrix
+    σa, σb, σc = sqrt.(diag(Σ))                            # a, b stderr
+    a_m = a ± σa
+    b_m = b ± σb
+    c_m = c ± σc
 
-    if !isempty(inds)
-        fit = curve_fit(linear_model, δtlis[inds]./L, ratio[inds], [1.0, 1.0])
-        a = fit.param[1]
-        b = fit.param[2]
-        t = (1-b)/a
-        α = log(1+√2)/π/t
-        return α,t
-    else
-        return NaN
-    end
+    t = -b_m * log((1-c_m)/a_m)  # exponential fit
+    # t = (1 - b_m) / a_m # first linear fit
+    α = log(1 + √2) / π / t
+
+    return α, t
 end
 
 function alphalis_corr(τlis)
-    αlis = [alpha_compute_corr(τ)[1] for (τ) in τlis]
-    tlis = [alpha_compute_corr(τ)[2] for (τ) in τlis]
+    αlis = [alpha_with_error_wt(τ, L = 16)[1].val for (τ) in τlis]
+    α_stderrlis = [alpha_with_error_wt(τ, L = 16)[1].err for (τ) in τlis]
+    tlis = [alpha_with_error_wt(τ, L = 16)[2] for (τ) in τlis]
     @show tlis
-    return αlis
+    return αlis, α_stderrlis
 end
 
 
 function plot_tc(inds::Int64)
-    Llis = collect(8:2:10)
+    Llis = collect(8:2:16)
     τ = τlis[inds]
 
     plt = plot(
@@ -174,24 +183,37 @@ function plot_tc(inds::Int64)
         xlabel=L"δt /L",
         ylabel=L"g(0, \Delta t)/g_{space}",
         title=latexstring("γ= $(round(tanh(τ), digits=3))"),
-        ylim = (0.8, 1.2), 
+        # ylim = (0.8, 1.2), 
     )
     
-    c = cgrad(:reds, length(Llis), categorical=true)
+    c = cgrad(:blues, length(Llis), categorical=true)
 
-    for (idx, L) in enumerate(Llis)
-        average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc.jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
-    
-        test_lis = [0.0, 1.371163364681693, 0.0, 0.0, 0.48786165394603076, 0.0, 0.0, 0.22, 0.0, 0.0, 0.0, 0.0]
-    
-    
-        plot!(plt, δtlis ./ L, tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(L)", lw=2, marker=:o, ms=6, c = c[idx])
-        scatter!(plt, [test_lis[inds]], [1.0], ms=8, label=false, mc=:red, m=:star5)
+    test_lis = [0.0, 1.1917091921566003, 0.0, 0.0, 0.45646685808273624, 0.3543349243759066, 0.0, 0.234, 0.0, 0.0, 0.12, 0.0]
+
+    for (idx, L) in enumerate(Llis[1:end-1])
+        average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+
+
+        scatter!(plt, δtlis ./ L, tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(L)", lw=2, marker=:circle, ms=6, c = c[idx])
     end
+    scatter!(plt, [test_lis[inds]], [1.0], ms=8, label=false, mc=:red, m=:star5)
+
+    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(Llis[end])_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+    
+    
+    plot!(plt, δtlis ./ Llis[end], tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(Llis[end])", lw=2, marker=:circle, ms=6, c = c[end])
+    
+    model(x, p) = @. p[1] .* exp.(-x ./p[2])  + p[3]
+    fit = curve_fit(model, δtlis./ Llis[end], tcLlis./ average_spatial_corr, [1.0, 1.0, 1.0])
+    a,b,c = fit.param
+    plot!(plt, δtlis ./ Llis[end], model(δtlis ./ Llis[end], fit.param), lw=2, ls=:dash, c=:black, label="$(round(a, digits=2))exp(-x/$(round(b, digits=2))) + $(round(c, digits=2))")
     return plt
 end
 
 # αlis = [0.20460722142668827, 0.5750604170268026, 1.2752269371345004]
+
+# α_lis = [0.22996304034610712, 0.6025887408957163, 0.7737905089041682, 1.2185251168172877, 2.5759898698081787]
+# α_stderrlis = [0.03939320246529536, 0.03727317853604598, 0.03256489438182987, 0.03328157129222018, 0.07449016381263754]
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
