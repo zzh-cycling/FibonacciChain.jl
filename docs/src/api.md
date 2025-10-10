@@ -25,7 +25,7 @@ mapst_sec2tot
 ee
 anyon_eelis
 ee_mps
-anyon_eelis_mps
+anyon_eelis
 ```
 
 ## Symmetry Operations
@@ -52,22 +52,24 @@ laddertranslationmap
 ```@docs
 measure_basismap
 measurement_enumeration
-Boundary_measure
-Boundarypost_selection
-Bulkmeasure
-Bulkpost_selection
+boundary_measure
+boundary_post_selection
+bulk_measure
+bulk_post_selection
+measure_evolution!
 ```
 
 ## MPS Functions
 
 ```@docs
-fibonacci_hamiltonian_mps
+anyon_ham
 measurement_operator_mps
-apply_measurement_mps
+_apply_measurement_layer!
 initial_mps
 mps_measurement_enumeration
 mps_boundary_measure
-mps_bulk_measurement
+mps_bulk_measure
+measure_evolution!
 ```
 
 ## Reference Qubit Functions
@@ -75,4 +77,6 @@ mps_bulk_measurement
 ```@docs
 spatial_correlation
 temporal_correlation
+reference_evolution
+reference_apply_measurement_layer!
 ```

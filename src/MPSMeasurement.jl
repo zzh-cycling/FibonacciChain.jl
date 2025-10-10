@@ -1,14 +1,14 @@
 """
-MPS-based implementation for Fibonacci chain measurements using ITensor.
+MPS-based implementation for anyon chain measurements using ITensor.
 
-This module provides Matrix Product State (MPS) implementations for efficient 
-simulation of large Fibonacci anyon chains with measurement protocols.
+This module provides Matrix Product State (MPS) implementations for efficient
+simulation of large anyon chains with measurement protocols.
 """
 
 """
-    fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=20, maxdim=50, cutoff=1e-10)
+    anyon_mps_gst(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1, anyon_type::Symbol=:Fibo)
 
-Find ground state of Fibonacci chain Hamiltonian using DMRG.
+Find ground state of anyon chain Hamiltonian using DMRG.
 
 # Arguments
 - `N::Int`: System size
@@ -16,6 +16,8 @@ Find ground state of Fibonacci chain Hamiltonian using DMRG.
 - `sweep_times=20`: Number of DMRG sweeps
 - `maxdim=50`: Maximum bond dimension
 - `cutoff=1e-10`: Truncation cutoff
+- `outputlevel=2`: Verbosity level
+- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`)
 
 # Returns
 - `MPS`: Ground state as Matrix Product State
@@ -27,7 +29,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> N = 8;
 
-julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(N, pbc=true, maxdim=10, outputlevel=0);
 
 julia> ψ_gs isa MPS
 true
@@ -49,7 +51,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=2)
+function anyon_mps_gst(N::Int; pbc::Bool=true, sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1, anyon_type::Symbol=:Fibo)
     # Create sites for Fibonacci anyons (using S=1/2 fermions to approximate)
     sites = siteinds("Qubit", N)
     
@@ -60,8 +62,8 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdi
     ψ0 = random_mps(sites, state)
     
     # Create Fibonacci Hamiltonian
-    H = fibonacci_hamiltonian_mps(sites; pbc=pbc)
-    
+    H = anyon_ham(sites; pbc=pbc, anyon_type=anyon_type)
+
     # Find ground state using DMRG
     sweeps = Sweeps(sweep_times)
     setmaxdim!(sweeps, maxdim)
@@ -73,51 +75,68 @@ function fibonacci_mps_ground_state(N::Int; pbc::Bool=true, sweep_times=5, maxdi
 end
 
 """
-    fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
+    anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo)
 
 Construct Fibonacci chain Hamiltonian as Matrix Product Operator (MPO).
 
 # Arguments
 - `sites`: ITensor site indices
 - `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type (`:Fibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`)
 
 # Returns
-- `MPO`: Hamiltonian with three-body interactions based on Fibonacci fusion rules
+- `MPO`: Hamiltonian for different anyon types. Fibonacci: three-body interactions based on Fibonacci fusion rules, IsingX: transverse field Ising model.
 """
-function fibonacci_hamiltonian_mps(sites; pbc::Bool=true)
+function anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo, kwargs...)
     N = length(sites)
     os = OpSum()
     
-    # Golden ratio
-    ϕ = (1 + √5) / 2
-    coef = 1/2
-    # Three-body interactions for Fibonacci chain
-    for i in 2:(N-1)
-        # Add three-body terms based on Fibonacci fusion rules
-        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
-        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
-        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
+    if anyon_type ∈ [:IsingX, :IsingZZ, :IsingZ]
+        J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
+        for i in 1:N
+            os += -h, "X", i
+        end
+
+        for i in 1:N-1
+            os += -J, "Z", i, "Z", i+1
+        end
+        if pbc && N > 2
+            os += -J, "Z", N, "Z", 1
+        end
+        return MPO(os, sites)
+
+    elseif anyon_type == :Fibo  
+        # Golden ratio
+        ϕ = (1 + √5) / 2
+        coef = 1/2
+        # Three-body interactions for Fibonacci chain
+        for i in 2:(N-1)
+            # Add three-body terms based on Fibonacci fusion rules
+            os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+            os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+            os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
+        end
+        
+        # Periodic boundary conditions
+        if pbc && N > 2
+            # H1 term
+            os += coef, "Proj0", N, "Z", 1, "Proj1", 2
+            os += coef, "Proj1", N, "Z", 1, "Proj0", 2
+            os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
+            # HN term (wrap around)
+            os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
+            os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
+            os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+        end
+        
+        return MPO(os, sites)
     end
-    
-    # Periodic boundary conditions
-    if pbc && N > 2
-        # H1 term
-        os += coef, "Proj0", N, "Z", 1, "Proj1", 2
-        os += coef, "Proj1", N, "Z", 1, "Proj0", 2
-        os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
-        # HN term (wrap around)
-        os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
-        os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
-        os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
-    end
-    
-    return MPO(os, sites)
 end
 
 """
@@ -155,9 +174,9 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
         end
     
         
-        s_im1_idx = i == 1 && pbc ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
+        s_im1_idx = (i == 1 && pbc) ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
         s_i_idx = i
-        s_ip1_idx = i == N && pbc ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
+        s_ip1_idx = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
     
         s_im1 = sites[s_im1_idx]
         s_i = sites[s_i_idx]
@@ -184,9 +203,45 @@ function measurement_operator_mps(sites, i::Int, τ::Float64, sign::Int64; pbc::
         M_local += coef * (-2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)
     
         
-        return M_local
+    elseif anyon_type == :IsingX
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = cosh(τ/2) / √(2cosh(τ))
+            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        end
+        
+        M_local = cstτ * op("I", sites[i]) + coef * op("X", sites[i])
+        
+    elseif anyon_type == :IsingZZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        end
+        
+        idx_p1 = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
+        Z_i = op("Z", sites[i])
+        Z_ip1 = op("Z", sites[idx_p1])
 
+        M_local = cstτ * (op("I", sites[i]) * op("I", sites[idx_p1])) + coef * (Z_i * Z_ip1)
+
+    elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
+        if τ >= 1e2
+            cstτ = 0.5
+            coef = sign == 0 ? 0.5 : -0.5
+        else
+            cstτ = cosh(τ/2) / √(2cosh(τ))
+            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        end
+        
+        M_local = cstτ * op("I", sites[i]) + coef * op("Z", sites[i])
     end
+
+    return M_local
 end
 
 """
@@ -223,6 +278,55 @@ function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64;
     ψ_normalized = normalize(ψ_measured)
     
     return ψ_normalized, prob
+end
+
+function _apply_measurement_layer!(N::Int64, τ::Float64, sites, ψ::MPS, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
+    # Helper function to apply measurements to a layer
+    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)
+    F_layer = 0.0
+
+    for (idx, sign) in enumerate(layer_sample)
+        ψ, prob = apply_measurement_mps(ψ, sites, measurement_sites[idx], τ, sign; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
+        F_layer += -log(prob)
+    end
+    return ψ, F_layer
+end
+
+function _sample_layer!(N::Int64, τ_eff::Float64, sites, ψ::MPS,
+    rng::MersenneTwister = MersenneTwister(), 
+    layer_idx::Int64=1, 
+    pbc::Bool=true; 
+    anyon_type::Symbol=:Fibo, cutoff::Float64=1e-10, maxdim::Int=100,
+    verbose::Bool=false)
+
+    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
+    n = length(measurement_sites)
+    sample_layer = zeros(Int, n)
+    F_layer = 0.0
+
+    final_state = copy(ψ)
+    for (i, site) in enumerate(measurement_sites)
+        # first 0 branch
+        ψ0, p0 = apply_measurement_mps(ψ, sites, site, τ_eff, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
+        p1 = 1 - p0
+
+        randomNumber = rand(rng)
+        verbose && @show randomNumber
+        if randomNumber < p0
+            sample_layer[i] = 0
+            ψ = ψ0
+            F_layer += -log(p0)
+            verbose && @show -log(p0)
+        else
+            # else 1 branch
+            ψ1, p1 = apply_measurement_mps(ψ, sites, site, τ_eff, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=measure_type)
+            sample_layer[i] = 1
+            ψ = ψ1
+            F_layer += -log(p1)
+            verbose && @show -log(p1)
+        end
+    end
+    return ψ, sample_layer, F_layer
 end
 
 """
@@ -278,141 +382,339 @@ pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo
 end
 
 """
-    mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
-                num_samples::Int=1000, pbc::Bool=true) -> Vector{Vector{Int64}}, Vector{Float64}
+    add_reference_qubits!(ψ::MPS, sites, site_idx::Int=1;
+                          k_new::Int=1, pbc::Bool=true,
+                          anyon_type::Symbol=:Fibo,
+                          verbose::Bool=false,
+                          entangle_way::Symbol=:copy)
+
+Add reference qubit(s) to MPS at specified site index in copy and reset ways.
+
+# Arguments
+- `ψ::MPS`: Input quantum state
+- `sites`: ITensor site indices
+- `site_idx::Int=1`: Site index to entangle with reference qubit
+- `k_new::Int=1`: Number of reference qubits to add
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Model type
+- `verbose::Bool=false`: Verbosity flag
+- `entangle_way::Symbol=:copy`: Method to entangle reference qubit (`:copy` or `:reset`)
+
+# Returns
+- `MPS`: New MPS with reference qubit added
+- `added_sites`: ITensor site indices after adding reference qubit in new MPS
+"""
+function add_reference_qubits!(ψ::MPS, sites, site_idx::Int=1;
+                               k_new::Int=1, pbc::Bool=true,
+                               anyon_type::Symbol=:Fibo,
+                               verbose::Bool=false,
+                               entangle_way::Symbol=:copy)
+    1 ≤ site_idx ≤ length(ψ) || error("site_idx out of range")
+
+    N = length(sites)         
+    d = dim(sites[site_idx])          # local physical dimension
+
+    to_add_block = copy(ψ[site_idx])
+    to_add_block = replaceind!(to_add_block, siteind(ψ, site_idx), Index(d, "Qubit, Site, n=$(N+1)"))
+
+    ψ_new = typeof(ψ)(undef, length(ψ)+1)
+    ψ_new[1] = to_add_block
+    ψ_new[2:end] = ψ[1:end]
+
+    # ---------- 2. 根据 entangle_way 做 Bell 对 ----------
+    if entangle_way == :copy
+        # 把原 site_idx 的态拷贝到参考比特，然后做 |0⟩+|1⟩  Bell 对
+        # 步骤：先逐位做 CNOT（Ref→site_idx），再把 Ref 转到 |+⟩
+        for n in 1:(site_idx)            # 把参考比特“搬”到 target 旁边
+            n < site_idx+1 && move_site!(ψ_new, n, n+1)   # 右移 1 格
+        end
+        r = 1                            # 参考比特现在与 site_idx 相邻
+        t = r + 1                        # target 物理比特
+
+        # |+⟩_Ref
+        apply!(ψ_new, r, op("H", sRef))
+        # CNOT_{Ref,target}
+        apply!(ψ_new, [r, t], op("CNOT", sRef, s[t]))
+
+    elseif entangle_way == :reset
+        # 先对原比特做 Z 测量，再根据结果把参考比特设为 |0⟩ 或 |1⟩
+        # 这里用 ITensors 的“测量+坍缩”接口
+        result = sample!(ψ_new, site_idx+1, "Z")  # +1 因为插了 Ref
+        verbose && @info "measurement result = $result"
+
+        # 把参考比特设成 |result⟩
+        apply!(ψ_new, 1, op(result==1 ? "X" : "I", sRef))
+
+        # 再做 H 和 CNOT 形成 Bell 对
+        apply!(ψ_new, 1, op("H", sRef))
+        apply!(ψ_new, [1, 2], op("CNOT", sRef, s[2]))
+
+        # 返回测量概率（简化：假设本征值 ±1 各占 50%，可再精确算）
+        prob = 0.5
+        verbose && @show prob
+        return ψ_new, 1, prob   # 多返回一个概率
+    else
+        error("unknown entangle_way = $entangle_way")
+    end
+
+    # ---------- 3. 可选：把参考比特移回最左端 ----------
+    for n in site_idx:-1:2
+        move_site!(ψ_new, n, n-1)
+    end
+
+    verbose && @show maxlinkdim(ψ_new)
+    return ψ_new, 1
+end
+
+# ---------- 辅助：ITensors 未暴露的 move_site! ----------
+"""
+    move_site!(ψ::MPS, i::Int, j::Int)
+
+把 MPS 中第 i 个张量向右( j>i )或向左( j<i )一步一步 SWAP 到位置 j，
+全程保持规范形式。仅用于相邻移动。
+"""
+function move_site!(ψ::MPS, i::Int, j::Int)
+    step = j > i ? 1 : -1
+    cur = i
+    while cur != j
+        nxt = cur + step
+        # 做 SWAP 门
+        apply!(ψ, [min(cur,nxt), max(cur,nxt)], op("SWAP", site_type(ψ,cur), site_type(ψ,nxt)))
+        cur = nxt
+    end
+end
+
+function measure_evolution!(N::Int,
+                  τ::Float64,
+                  sites,
+                  state::MPS,
+                  t₂::Int = 1;
+                  rng::MersenneTwister = MersenneTwister(),
+                  pbc::Bool = true,
+                  anyon_type::Symbol = :Fibo,
+                  mode::Symbol = :prob,
+                  t₁::Int = 1,
+                  cutoff::Float64=1e-10, maxdim::Int=100, verbose::Bool=false,
+                  sample::Union{Nothing,Matrix{Int}}=nothing, 
+                  enable_τ_eff::Bool=true)
+
+    n_measure = anyon_type == :Fibo ? N÷2 : N
+
+    # ---------- Sample decided according to mode ----------
+    Δt = t₂ - t₁ + 1 # number of layers to evolve
+    Δt > 0 || error("t₂ must be >= t₁")
+    D = Δt * 2
+    mode ∈ (:Born, :sample) || error("mode must be ∈ [:Born, :sample]")
+
+    sample_free_energy = zeros(D) # free energy of each layer
+    states = Vector{MPS}(undef, Δt)  # states of each layer
+    current_state = copy(state)
+
+    if mode == :Born
+         # 1. Initialize sample matrix
+        sample = zeros(Int, D, n_measure)   # to be filled during sampling
+
+        for period in 1:Δt
+        
+            # Random sampling for this period
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+
+            current_state, sample[2*period-1, :], sample_free_energy[2*period-1] = _sample_layer!(N, τ, sites, current_state, rng, 2*period-1, pbc, anyon_type = anyon_type, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+            current_state, sample[2*period, :], sample_free_energy[2*period] = _sample_layer!(N, τ_eff, sites, current_state, rng, 2*period, pbc, anyon_type = anyon_type, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+
+            states[period] = current_state
+        end
+
+    elseif mode == :sample
+        isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
+        size(sample) == (D, n_measure) ||
+            error("sample size should be ($D, $n_measure)")
+
+        for period in 1:Δt
+            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+
+            current_state, sample_free_energy[2*period-1] = _apply_measurement_layer!(
+                            N, τ, sites, current_state, sample[2*period-1, :], 2*period-1, pbc; cutoff=cutoff, maxdim=maxdim,
+                            anyon_type=anyon_type)
+            current_state, sample_free_energy[2*period] = _apply_measurement_layer!(
+                            N, τ_eff, sites, current_state, sample[2*period, :], 2*period, pbc; cutoff=cutoff, maxdim=maxdim,
+                            anyon_type=anyon_type)
+
+            states[period] = current_state
+        end
+    end
+    return states, sample, sample_free_energy
+    
+end
+
+"""
+    mps_boundary_measure(τ::Float64, ψ::MPS, sites, layer_idx::Int=1; 
+                num_samples::Int=1000, pbc::Bool=true, rng::MersenneTwister=MersenneTwister(),
+                cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
+                
 
 Perform boundary measurements on MPS state.
+# Arguments
+- `τ::Float64`: Evolution time parameter
+- `ψ::MPS`: Input quantum state
+- `sites`: ITensor site indices
+- `layer_idx`: the layer index
+- `num_samples::Int=1000`: Number of measurement samples
+- `pbc::Bool=true`: Periodic boundary conditions
+- `rng::MersenneTwister=MersenneTwister()`: Random number generator
+- `cutoff::Float64=1e-10`: MPS truncation cutoff
+- `maxdim::Int=100`: Maximum bond dimension
+- `anyon_type::Symbol=:Fibo`: Model type
+
+# Returns
+- `Vector{Vector{Int64}}`: List of measurement outcomes for each sample
+- `Vector{Float64}`: Free energy associated with each sample
 """
-function mps_boundary_measure(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
-    num_sites = length(measurement_sites)
-    samples = Vector{Vector{Int64}}(undef, num_samples)
+function mps_boundary_measure(τ::Float64, ψ::MPS, sites, layer_idx::Int=1; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
+    measurement_sites, _ = _obtain_measurement_config(length(sites), layer_idx, anyon_type)
+    samples = zeros(Int, num_samples, length(measurement_sites))
     sample_free_energy = Vector{Float64}(undef, num_samples)
     
     for sample_idx in 1:num_samples
-        current_sequence = Vector{Int64}(undef, num_sites)
-        current_state = copy(ψ)
-        total_free_energy = 0.0
-        
-        # Measure from left to right
-        for (site_idx, measurement_site) in enumerate(measurement_sites)
-            # Apply both measurement outcomes
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, τ, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-            prob_m = 1 - prob_p
-            
-            # Sample based on probabilities
-            random_number = rand(rng)
-            if random_number < prob_p
-                current_sequence[site_idx] = 0
-                current_state = ψ_p
-                total_free_energy += -log(prob_p)
-            else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, τ, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-                current_sequence[site_idx] = 1
-                current_state = ψ_m
-                total_free_energy += -log(prob_m)
-            end
-        end
-        
-        samples[sample_idx] = current_sequence
-        sample_free_energy[sample_idx] = total_free_energy
+        final_state, sample, free_energy  =  _sample_layer!(length(sites), τ, sites, ψ, rng, layer_idx, pbc; anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim)
+
+        samples[sample_idx, :] = sample
+        sample_free_energy[sample_idx] = free_energy
     end
     
     return samples, sample_free_energy
 end
 
 """
-    mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int; pbc::Bool=true)
+    mps_bulk_measure(ψ::MPS, sites, N::Int, τ::Float64, D::Int; pbc::Bool=true)
 
 Perform bulk measurements on MPS with D layers.
 """
-function mps_bulk_measurement(ψ::MPS, sites, N::Int, τ::Float64, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
-    sample = zeros(Int, D, div(N,2))
-    sample_free_energy = Vector{Float64}(undef, D)
-    sample_measured_states = Vector{MPS}(undef, D)
+function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::MersenneTwister=MersenneTwister(),pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo, verbose::Bool=false)
     
-    current_state = copy(ψ)
+    final_state, sample, sample_free_energy = measure_evolution!(N, τ, sites, ψ, D; rng=rng, pbc=pbc, anyon_type=anyon_type, mode=:Born, t₁=1, cutoff=cutoff, maxdim=maxdim, verbose=verbose)
     
-    for layer in 1:D
-        current_sequence = Vector{Int64}(undef, div(N, 2))
-        total_free_energy = 0.0
-        
-        # Alternating measurement pattern
-        if layer % 2 == 1
-            measurement_sites = collect(2:2:N)  # odd layers: even sites
-        else
-            measurement_sites = collect(1:2:N)  # even layers: odd sites
-        end
-        
-        measurement_τ = (layer == D) ? τ/2 : τ
-
-        for (site_idx, measurement_site) in enumerate(measurement_sites)
-            ψ_p, prob_p = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 0; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-            prob_m = 1 - prob_p
-            
-            # Sample measurement outcome
-            random_number = rand(rng)
-            if random_number < prob_p
-                current_sequence[site_idx] = 0
-                current_state = ψ_p
-                total_free_energy += -log(prob_p)
-            else
-                ψ_m, _ = apply_measurement_mps(current_state, sites, measurement_site, measurement_τ, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-                current_sequence[site_idx] = 1
-                current_state = ψ_m
-                total_free_energy += -log(prob_m)
-            end
-        end
-        
-        sample_measured_states[layer] = current_state
-        sample[layer, :] = current_sequence
-        sample_free_energy[layer] = total_free_energy
-    end
-    
-    return sample_measured_states, sample, sample_free_energy
+    return final_state, sample, sample_free_energy
 end
 
-# Helper function to apply measurements to a layer
-function apply_measurement_layer_mps!(N::Int64, sites, ψ::MPS, τ::Float64, layer_sample::Vector{Int64}, layer_idx::Int64; pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
-    if layer_idx % 2 == 1
-        measurement_sites = collect(2:2:N)  # odd sites anyons, even sites qubits
-    else
-        measurement_sites = collect(1:2:N)  # even sites anyons, odd sites qubits
-    end
-    for (idx, measurement_type) in enumerate(layer_sample)
-        ψ, prob = apply_measurement_mps(ψ, sites, measurement_sites[idx], τ, measurement_type; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
-    end
-    return ψ
+
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false) 
+
+    N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
+    D = size(sample, 1) # number of layers
+    t₂ = D ÷ 2 # number of time steps/ periods
+
+    final_state, sample, free_energy = measure_evolution!(N, τ, sites, state, t₂;
+    pbc=pbc, anyon_type=anyon_type, mode=:sample, 
+    sample=sample, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
+    return final_state, free_energy
 end
+generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::ET, temp::Bool=false; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo) where{ET}
 
-    if ET == Vector{Int}
-        N = 2 * length(sample)
-        return apply_measurement_layer_mps!(N, sites, state, τ, sample, 1; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
+function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Int}, 
+    x₂::Int, t₁, t₂; x₁::Int=1, 
+    rng::MersenneTwister=MersenneTwister(), pbc=true, 
+    anyon_type::Symbol=:Fibo, verbose=false, 
+    mode::Symbol = :sample)
+    
+    N = length(sites)
+    n_measure = (anyon_type == :Fibo) ? N÷2 : N
+    Δt = size(sample, 1) ÷ 2
+    D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
+
+    @assert size(sample, 2) == n_measure "Sample size spatial dimension must be $n_measure, but got $(size(sample, 2))"
+    @assert 1 <= t₁ <= t₂ <= D÷2 "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D÷2)]"
+    @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
+    @assert mode ∈ [:sample, :Born] "mode must be either :sample or :Born, but got $mode"
+
+    δt = t₂ - t₁ 
+    δx = abs(x₂ - x₁) 
+    state = forward[t₁]
+    statelis = Vector{MPS}(undef, Δt) 
+    view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    sample_layer = zeros(Int, size(sample, 1), n_measure)
+    view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
+    sample_free_energy= zeros(Float64, D)
+
+
+    if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
+
+
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+    
         
-    elseif ET == Matrix{Int}
-        D, N = size(sample, 1), 2 * size(sample, 2)
-        statelis = temp ? Vector{MPS}(undef, D) : nothing
-        # if ET is Vector{Int64} and temp is true, we return temporary states.
-        for layer in 1:D
-            τ_eff = (layer == D) ? τ/2 : τ
-            state = apply_measurement_layer_mps!(N, sites, state, τ_eff, sample[layer, :], layer; pbc=pbc, cutoff=cutoff, maxdim=maxdim, anyon_type=anyon_type)
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state2, sample[2*t₁+1:2*t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
 
-            if temp
-                statelis[layer] = copy(state)
-            end
-        end
+    
+        state3 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state3, sample[2*t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:Δt, :) .= view(final_stlis2, :)
+
+        sample_layer[2*t₁+1:t₂, :] .= samples1
+        sample_layer[2*t₂+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
+        sample_free_energy[2*t₂+1:end] .= free_energy2
+
+    elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
+        verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
+    
+        state1 = add_reference_qubits!(N, state, x₁, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
+        state2 = add_reference_qubits!(N, state1, x₂, pbc=pbc,
+                                       anyon_type=anyon_type, verbose=verbose)
         
-        return temp ? statelis : state
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[2*t₁+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:Δt) .= view(final_stlis2, :)
+        sample_layer[2*t₁+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:end] .= free_energy2
+
+    elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
+        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
+
+        
+        state1 = add_reference_qubits!(N, state, x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+
+
+        final_stlis1, samples1, free_energy1 = reference_generate_state(τ, state1, sample[2*t₁+1:2*t₂, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode)
+
+        state2 = add_reference_qubits!(N, final_stlis1[end], x₂, pbc=pbc, anyon_type=anyon_type, verbose=verbose)
+    
+        final_stlis2, samples2, free_energy2 = reference_generate_state(τ, state2, sample[2*t₂+1:end, :], pbc, rng=rng, anyon_type=anyon_type, verbose=verbose, mode=mode, enable_τ_eff=true)
+
+        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
+        view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
+        sample_layer[2*t₁+1:2*t₂, :] .= samples1
+        sample_layer[2*t₂+1:end, :] .= samples2
+        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
+        sample_free_energy[2*t₂+1:end] .= free_energy2
     end
+
+    return statelis, sample_layer, sample_free_energy
 end
 
 """
-    calculate_entanglement_entropy_mps(ψ::MPS, b::Int) -> Float64
+    ee_mps(ψ::MPS, b::Int)
 
 Calculate entanglement entropy of MPS state with bipartition at bond b.
+
+# Arguments
+- `ψ::MPS`: MPS state
+- `b::Int`: Bond index for bipartition (1 ≤ b < N)
+
+# Returns
+- `Float64`: Entanglement entropy (von Neumann entropy) at bond b
 """
 function ee_mps(ψ::MPS, b::Int)
+    @assert 1 ≤ b < length(ψ) "Bond index b must be in the range [1, N-1]"
     # Perform SVD at bond b
     ψ = orthogonalize(ψ, b)
     # U, S, V = svd(ψ[b], linkind(ψ, b-1), siteind(ψ, b))
@@ -435,7 +737,7 @@ end
 
 
 """
-    anyon_eelis_mps(N::Int64, ψ::MPS)
+    anyon_eelis(N::Int64, ψ::MPS)
 
 Calculate entanglement entropy profile along the chain for MPS state.
 
@@ -452,10 +754,10 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> N = 6;
 
-julia> ψ_gs, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(N, pbc=true, maxdim=10, outputlevel=0);
 
 julia> # Calculate entanglement entropy profile
-       ee_profile = anyon_eelis_mps(N, ψ_gs);
+       ee_profile = anyon_eelis(N, ψ_gs);
 
 julia> length(ee_profile) == N - 1  # Profile has N-1 points
 true
@@ -464,7 +766,7 @@ julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
 true
 ```
 """
-function anyon_eelis_mps(N::Int64, ψ::MPS)
+function anyon_eelis(N::Int64, ψ::MPS)
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)

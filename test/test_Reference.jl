@@ -39,6 +39,155 @@ using Random
     @test extended_basis_ising2 == anyon_basis(N+2, pbc, anyon_type=:IsingX)
 end
 
+@testset "reference_measure_basismap" begin
+    N = 3
+    τ = 1.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    basislis = anyon_basis(N, pbc, anyon_type=:Fibo)
+    l = length(basislis)
+    output11 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 1, sign, pbc, k_old=0)
+    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
+    output21 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 2, sign, pbc, k_old=0)
+    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc)
+    output31 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 3, sign, pbc, k_old=0)
+    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc)
+    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
+    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
+    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 1, sign, pbc, k_old=1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 2, sign, pbc, k_old=1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1, Int}, τ, extended_basis, 3, sign, pbc, k_old=1)
+
+    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
+
+    extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
+    output14 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, pbc, k_old=2)
+    output24 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, pbc, k_old=2)
+    output34 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, pbc, k_old=2)
+
+    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
+end
+
+@testset "reference_measure_basismap_Ising" begin
+    N = 3
+    τ = 1000.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    anyon_type1 = :IsingX
+    anyon_type2 = :IsingZZ
+    basislis = anyon_basis(N, pbc, anyon_type=anyon_type1)
+    l = length(basislis)
+    output11 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type1)
+    output21 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 2, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type1)
+    output31 = FibonacciChain.reference_measure_basismap.(T, T, τ, basislis, 3, sign, pbc, k_old=0, anyon_type = anyon_type1)
+    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type1)
+    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
+    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
+    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output23 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
+    output33 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type1)
+
+    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
+
+    extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
+    output14 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output24 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, pbc, k_old=2, anyon_type = anyon_type1)
+    output34 = FibonacciChain.reference_measure_basismap.(T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, pbc, k_old=2, anyon_type = anyon_type1)
+
+    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
+
+    # Test the IsingZZ
+    output12zz = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type2)
+    output22zz = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type2)
+    output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type2)
+
+    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
+    output13zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output23zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type2)
+    output33zz = FibonacciChain.reference_measure_basismap.(T, BitStr{N+1}, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
+
+    @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33zz[i+j*l] .≈ output32zz[i]) for i in 1:l]) for j in 0:1])
+end
+
+@testset "reference_measuremap" begin
+    N = 3
+    τ = 1000.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    st = ones(4)/2;
+    ϕ = (1 + √5) / 2  
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
+
+    ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc))
+    output13 = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(N, τ, add_st, 2, sign, pbc, k_old=1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(N, τ, add_st, 3, sign, pbc, k_old=1, extended_basis=ext_basis)
+    @test output13 == 0.5*[(1-ϕ^(-1)), 1, 1, -ϕ^(-3/2), -ϕ^(-3/2), 0, 0, ϕ^(-1)]
+    @test output23 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), 1, ϕ^(-1)-ϕ^(-3/2), 0, 0 , 0, 0, 1]
+    @test output33 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), ϕ^(-1)-ϕ^(-3/2), 1, 0, 0, 0, 0, 1]
+
+    output13 = FibonacciChain.reference_measuremap(N, τ, st, 1, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output23 = FibonacciChain.reference_measuremap(N, τ, st, 2, 0, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    output33 = FibonacciChain.reference_measuremap(N, τ, st, 3, 1, pbc, k_old=0, extended_basis=anyon_basis(N, pbc))
+    @test output13 == measuremap(N, τ, st, 1, 0, pbc)
+    @test output23 == measuremap(N, τ, st, 2, 0, pbc)
+    @test output33 == measuremap(N, τ, st, 3, 1, pbc)
+end
+
+@testset "reference_measuremap_Ising" begin
+    N = 3
+    τ = 1000.0
+    sign = 0
+    pbc = true
+    k_old = 1
+    T = BitStr{N, Int}
+    st = zeros(2^N); st[1] = 1 
+    anyon_type1 = :IsingX
+    anyon_type2 = :IsingZZ
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type1, entangle_way = :reset)[3]
+
+    ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(N, pbc, anyon_type=anyon_type1))
+    output13 = FibonacciChain.reference_measuremap(N, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output23 = FibonacciChain.reference_measuremap(N, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1, extended_basis=ext_basis)
+    output33 = FibonacciChain.reference_measuremap(N, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2, extended_basis=ext_basis)
+    @test output13[[1, 5, 9, 13]] ≈ 1/2√2*ones(4)
+    @test output23[[1, 3, 13, 15]] ≈ 1/2√2*ones(4)
+    @test output33[[1]] ≈ [1/√2]
+end
+
+@testset "concat_bell_pair" begin
+    N = 3
+    st = ones(4)/2; 
+    basis_F = anyon_basis(N)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    bell_st = FibonacciChain.concat_bell_pair!(N, st, basis_F, ext_basis, site_idx = 1, k_old = 0)
+    @test bell_st[[1,2,3,8]] == 1/2*ones(4)
+end
+
 @testset "add_reference_qubits" begin
     N = 3
     st = ones(4)/2; 
@@ -105,143 +254,41 @@ end
     @test add_st_ising3[[collect(1:2:7)..., collect(10:2:16)...]] ≈ 1/(2√2)*ones(8)
 end
 
-@testset "reference_measure_basismap" begin
-    N = 3
-    τ = 1.0
-    sign = 0
-    pbc = true
-    k_old = 1
-    T = BitStr{N, Int}
-    basislis = anyon_basis(N, pbc, anyon_type=:Fibo)
-    l = length(basislis)
-    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0)
-    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc)
-    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0)
-    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc)
-    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0)
-    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc)
-    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
-    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
-    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
-
-    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1)
-    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1)
-    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1)
-
-    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
-
-    extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
-    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2)
-    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2)
-    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2)
-
-    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
-end
-
-@testset "reference_measure_basismap_Ising" begin
-    N = 3
+@testset "reference_apply_measurement_layer!" begin
+    N = 6
     τ = 1000.0
     sign = 0
     pbc = true
     k_old = 1
-    T = BitStr{N, Int}
-    anyon_type1 = :IsingX
-    anyon_type2 = :IsingZZ
-    basislis = anyon_basis(N, pbc, anyon_type=anyon_type1)
-    l = length(basislis)
-    output11 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 1, sign, pbc, k_old=0, anyon_type = anyon_type1)
-    output12 = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type1)
-    output21 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 2, sign, pbc, k_old=0, anyon_type = anyon_type1)
-    output22 = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type1)
-    output31 = FibonacciChain.reference_measure_basismap.(T, τ, basislis, 3, sign, pbc, k_old=0, anyon_type = anyon_type1)
-    output32 = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type1)
-    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
-    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
-    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+    st = zeros(18); st[1] = 1
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :copy)
+    sample = zeros(Int, length(2:2:N))
 
-    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output23 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output33 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type1)
-
-    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
-
-    extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
-    output14 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 1, sign, pbc, k_old=2, anyon_type = anyon_type1)
-    output24 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 2, sign, pbc, k_old=2, anyon_type = anyon_type1)
-    output34 = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis2, 3, sign, pbc, k_old=2, anyon_type = anyon_type1)
-
-    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
-
-    # Test the IsingZZ
-    output12zz = FibonacciChain.measure_basismap.(T, τ, basislis, 1, sign, pbc, anyon_type = anyon_type2)
-    output22zz = FibonacciChain.measure_basismap.(T, τ, basislis, 2, sign, pbc, anyon_type = anyon_type2)
-    output32zz = FibonacciChain.measure_basismap.(T, τ, basislis, 3, sign, pbc, anyon_type = anyon_type2)
-
-    extended_basis = FibonacciChain.build_extended_basis(1, basislis)
-    output13zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 1, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    output23zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 2, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    output33zz = FibonacciChain.reference_measure_basismap.(T, τ, extended_basis, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
-
-    @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33zz[i+j*l] .≈ output32zz[i]) for i in 1:l]) for j in 0:1])
+    basis_F = anyon_basis(N, pbc)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    output1, free_energy = reference_apply_measurement_layer!(N, τ, add_st, sample, 1, pbc, extended_basis=ext_basis)
+    @test length(output1) == 2*length(basis_F)
+    @test free_energy ≈ 2.8872709503576206
 end
 
-@testset "reference_measuremap" begin
-    N = 3
+@testset "reference_sample_layer" begin
+    N = 6
     τ = 1000.0
     sign = 0
     pbc = true
     k_old = 1
-    T = BitStr{N, Int}
-    st = ones(4)/2;
-    ϕ = (1 + √5) / 2  
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
-
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1)
-    @test output13 == 0.5*[(1-ϕ^(-1)), 1, 1, -ϕ^(-3/2), -ϕ^(-3/2), 0, 0, ϕ^(-1)]
-    @test output23 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), 1, ϕ^(-1)-ϕ^(-3/2), 0, 0 , 0, 0, 1]
-    @test output33 == 0.5*[(1-ϕ^(-1)- ϕ^(-3/2)), ϕ^(-1)-ϕ^(-3/2), 1, 0, 0, 0, 0, 1]
-
-    output13 = FibonacciChain.reference_measuremap(T, τ, st, 1, 0, pbc, k_old=0)
-    output23 = FibonacciChain.reference_measuremap(T, τ, st, 2, 0, pbc, k_old=0)
-    output33 = FibonacciChain.reference_measuremap(T, τ, st, 3, 1, pbc, k_old=0)
-    @test output13 == measuremap(N, τ, st, 1, 0, pbc)
-    @test output23 == measuremap(N, τ, st, 2, 0, pbc)
-    @test output33 == measuremap(N, τ, st, 3, 1, pbc)
-end
-
-@testset "reference_measuremap_Ising" begin
-    N = 3
-    τ = 1000.0
-    sign = 0
-    pbc = true
-    k_old = 1
-    T = BitStr{N, Int}
     st = zeros(2^N); st[1] = 1 
-    anyon_type1 = :IsingX
-    anyon_type2 = :IsingZZ
-    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type1, entangle_way = :reset)[3]
+    anyon_type = :IsingX
+    add_st = FibonacciChain.add_reference_qubits!(N, st, 1, anyon_type = anyon_type, entangle_way = :copy)
+    sample = zeros(Int, length(2:2:N))
 
-    output13 = FibonacciChain.reference_measuremap(T, τ, add_st, 1, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output23 = FibonacciChain.reference_measuremap(T, τ, add_st, 2, sign, pbc, k_old=1, anyon_type = anyon_type1)
-    output33 = FibonacciChain.reference_measuremap(T, τ, add_st, 3, sign, pbc, k_old=1, anyon_type = anyon_type2)
-    @test output13[[1, 5, 9, 13]] ≈ 1/2√2*ones(4)
-    @test output23[[1, 3, 13, 15]] ≈ 1/2√2*ones(4)
-    @test output33[[1]] ≈ [1/√2]
+    basis_F = anyon_basis(N, pbc, anyon_type = anyon_type)
+    ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
+    output1, sample_layer = reference_sample_layer!(N, τ, add_st, MersenneTwister(100), 1, pbc, anyon_type = anyon_type, extended_basis=ext_basis)
+    @test length(output1) == 2*length(basis_F)
+    @test sample_layer == [1, 1, 1, 0, 0, 1]
 end
+
 
 @testset "reference_generate_state" begin
     N = 8
@@ -251,10 +298,16 @@ end
     k_old = 1
     st = zeros(length(anyon_basis(N, pbc))); st[1] = 1
     add_st = FibonacciChain.add_reference_qubits!(N, st, 1, entangle_way = :reset)[3]
-    sample = zeros(Int, (3, length(2:2:N)))
+    sample = zeros(Int, (4, length(2:2:N))) # Four layer sample, 2 peroid evolution
 
-    output1 = reference_generate_state(τ, add_st, sample, pbc)
-    @test length(output1) == 3
+    output1, samples, free_energy = reference_generate_state(τ, add_st, sample, pbc)
+    @test length(output1) == 2
+    @test samples == zeros(Int, (4, length(2:2:N)))
+
+    output1, samples, free_energy = reference_generate_state(τ, add_st, sample, pbc, rng = MersenneTwister(100), mode=:Born)
+    @test length(output1) == 2
+    @test samples == [1 1 1 1; 0 1 0 1; 0 0 0 0; 0 0 1 0]
+    @test free_energy ≈ [2.617994480798357, 2.563763819200177, 1.415477184509482, 2.8031245965479576]
 end
 
 @testset "reference_rdm" begin
@@ -392,4 +445,69 @@ end
     ρ = reference_rdm(N, collect(1:N), add_mes_copy, anyon_type = anyon_type, traceref=false)
     sc_ref = spatial_correlation(N, ρ, 2, 4, anyon_type = anyon_type)
     @test sc_ref ≈ sc
+end
+
+function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, rng = MersenneTwister(100))
+    pbc = true
+    anyon_type = :IsingX
+    sample = (sign == 1) ? ones(Int, 2D, L) : zeros(Int, 2D, L)
+
+    initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state /= norm(initial_state) # initial state is all zero state
+
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
+
+    ref_sample = (sign == 0) ? zeros(Int, 2(D+δt+D), L) : ones(Int, 2(D+δt+D), L)
+
+    if entangle_way == :copy
+        if δt == 0
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+
+        else
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng) # to compute temporal correlation, add ref qubit at site L/2+1
+        end
+    end
+
+    return ref2stlis[end]
+end
+
+function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Int64=0, entangle_way::Symbol=:copy, mode::Symbol=:Born, rng = MersenneTwister(100))
+    pbc = true
+    anyon_type = :IsingX
+    sample = (sign == 1) ? ones(Int, 2D, L) : zeros(Int, 2D, L)
+
+    initial_state = ones(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state /= norm(initial_state) # initial state is all zero state
+
+    statelis, Flis = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
+
+    ref_sample = (sign == 0) ? zeros(Int, 2*(D+δt+D), L) : ones(Int, 2*(D+δt+D), L)
+
+    if entangle_way == :copy
+        if δt == 0
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, anyon_type=:IsingX, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+
+        else
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, anyon_type=:IsingX, x₁ = L÷2+1, rng=rng, mode=mode) # to compute temporal correlation, add ref qubit at site L/2+1
+        end
+    end
+
+    return ref2stlis[end], sample_layer, sample_free_energy
+end
+
+@testset "reference_evolution" begin
+    L = 8
+    τ = log(1+√5)/2
+    D = 10L
+    ref2st = compute_post_selection_Ising(L, τ, D, 0, sign=1, entangle_way=:copy)
+    spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
+    ref2st = compute_post_selection_Ising(L, τ, D, 4, sign=1, entangle_way=:copy)
+    _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
+    @test temporal_corr/spatial_corr ≈ 1.1680015026758541
+
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 0, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
+    spatial_corr, _ = ref_correlation(L, ref2st, anyon_type=:IsingX, spatial = true)
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=1, entangle_way=:copy, rng = MersenneTwister(100))
+    _, temporal_corr = ref_correlation(L, ref2st, anyon_type=:IsingX, temporal = true)
+    @test temporal_corr/spatial_corr ≈ 9.881413517280196
 end

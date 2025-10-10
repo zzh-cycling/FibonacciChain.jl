@@ -194,13 +194,13 @@ function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where 
         if state & mask == str000
             return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
         elseif state & mask == str001
-            return state, exp(-6im*π/5)
+            return state, state, exp(-6im*π/5), 0
         elseif state & mask == str010
             return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
         elseif state & mask == str100
-            return state, exp(-6im*π/5)
+            return state, state, exp(-6im*π/5), 0
         elseif state & mask == str101
-            return state, exp(-2im*π/5)
+            return state, state, exp(-2im*π/5), 0
         end
     end
     if pbc
@@ -210,13 +210,13 @@ function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where 
             if state & mask == str000
                 return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str001
-                return state, exp(-6im*π/5)
+                return state, state, exp(-6im*π/5), 0
             elseif state & mask == str010
                 return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str100
-                return state, exp(-6im*π/5)
+                return state, state, exp(-6im*π/5), 0
             elseif state & mask == str101
-                return state, exp(-2im*π/5)
+                return state, state, exp(-2im*π/5), 0
             end
         elseif i == N #count from the left
         mask=bmask(T, N, 2, 1)
@@ -224,13 +224,13 @@ function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where 
             if state & mask == str000
                 return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str001
-                return state, exp(-6im*π/5)
+                return state, state, exp(-6im*π/5), 0
             elseif state & mask == str010
                 return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str100
-                return state, exp(-6im*π/5)
+                return state, state, exp(-6im*π/5), 0
             elseif state & mask == str101
-                return state, exp(-2im*π/5)
+                return state, state, exp(-2im*π/5), 0
             end
         end
     end
@@ -243,15 +243,13 @@ function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: B
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        outcome = braidingsq_basismap(T, basis[i], idx, pbc)
-        if length(outcome) == 4
-            outputstate1, outputstate2, output1, output2=outcome
+        outputstate1, outputstate2, output1, output2 = braidingsq_basismap(T, basis[i], idx, pbc)
+        if output2 == 0
+            Bmatrix[i,i]+=output1
+        else
             j2=searchsortedfirst(basis, outputstate2)
             Bmatrix[i,i]+=output1
             Bmatrix[i,j2]+=output2
-        else
-            outputstate, output=outcome
-            Bmatrix[i,i]+=output
         end
     end
     
@@ -281,15 +279,13 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
-        output = braidingsq_basismap(T, basis[i], idx, pbc)
-        if length(output) == 4
-            outputstate1, outputstate2, output1, output2=output
+        outputstate1, outputstate2, output1, output2 = braidingsq_basismap(T, basis[i], idx, pbc)
+        if output2 == 0
+            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
+        else    
             j2=searchsortedfirst(basis, outputstate2)
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
-        else
-            outputstate, output1=output # outputstate is the same as basis[i]
-            mapped_state[i]+=output1*state[i]
         end
     end
     
@@ -367,13 +363,15 @@ Calculate spatio-temporal correlation using state with three reference qubits.
 - `state_addref3::Vector{ET}`: Quantum state with three reference qubits added
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: Model type
+- `spatial::Bool=false`: If true, calculate only spatial correlation
+- `temporal::Bool=false`: If true, calculate only temporal correlation
 
 # Returns
 - `Float64`: Spatio-temporal correlation measure between two any spacetime points.
 
 Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
 """
-function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, spatio::Bool=false, temporal::Bool=false) where {ET}
+function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, spatial::Bool=false, temporal::Bool=false) where {ET}
     # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
     # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
     #                 Ref3  |   t₂
@@ -382,7 +380,7 @@ function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, an
     #  Ref1 --------> Ref2      t₁
     #   x₁             x₂
 
-    if spatio # pure spatial correlation, only 2 reference qubits
+    if spatial # pure spatial correlation, only 2 reference qubits
         @info "Only spatial correlation is calculated."
         spatial_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
         return spatial_corr, 0
@@ -390,7 +388,7 @@ function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, an
         @info "Only temporal correlation is calculated."
         temporal_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
         return 0, temporal_corr
-    else
+    else # compute both spatial and temporal correlation, 3-point correlation
         ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
         ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
         ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)

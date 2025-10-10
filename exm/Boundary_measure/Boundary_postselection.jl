@@ -20,14 +20,14 @@ function Boundarypost_selection_scaling(N)
     FE_tau_lis_p = Vector{Float64}(undef, length(τlis))
     FE_tau_lis_m = Vector{Float64}(undef, length(τlis))
 
-    @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     antiGS= states[:, 1]
     measurement_sites = collect(2:2:N)
 
     for (idx, τ) in enumerate(τlis)
         
-        @time final_state_p, final_sequence_p, total_weight_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
-        final_state_m, final_sequence_m, total_weight_m = Boundarypost_selection(N, τ, antiGS, measurement_sites, 1)
+        @time final_state_p, final_sequence_p, total_weight_p = boundary_post_selection(N, τ, antiGS, measurement_sites, 0)
+        final_state_m, final_sequence_m, total_weight_m = boundary_post_selection(N, τ, antiGS, measurement_sites, 1)
         myprint(stdout, "N = $N, τ = $τ")
 
         EE_lis_p = eelis_Fibo_state(N, final_state_p)

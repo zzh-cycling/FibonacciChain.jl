@@ -12,7 +12,7 @@ using FibonacciChain
 
 # Find ground state for N=50 Fibonacci anyon chain
 N = 50
-ψ, E0 = fibonacci_mps_ground_state(N, pbc=true, maxdim=100, cutoff=1e-10)
+ψ, E0 = anyon_mps_gst(N, pbc=true, maxdim=100, cutoff=1e-10)
 ```
 
 ## Hamiltonian Construction
@@ -23,7 +23,7 @@ The MPS Hamiltonian is constructed as a Matrix Product Operator (MPO) with three
 ```julia
 # Create sites and Hamiltonian MPO
 sites = siteinds("Qubit", N)
-H = fibonacci_hamiltonian_mps(sites, pbc=true)
+H = anyon_ham(sites, pbc=true)
 ```
 
 ## MPS Measurements
@@ -47,7 +47,7 @@ L = N ÷ 2
 S = ee_mps(ψ, L)
 
 # Get full entanglement profile
-ee_profile = anyon_eelis_mps(ψ)
+ee_profile = anyon_eelis(N, ψ)
 ```
 
 ## State Generation and Evolution
@@ -76,14 +76,14 @@ maxdim = 200
 cutoff = 1e-12
 
 # Find ground state
-ψ_gs, E0 = fibonacci_mps_ground_state(N, 
+ψ_gs, E0 = anyon_mps_gst(N, 
                                       pbc=true,
                                       sweep_times=30, 
                                       maxdim=maxdim,
                                       cutoff=cutoff)
 
 # Calculate observables
-ee_profile = anyon_eelis_mps(ψ_gs)
+ee_profile = anyon_eelis(N, ψ_gs)
 central_ee = ee_profile[N÷2]
 
 println("Ground state energy: $E0")

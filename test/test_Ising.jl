@@ -4,6 +4,7 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random
+include("../exm/FitEntEntScal.jl")
 
 @testset "Isingmap" begin
     N = 6
@@ -104,6 +105,7 @@ end
     fib_ham = anyon_ham(5, anyon_type=:IsingX)
     @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
+    @test eigvals(fib_ham)[1] ≈ -1/(2*sin(π/10))*4 atol=1e-10
 
     X= Float64[0 1; 1 0]
 	Z= Float64[1 0; 0 -1]
@@ -206,11 +208,11 @@ end
 
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ)
-    @test output[2] == (T(bit"001"), cstτ)
-    @test output[3] == (T(bit"010"), cstτ)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
     sign = 1
     output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
@@ -222,21 +224,21 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ+coef)
-    @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ-coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     sign = 1
     coef = -sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), cstτ+coef)
-    @test output[2] == (T(bit"001"), cstτ-coef)
-    @test output[3] == (T(bit"010"), cstτ-coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     idx=3
     τ = 1e3
@@ -245,21 +247,21 @@ end
     coef = 1/2
     output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 1.0)
-    @test output[2] == (T(bit"001"), 0.0)
-    @test output[3] == (T(bit"010"), 1.0)
-    @test output[4] == (T(bit"100"), 0.0)
-    @test output[5] == (T(bit"101"), 1.0)
+    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 0.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 1.0, 0.0)
 
 
     sign = 1
     output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ) # pbc is true by default
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 0.0)
-    @test output[2] == (T(bit"001"), 1.0)
-    @test output[3] == (T(bit"010"), 0.0)
-    @test output[4] == (T(bit"100"), 1.0)
-    @test output[5] == (T(bit"101"), 0.0)
+    @test output[1] == (T(bit"000"), T(bit"000"), 0.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 1.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 0.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0)
 
 end
 
@@ -395,33 +397,31 @@ end
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
     τ = 3.802
-    measurement_sites = collect(2:2:N)
 
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, measurement_sites, 500, anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 500,MersenneTwister(90), anyon_type=:IsingX)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 500
 
-    @test [0 for i in 2:2:N] in samples
+    @test samples[476,:] == fill(0, N)
     
 end
 
 @testset "Boundarypost_selection" begin
-    N = 6
+    N = 10
     τ = 1e3
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0 
- 
-    measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, st, measurement_sites, 0, anyon_type=:IsingX)
+    measurement_sites = collect(1:N)
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, st, 1, 0, anyon_type=:IsingX)
 
     # all final states should be equally probable, will give Nlog(2) free energy
     @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
 
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, final_state_p, measurement_sites, 0, anyon_type=:IsingZZ)
+    final_state_p, final_sequence_p, total_free_energy_p = boundary_post_selection(N, τ, final_state_p, 2, 0, anyon_type=:IsingZZ)
 
-    @test total_free_energy_p /length(measurement_sites) ≈ log(2) atol = 1e-6
-    @test final_state_p[1] == 1.0
+    @test total_free_energy_p /length(measurement_sites) ≈ 0.6238324625039509 atol = 1e-6
+    @test final_state_p[1] ≈ final_state_p[end] ≈ 1/√2
 end
 
 @testset "Bulkmeasure" begin
@@ -431,11 +431,11 @@ end
     st = zeros(length(anyon_basis(L, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
+    sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(100), anyon_type=:IsingX) 
     EElis = [anyon_eelis(L, state_t, anyon_type=:IsingX)[div(L,2)] for state_t in sample_measured_states]
-    @test size(samples) == (D, L)
+    @test size(samples) == (2D, L)
     # Each layer will erase previous info.
-    @test EElis ≈ [i % 2 == 1 ? 0.0 : log(2) for i in 1:D] atol = 1e-6
+    @test EElis ≈ [log(2) for i in 1:D] atol = 1e-6
 end
 
 @testset "Bulkpost_selection" begin
@@ -448,24 +448,27 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc, anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, D, 0, pbc, anyon_type=:IsingX)
     state_t = sample_measured_states[end]
     EE = anyon_eelis(L, state_t, anyon_type=:IsingX)
-    @test samples[end] == fill(0, L)
+    @test samples[end,:] == fill(0, L)
     @test EE ≈ log(2)*ones(L-1) atol = 1e-4
 end
 
-@testset "apply_measurement_layer" begin
+@testset "_apply_measurement_layer" begin
     N = 6
     τ = 1e3
     st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
     state_t = sample_measured_states[end]
 
-    new_state = FibonacciChain.apply_measurement_layer!(N, st, τ, samples[1,:], 1, anyon_type=:IsingX)
+    new_state, F1 = _apply_measurement_layer!(N, τ, st, samples[1,:], 1, anyon_type=:IsingX)
+    new_state, F2 = _apply_measurement_layer!(N, τ, new_state, samples[2,:], 2, anyon_type=:IsingX)
     @test new_state ≈ sample_measured_states[1]
+    @test F1 ≈ sample_free_energy[1] atol=1e-6
+    @test F2 ≈ sample_free_energy[2] atol=1e-6
 end
 
 @testset "generate_state" begin
@@ -474,13 +477,35 @@ end
     st=zeros(length(anyon_basis(N, anyon_type=:IsingX)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, st, collect(1:N), 10, anyon_type=:IsingX)
-    state = generate_state(τ, st, samples[1], anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 10, anyon_type=:IsingX)
+    state, F = generate_state(τ, st, samples[1,:], anyon_type=:IsingX)
     @test state ≈ sample_measured_states[1]
+    @test F[1] ≈ sample_free_energy[1] atol=1e-6
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
-    state_t = generate_state(τ, st, samples, anyon_type=:IsingX)
-    statelis = generate_state(τ, st, samples, true, temp = true, anyon_type=:IsingX)
+    sample_measured_states, samples, sample_free_energy = bulk_measure(N, τ, st, N, MersenneTwister(100), anyon_type=:IsingX)
+    statelis, F = generate_state(τ, st, samples, anyon_type=:IsingX)
     @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
+    @test F ≈ sample_free_energy atol=1e-6  
 end
+
+@testset "central_charge" begin
+    N = 12
+    τ = log(1+√2) # critical point for IsingX
+    st=zeros(length(anyon_basis(N, anyon_type=:IsingX)))
+    st[1] = 1.0
+
+    samples = zeros(Int, 10N, N)
+
+    generated_statelis, F = generate_state(τ, st, samples, anyon_type=:IsingX)
+    final_st = generated_statelis[end]
+    EE = anyon_eelis(N, final_st, anyon_type=:IsingX)
+    @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.5 atol=1e-2
+    
+    ψ0, sites = initial_mps(N)
+    generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true, anyon_type=:IsingX)
+    final_mps = generated_statelis_mps[end]
+    EE_mps = anyon_eelis(N, final_mps)
+    @test EE_mps ≈ EE atol = 1e-6
+    c = fitCCEntEntScal(EE_mps, mincut=2, pbc =true)[1][1]
+    @test c ≈ 0.5 atol=1e-2
+end 

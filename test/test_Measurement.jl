@@ -4,6 +4,7 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random 
+include("../exm/FitEntEntScal.jl")
 
 @testset "measure_basismap" begin
     N = 3
@@ -20,10 +21,10 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), cstτ)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), cstτ)
-    @test output[5] == (T(bit"101"), cstτ)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
     sign = 1
     output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc)
@@ -36,20 +37,20 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
-    
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+
     sign = 1
     coef = (1-exp(τ))/2√(exp(2τ)+1)
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     τ = 1e3
     sign = 0
@@ -58,17 +59,17 @@ using Random
     output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
     @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), cstτ+coef)
-    @test output[5] == (T(bit"101"), cstτ-coef)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     idx = 1
     output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"100"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), cstτ+coef)
-    @test output[3] == (T(bit"010"), cstτ+coef)
+    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
     @test output[4] == (T(bit"100"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
     @test output[5] === nothing
 
@@ -77,17 +78,17 @@ using Random
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"001"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
-    @test output[3] == (T(bit"010"), cstτ+coef)
-    @test output[4] == (T(bit"100"), cstτ+coef)
+    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] === nothing
 
     output = measure_basismap.(T, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), 1.0)
-    @test output[2] == (T(bit"001"), 0.0)
-    @test output[3] == (T(bit"010"), 1.0)
-    @test output[4] == (T(bit"100"), 1.0)
-    @test output[5] == (T(bit"101"), 0.0) # Noting such basis didn't show in Fibonacci basis
+    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin
@@ -305,47 +306,69 @@ end
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
-@testset "Boundary_measure" begin
-    N=6
-    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
-    antiGS= states[:, 1]
-    τ = 3.802
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 1000)
-
-    num_final_states = length(sample_measured_states)
-    @test num_final_states == 1000
-
-    @test [0 for i in 2:2:N] in samples
-    
-end
-
-@testset "Boundarypost_selection" begin
+@testset "generate_state" begin
     N = 10
     τ = 1e3
     energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
     antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    final_state_p, final_sequence_p, total_free_energy_p = Boundarypost_selection(N, τ, antiGS, measurement_sites, 0)
+
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1)
+    state, F = generate_state(τ, antiGS, samples[1, :])
+
+    @test state ≈ sample_measured_states[1]
+    @test F[1] ≈ sample_free_energy[1] atol=1e-6
+
+    st = zeros(length(anyon_basis(N)))
+    st[1] = 1.0
+
+    sample_measured_states, sample_bulk, sample_free_energy = bulk_measure(N, τ, st, N)
+    statelis, F = generate_state(τ, st, sample_bulk)
+    state = statelis[end]
+    @test state ≈ sample_measured_states[end]
+end
+
+@testset "boundary_measure" begin
+    N=6
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
+    antiGS= states[:, 1]
+    τ = 3.802
+    
+    seed = 100
+    rng = MersenneTwister(seed)
+    # all samples are Matrix now
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1, 1000, rng)
+
+    num_final_states = length(sample_measured_states)
+    @test num_final_states == 1000
+
+    @test fill(zero(Int(0)), 3) == samples[16,:]
+end
+
+@testset "boundary_post_selection" begin
+    N = 10
+    τ = 1e3
+    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
+    antiGS = states[:, 1]
+   
+    final_state_p, samples, total_free_energy_p = boundary_post_selection(N, τ, antiGS, 1, 0)
     
     @test total_free_energy_p /5 ≈ 1.1136495433981064 
 end
 
-@testset "Bulkmeasure" begin
+@testset "bulk_measure" begin
     L = 10
     D = 2L
     st=zeros(length(anyon_basis(L)))
     st[1] = 1.0
 
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(L, 1000.0, st, D, MersenneTwister(2)) 
+    sample_measured_states, samples, sample_free_energy = bulk_measure(L, 1000.0, st, D, MersenneTwister(2)) 
     EElis = [anyon_eelis(L, state_t)[5] for state_t in sample_measured_states]
-    @test size(samples) == (20, 5)
-    @test EElis[1] ≈ 0.0 atol = 1e-4
-    @test EElis[end] > 0.5098675501545762 
+    @test size(samples) == (D*2, 5)
+    @test EElis[1] ≈ 0.6895721925700435 atol = 1e-4
+    @test EElis[end] > 0.7
 end
 
-@testset "Bulkpost_selection" begin
+@testset "bulk_post_selection" begin
     L = 10
     τ = 0.1
     D = 15L
@@ -355,33 +378,11 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = Bulkpost_selection(L, τ, st, D, 0, pbc)
+    sample_measured_states, samples, sample_free_energy = bulk_post_selection(L, τ, st, div(D,2), 0, pbc)
     state_t = sample_measured_states[end]
     EE = anyon_eelis(L, state_t)[5]
-    @test samples[end] == fill(0, div(L,2))
+    @test samples[end,:] == fill(0, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
-end
-
-@testset "generate_state" begin
-    N = 10
-    τ = 1e3
-    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
-    antiGS = states[:, 1]
-    measurement_sites = collect(2:2:N)
-    
-    sample_measured_states, samples, sample_free_energy = Boundary_measure(N, τ, antiGS, measurement_sites, 10)
-    state = generate_state(τ, antiGS, samples[1])
-    @test state ≈ sample_measured_states[1]
-
-    st = zeros(length(anyon_basis(N)))
-    st[1] = 1.0
-
-    sample_measured_states, samples, sample_free_energy = Bulkmeasure(N, τ, st, N)
-    state_t = generate_state(τ, st, samples)
-    statelis = generate_state(τ, st, samples, true, temp= true)
-    @test statelis ≈ sample_measured_states
-    @test state_t ≈ sample_measured_states[end]
-
 end
 
 # Helper function to verify the distortion is working correctly
@@ -423,3 +424,25 @@ end
     inds = findfirst(x -> x == [1, 1, 1, 1], distorted_trajectories)
     @test distorted_probabilities[inds] == (3/4)^2*(1/4)^2
 end
+
+@testset "central_charge" begin
+    N = 16
+    τ = atanh(0.8) # critical point for IsingX
+    st=zeros(length(anyon_basis(N)))
+    st[1] = 1.0
+
+    samples = zeros(Int, 12N, div(N,2))
+
+    generated_statelis, F = generate_state(τ, st, samples)
+    final_st = generated_statelis[end]
+    EE = anyon_eelis(N, final_st)
+    @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.8 atol=1e-1
+    
+    samples = ones(Int, 15N, div(N,2))
+    ψ0, sites = initial_mps(N)
+    generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true)
+    final_mps = generated_statelis_mps[end]
+    EE_mps = anyon_eelis(N, final_mps)
+    c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1][1]
+    @test c ≈ 0.7 atol=1e-1
+end 

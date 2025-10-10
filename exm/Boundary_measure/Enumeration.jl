@@ -20,7 +20,7 @@ function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measuremen
     
     entropies = Vector{Vector{Float64}}(undef, num_final_states)
     for i in 1:num_final_states
-        entropies[i] = eelis_Fibo_state(N, final_states[i], pbc)
+        entropies[i] = anyon_eelis(N, final_states[i], pbc)
     end
     
     # avg_eelis = sum(probabilities .* entropies)
@@ -43,7 +43,7 @@ function Born_FENlis(N, pbc::Bool=true)
     γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
     τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     
-    @time energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
 
@@ -77,7 +77,7 @@ else
 end
 
 # N=16
-# energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+# energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
 # antiGS= states[:, 1]
 
 # ee_lis=eelis_Fibo_state(N, antiGS)

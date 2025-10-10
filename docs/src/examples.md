@@ -57,7 +57,7 @@ measurement_sites = [2, 4, 6]
 
 # Perform boundary measurements
 println("Performing $num_samples measurement samples...")
-measured_states, sequences, free_energies = Boundary_measure(
+measured_states, sequences, free_energies = boundary_measure(
     N, τ, initial_state, measurement_sites, num_samples
 )
 
@@ -130,16 +130,16 @@ cutoff = 1e-10
 println("Finding ground state for N=$N system...")
 
 # Find MPS ground state
-ψ_gs, E0 = fibonacci_mps_ground_state(N, 
-                                      pbc=true,
-                                      sweep_times=20,
-                                      maxdim=maxdim, 
-                                      cutoff=cutoff)
+ψ_gs, E0 = anyon_mps_gst(N, 
+                        pbc=true,
+                        sweep_times=20,
+                        maxdim=maxdim, 
+                        cutoff=cutoff)
 
 println("Ground state energy density: $(E0/N)")
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis_mps(ψ_gs)
+ee_profile = anyon_eelis(N, ψ_gs)
 
 # Analyze scaling behavior
 L_values = 1:N÷2
@@ -189,7 +189,7 @@ sample_sequence = rand([0, 1], 5, N÷2)  # 5 time steps, N/2 measurement sites p
 # Generate forward evolution
 forward_states = reference_generate_state(N, τ, state_with_ref, sample_sequence, temp=true)
 
-# Calculate temporal correlation between time slices 1 and 4
+# Generate how temporal correlation between time slices 1 and 4
 time_corr = reference_evolution(τ, forward_states, sample_sequence, site, 1, 4)
 
 println("Temporal correlation: $(round(real(time_corr), digits=4))")

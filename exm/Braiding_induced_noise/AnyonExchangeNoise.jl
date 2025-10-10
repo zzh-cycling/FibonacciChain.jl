@@ -8,9 +8,9 @@ using Arpack
 # one pure Fibonacci chain #
 
 # N=18
-# energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+# energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
 # antiGS= states[:, 1]
-# EE_lis=eelis_Fibo_state(N, state)
+# EE_lis=anyon_eelis(N, state)
 
 # cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
 # # savefig(fig, "./exm/fig/antiferro_Fibo_ee_scaling_$(N).pdf")
@@ -19,7 +19,7 @@ using Arpack
 ## two noisy Fibonacci chain with varied p
 
 # N=16
-# energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+# energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
 # antiGS= states[:, 1]
 # vecGS = kron(antiGS, antiGS)
 
@@ -38,7 +38,7 @@ using Arpack
 # one Noisy chain##
 
 N=34
-energy, states = eigs(Fibonacci_Ham_sparse(N), nev=1, which=:SR)
+energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
 global antiGS= states[:, 1]
 
 for i in 2:2:N
@@ -46,7 +46,7 @@ for i in 2:2:N
     antiGS/= norm(antiGS)
 end
 
-EE_lis=eelis_Fibo_state(N, antiGS)
+EE_lis=anyon_eelis(N, antiGS)
 save("./exm/data/single_Fibo_EElis_$(N).jld", "EE_lis", EE_lis)
 # cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
 # savefig(fig, "./exm/fig/single_Fibo_ee_scaling_$(N).pdf")
