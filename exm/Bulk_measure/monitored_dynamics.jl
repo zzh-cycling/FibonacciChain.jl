@@ -9,7 +9,7 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     st = zeros(length(anyon_basis(L)))
     st[1] = 1.0
     
-    @time sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, rng, true) 
+    @time sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, div(D,2), rng, true) 
     
     halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
@@ -22,21 +22,6 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     # return sample_measured_states, samples, sample_free_energy
 end
 
-function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=120L, additional_layers::Int64=15L)
-    rng = MersenneTwister(seed)
-    
-    sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
-    st = generate_state(τ, st, sample, true, temp= true) 
-    sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st[end-1],additional_layers, rng) 
-    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state)
-
-    
-    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D+additional_layers,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
-
-    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D+additional_layers,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
-end
 
 function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
     samples_num = 2000
@@ -165,17 +150,43 @@ function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
         "ensemble_seed", ensemble_seed)
 end
 
+function get_system_params(τ, L)
+    cfg = Dict(
+        atanh(0.1)  => (2500L, 1000, 1500L),
+        atanh(0.2)  => (500L,  100, 250L),
+        atanh(0.3)  => (120L,  48, 100L),
+        atanh(0.4)  => (100L,  40, 80L),
+        atanh(0.5)  => (80L,   32, 40L),
+        atanh(0.6)  => (45L,   20, 30L),
+        log(1 + √2) => (35L,   14, 20L),
+        atanh(0.8)  => (25L,   10, 10L),
+        atanh(0.9)  => (8L,    4, 4L),
+        atanh(0.95) => (8L,    4, 4L),
+        atanh(0.999)=> (5L,    2, 2L),
+    )
+    D, step, start = get(cfg, τ, (5L, 2, 2L))
+    inds = collect(1:step:D)
+    avg_range = start:D-5
+    return D, inds, avg_range
+end
 
-τ = atanh(0.3)
+
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
+
 
 if length(ARGS) == 0
     println("No arguments provided.")
 else
-    N=parse(Int64, ARGS[1])
-    index=parse(Int64, ARGS[2])
-    seed=parse(Int64, ARGS[3])
-    println("Received argument: $N, $index")
-    samples_generate(N, τ, index, seed)
-    # Observable_collect(N, τ)
-    # samples_collect(N, τ)
+    L = parse(Int64, ARGS[1])
+    inds = parse(Int64, ARGS[2])
+    τ = τlis[inds]
+    index = parse(Int64, ARGS[3])
+    seed = parse(Int64, ARGS[4])
+    D, _, _ = get_system_params(τ, L)
+    println("Computed Born Sample dynamics for L=$L, τ=$τ, D=$D, index=$index, seed=$seed")
+    samples_generate(L, τ, index, seed, D)
+    # Observable_collect(L, τ)
+    # samples_collect(L, τ)
 end
