@@ -377,9 +377,9 @@ julia> sample = ones(Int, 2, 2);
 
 julia> τ = 0.5;
 
-julia> trajectory = reference_generate_state(τ, add_ref, sample);
+julia> statelis, trajectory, sample_free_energy = reference_generate_state(τ, add_ref, sample);
 
-julia> length(trajectory) == size(sample, 1)
+julia> size(trajectory, 1) == size(sample, 1)
 true
 ```
 """
