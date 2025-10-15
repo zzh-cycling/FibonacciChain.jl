@@ -23,7 +23,6 @@ mapst_sec2tot
 
 ```@docs
 ee
-anyon_eelis
 ee_mps
 anyon_eelis
 ```
@@ -62,14 +61,12 @@ measure_evolution!
 ## MPS Functions
 
 ```@docs
-anyon_ham
 measurement_operator_mps
 _apply_measurement_layer!
 initial_mps
 mps_measurement_enumeration
 mps_boundary_measure
 mps_bulk_measure
-measure_evolution!
 ```
 
 ## Reference Qubit Functions

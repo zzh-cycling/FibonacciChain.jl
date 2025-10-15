@@ -2,6 +2,7 @@ using FibonacciChain
 using Test
 using BitBasis
 using LinearAlgebra 
+using Random
 
 @testset "antimap" begin
     ϕ = (1+√5)/2

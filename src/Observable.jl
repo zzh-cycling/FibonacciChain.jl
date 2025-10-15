@@ -113,18 +113,19 @@ function anyonladder_eelis(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
 end
 
 """
-    translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
+    translation_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Generate translation operator matrix for Fibonacci basis states.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
+- `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
 """
-function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
-    basis=anyon_basis(T) 
+function translation_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    basis=anyon_basis(T, anyon_type=anyon_type) 
     l = length(basis) 
     Mat=zeros(Float64,(l,l))
     translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
@@ -135,21 +136,22 @@ function translation_matrix(::Type{T}) where {N, T <: BitStr{N}}
     
     return Mat
 end
-translation_matrix(N::Int) = translation_matrix(BitStr{N, Int})
+translation_matrix(N::Int; anyon_type::Symbol=:Fibo) = translation_matrix(BitStr{N, Int}, anyon_type=anyon_type)
 
 """
-    inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
+    inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
 Generate spatial inversion operator matrix for Fibonacci basis states.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
+- `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
 - `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
 """
-function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
-    basis=anyon_basis(T)
+function inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    basis=anyon_basis(T, anyon_type=anyon_type)
     l=length(basis)
     Imatrix=zeros((l,l))
     # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
@@ -162,7 +164,7 @@ function inversion_matrix(::Type{T}) where {N, T <: BitStr{N}}
    
     return Imatrix
 end
-inversion_matrix(N::Int) = inversion_matrix(BitStr{N, Int})
+inversion_matrix(N::Int; anyon_type::Symbol=:Fibo) = inversion_matrix(BitStr{N, Int}, anyon_type=anyon_type)
 
 """
     braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}

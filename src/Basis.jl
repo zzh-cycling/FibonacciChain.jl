@@ -137,7 +137,7 @@ true
 """
 function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
-
+    # However, it seems not easy to separate the state into different topological symmetric sectors.
     basis = anyon_basis(T, pbc, anyon_type = :Fibo)
     coeflis = Vector{Float64}(undef, length(basis))
     
@@ -591,7 +591,7 @@ function anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwarg
     H=(H+H')/2
     return H
 end
-anyon_ham(N::Int, k::Int, Y=nothing, kwargs...) = anyon_ham(BitStr{N, Int}, k, Y, kwargs...)
+anyon_ham(N::Int, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
