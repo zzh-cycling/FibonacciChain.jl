@@ -4,7 +4,6 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random 
-include("../exm/FitEntEntScal.jl")
 
 @testset "measure_basismap" begin
     N = 3
@@ -425,6 +424,33 @@ end
     @test distorted_probabilities[inds] == (3/4)^2*(1/4)^2
 end
 
+function fitCCEntEntScal(
+    SvN_list::Vector{Float64};
+    err::Vector{Float64}=0.0SvN_list,
+    mincut::Int=1,
+    pbc::Bool=false)
+
+    # log of chord length / 6 for open boundary
+    logChord(l, L) = @. log(sin(π * l /L))/6
+    
+    L = length(SvN_list) + 1
+
+    # fit scaling
+    lm(x,p) = @. p[1] * x + p[2]
+    xdata = logChord([1:L-1;],L); #log.(sin.(π .* [1:L-1;] ./L))./6
+    fit = curve_fit(lm, xdata[mincut:L-mincut], SvN_list[mincut:L-mincut], [0.5, 0.0])
+    fitparam = fit.param
+    cent = fitparam[1]
+    cent_err = stderror(fit)[1]
+    if pbc
+        cent /= 2.0
+        cent_err/= 2.0
+    end
+    println("cent ± cent_err is $(cent) ± $(cent_err)")
+
+    return (cent, cent_err)
+end
+
 @testset "central_charge" begin
     N = 16
     τ = atanh(0.8) # critical point for IsingX
@@ -443,6 +469,6 @@ end
     generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true)
     final_mps = generated_statelis_mps[end]
     EE_mps = anyon_eelis(N, final_mps)
-    c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1][1]
+    c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1]
     @test c ≈ 0.7 atol=1e-1
 end 
