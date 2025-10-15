@@ -4,6 +4,7 @@ using LinearAlgebra
 using BitBasis
 using Arpack
 using Random 
+using LsqFit
 
 @testset "measure_basismap" begin
     N = 3
