@@ -238,7 +238,7 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
-    Llis = collect(8:2:20)
+    Llis = (sign == 1) ? collect(8:2:20) : collect(6:6:18)
     δtlis = get_δtL(τ, sign)
 
     idx = findall(x->x==τ, τlis)
@@ -321,6 +321,6 @@ else
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
-    spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
-    # compute_post_selection(L, τ, D, δt, sign=1)
+    # spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
+    compute_post_selection(L, τ, D, δt, sign=0)
 end
