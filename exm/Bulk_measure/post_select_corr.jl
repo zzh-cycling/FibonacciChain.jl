@@ -28,7 +28,7 @@ end
 
 function organize(τ::Float64, sign::Int64=1)
     δtlis = get_δtL(τ, sign)
-    Llis = collect(8:4:20)
+    Llis = (sign==1) ? collect(8:4:20) : collect(6:6:24)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
     for (i, L) in enumerate(Llis)
@@ -238,11 +238,11 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
-    Llis = (sign == 1) ? collect(8:2:20) : collect(6:6:18)
+    Llis = (sign == 1) ? collect(8:2:20) : collect(6:6:24)
     δtlis = get_δtL(τ, sign)
 
     idx = findall(x->x==τ, τlis)
-    tlis = tlis = [1.5622791153697357, 0.7780581224158777, 0.5083827557773009, 0.36709846127189905, 0.2760268365466788, 0.21191890015652085, 0.1568936137623848, 0.11830701021871359, 0.07607223477091314, 0.10374056220848625, 0.0, 0.0] # t obtained from α fitting
+    tlis = (sign==1) ? [1.5622791153697357, 0.7780581224158777, 0.5083827557773009, 0.36709846127189905, 0.2760268365466788, 0.21191890015652085, 0.1568936137623848, 0.11830701021871359, 0.07607223477091314, 0.10374056220848625, 0.0, 0.0] : [0, 1.1664992763053625, 0.7693384724985938, 0.5616273988795625, 0.4293178583642476, 0.3439686411002773, 0.2701958159766381, 0.21760492851640992, 0.16450917142754456, 0.13711976198234307, 0.09026814753696344, 0.0865167522192312] # t obtained from α fitting
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
 
     c = cgrad(:blues, length(Llis), categorical=true)
@@ -255,12 +255,12 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
         # ylim = (0.97, 1.03),
         )
 
-    for (i, L) in enumerate(Llis[2:2:end-2])    
+    for (i, L) in enumerate(Llis)    
         scatter!(fig, δtlis./(L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
 
-    index = 6
-    plot!(fig, δtlis./(Llis[index]), tcLlis[index, :]./scLlis[index], label=latexstring("L=$(Llis[index])"), color=c[index], linewidth=2, marker=:circle, markersize=4)
+    # index = 6
+    # plot!(fig, δtlis./(Llis[index]), tcLlis[index, :]./scLlis[index], label=latexstring("L=$(Llis[index])"), color=c[index], linewidth=2, marker=:circle, markersize=4)
 
     # for (i, L) in enumerate(Llis[1:end])    
     #     plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
@@ -271,7 +271,7 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
 end
 
 function alpha_compute_corr(τ; sign::Int=1)
-    Llis = collect(8:4:20)
+    Llis = (sign == 1) ? collect(8:4:20) : collect(6:6:24)
     δtlis= get_δtL(τ, sign)
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
@@ -300,10 +300,32 @@ function alphalis_corr(τlis; sign::Int=1)
     return αlis
 end
 
+function plot_α_compare(τlis)
+    trueαlis1 = [0.17479998016347537, 0.35335053506014624, 0.5379878111388026, 0.7513193004900436, 0.9973854818280089, 1.2954457344112627, 1.7342095249297775, 2.324623740539361, 3.6859611811798443, 5.660898631724869, 70.46901458043763, -3.291284646075844e13]
+    trueαlis0 =[Inf, 0.2405058724581228, 0.36466384588624984, 0.49953034116441364, 0.6534783510719048, 0.8156264631338914, 1.038320764352055, 1.2892627390488234, 1.7053755953852932, 2.0460210994657104, 3.1079614883501305, 3.2427237381574825]
 
+    fig = plot(
+        legend_background_color=nothing,
+        legend_foreground_color=nothing,
+        xlabel=L"\gamma",
+        ylabel=L"\alpha",
+        # xscale=:log10,
+        # yscale=:log10,
+        # title="Correlation method",
+    )
+
+    inds1 = collect(1:10)
+    inds0 = collect(2:12)
+    plot!(fig, tanh.(τlis)[inds1], trueαlis1[inds1], label=L"s=1", color=:reds, marker=:circle, markersize=4, linewidth=2)
+    plot!(fig, tanh.(τlis)[inds0], trueαlis0[inds0], label=L"s=0", color=:blues, marker=:circle, markersize=4, linewidth=2)
+
+    return fig
+end
 # αlis = [0.1795773389079671, 0.36057708040946856, 0.551847840984768, 0.7642361812075126, 1.0163864125658897, 1.3238551444084465, 1.7881538925764218, 2.3713719554820867, 3.687941165583592]
 
-# trueαlis = [0.17479998016347537, 0.35335053506014624, 0.5379878111388026, 0.7513193004900436, 0.9973854818280089, 1.2954457344112627, 1.7342095249297775, 2.324623740539361, 3.6859611811798443, 5.660898631724869, 70.46901458043763, -3.291284646075844e13]
+# trueαlis1 = [0.17479998016347537, 0.35335053506014624, 0.5379878111388026, 0.7513193004900436, 0.9973854818280089, 1.2954457344112627, 1.7342095249297775, 2.324623740539361, 3.6859611811798443, 5.660898631724869, 70.46901458043763, -3.291284646075844e13]
+
+# trueαlis0 =[Inf, 0.2405058724581228, 0.36466384588624984, 0.49953034116441364, 0.6534783510719048, 0.8156264631338914, 1.038320764352055, 1.2892627390488234, 1.7053755953852932, 2.0460210994657104, 3.1079614883501305, 3.2427237381574825]
 
 # error = [2.7330430701558868, 2.0451491174598737, 2.5762720937165486, 1.7192265271295484, 1.9050739241818382, 2.1930220033566306, 3.11060266197238, 2.011001355938974, 0.05371690873624521] * 100%
 
