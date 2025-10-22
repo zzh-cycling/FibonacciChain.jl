@@ -364,6 +364,59 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
     end
 end
 
+"""
+    transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true)
+Construct the transfer matrix for two measurement layers.
+# Arguments
+- `N::Int64`: Chain length N
+- `τ::Float64`: Measurement strength parameter
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: anyon type
+- `enable_τ_eff::Bool=true`: Whether to enable effective τ calculation
+# Returns
+`Matrix{Float64}`: Transfer matrix between two measurement layers.
+"""
+function transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symbol=:Fibo, sign::Int64=0)
+    measurement_sites1, measure_type = _obtain_measurement_config(N, 1, anyon_type)  
+    measurement_sites2, measure_type = _obtain_measurement_config(N, 2, anyon_type)  
+    
+    basis = anyon_basis(BitStr{N, Int}, pbc; anyon_type = anyon_type)
+    l = length(basis)
+    TM = zeros(Float64, l, l)   
+
+    for i in 1:l
+        # First layer
+        for (idx, site) in enumerate(measurement_sites1)
+            outputstate1, outputstate2, output1, output2 = measure_basismap(BitStr{N, Int}, τ, basis[i], site, sign, pbc; anyon_type = measure_type)
+
+            if output2 == 0
+                TM[i,i] += output1
+            else
+                j2 = searchsortedfirst(basis, outputstate2)
+                TM[i,i] += output1
+                TM[i,j2] += output2
+            end
+        end
+    end
+
+    for i in 1:l
+        # Second layer
+        for (idx, site) in enumerate(measurement_sites2)
+            outputstate1, outputstate2, output1, output2 = measure_basismap(BitStr{N, Int}, τ, basis[i], site, sign, pbc; anyon_type = measure_type)
+
+            if output2 == 0
+                TM[i,i] += output1
+            else
+                j2 = searchsortedfirst(basis, outputstate2)
+                TM[i,i] += output1
+                TM[i,j2] += output2
+            end
+        end
+    end
+
+    return TM
+end
+
 function _obtain_measurement_config(N::Int, layer_idx::Int, anyon_type::Symbol=:Fibo)
     if anyon_type == :Fibo
         measurement_sites = iseven(layer_idx) ? collect(1:2:N) : collect(2:2:N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites, 
