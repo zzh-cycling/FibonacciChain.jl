@@ -18,7 +18,7 @@ function get_δtL(τ)
 end
 
 function organize( L::Int=8, τ::Float64= log(1 + √2))
-    δtlis = collect(1:20)
+    δtlis = (L == 16) ? collect(1:10) : collect(1:20)
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
     
@@ -28,8 +28,8 @@ function organize( L::Int=8, τ::Float64= log(1 + √2))
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
     end
-    
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc.jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis)
+
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis)
 end
 
 function get_system_params(τ, L)
@@ -96,8 +96,8 @@ end
 
 function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     samples_num = 2000
-    δtlis = collect(0:20)  # Adjust this range based on the δt values you have used
-    
+    δtlis = (L==16) ? collect(0:10) : collect(0:20)  # Adjust this range based on the δt values you have used
+
     for δt in δtlis
         temporal_corr_ensemble = zeros(samples_num)
         spatial_corr_ensemble = zeros(samples_num)
@@ -191,14 +191,14 @@ function plot_tc(inds::Int64)
     test_lis = [0.0, 1.1917091921566003, 0.0, 0.0, 0.45646685808273624, 0.3543349243759066, 0.0, 0.234, 0.0, 0.0, 0.12, 0.0]
 
     for (idx, L) in enumerate(Llis[1:end-1])
-        average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+        average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
 
 
         scatter!(plt, δtlis ./ L, tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(L)", lw=2, marker=:circle, ms=6, c = c[idx])
     end
     scatter!(plt, [test_lis[inds]], [1.0], ms=8, label=false, mc=:red, m=:star5)
 
-    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(Llis[end])_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
+    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(Llis[end])/stc_L$(Llis[end])_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
     
     
     plot!(plt, δtlis ./ Llis[end], tcLlis./ average_spatial_corr, yerror = tcstderrlis ./ average_spatial_corr, label="L=$(Llis[end])", lw=2, marker=:circle, ms=6, c = c[end])
@@ -226,12 +226,13 @@ else
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     δt = parse(Int, ARGS[3])
-    seedinds = parse(Int, ARGS[4])
+    seed = parse(Int, ARGS[4])
+    # seedinds = parse(Int, ARGS[4])
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
-    seed = seed_interval_lis[seedinds]
+    # seed = seed_interval_lis[seedinds]
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt, seedlis=$(seed):$(seed+99)")
-    # compute_ratio(L, τ, seed, D, δt)
-    compute_total(L, τ, seed, D, δt)
+    compute_ratio(L, τ, seed, D, δt)
+    # compute_total(L, τ, seed, D, δt)
     # corr_collect(L, τ)
 end
