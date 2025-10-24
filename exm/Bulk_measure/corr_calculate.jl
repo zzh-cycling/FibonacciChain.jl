@@ -5,6 +5,7 @@ using Random
 using LaTeXStrings
 using Plots
 using LsqFit
+using LinearAlgebra
 using Measurements
 
 function get_δtL(τ)
@@ -134,13 +135,13 @@ function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
 end
 
 function alpha_with_error_wt(τ; L=16)
-    # ---- 读数据 ----
-    file = "exm/data/Bulk_measure/spatial_temporal_corr_Born/stc_L$(L)_τ$(τ).jld"
+    # ---- read data ----
+    file = "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/stc_L$(L)_τ$(τ).jld"
     sc_μ = load(file, "average_spatial_corr")
     sc_σ = load(file, "spatial_corr_stderr")
     tc_μ = load(file, "tcLlis")
     tc_σ = load(file, "tcstderrlis")
-    δtlis= collect(1:20)
+    δtlis= load(file, "δtlis")
 
     ratio_μ = tc_μ ./ sc_μ
     ratio_σ = @. sqrt( (tc_σ/tc_μ)^2 + (sc_σ/sc_μ)^2 ) * ratio_μ   # error propagation formula
@@ -188,7 +189,7 @@ function plot_tc(inds::Int64)
     
     c = cgrad(:blues, length(Llis), categorical=true)
 
-    test_lis = [0.0, 1.1917091921566003, 0.0, 0.0, 0.45646685808273624, 0.3543349243759066, 0.0, 0.234, 0.0, 0.0, 0.12, 0.0]
+    test_lis = [2.4, 1.1917091921566003, 0.783, 0.521, 0.45646685808273624, 0.3543349243759066, 0.282, 0.234, 0.196, 0.154, 0.12, 0.1]
 
     for (idx, L) in enumerate(Llis[1:end-1])
         average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", "spatial_corr_stderr", "δtlis", "tcLlis", "tcstderrlis")
@@ -210,10 +211,10 @@ function plot_tc(inds::Int64)
     return plt
 end
 
-# αlis = [0.20460722142668827, 0.5750604170268026, 1.2752269371345004]
+# αlis = [0.11689580257066254, 0.23541811040484406, 0.3583013105614177, 0.5384835435116891, 0.6146118194603724, 0.7917648159117402, 0.9948578942184046, 1.1989313084170514, 1.431377174334643, 1.8217527673350005, 2.337916051413251, 2.8054992616959007]
 
 # α_lis = [0.22996304034610712, 0.6025887408957163, 0.7737905089041682, 1.2185251168172877, 2.5759898698081787]
-# α_stderrlis = [0.03939320246529536, 0.03727317853604598, 0.03256489438182987, 0.03328157129222018, 0.07449016381263754]
+# α_stderrlis = [0.03939320246529536, 0.03727317853604598, 0.03256489438182987, 0.03328157129222018, 0.07449016381263754] # by c_{ent}/c_{Casimir}
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
