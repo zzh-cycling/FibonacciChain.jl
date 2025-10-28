@@ -24,7 +24,7 @@ end
 
 
 function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 2000
+    samples_num = 10000
     ensemble = Vector{Matrix{Int}}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
     ensemble_seed = Vector{Int64}(undef, samples_num)
@@ -36,21 +36,23 @@ function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
         ensemble_seed[i] = seed
     end
 
-    save("exm/data/Bulk_measure/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
+    save("exm/data/Bulk_measure/Samples_monitored_dynamics/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
 end
 
 
 function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 2000
+    samples_num = 10000
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
     ensemble_seed = Vector{Int64}(undef, samples_num)
-    ensemble_EE_dynamics= zeros(samples_num, D) 
+    ensemble_EE_dynamics= zeros(samples_num, div(D,2)) 
     ensemble_final_EElis = zeros(samples_num, L-1)
 
     for i in 1:samples_num
         @show i
         halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
-
+        if i<=10000
+            halfchain_EE_tlis = halfchain_EE_tlis[2:2:end]
+        end
         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
         ensemble_final_EElis[i, :] = final_EElis
         ensemble_seed[i] = seed
@@ -63,7 +65,7 @@ function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
     
-    save("exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
+    save("exm/data/Bulk_measure/Observable_monitored_dynamics/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
 end
 
 function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
@@ -182,11 +184,19 @@ else
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     τ = τlis[inds]
-    index = parse(Int64, ARGS[3])
-    seed = parse(Int64, ARGS[4])
+    # index = parse(Int64, ARGS[3])
+    # seed = -index
+    # seed = parse(Int64, ARGS[4])
+    # interval = 4
+    # indexlis = collect(index*interval .+ 2001-interval: index*interval .+ 2000)
+    # seedlis = -indexlis
     D, _, _ = get_system_params(τ, L)
-    println("Computed Born Sample dynamics for L=$L, τ=$τ, D=$D, index=$index, seed=$seed")
-    samples_generate(L, τ, index, seed, D)
-    # Observable_collect(L, τ)
-    # samples_collect(L, τ)
+    # println("Computed Born Sample dynamics for L=$L, τ=$τ, D=$D, index=$index, seed=$seed")
+    # for i in 1:interval
+    #     @show i 
+    #     samples_generate(L, τ, indexlis[i], seedlis[i], D)
+    # end
+    # samples_generate(L, τ, index, seed, D)
+    Observable_collect(L, τ, D)
+    samples_collect(L, τ, D)
 end
