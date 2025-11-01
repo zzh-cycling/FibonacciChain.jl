@@ -13,151 +13,6 @@ function Fibonacci_chain_PBC(::Type{T}) where {N, T <: BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-"""
-    Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-
-Compute topological symmetry coefficient for state in given base configurations for Fibonacci anyon chain.
-
-# Arguments
-- `state::T`: Target state configuration
-- `base::T`: Base state configuration  
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Measurement class
-
-# Returns
-- `Float64`: Topological symmetry coefficient based on Fibonacci fusion rules
-
-# Examples
-```jldoctest
-julia> using FibonacciChain, BitBasis
-
-julia> N = 4; T = BitStr{N, Int};
-
-julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2;  # Example state configuration
-
-julia> base = T(0b0101);   # Example base configuration
-
-julia> coef = Fsymmetry_coef(state, base, true, :Fibo); coef ≈ 0.3819660112501051
-true
-
-julia> abs(coef - (1-1/ϕ)) < 1e-10  # Should equal φ for this configuration
-true
-```
-"""
-function Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
-    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
-    #  %%
-    #  %% 
-    #  %%%%%%%%%%%%%
-    #  %%
-    #  %%
-    #  %%%          idxout              idxbond'
-    #  or effectively, the coefficient like: A_{x_1 x_2 x_2'}^{x_1'} 
-    ϕ = (1+√5)/2
-    prod=1
-    
-    if anyon_type == :Fibo
-        @assert pbc || site != N "For OBC, site must not be $N, but got $site"
-        for site in 1:N-1
-            # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
-            if state[N - site + 1] == 1
-                prod *= 1
-            else
-                if base[N - site] == 1
-                    prod *= 1
-                else
-                    # check x_3, if x_3 is 1
-                    if state[N - site] == 0
-                        # Determine coef according to x_2'
-                        prod *= (base[N - site + 1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-                    else
-                        prod *= (base[N - site + 1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-                    end
-                end
-            end
-        end
-
-        if pbc
-            # Check x_N', if x_N' is 1, return 1, otherwise, check x_1', if x_1' is 1, return 1.
-            if state[1] == 1
-                prod *= 1
-            else
-                if base[N] == 1
-                    prod *= 1
-                else
-                    # check x_1, if x_1 is 1
-                    if state[N] == 0
-                        # Determine coef according to x_N'
-                        prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-                    else
-                        prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-                    end
-                end
-            
-                prod *= 1
-            end
-        end
-
-        return prod
-
-    else
-        error("Unsupported anyon_type: $anyon_type")
-    end
-end
-
-"""
-    topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
-
-Compute topological symmetry coefficients for all basis states relative to given state.
-
-# Arguments
-- `state::T`: Reference state configuration
-- `pbc::Bool=true`: Periodic boundary conditions
-
-# Returns
-- `Vector{Float64}`: Coefficients for each basis state
-
-# Examples
-```jldoctest
-julia> using FibonacciChain, BitBasis
-
-julia> N = 4; T = BitStr{N, Int};
-
-julia> state = T(0b0000);  # Vacuum state
-
-julia> coeffs = topological_symmetry_basismap(state, true);
-
-julia> length(coeffs) == length(anyon_basis(T, true, anyon_type=:Fibo))
-true
-
-julia> all(x -> abs(x) > 1e-10 || abs(x) < 1e-10, coeffs)  # All coeffs are well-defined
-true
-```
-"""
-function topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
-    # However, it seems not easy to separate the state into different topological symmetric sectors.
-    basis = anyon_basis(T, pbc, anyon_type = :Fibo)
-    coeflis = Vector{Float64}(undef, length(basis))
-    
-    # For each base in basis, check the state at each site
-    for (idx, base) in enumerate(basis)
-        coef = Fsymmetry_coef(state, base)
-        coeflis[idx] = coef
-    end
-    return coeflis
-end
-
-function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
-    # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
-    
-    basis=anyon_basis(T, pbc, anyon_type = :Fibo)
-    Ymatrix=hcat(topological_symmetry_basismap.(basis)...)
-
-    return Ymatrix
-end
-
 abstract type AbstractAnyonType end
 struct FibonacciAnyon <: AbstractAnyonType end
 struct IsingAnyon <: AbstractAnyonType end
@@ -196,13 +51,152 @@ function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block
 
     return sorted_basis
 end
-anyon_basis(model::AnyonModel{AT}) where {AT<:FibonacciAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc)
+anyon_basis(model::AnyonModel{AT}; symmetry_block=nothing) where {AT<:FibonacciAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc, symmetry_block=symmetry_block)
 
-function anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true) where {N, T <: BitStr{N}}
+function anyon_basis(::IsingAnyon, ::Type{T}) where {N, T <: BitStr{N}}
     return [T(i) for i in 0:(2^N - 1)]
 end
+anyon_basis(model::AnyonModel{AT}) where {AT<:IsingAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int})
 
-anyon_basis(N::Int, pbc::Bool=true; symmetry_block=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(anyon_type, BitStr{N, Int}; pbc, symmetry_block)
+"""
+    Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+
+Compute topological symmetry coefficient for state in given base configurations for Fibonacci anyon chain.
+
+# Arguments
+- `state::T`: Target state configuration
+- `base::T`: Base state configuration  
+- `pbc::Bool=true`: Periodic boundary conditions
+- `anyon_type::Symbol=:Fibo`: Measurement class
+
+# Returns
+- `Float64`: Topological symmetry coefficient based on Fibonacci fusion rules
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2;  # Example state configuration
+
+julia> base = T(0b0101);   # Example base configuration
+
+julia> coef = Fsymmetry_coef(state, base, true, :Fibo); coef ≈ 0.3819660112501051
+true
+
+julia> abs(coef - (1-1/ϕ)) < 1e-10  # Should equal φ for this configuration
+true
+```
+"""
+function Fsymmetry_coef(state::T, base::T, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
+    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
+    #  %%
+    #  %% 
+    #  %%%%%%%%%%%%%
+    #  %%
+    #  %%
+    #  %%%          idxout              idxbond'
+    #  or effectively, the coefficient like: A_{x_1 x_2 x_2'}^{x_1'} 
+    ϕ = (1+√5)/2
+    prod=1
+
+        @assert model.pbc || site != N "For OBC, site must not be $N, but got $site"
+        for site in 1:N-1
+            # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
+            if state[N - site + 1] == 1
+                prod *= 1
+            else
+                if base[N - site] == 1
+                    prod *= 1
+                else
+                    # check x_3, if x_3 is 1
+                    if state[N - site] == 0
+                        # Determine coef according to x_2'
+                        prod *= (base[N - site + 1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+                    else
+                        prod *= (base[N - site + 1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+                    end
+                end
+            end
+        end
+
+        if model.pbc
+            # Check x_N', if x_N' is 1, return 1, otherwise, check x_1', if x_1' is 1, return 1.
+            if state[1] == 1
+                prod *= 1
+            else
+                if base[N] == 1
+                    prod *= 1
+                else
+                    # check x_1, if x_1 is 1
+                    if state[N] == 0
+                        # Determine coef according to x_N'
+                        prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
+                    else
+                        prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
+                    end
+                end
+            
+                prod *= 1
+            end
+        end
+
+        return prod
+end
+
+"""
+    topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+
+Compute topological symmetry coefficients for all basis states relative to given state.
+
+# Arguments
+- `state::T`: Reference state configuration
+- `pbc::Bool=true`: Periodic boundary conditions
+
+# Returns
+- `Vector{Float64}`: Coefficients for each basis state
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> state = T(0b0000);  # Vacuum state
+
+julia> coeffs = topological_symmetry_basismap(state, true);
+
+julia> length(coeffs) == length(anyon_basis(T, true, anyon_type=:Fibo))
+true
+
+julia> all(x -> abs(x) > 1e-10 || abs(x) < 1e-10, coeffs)  # All coeffs are well-defined
+true
+```
+"""
+function topological_symmetry_basismap(state::T, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+    # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
+    # However, it seems not easy to separate the state into different topological symmetric sectors.
+    basis = anyon_basis(model)
+    coeflis = Vector{Float64}(undef, length(basis))
+    
+    # For each base in basis, check the state at each site
+    for (idx, base) in enumerate(basis)
+        coef = Fsymmetry_coef(state, base, model)
+        coeflis[idx] = coef
+    end
+    return coeflis
+end
+
+function topological_charge_operator(::Type{T}, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+    # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
+
+    basis=anyon_basis(model)
+    Ymatrix=hcat(topological_symmetry_basismap.(basis, model)...)
+
+    return Ymatrix
+end
 
 """
     anyon_basis(::Type{T}, k::Int64; symmetry_block=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
@@ -219,14 +213,14 @@ Generate basis states in specific momentum sector `k` and topological sector `sy
 - `Vector{T}`: Basis states in momentum sector k
 - `Dict{T, Vector{T}}`: Representative mapping for translation equivalence classes
 """
-function anyon_basis(::Type{T}; k::Int, symmetry_block=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_basis(::Type{T}; k::Int, symmetry_block=nothing, model::AnyonModel{AT}) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system, topological_charge symmetry_block, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
     basisK = Vector{T}(undef, 0)
-    basis = anyon_basis(T, symmetry_block=symmetry_block, anyon_type=anyon_type)
+    basis = anyon_basis(model, symmetry_block=symmetry_block)
     basis_dic = Dict{T, Vector{T}}()
 
     for i in basis
@@ -248,8 +242,8 @@ function anyon_basis(::Type{T}; k::Int, symmetry_block=nothing, anyon_type::Symb
 
     return basisK, basis_dic
 end
-anyon_basis(N::Int64, k::Int64; symmetry_block=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, k, symmetry_block=symmetry_block, anyon_type=anyon_type)
-    
+anyon_basis(model; k::Int64, symmetry_block=nothing) = anyon_basis(model, k=k, symmetry_block=symmetry_block)
+
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
@@ -323,7 +317,7 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(::Type{T}, state::T, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function actingHam(::Type{T}, state::T,  model::AnyonModel{AT}; kwargs...) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -471,9 +465,9 @@ julia> size(H_Ising)      # full Hilbert space for Ising model
 (16, 16)
 ```
 """
-function anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function anyon_ham(::Type{T}, model::AnyonModel{AT}, kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=anyon_basis(T,pbc, anyon_type=anyon_type)
+    basis=anyon_basis(model)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
