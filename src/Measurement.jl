@@ -1,9 +1,3 @@
-struct AnyonModel{AT<:AbstractAnyonType}
-    anyon_type::AT
-    N::Int   # system size
-    pbc::Bool
-end
-
 """
     measure_basismap(anyon_model::AnyonModel, τ::Float64, state::T, i::Int, sign::Int64) where {T}
 
@@ -115,7 +109,7 @@ function _apply_result(anyontype::FibonacciAnyon, τ::Float64, state::T, i::Int,
     end
 end
 
-function _apply_result(anyontype::IsingType, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
+function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
     @assert measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
     if measure_operator == :X
         if τ >= 1e2
@@ -155,12 +149,12 @@ function _apply_result(anyontype::IsingType, τ::Float64, state::T, i::Int, sign
     end
 end
 
-function _apply_result(anyontype::IsingType, τ::Float64, state::T, i::Int, sign::Int64) where {T}
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
-        else
-            cstτ = cosh(τ/2) / √(2cosh(τ))
+function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sign::Int64) where {T}
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign == 0 ? 0.5 : -0.5
+    else
+        cstτ = cosh(τ/2) / √(2cosh(τ))
             coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
         end
 
@@ -593,7 +587,7 @@ function _born_measure(model, current_state, sample, measure_config)
             states[period] = current_state
         end
         
-    elseif mode == :sample
+    # elseif mode == :sample
         isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
         size(sample) == (D, n_measure) ||
             error("sample size should be ($D, $n_measure)")
@@ -637,7 +631,6 @@ function _born_measure(model, current_state, sample, measure_config)
 
             states[period] = current_state
         end
-    end
     
     return states, sample, sample_free_energy
 end

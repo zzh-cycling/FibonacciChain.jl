@@ -160,11 +160,20 @@ end
 
 abstract type AbstractAnyonType end
 struct FibonacciAnyon <: AbstractAnyonType end
-struct IsingType <: AbstractAnyonType end
+struct IsingAnyon <: AbstractAnyonType end
+
+struct AnyonModel{AT<:AbstractAnyonType}
+    anyon_type::AT # anyon type
+    N::Int   # system size
+    pbc::Bool # periodic boundary conditions
+    function AnyonModel(anyon_type::AT, N::Int; pbc::Bool=true) where {AT<:AbstractAnyonType}
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        return new{AT}(anyon_type, N, pbc)
+    end
+end
 
 function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
-    @assert N > 0 "N is expected to be greater than 0, but got $N"
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
     # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
@@ -187,6 +196,7 @@ function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block
 
     return sorted_basis
 end
+anyon_basis(model::AnyonModel{AT}) where {AT<:FibonacciAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc)
 
 function anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true) where {N, T <: BitStr{N}}
     return [T(i) for i in 0:(2^N - 1)]
