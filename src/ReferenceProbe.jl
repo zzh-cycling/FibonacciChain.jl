@@ -21,7 +21,8 @@ function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state:
    
 end
 
-function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, M, k_old, T <: BitStr{N}, ET, newT <: BitStr{M}, pretype <: BitStr{k_old, Int}}
+num_digits(::Type{<:BitStr{N}}) where N = N
+function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -33,7 +34,7 @@ function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Ve
         error("Unknown measure class: $anyon_type")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    @assert M == N + k_old "The output basis should be with length $(N + k_old), but got $M"
+    @assert num_digits(newT) == N + k_old "The output basis should be with length $(N + k_old), but got $(num_digits(newT))"
 
     mapped_state = zeros(ET, length(state))
 
