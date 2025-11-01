@@ -455,15 +455,17 @@ end
 @testset "central_charge" begin
     N = 16
     τ = atanh(0.8) # critical point for IsingX
-    st=zeros(length(anyon_basis(N)))
+    model = AnyonModel(FibonacciAnyon(), N; pbc=false)
+
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
     samples = zeros(Int, 12N, div(N,2))
 
-    generated_statelis, F = generate_state(τ, st, samples)
+    generated_statelis, F = generate_state(model, τ, st, samples)  # needs polish
     final_st = generated_statelis[end]
     EE = anyon_eelis(N, final_st)
-    @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.8 atol=1e-1
+    @test fitCCEntEntScal(model, EE, mincut=2)[1][1] ≈ 0.8 atol=1e-1
     
     samples = ones(Int, 15N, div(N,2))
     ψ0, sites = initial_mps(N)

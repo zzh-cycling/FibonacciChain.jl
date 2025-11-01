@@ -1,5 +1,11 @@
+struct AnyonModel{AT<:AbstractAnyonType}
+    anyon_type::AT
+    N::Int   # system size
+    pbc::Bool
+end
+
 """
-    measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    measure_basismap(anyon_model::AnyonModel, τ::Float64, state::T, i::Int, sign::Int64) where {T}
 
 Map single basis state under measurement operation at site i.
 
@@ -46,20 +52,54 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
+
+    return _apply_result(anyon_type, τ, state, i, sign, measure_operator)
+end
+
+function _apply_result(anyontype::FibonacciAnyon, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
+    @assert measure_operator ∈ [:reset, :Fibo] "measure_operator must be :Fibo or :reset"
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign == 0 ? 0.5 : -0.5
+    else
+        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+    end
     
-    if anyon_type == :Fibo
-        
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
-        else
-            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+    if 2<= i <= N-1
+        mask=bmask(T,1,2,3) << (N-i-1)
+        str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
+        if state & mask == str000
+            return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+        elseif state & mask == str010
+            return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+        elseif state & mask == str001
+            return state, state, cstτ+coef, 0
+        elseif state & mask == str100
+            return state, state, cstτ+coef, 0
+        elseif state & mask == str101
+            return state, state, cstτ-coef, 0
         end
-        
-        if 2<= i <= N-1
-            mask=bmask(T,1,2,3) << (N-i-1)
-            str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
+    end
+
+    if pbc
+        if i == 1 #count from the left
+        mask=bmask(T, N, N-1,1)
+        str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
+            if state & mask == str000
+                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+            elseif state & mask == str010
+                return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+            elseif state & mask == str001
+                return state, state, cstτ+coef, 0
+            elseif state & mask == str100
+                return state, state, cstτ+coef, 0
+            elseif state & mask == str101
+                return state, state, cstτ-coef, 0
+            end
+        elseif i == N #count from the left
+        mask=bmask(T, N, 2, 1)
+        str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
             if state & mask == str000
                 return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
             elseif state & mask == str010
@@ -72,39 +112,12 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 return state, state, cstτ-coef, 0
             end
         end
+    end
+end
 
-        if pbc
-            if i == 1 #count from the left
-            mask=bmask(T, N, N-1,1)
-            str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
-                if state & mask == str000
-                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
-                elseif state & mask == str010
-                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
-                elseif state & mask == str001
-                    return state, state, cstτ+coef, 0
-                elseif state & mask == str100
-                    return state, state, cstτ+coef, 0
-                elseif state & mask == str101
-                    return state, state, cstτ-coef, 0
-                end
-            elseif i == N #count from the left
-            mask=bmask(T, N, 2, 1)
-            str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
-                if state & mask == str000
-                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
-                elseif state & mask == str010
-                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
-                elseif state & mask == str001
-                    return state, state, cstτ+coef, 0
-                elseif state & mask == str100
-                    return state, state, cstτ+coef, 0
-                elseif state & mask == str101
-                    return state, state, cstτ-coef, 0
-                end
-            end
-        end
-    elseif anyon_type == :IsingX
+function _apply_result(anyontype::IsingType, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
+    @assert measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
+    if measure_operator == :X
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -115,7 +128,7 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
 
         return state, X(state,i), cstτ, coef
 
-    elseif anyon_type == :IsingZZ
+    elseif measure_operator == :ZZ
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -139,7 +152,10 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
                 return state, state, cstτ-coef, 0
             end
         end
-    elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
+    end
+end
+
+function _apply_result(anyontype::IsingType, τ::Float64, state::T, i::Int, sign::Int64) where {T}
         if τ >= 1e2
             cstτ = 0.5
             coef = sign == 0 ? 0.5 : -0.5
@@ -149,9 +165,6 @@ function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Int64,
         end
 
         return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
-    else
-        error("Unknown measure class: $anyon_type")
-    end
 end
 
 
@@ -276,7 +289,7 @@ Args:T, τ, initial_state, measurement_sites, pbc
 Returns:
     final_states, trajectories, probabilities
 """
-function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function measurement_enumeration(anyon_model::AnyonModel, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}) where {ET}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     
     # Initialize, only one initial state
@@ -404,10 +417,8 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 
 Samples measurement outcomes with given measurement outcomes.
 """
-function _apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{T}, 
-    layer_sample::Vector{Int64}, layer_idx::Int64, 
-    pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo) where {T}
+function _apply_measurement_layer!(anyon_model::AnyonModel, τ::Float64, state::Vector{T}, 
+    layer_sample::Vector{Int64}, layer_idx::Int64) where {T}
     # Helper function to apply deterministic measurements to a layer, connect measure on each site together.
 
     total_free_energy = zero(real(T))
@@ -491,6 +502,25 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 end
 
 """
+- `τ::Float64`: Measurement strength parameter
+- `t₂::Int`: Number of measurement layers (time steps)
+- `rng::MersenneTwister = MersenneTwister()`: Random number generator
+- `mode::Symbol = :sample`: Sampling mode, one of `:sample`, `:Born`
+- `t₁::Int = 1`: Starting layer index for evolution (default is 1)
+- `verbose::Bool = false`: Verbosity flag for detailed output
+- `enable_τ_eff::Bool = true`: Whether to enable half-strength measurement for the last layer
+"""
+Base.@kwdef struct MeasureConfig
+    τ::Float64
+    t₂::Int
+    rng::MersenneTwister  = MersenneTwister()
+    mode::Symbol = :sample
+    t₁::Int = 1
+    verbose::Bool = false
+    enable_τ_eff::Bool = true
+end
+
+"""
     measure_evolution!(N::Int,
                   τ::Float64,
                   state::Vector{ET},
@@ -526,17 +556,10 @@ Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial
 - samples       : measurement sequences (Matrix{Int})
 - sample_free_energy : cumulative free energy for each layer (or each sample)
 """
-function measure_evolution!(N::Int,
-                  τ::Float64,
+function measure_evolution!(anyon_model::AnyonModel,   # DRY: don't repeat yourself.
                   state::Vector{ET},
-                  t₂::Int = 1;
-                  rng::MersenneTwister = MersenneTwister(),
-                  pbc::Bool = true,
-                  anyon_type::Symbol = :Fibo,
-                  mode::Symbol = :sample,
-                  t₁::Int = 1,
-                  sample::Union{Nothing,Matrix{Int}}=nothing,
-                  verbose::Bool = false, enable_τ_eff::Bool = true) where {ET}
+                  sample::Union{Nothing,Matrix{Int}},
+                  measure_config::MeasureConfig) where {ET}
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
 
@@ -549,8 +572,14 @@ function measure_evolution!(N::Int,
     sample_free_energy = zeros(D) # free energy of each layer
     states = Vector{Vector{ET}}(undef, Δt)  # states of each layer
     current_state = copy(state)
+    if measure_config.mode == :Born
+        _born_measure(model, current_state, sample, measure_config)
+    elseif measure_config.mode == :sample
+        _sample_measure(model, current_state, sample, measure_config)
+    end
+end
 
-    if mode == :Born
+function _born_measure(model, current_state, sample, measure_config)
          # 1. Initialize sample matrix
         sample = zeros(Int, D, n_measure)   # to be filled during sampling
 
@@ -613,26 +642,34 @@ function measure_evolution!(N::Int,
     return states, sample, sample_free_energy
 end
 
-function generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true) where{T}
-    N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
+struct StateByMeasurement{T}
+    state::Vector{T}
+    samples::Matrix{Int}
+    free_energy::Float64
+end
+function generate_state_by_measurement(anyon_model::AnyonModel, state::Vector{T}, sample::Matrix{Int}; τ::Float64, enable_τ_eff::Bool=true) where{T}
+    N = measurement_time(anyon_model.anyon_type) * size(sample, 2)
+    D = size(sample, 1) # number of layers
+    t₂ = D ÷ 2 # number of time steps/ periods
+
+    final_state, sample, free_energy = measure_evolution!(anyon_model, τ, state, t₂; 
+        mode=:sample, 
+        sample=sample, enable_τ_eff=enable_τ_eff)
+    return StateByMeasurement(final_state, sample, free_energy)
+end
+measurement_time(::FibonacciAnyon) = 2
+measurement_time(::IsingAnyon) = 1
+
+function generate_state_by_measurement(anyon_type::AbstractAnyonType, τ::Float64, state::Vector{T}, sample::Vector{Int}; pbc::Bool=true, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
+    N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
     D = size(sample, 1) # number of layers
     t₂ = D ÷ 2 # number of time steps/ periods
 
     final_state, sample, free_energy = measure_evolution!(N, τ, state, t₂; 
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
     sample=sample, enable_τ_eff=enable_τ_eff)
-    return final_state, free_energy
+    return StateByMeasurement(final_state, sample, free_energy)
 end
-
-function generate_state(τ::Float64, state::Vector{T}, sample::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
-    N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
-
-    τ_eff = enable_τ_eff ? τ/2 : τ
-    current_state, sample_layer = _apply_measurement_layer!(N, τ_eff, state, sample, layer_idx, pbc; anyon_type=anyon_type)
-
-    return current_state, sample_layer
-end
-
 
 """
     boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, layer_idx::Int, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}

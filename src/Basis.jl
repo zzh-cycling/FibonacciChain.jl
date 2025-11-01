@@ -158,102 +158,65 @@ function topological_charge_operator(::Type{T}, pbc::Bool=true) where {N, T <: B
     return Ymatrix
 end
 
-"""
-    anyon_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+abstract type AbstractAnyonType end
+struct FibonacciAnyon <: AbstractAnyonType end
+struct IsingType <: AbstractAnyonType end
 
-Generate basis states for 1D anyon chain.
-
-# Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `pbc::Bool=true`: Periodic boundary conditions
-- `Y`: Topological charge filter (`:tau`, `:trivial`, `0`, `1`, or `nothing`)
-- `anyon_type::Symbol=:Fibo`: anyon type (`:Fibo`, `:resetFibo`, `:IsingX`, `:IsingZZ`, `:IsingZ`, `:reset`)
-
-# Returns
-- `Vector{T}`: Sorted basis states satisfying constraints
-
-Supports Fibonacci anyons, Ising anyons/Majorana fermions, and spin-1/2 systems.
-
-# Examples
-```jldoctest
-julia> using FibonacciChain, BitBasis
-
-julia> # Generate Fibonacci basis for N=4 with PBC
-       N = 4; T = BitStr{N, Int};
-
-julia> basis_fibo = anyon_basis(T, true, anyon_type=:Fibo);
-
-julia> length(basis_fibo)  # Fibonacci numbers give the dimension
-7
-
-julia> basis_fibo[1]  # First basis state (vacuum)
-0000 ₍₂₎
-
-julia> # Generate Ising basis for comparison
-       basis_ising = anyon_basis(T, true, anyon_type=:IsingX);
-
-julia> length(basis_ising)  # All 2^N states for Ising
-16
-```
-"""
-function anyon_basis(::Type{T}, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert N > 0 "N is expected to be greater than 0, but got $N"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
+    @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
     @assert T <: BitStr{N} "Type T must be a BitStr type"
-    if anyon_type ∈ (:Fibo, :resetFibo)
-        # Generate Fibonacci chain basis
-        # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
-        if pbc
-            if T == BitStr{1, Int}
-                basis=Fibonacci_chain_OBC(T)
-            else
-                basis=Fibonacci_chain_PBC(T)
-            end
-        else
+    # If pbc is true, use Fibonacci_chain_PBC, otherwise use Fibonacci_chain_OBC
+    if pbc
+        if T == BitStr{1, Int}
             basis=Fibonacci_chain_OBC(T)
+        else
+            basis=Fibonacci_chain_PBC(T)
         end
-        sorted_basis=sort(basis)
-    
-        if Y !== nothing
-            # Filter basis by topological charge
-            # sorted_basis = filter(s -> topological_charge(s) == Y, sorted_basis)
-            error("Filtering by topological charge is not implemented yet.")
-        end
-    
-        return sorted_basis
-    elseif anyon_type ∈ (:IsingX, :IsingZZ, :IsingZ, :reset)
-        # Generate basis for Ising model
-        return [T(i) for i in 0:(2^N - 1)]
     else
-        error("Unsupported anyon_type: $anyon_type")
+        basis=Fibonacci_chain_OBC(T)
     end
+    sorted_basis=sort(basis)
+
+    if symmetry_block !== nothing
+        # Filter basis by topological charge
+        # sorted_basis = filter(s -> topological_charge(s) == symmetry_block, sorted_basis)
+        error("Filtering by topological charge is not implemented yet.")
+    end
+
+    return sorted_basis
 end
-anyon_basis(N::Int, pbc::Bool=true; Y=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, pbc; Y=Y, anyon_type=anyon_type)
+
+function anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true) where {N, T <: BitStr{N}}
+    return [T(i) for i in 0:(2^N - 1)]
+end
+
+anyon_basis(N::Int, pbc::Bool=true; symmetry_block=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(anyon_type, BitStr{N, Int}; pbc, symmetry_block)
 
 """
-    anyon_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_basis(::Type{T}, k::Int64; symmetry_block=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
 
-Generate basis states in specific momentum sector `k` and topological sector `Y`.
+Generate basis states in specific momentum sector `k` and topological sector `symmetry_block`.
 
 # Arguments
 - `T::Type`: BitStr type specifying chain length N
 - `k::Int64`: Momentum sector (0 ≤ k ≤ N-1)
-- `Y`: Topological charge sector
+- `symmetry_block`: Topological charge sector
 - `anyon_type::Symbol=:Fibo`: anyon type
 
 # Returns
 - `Vector{T}`: Basis states in momentum sector k
 - `Dict{T, Vector{T}}`: Representative mapping for translation equivalence classes
 """
-function anyon_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-#params: a int of lattice number, momentum of system, topological_charge Y, which default to be nothing
+function anyon_basis(::Type{T}; k::Int, symmetry_block=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+#params: a int of lattice number, momentum of system, topological_charge symmetry_block, which default to be nothing
 #return: computational basis in given momentum kinetically constrained subspace with decimal int form in golden chain model
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
+    @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
     basisK = Vector{T}(undef, 0)
-    basis = anyon_basis(T, Y=Y, anyon_type=anyon_type)
+    basis = anyon_basis(T, symmetry_block=symmetry_block, anyon_type=anyon_type)
     basis_dic = Dict{T, Vector{T}}()
 
     for i in basis
@@ -275,7 +238,7 @@ function anyon_basis(::Type{T}, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) w
 
     return basisK, basis_dic
 end
-anyon_basis(N::Int64, k::Int64; Y=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type)
+anyon_basis(N::Int64, k::Int64; symmetry_block=nothing, anyon_type::Symbol=:Fibo) = anyon_basis(BitStr{N, Int}, k, symmetry_block=symmetry_block, anyon_type=anyon_type)
     
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
@@ -546,7 +509,7 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(::Type{T}, k::Int; symmetry_block=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
 Construct Hamiltonian matrix in specific symmetry sector for 1D anyon chain.
     
@@ -559,14 +522,14 @@ Construct Hamiltonian matrix in specific symmetry sector for 1D anyon chain.
 # Returns
 - `Matrix{Float64}`: Hamiltonian matrix in chosen basis
 """
-function anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function anyon_ham(::Type{T}, k::Int; symmetry_block=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 #params: a int of lattice number, momentum of system and topological_charge of system
 #return: the Hamiltonian matrix in given symmetric sector Hilbert space
 
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $Y"
+    @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
-    basisK, basis_dic =anyon_basis(T, k, Y=Y, anyon_type=anyon_type)
+    basisK, basis_dic =anyon_basis(T, k, symmetry_block=symmetry_block, anyon_type=anyon_type)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
@@ -591,7 +554,7 @@ function anyon_ham(::Type{T}, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwarg
     H=(H+H')/2
     return H
 end
-anyon_ham(N::Int, k::Int; Y=nothing, anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham(BitStr{N, Int}, k, Y=Y, anyon_type=anyon_type, kwargs...)
+anyon_ham(N::Int, k::Int; symmetry_block=nothing, anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham(BitStr{N, Int}, k, symmetry_block=symmetry_block, anyon_type=anyon_type, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
