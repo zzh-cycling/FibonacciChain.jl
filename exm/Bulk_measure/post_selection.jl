@@ -19,19 +19,18 @@ end
 
 function get_system_params(τ, L)
     table = Dict(
-            atanh(0.1)  => (2500L, 1000, 1500L),
-            atanh(0.2)  => (500L,  100, 250L),
-            atanh(0.3)  => (120L,  48, 100L),
-            atanh(0.4)  => (100L,  40, 80L),
-            atanh(0.5)  => (80L,   32, 40L),
-            atanh(0.6)  => (45L,   20, 30L),
-            log(1 + √2) => (35L,   14, 20L),
-            atanh(0.8)  => (25L,   10, 10L),
-            atanh(0.9)  => (8L,    4, 4L),
-            atanh(0.95) => (8L,    4, 4L),
-            atanh(0.999)=> (5L,    2, 2L),
+            atanh(0.1)  => (300L, 1000, 1500L),
+            atanh(0.2)  => (60L,  100, 250L),
+            atanh(0.3)  => (25L,  48, 100L),
+            atanh(0.4)  => (20L,  40, 80L),
+            atanh(0.5)  => (20L,   32, 40L),
+            atanh(0.6)  => (15L,   20, 30L),
+            log(1 + √2) => (10L,   14, 20L),
+            atanh(0.8)  => (8L,   10, 10L),
+            atanh(0.9)  => (5L,    4, 4L),
+            atanh(0.95) => (5L,    4, 4L),
         )
-    D, step, start = get(table, τ, (5L, 2, 2L))
+    D, step, start = get(table, τ, (3L, 2, 2L))
     inds = collect(1:step:D)
     avg_range = start:D-5
     return D, inds, avg_range

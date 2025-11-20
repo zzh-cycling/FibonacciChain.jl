@@ -75,12 +75,12 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
     if δt == 0
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
     else
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
@@ -91,9 +91,58 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
     
 
     save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
-    return temporal_corr, spatial_corr, S, sample, sample_free_energy
+    return temporal_corr, spatial_corr, S, sample_layer, sample_free_energy
 end
 
+function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::Int64=5L, δt::Int=1)
+    # | ----> |____| ----> |
+    # 0       D   D+δt   D+δt+t  
+    # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
+    pbc = true
+ 
+    # 1). First evolve to steady state with D time steps
+    sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
+    initial_state = zeros(length(anyon_basis(L, pbc)))
+    initial_state[1] = 1.0 # initial state is all zero state
+
+    statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
+    D = div(D, 2)
+    
+    rng = MersenneTwister(index)
+    # tlis is the time list after adding two ref qubits.
+    tlis = collect(1:D)
+    spatial_corr_lis = zeros(Float64, length(tlis))
+    temporal_corr_lis = zeros(Float64, length(tlis))
+    eelis = zeros(Float64, length(tlis))
+    
+    # 2). Then add two ref qubits at different time slices and evolve for δt time, and to final δt + t time.
+    
+    
+    for (idx, t) in enumerate(tlis)
+        @show "calculation time t:" t
+        ref_sample = zeros(Int, 2*(D + δt + t), length(2:2:L)) 
+        if δt == 0
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+            spatial = true
+            temporal = false
+            view(sample_free_energy, 1:2D) .= view(Flis, :)
+        else
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+            temporal = true
+            spatial = false
+            view(sample_free_energy, 1:2D) .= view(Flis, :)
+        end
+        sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
+        eelis[idx] = ee(sysrdm)
+        spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial=spatial, temporal=temporal)
+        temporal_corr_lis[idx] = temporal_corr
+        spatial_corr_lis[idx] = spatial_corr
+    end
+
+    # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+    return temporal_corr_lis, spatial_corr_lis, eelis
+   
+end
 
 function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     samples_num = 2000
