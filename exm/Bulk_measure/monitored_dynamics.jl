@@ -50,7 +50,7 @@ function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
     for i in 1:samples_num
         @show i
         halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
-        if i<=10000
+        if length(halfchain_EE_tlis) == D
             halfchain_EE_tlis = halfchain_EE_tlis[2:2:end]
         end
         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
@@ -107,15 +107,45 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
            average_FE_tlis, stderr_FE_tlis, average_FE, stderr_FE
 end
 
-function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
+function get_system_params(τ, L)
+    cfg = Dict(
+        atanh(0.1)  => (2500L, 1000, 750L),
+        atanh(0.2)  => (500L,  100, 120L),
+        atanh(0.3)  => (120L,  48, 50L),
+        atanh(0.4)  => (100L,  40, 40L),
+        atanh(0.5)  => (80L,   32, 20L),
+        atanh(0.6)  => (45L,   20, 15L),
+        log(1 + √2) => (35L,   14, 10L),
+        atanh(0.8)  => (25L,   10, 5L),
+        atanh(0.9)  => (8L,    4, 2L),
+        atanh(0.95) => (8L,    4, 2L),
+        atanh(0.999)=> (5L,    2, 1L),
+    )
+    D, step, start = get(cfg, τ, (5L, 2, L))
+    inds = collect(1:step:div(D,2))
+    avg_range = start:div(D,2)-5
+    return D, inds, avg_range
+end
+
+function save_data_filename(L, τ, D)
+    return "monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D, L)).jld"
+end
+
+function get_data_filename(L, τ, D)
+    return "Born_Fibo_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D, L)).jld"
+end
+
+## == Process the data for entanglement entropy and free energy dynamics == ##
+function process_data(L::Int64, τ::Float64=log(1+ √2))
     # timewindow = 8L:35L-10
-    timewindow = 5L:D-5  # Adjusted time window for averaging
-    load_data_path = "exm/data/Bulk_measure/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld"
+    D, _, timewindow = get_system_params(τ, L)  # Adjusted time window for averaging
+    DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/Bulk_measure/Observable_monitored_dynamics/"
+    load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
     data = load(load_data_path)
     
-    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"]
-    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"]
-    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"]
+    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"] # S vs time
+    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"] # S(l) at final time slice
+    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"] # collection of free energy vs time for each sample and the corresponding seeds
     
     function check_duplicates(seeds)
         if length(seeds) != length(unique(seeds))
@@ -132,14 +162,18 @@ function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
     # Check if there are duplicates in the ensemble_seed
     has_duplicates = check_duplicates(ensemble_seed)
     
-    temp = hcat(ensemble_free_energy...)
-    time_average_free_energy = mean(temp[timewindow, :], dims=1) 
-    bulk_FE = mean(time_average_free_energy)
+    temp = hcat(ensemble_free_energy...) # fuse the free energy of each sample into a matrix 
+    #  | -> sample
+    #  | 
+    #  ⬇️ time
+    time_average_free_energy = mean(temp[timewindow, :], dims=1)  # each sample's time-averaged free energy
+    bulk_FE = mean(time_average_free_energy) # average over samples
     bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-    time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
-    time_FElis = mean(temp, dims=2)[:]
-    
-    save("exm/data/Bulk_measure/simple/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", 
+    time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 
+    time_FElis = mean(temp, dims=2)[:] ./2 # average over samples vs time; S/2T
+
+    save_data_path = joinpath(DATA_DIR, get_data_filename(L, τ, D))
+    save(save_data_path, 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
@@ -152,27 +186,6 @@ function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
         "ensemble_seed", ensemble_seed)
 end
 
-function get_system_params(τ, L)
-    cfg = Dict(
-        atanh(0.1)  => (2500L, 1000, 1500L),
-        atanh(0.2)  => (500L,  100, 250L),
-        atanh(0.3)  => (120L,  48, 100L),
-        atanh(0.4)  => (100L,  40, 80L),
-        atanh(0.5)  => (80L,   32, 40L),
-        atanh(0.6)  => (45L,   20, 30L),
-        log(1 + √2) => (35L,   14, 20L),
-        atanh(0.8)  => (25L,   10, 10L),
-        atanh(0.9)  => (8L,    4, 4L),
-        atanh(0.95) => (8L,    4, 4L),
-        atanh(0.999)=> (5L,    2, 2L),
-    )
-    D, step, start = get(cfg, τ, (5L, 2, 2L))
-    inds = collect(1:step:D)
-    avg_range = start:D-5
-    return D, inds, avg_range
-end
-
-
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
 τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
@@ -184,19 +197,20 @@ else
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     τ = τlis[inds]
-    # index = parse(Int64, ARGS[3])
+    index = parse(Int64, ARGS[3])
     # seed = -index
     # seed = parse(Int64, ARGS[4])
-    # interval = 4
-    # indexlis = collect(index*interval .+ 2001-interval: index*interval .+ 2000)
-    # seedlis = -indexlis
+    interval = 500
+    indexlis = collect(index*interval .+1-interval: index*interval)
+    seedlis = -indexlis
     D, _, _ = get_system_params(τ, L)
     # println("Computed Born Sample dynamics for L=$L, τ=$τ, D=$D, index=$index, seed=$seed")
-    # for i in 1:interval
-    #     @show i 
-    #     samples_generate(L, τ, indexlis[i], seedlis[i], D)
-    # end
+    for i in 1:interval
+        @show i
+        samples_generate(L, τ, indexlis[i], seedlis[i], D)
+    end
     # samples_generate(L, τ, index, seed, D)
-    Observable_collect(L, τ, D)
-    samples_collect(L, τ, D)
+    # Observable_collect(L, τ, D)
+    # samples_collect(L, τ, D)
+    # process_data(L, τ)
 end
