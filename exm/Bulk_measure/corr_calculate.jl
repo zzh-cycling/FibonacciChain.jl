@@ -139,7 +139,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
         spatial_corr_lis[idx] = spatial_corr
     end
 
-    # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/D$(div(D,L))_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
     return temporal_corr_lis, spatial_corr_lis, eelis
    
 end
