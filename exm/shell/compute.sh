@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#SBATCH -p i64m512u # u = shared nodes; ue = exclusive cores; 32 cores / node
+#SBATCH -p i64m512u # u = shared nodes; ue = exclusive cores; 32 cores / node, long_cpu, i64m512u,(1024) emergency_cpu,(512) a128m512u,(256) i64m512r(128)
 #SBATCH -J N20FibonaccidynamicsSamples
 #SBATCH --ntasks=1
 #SBATCH --nodes=1
