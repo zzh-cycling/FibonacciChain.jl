@@ -356,7 +356,7 @@ else
         # batch computation for multiple δt values
         start_seed = parse(Int, ARGS[4])
         end_seed = parse(Int, ARGS[5])
-        δt_list = get_δt_list(L, τ)
+        δt_list = get_δtL(τ, L)
         
         println("Batch computation mode")
         compute_parallel_multiple_dt(L, τ, start_seed:end_seed, D, δt_list)
