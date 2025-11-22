@@ -58,7 +58,10 @@ function get_δtL(τ, L)
                 atanh(0.2)  => vcat([0],collect(55:70)),
                 atanh(0.3)  => vcat([0],collect(30:40)),
                 atanh(0.4)  => vcat([0],collect(25:35)),
-                atanh(0.5)  => vcat([0],collect(18:25)),)
+                atanh(0.5)  => vcat([0],collect(18:25)),
+                atanh(0.6)  => vcat([0],collect(15:22)),
+                atanh(1/√2)  => vcat([0],collect(10:18)),
+                atanh(0.8)  => vcat([0],collect(10:18)),)
         δtlis = get(table, τ, collect(0:8))
     else
         δtlis = collect(1:10)

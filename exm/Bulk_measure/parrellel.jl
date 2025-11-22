@@ -73,20 +73,78 @@ end
     end
 end
 
+function parse_filename(filename)
+    # 解析 "missing_L12_inds1.txt" 格式
+    # 使用正则表达式提取 L 和 inds
+    m = match(r"missing_L(\d+)_inds(\d+)\.txt", filename)
+    if m === nothing
+        error("Cannot parse filename: $filename")
+    end
+    
+    L = parse(Int, m.captures[1])
+    inds = parse(Int, m.captures[2])
+    return L, inds
+end
+
+# 新增：读取缺失任务文件
+function read_missing_tasks(filename)
+    if !isfile(filename)
+        error("File not found: $filename")
+    end
+    
+    tasks = Tuple{Int, Int}[]  # (δt, index)
+    
+    open(filename, "r") do file
+        for line in eachline(file)
+            line = strip(line)
+            if isempty(line)
+                continue
+            end
+            
+            # 解析 "dt81 Sample1767" 格式
+            parts = split(line)
+            if length(parts) != 2
+                @warn "Skipping invalid line: $line"
+                continue
+            end
+            
+            # 解析 dt 部分
+            dt_str = parts[1]
+            if !startswith(dt_str, "dt")
+                @warn "Invalid dt format in line: $line"
+                continue
+            end
+            δt = parse(Int, dt_str[3:end])  # 去掉 "dt" 前缀
+            
+            # 解析 sample 部分
+            sample_str = parts[2]
+            if !startswith(sample_str, "Sample")
+                @warn "Invalid sample format in line: $line"
+                continue
+            end
+            index = parse(Int, sample_str[7:end])  # 去掉 "Sample" 前缀
+            
+            push!(tasks, (δt, index))
+        end
+    end
+    
+    return tasks
+end
+
 # main parallel function
 function compute_parallel_batch(L::Int64, τ::Float64, seed_range::UnitRange{Int}, D::Int64, δt::Int64)
     println("Starting parallel computation with $(nprocs()) processes")
     println("Parameters: L=$L, τ=$τ, D=$D, δt=$δt")
     println("Computing seeds: $(first(seed_range)) to $(last(seed_range))")
     
-    # 创建任务参数列表
+    # create parameter tuples for each task
     tasks = [(L, τ, index, D, δt) for index in seed_range]
     
-    # 使用pmap并行执行
+    # using pmap run
     println("Submitting $(length(tasks)) tasks to worker processes...")
     results = pmap(compute_single_task, tasks, batch_size=1)
     
-    # 处理结果
+    # outcome summary
     success_count = 0
     error_count = 0
     
@@ -108,7 +166,7 @@ function compute_parallel_batch(L::Int64, τ::Float64, seed_range::UnitRange{Int
     return results
 end
 
-# 批量处理多个δt值
+# batch mode for multiple δt values
 function compute_parallel_multiple_dt(L::Int64, τ::Float64, seed_range::UnitRange{Int}, D::Int64, δt_list::Vector{Int})
     total_tasks = length(seed_range) * length(δt_list)
     println("Starting computation for multiple δt values")
@@ -128,6 +186,73 @@ function compute_parallel_multiple_dt(L::Int64, τ::Float64, seed_range::UnitRan
     return all_results
 end
 
+function compute_missing_tasks_parallel(filename::String)
+    println("Processing file: $filename")
+    
+    # 1. obtain L and inds from filename
+    L, inds = parse_filename(basename(filename))
+    println("Parsed parameters: L=$L, inds=$inds")
+    
+    # 2. obtain missing tasks
+    missing_tasks = read_missing_tasks(filename)
+    println("Found $(length(missing_tasks)) missing tasks")
+    
+    if isempty(missing_tasks)
+        println("No missing tasks found!")
+        return
+    end
+        
+    τ = τlis[inds]
+    D, _, _ = get_system_params(τ, L)
+    
+    println("Using τ=$τ, D=$D")
+    
+    # 4. 创建任务参数列表
+    task_params = [(L, τ, index, D, δt) for (δt, index) in missing_tasks]
+    
+    # 5. 并行执行任务
+    println("Starting parallel computation with $(nprocs()) processes...")
+    println("Processing $(length(task_params)) tasks...")
+    
+    # 分批处理，避免内存问题
+    batch_size = min(nworkers() * 4, 100)  # 每批最多100个任务
+    total_success = 0
+    total_failed = 0
+    
+    for batch_start in 1:batch_size:length(task_params)
+        batch_end = min(batch_start + batch_size - 1, length(task_params))
+        batch_tasks = task_params[batch_start:batch_end]
+        
+        println("Processing batch $(div(batch_start-1, batch_size) + 1): tasks $batch_start to $batch_end")
+        
+        # 使用 pmap 并行执行当前批次
+        batch_results = pmap(compute_single_task, batch_tasks, batch_size=1)
+        
+        # 统计结果
+        success_count = 0
+        for (index, status, result) in batch_results
+            if status == :success
+                success_count += 1
+                total_success += 1
+            else
+                total_failed += 1
+                println("✗ Task failed - Index $index: $result")
+            end
+        end
+        
+        println("✓ Batch completed: $success_count/$(length(batch_tasks)) successful")
+        
+        # 强制垃圾回收
+        @everywhere GC.gc()
+    end
+    
+    println("\n" * "="^50)
+    println("All batches completed!")
+    println("Total successful: $total_success")
+    println("Total failed: $total_failed")
+    println("Success rate: $(round(total_success/(total_success + total_failed)*100, digits=1))%")
+end
+
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
 τlis[end] = 1000.0
@@ -144,10 +269,10 @@ if length(ARGS) == 0
     end
 else
     mode = parse(Int64, ARGS[1])
-    L = parse(Int64, ARGS[2])
-    τ_idx = parse(Int64, ARGS[3])
-    τ = τlis[τ_idx]
-    D, _, _ = get_system_params(τ, L)
+    # L = parse(Int64, ARGS[2])
+    # τ_idx = parse(Int64, ARGS[3])
+    # τ = τlis[τ_idx]
+    # D, _, _ = get_system_params(τ, L)
     
     if mode == 1
         # single δt value computation
@@ -166,6 +291,13 @@ else
         
         println("Batch computation mode")
         compute_parallel_multiple_dt(L, τ, start_seed:end_seed, D, δt_list)
-
+    elseif mode == 3
+        # compute missing tasks from file
+        if length(ARGS) < 2
+            error("Missing filename for mode 3")
+        end
+        
+        filename = ARGS[2]
+        compute_missing_tasks_parallel(filename)
     end
 end
