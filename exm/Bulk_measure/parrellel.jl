@@ -215,7 +215,7 @@ function compute_missing_tasks_parallel(filename::String)
     println("Processing $(length(task_params)) tasks...")
     
     # 分批处理，避免内存问题
-    batch_size = min(nworkers() * 4, 100)  # 每批最多100个任务
+    batch_size = min(nworkers() * 4, 160)  # 每批最多160个任务
     total_success = 0
     total_failed = 0
     
@@ -269,12 +269,12 @@ if length(ARGS) == 0
     end
 else
     mode = parse(Int64, ARGS[1])
-    # L = parse(Int64, ARGS[2])
-    # τ_idx = parse(Int64, ARGS[3])
-    # τ = τlis[τ_idx]
-    # D, _, _ = get_system_params(τ, L)
     
     if mode == 1
+        L = parse(Int64, ARGS[2])
+        τ_idx = parse(Int64, ARGS[3])
+        τ = τlis[τ_idx]
+        D, _, _ = get_system_params(τ, L)
         # single δt value computation
         δt = parse(Int, ARGS[4])
         start_seed = parse(Int, ARGS[5])
@@ -284,6 +284,10 @@ else
         compute_parallel_batch(L, τ, start_seed:end_seed, D, δt)
         
     elseif mode == 2
+        L = parse(Int64, ARGS[2])
+        τ_idx = parse(Int64, ARGS[3])
+        τ = τlis[τ_idx]
+        D, _, _ = get_system_params(τ, L)
         # batch computation for multiple δt values
         start_seed = parse(Int, ARGS[4])
         end_seed = parse(Int, ARGS[5])
