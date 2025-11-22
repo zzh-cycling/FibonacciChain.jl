@@ -8,23 +8,71 @@ using LsqFit
 using LinearAlgebra
 using Measurements
 
-function get_δtL(τ)
-    table = Dict(
-            atanh(0.1)  => (collect(25:35)),
-            atanh(0.2)  => (collect(10:20)),
-            atanh(0.3)  => (collect(5:15)),
-            atanh(0.4)  => (collect(2:10)),)
-    δtlis = get(table, τ, collect(1:8))
+function get_δtL(τ, L)
+    if L == 6
+        table = Dict(
+                atanh(0.1)  => (collect(4:150)),
+                atanh(0.2)  => (collect(0:20)),
+                atanh(0.3)  => (collect(0:20)),
+                atanh(0.4)  => (collect(0:20)),)
+        δtlis = get(table, τ, collect(0:10))
+    elseif L == 8
+        if τ ∈ τlis[1:4]
+            δtlis = collect(0:20)
+        else
+            δtlis = collect(0:10)
+        end
+    elseif L == 10
+        table = Dict(
+                atanh(0.1)  => vcat([0], collect(20:40)),
+                atanh(0.2)  => vcat([0],collect(10:20)),
+                atanh(0.3)  => (collect(0:20)),
+                atanh(0.4)  => (collect(0:20)),)
+        δtlis = get(table, τ, collect(0:10))
+    elseif L == 12
+        table = Dict(
+                atanh(0.1)  => vcat([0], collect(80:100)),
+                atanh(0.2)  => vcat([0], collect(30:40)),
+                atanh(0.3)  => vcat([0], collect(15:25)),
+                atanh(0.4)  => vcat([0], collect(15:25)),)
+        δtlis = get(table, τ, collect(0:10))
+    elseif L == 14
+        table = Dict(
+                atanh(0.1)  => vcat([0],collect(28:35)),
+                atanh(0.2)  => vcat([0],collect(14:20)),
+                atanh(0.3)  => vcat([0],collect(7:14)),
+                atanh(0.4)  => vcat([0],collect(5:10)),
+                atanh(0.5)  => vcat([0],collect(5:10)),)
+        δtlis = get(table, τ, collect(0:8))
+    elseif L == 16
+        table = Dict(
+                atanh(0.1)  => vcat([0],collect(32:42)),
+                atanh(0.2)  => vcat([0],collect(16:24)),
+                atanh(0.3)  => vcat([0],collect(8:16)),
+                atanh(0.4)  => vcat([0],collect(4:12)),
+                atanh(0.5)  => vcat([0],collect(4:12)),)
+        δtlis = get(table, τ, collect(0:8))
+    elseif L == 18
+        table = Dict(
+                atanh(0.1)  => vcat([0],collect(140:150)),
+                atanh(0.2)  => vcat([0],collect(55:70)),
+                atanh(0.3)  => vcat([0],collect(30:40)),
+                atanh(0.4)  => vcat([0],collect(25:35)),
+                atanh(0.5)  => vcat([0],collect(18:25)),)
+        δtlis = get(table, τ, collect(0:8))
+    else
+        δtlis = collect(1:10)
+    end
     return  δtlis
 end
 
 function organize( L::Int=8, τ::Float64= log(1 + √2))
-    δtlis = (L == 16) ? collect(1:10) : collect(1:20)
+    δtlis = get_δtL(τ, L)
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
     
     average_spatial_corr, spatial_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr")
-    for (j, δt) in enumerate(δtlis)
+    for (j, δt) in enumerate(δtlis[2:end])
         average_temporal_corr, temporal_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
@@ -146,7 +194,7 @@ end
 
 function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
     samples_num = 2000
-    δtlis = (L==16) ? collect(0:10) : collect(0:20)  # Adjust this range based on the δt values you have used
+    δtlis = get_δtL(τ, L)  # Adjust this range based on the δt values you have used
 
     for δt in δtlis
         temporal_corr_ensemble = zeros(samples_num)

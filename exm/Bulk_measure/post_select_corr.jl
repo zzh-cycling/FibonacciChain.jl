@@ -11,7 +11,7 @@ using LsqFit
 function get_δtL(τ, sign::Int64=1)
     if sign == 0
         table = Dict(
-            atanh(0.1)  => (vcat(collect(10:23), collect(25:30))),
+            atanh(0.1)  => (collect(10:30)),
             atanh(0.2)  => (collect(10:30)),
             atanh(0.3)  => (collect(10:30)),
             atanh(0.4)  => (collect(10:30)),)
@@ -29,7 +29,7 @@ end
 
 function organize(τ::Float64, sign::Int64=1)
     δtlis = get_δtL(τ, sign)
-    Llis = (sign==1) ? collect(8:4:20) : collect(6:6:24)
+    Llis = (sign==1) ? collect(8:2:20) : collect(6:6:24)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
     for (i, L) in enumerate(Llis)
