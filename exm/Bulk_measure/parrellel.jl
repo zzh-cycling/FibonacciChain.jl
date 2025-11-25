@@ -12,58 +12,79 @@ println("total procs:       ", nprocs())
 @everywhere function get_δtL(τ, L)
     if L == 6
         table = Dict(
-                atanh(0.1)  => (collect(4:150)),
-                atanh(0.2)  => (collect(0:20)),
-                atanh(0.3)  => (collect(0:20)),
-                atanh(0.4)  => (collect(0:20)),)
-        δtlis = get(table, τ, collect(0:10))
+                atanh(0.1)  => (collect(580:2:620)),
+                atanh(0.2)  => (collect(100:2:120)),
+                atanh(0.3)  => (collect(40:50)),
+                atanh(0.4)  => (collect(25:35)),
+                atanh(0.5)  => (collect(15:25)),
+                atanh(0.6)  => (collect(5:15)),
+                atanh(1/√2)  => (collect(5:10)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 8
-        if τ ∈ τlis[1:4]
-            δtlis = collect(0:20)
-        else
-            δtlis = collect(0:10)
-        end
+        table = Dict(
+                atanh(0.1)  => (collect(785:2:805)),
+                atanh(0.2)  => (collect(135:2:145)),
+                atanh(0.3)  => (collect(55:65)),
+                atanh(0.4)  => (collect(35:45)),
+                atanh(0.5)  => (collect(20:30)),
+                atanh(0.6)  => (collect(8:16)),
+                atanh(1/√2)  => (collect(5:12)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 10
         table = Dict(
-                atanh(0.1)  => vcat([0], collect(20:40)),
-                atanh(0.2)  => vcat([0],collect(10:20)),
-                atanh(0.3)  => (collect(0:20)),
-                atanh(0.4)  => (collect(0:20)),)
-        δtlis = get(table, τ, collect(0:10))
+                atanh(0.1)  => (collect(985:2:1005)),
+                atanh(0.2)  => (collect(170:2:190)),
+                atanh(0.3)  => (collect(70:80)),
+                atanh(0.4)  => (collect(45:55)),
+                atanh(0.5)  => (collect(25:35)),
+                atanh(0.6)  => (collect(15:22)),
+                atanh(1/√2)  => (collect(8:16)),
+                atanh(0.8)  => (collect(5:10)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 12
         table = Dict(
-                atanh(0.1)  => vcat([0], collect(80:100)),
-                atanh(0.2)  => vcat([0], collect(30:40)),
-                atanh(0.3)  => vcat([0], collect(15:25)),
-                atanh(0.4)  => vcat([0], collect(15:25)),)
-        δtlis = get(table, τ, collect(0:10))
+                atanh(0.1)  => (collect(1185:2:1205)),
+                atanh(0.2)  => (collect(210:2:230)),
+                atanh(0.3)  => (collect(85:95)),
+                atanh(0.4)  => (collect(55:65)),
+                atanh(0.5)  => (collect(35:45)),
+                atanh(0.6)  => (collect(18:25)),
+                atanh(1/√2)  => (collect(10:18)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 14
         table = Dict(
-                atanh(0.1)  => vcat([0],collect(28:35)),
-                atanh(0.2)  => vcat([0],collect(14:20)),
-                atanh(0.3)  => vcat([0],collect(7:14)),
-                atanh(0.4)  => vcat([0],collect(5:10)),
-                atanh(0.5)  => vcat([0],collect(5:10)),)
-        δtlis = get(table, τ, collect(0:8))
+                atanh(0.1)  => (collect(1380:2:1400)),
+                atanh(0.2)  => (collect(245:2:265)),
+                atanh(0.3)  => (collect(90:100)),
+                atanh(0.4)  => (collect(65:75)),
+                atanh(0.5)  => (collect(40:50)),
+                atanh(0.6)  => (collect(20:28)),
+                atanh(1/√2)  => (collect(15:23)),
+                atanh(0.8)  => (collect(5:15)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 16
         table = Dict(
-                atanh(0.1)  => vcat([0],collect(32:42)),
-                atanh(0.2)  => vcat([0],collect(16:24)),
-                atanh(0.3)  => vcat([0],collect(8:16)),
-                atanh(0.4)  => vcat([0],collect(4:12)),
-                atanh(0.5)  => vcat([0],collect(4:12)),)
-        δtlis = get(table, τ, collect(0:8))
+                atanh(0.1)  => (collect(1580:2:1600)),
+                atanh(0.2)  => (collect(285:2:305)),
+                atanh(0.3)  => (collect(115:125)),
+                atanh(0.4)  => (collect(75:85)),
+                atanh(0.5)  => (collect(45:55)),
+                atanh(0.6)  => (collect(25:32)),
+                atanh(1/√2)  => (collect(16:24)),
+                atanh(0.8)  => (collect(8:16)),)
+        δtlis = get(table, τ, collect(1:8))
     elseif L == 18
         table = Dict(
-                atanh(0.1)  => vcat([0],collect(140:150)),
-                atanh(0.2)  => vcat([0],collect(55:70)),
-                atanh(0.3)  => vcat([0],collect(30:40)),
-                atanh(0.4)  => vcat([0],collect(25:35)),
-                atanh(0.5)  => vcat([0],collect(18:25)),
-                atanh(0.6)  => vcat([0],collect(15:22)),
-                atanh(1/√2)  => vcat([0],collect(10:18)),
-                atanh(0.8)  => vcat([0],collect(10:18)),)
-        δtlis = get(table, τ, collect(0:8))
+                atanh(0.1)  => (collect(1780:2:1800)),
+                atanh(0.2)  => (collect(320:2:340)),
+                atanh(0.3)  => (collect(130:140)),
+                atanh(0.4)  => (collect(85:95)),
+                atanh(0.5)  => (collect(55:65)),
+                atanh(0.6)  => (collect(28:35)),
+                atanh(1/√2)  => (collect(18:25)),
+                atanh(0.8)  => (collect(10:16)),
+                atanh(0.9)  => (collect(5:10)),)
+        δtlis = get(table, τ, collect(1:8))
     else
         δtlis = collect(1:10)
     end
