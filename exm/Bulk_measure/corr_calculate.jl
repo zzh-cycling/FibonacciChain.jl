@@ -8,7 +8,7 @@ using LsqFit
 using LinearAlgebra
 using Measurements
 
-@everywhere function get_δtL(τ, L)
+function get_δtL(τ, L)
     if L == 6
         table = Dict(
                 atanh(0.1)  => (collect(580:2:620)),
@@ -295,6 +295,7 @@ end
 
 
 function plot_tc(inds::Int64)
+    # Llis = collect(6:2:14)
     Llis = collect(6:2:14)
     τ = τlis[inds]
 
