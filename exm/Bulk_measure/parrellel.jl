@@ -267,6 +267,7 @@ function compute_parallel_multiple_dt(L::Int64, τ::Float64, seed_range::UnitRan
         
         results = compute_parallel_batch(L, τ, seed_range, D, δt)
         all_results[δt] = results
+        @everywhere GC.gc()  # 强制垃圾回收
     end
     
     return all_results
