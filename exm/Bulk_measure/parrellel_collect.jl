@@ -161,7 +161,8 @@ end
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
     samples_num = 1000
-    
+    println("Sample number: ", samples_num)
+    success=0
 
    
     temporal_corr_ensemble = zeros(samples_num, div(D,2))
@@ -175,6 +176,7 @@ end
                 temporal_corr_ensemble[i,:] += temporal_corr_lis
                 spatial_corr_ensemble[i,:] += spatial_corr_lis
                 S_ensemble[i,:] += eelis
+                success += 1
             catch e
                 println("Error loading sample $(i) for L=$(L), τ=$(τ), δt=$(δt): ", e)
             end
@@ -187,6 +189,7 @@ end
         spatial_corr_tlis_stderr = std(spatial_corr_ensemble, dims=1) / sqrt(samples_num)
         stderr_EE_tlis = std(S_ensemble, dims=1) / sqrt(samples_num)
     
+    if success == samples_num
         save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld", "average_temporal_corr", average_temporal_corr_tlis, 
         "temporal_corr_stderr", temporal_corr_tlis_stderr, 
         "average_spatial_corr", average_spatial_corr_tlis, 
@@ -194,6 +197,9 @@ end
         "average_EE", average_EE_tlis,
         "stderr_EE", stderr_EE_tlis)
     println("Completed L=$(L), τ=$(τ), δt=$(δt)")
+    else
+        println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
+    end
 end
 
 @everywhere function organize(args::Tuple)
