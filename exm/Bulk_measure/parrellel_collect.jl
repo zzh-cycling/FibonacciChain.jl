@@ -47,10 +47,10 @@ using Distributed
         "stderr_EE", stderr_EE,
         "average_free_energy_tlis", average_free_energy_tlis,
         "stderr_free_energy_tlis", stderr_free_energy_tlis)
+        println("Completed L=$(L), τ=$(τ), δt=$(δt)")
         else
             println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
         end
-    println("Completed L=$(L), τ=$(τ), δt=$(δt)")
 end
 
 
