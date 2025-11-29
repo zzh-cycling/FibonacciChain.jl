@@ -196,7 +196,8 @@ end
         "average_spatial_corr", average_spatial_corr_tlis, 
         "spatial_corr_stderr", spatial_corr_tlis_stderr, 
         "average_EE", average_EE_tlis,
-        "stderr_EE", stderr_EE_tlis)
+        "stderr_EE", stderr_EE_tlis,
+        "samples_num", samples_num)
     println("Completed L=$(L), τ=$(τ), δt=$(δt)")
     else
         println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
@@ -211,9 +212,10 @@ end
     
     average_spatial_corr, spatial_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr", "samples_num")
     for (j, δt) in enumerate(δtlis)
-        average_temporal_corr, temporal_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr")
+        average_temporal_corr, temporal_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr", "samples_num")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
+        @show sample_num
     end
 
     save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_num", sample_num)

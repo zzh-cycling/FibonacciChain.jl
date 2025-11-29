@@ -90,19 +90,21 @@ function get_δtL(τ, L)
     return  δtlis
 end
 
-function organize( L::Int=8, τ::Float64= log(1 + √2))
+function organize(args::Tuple)
+    L, τ = args
     δtlis = get_δtL(τ, L)
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
     
-    average_spatial_corr, spatial_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr")
-    for (j, δt) in enumerate(δtlis[2:end])
-        average_temporal_corr, temporal_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr")
+    average_spatial_corr, spatial_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr", "samples_num")
+    for (j, δt) in enumerate(δtlis)
+        average_temporal_corr, temporal_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr", "samples_num")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
+        @show sample_num
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_num", sample_num)
 end
 
 function get_system_params(τ, L)
@@ -216,23 +218,30 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
    
 end
 
-function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
-    samples_num = 2000
-    δtlis = get_δtL(τ, L)  # Adjust this range based on the δt values you have used
-
-    for δt in δtlis
+function corr_collect(arg::Tuple)
+    L, τ, δt = arg
+    D = get_system_params(τ, L)[1]
+    samples_num = 1000
+    println("Sample number: ", samples_num)
+    
+    success=0
         temporal_corr_ensemble = zeros(samples_num)
         spatial_corr_ensemble = zeros(samples_num)
         S_ensemble = zeros(samples_num)
         sample_free_energy_ensemble = zeros(samples_num, 2*(D+δt))
 
         for i in 1:samples_num
-            @show i
-            temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
-            temporal_corr_ensemble[i] = temporal_corr
-            spatial_corr_ensemble[i] = spatial_corr
-            sample_free_energy_ensemble[i, :] = sample_free_energy
-            S_ensemble[i] = S
+            # @show i
+            try
+                temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
+                temporal_corr_ensemble[i] = temporal_corr
+                spatial_corr_ensemble[i] = spatial_corr
+                sample_free_energy_ensemble[i, :] = sample_free_energy
+                S_ensemble[i] = S
+                success += 1
+            catch e
+                println("Error loading sample $(i) for L=$(L), τ=$(τ), δt=$(δt): ", e)
+            end
         end
     
         average_temporal_corr = mean(temporal_corr_ensemble)
@@ -244,15 +253,20 @@ function corr_collect(L::Int64, τ::Float64, D::Int64=35L)
         average_free_energy_tlis = mean(sample_free_energy_ensemble, dims=1)[:]
         stderr_free_energy_tlis = (std(sample_free_energy_ensemble, dims=1) ./ sqrt(samples_num))[:]
     
-        save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld", "average_temporal_corr", average_temporal_corr, 
+        if success == samples_num
+            save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld", "average_temporal_corr", average_temporal_corr, 
         "temporal_corr_stderr", temporal_corr_stderr, 
         "average_spatial_corr", average_spatial_corr, 
         "spatial_corr_stderr", spatial_corr_stderr, 
         "average_EE", average_EE,
         "stderr_EE", stderr_EE,
         "average_free_energy_tlis", average_free_energy_tlis,
-        "stderr_free_energy_tlis", stderr_free_energy_tlis)
-    end
+        "stderr_free_energy_tlis", stderr_free_energy_tlis, 
+        "samples_num", samples_num)
+        println("Completed L=$(L), τ=$(τ), δt=$(δt)")
+        else
+            println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
+        end
 end
 
 function alpha_with_error_wt(τ; L=16)
