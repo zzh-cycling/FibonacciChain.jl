@@ -46,7 +46,8 @@ using Distributed
         "average_EE", average_EE,
         "stderr_EE", stderr_EE,
         "average_free_energy_tlis", average_free_energy_tlis,
-        "stderr_free_energy_tlis", stderr_free_energy_tlis)
+        "stderr_free_energy_tlis", stderr_free_energy_tlis, 
+        "samples_num", samples_num)
         println("Completed L=$(L), τ=$(τ), δt=$(δt)")
         else
             println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
@@ -208,14 +209,14 @@ end
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
     
-    average_spatial_corr, spatial_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr")
+    average_spatial_corr, spatial_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr", "samples_num")
     for (j, δt) in enumerate(δtlis)
         average_temporal_corr, temporal_corr_stderr = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_num", sample_num)
 end
 
 @everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
