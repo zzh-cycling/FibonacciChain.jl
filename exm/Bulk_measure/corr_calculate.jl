@@ -144,7 +144,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
 
     statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
     D = div(D, 2)
-    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    D1 = (τ ∈ τlis[[3,4,5,6]]) ? D + 20L : D 
     ref_sample = zeros(Int, 2*(D+δt+D1), length(2:2:L))
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
@@ -161,7 +161,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
         view(sample_free_energy, 1:2D) .= view(Flis, :)
         view(sample_layer, 1:2D, :) .= view(sample, :, :)
     end
-    
+
     spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
@@ -187,7 +187,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D  # to adjust for longer evolution time for certain τ
+    D1 = (τ ∈ τlis[[3,4,5,6]]) ? D + 20L : D  # to adjust for longer evolution time for certain τ
     tlis = collect(1:D1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))

@@ -131,7 +131,7 @@ end
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    D1 = (τ ∈ τlis[[3,4,5,6]]) ? D + 20L : D 
     tlis = collect(1:D1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
@@ -141,7 +141,7 @@ end
     
     
     for (idx, t) in enumerate(tlis)
-        @show "calculation time t:" t
+        println("calculation time t: $t")
         ref_sample = zeros(Int, 2*(D + δt + t), length(2:2:L)) 
         if δt == 0
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
@@ -186,7 +186,7 @@ function compute_parallel_batch(L::Int64, τ::Float64, seed_range::Vector{Int}=c
     
     # using pmap run
     println("Submitting $(length(tasks)) tasks to worker processes...")
-    results = pmap(spatial_temporal_corr_varyingt, tasks, batch_size=100)
+    results = pmap(spatial_temporal_corr_varyingt, tasks, batch_size=1)
     
     # outcome summary
     success_count = 0
@@ -216,7 +216,7 @@ else
     L = parse(Int64, ARGS[1])
     τ_idx = parse(Int64, ARGS[2])
     τ = τlis[τ_idx]
-    compute_parallel_batch(L, τ, collect(1:10))
+    compute_parallel_batch(L, τ, collect(1:2))
 end
 
 
