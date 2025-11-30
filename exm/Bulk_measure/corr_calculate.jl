@@ -8,7 +8,7 @@ using LsqFit
 using LinearAlgebra
 using Measurements
 
-function get_δtL(τ, L)
+function get_δtL_Born(τ, L)
     if L == 6
         table = Dict(
                 atanh(0.1)  => (collect(580:2:620)),
@@ -16,9 +16,8 @@ function get_δtL(τ, L)
                 atanh(0.3)  => (collect(40:50)),
                 atanh(0.4)  => (collect(25:35)),
                 atanh(0.5)  => (collect(15:25)),
-                atanh(0.6)  => (collect(5:15)),
-                atanh(1/√2)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(0.6)  => (collect(5:15)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 8
         table = Dict(
                 atanh(0.1)  => (collect(785:2:805)),
@@ -27,8 +26,8 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(35:45)),
                 atanh(0.5)  => (collect(20:30)),
                 atanh(0.6)  => (collect(8:16)),
-                atanh(1/√2)  => (collect(5:12)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:12)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 10
         table = Dict(
                 atanh(0.1)  => (collect(985:2:1005)),
@@ -37,9 +36,8 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(45:55)),
                 atanh(0.5)  => (collect(25:35)),
                 atanh(0.6)  => (collect(15:22)),
-                atanh(1/√2)  => (collect(8:16)),
-                atanh(0.8)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:16)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 12
         table = Dict(
                 atanh(0.1)  => (collect(1185:2:1205)),
@@ -48,8 +46,8 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(55:65)),
                 atanh(0.5)  => (collect(35:45)),
                 atanh(0.6)  => (collect(18:25)),
-                atanh(1/√2)  => (collect(10:18)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:18)),)
+        δtlis = get(table, τ, collect(1:15))
     elseif L == 14
         table = Dict(
                 atanh(0.1)  => (collect(1380:2:1400)),
@@ -58,8 +56,8 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(65:75)),
                 atanh(0.5)  => (collect(40:50)),
                 atanh(0.6)  => (collect(20:28)),
-                atanh(1/√2)  => (collect(15:23)),
-                atanh(0.8)  => (collect(5:15)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:15)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 16
         table = Dict(
@@ -69,8 +67,8 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(75:85)),
                 atanh(0.5)  => (collect(45:55)),
                 atanh(0.6)  => (collect(25:32)),
-                atanh(1/√2)  => (collect(16:24)),
-                atanh(0.8)  => (collect(8:16)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:16)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 18
         table = Dict(
@@ -80,9 +78,9 @@ function get_δtL(τ, L)
                 atanh(0.4)  => (collect(85:95)),
                 atanh(0.5)  => (collect(55:65)),
                 atanh(0.6)  => (collect(28:35)),
-                atanh(1/√2)  => (collect(18:25)),
-                atanh(0.8)  => (collect(10:16)),
-                atanh(0.9)  => (collect(5:10)),)
+                atanh(1/√2)  => (collect(1:10)),
+                atanh(0.8)  => (collect(1:10)),
+                atanh(0.9)  => (collect(1:10)),)
         δtlis = get(table, τ, collect(1:8))
     else
         δtlis = collect(1:10)
@@ -92,19 +90,20 @@ end
 
 function organize(args::Tuple)
     L, τ = args
-    δtlis = get_δtL(τ, L)
+    δtlis = get_δtL_Born(τ, L)
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
-    
+    sample_numlis = zeros(Int, length(δtlis)+1)
     average_spatial_corr, spatial_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr", "samples_num")
+    sample_numlis[end] = sample_num
     for (j, δt) in enumerate(δtlis)
         average_temporal_corr, temporal_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr", "samples_num")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
-        @show sample_num
+        sample_numlis[j] = sample_num
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_num", sample_num)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_numlis", sample_numlis)
 end
 
 function get_system_params(τ, L)

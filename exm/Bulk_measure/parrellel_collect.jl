@@ -6,7 +6,7 @@ using Distributed
 @everywhere function corr_collect(arg::Tuple)
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
-    samples_num = 1000
+    samples_num = 10000
     println("Sample number: ", samples_num)
     
     success=0
@@ -56,81 +56,79 @@ end
 
 
 
-@everywhere function get_δtL(τ, L)
+@everywhere function get_δtL_Born(τ, L)
     if L == 6
         table = Dict(
-                atanh(0.1)  => (collect(482:2:578)),
+                atanh(0.1)  => (collect(580:2:620)),
                 atanh(0.2)  => (collect(100:2:120)),
                 atanh(0.3)  => (collect(40:50)),
                 atanh(0.4)  => (collect(25:35)),
-                atanh(0.5)  => (collect(21:25)),
-                atanh(0.6)  => (collect(5:15)),
-                atanh(1/√2)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(0.5)  => (collect(15:25)),
+                atanh(0.6)  => (collect(5:15)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 8
         table = Dict(
-                atanh(0.1)  => (collect(50:50:700)),
+                atanh(0.1)  => (collect(785:2:805)),
                 atanh(0.2)  => (collect(135:2:145)),
                 atanh(0.3)  => (collect(55:65)),
                 atanh(0.4)  => (collect(35:45)),
                 atanh(0.5)  => (collect(20:30)),
                 atanh(0.6)  => (collect(8:16)),
-                atanh(1/√2)  => (collect(5:12)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:12)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 10
         table = Dict(
-                atanh(0.1)  => (collect(100:50:950)),
+                atanh(0.1)  => (collect(985:2:1005)),
                 atanh(0.2)  => (collect(170:2:190)),
                 atanh(0.3)  => (collect(70:80)),
                 atanh(0.4)  => (collect(45:55)),
                 atanh(0.5)  => (collect(25:35)),
                 atanh(0.6)  => (collect(15:22)),
-                atanh(1/√2)  => (collect(11:16)),
-                atanh(0.8)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:16)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 12
         table = Dict(
-                atanh(0.1)  => (collect(300:50:1150)),
-                atanh(0.2)  => (collect(228:2:230)),
+                atanh(0.1)  => (collect(1185:2:1205)),
+                atanh(0.2)  => (collect(210:2:230)),
                 atanh(0.3)  => (collect(85:95)),
                 atanh(0.4)  => (collect(55:65)),
                 atanh(0.5)  => (collect(35:45)),
                 atanh(0.6)  => (collect(18:25)),
-                atanh(1/√2)  => (collect(10:18)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:18)),)
+        δtlis = get(table, τ, collect(1:15))
     elseif L == 14
         table = Dict(
-                atanh(0.1)  => (collect(50:100:850)),
-                atanh(0.2)  => (collect(253:2:265)),
+                atanh(0.1)  => (collect(1380:2:1400)),
+                atanh(0.2)  => (collect(245:2:265)),
                 atanh(0.3)  => (collect(90:100)),
                 atanh(0.4)  => (collect(65:75)),
                 atanh(0.5)  => (collect(40:50)),
                 atanh(0.6)  => (collect(20:28)),
-                atanh(1/√2)  => (collect(15:23)),
-                atanh(0.8)  => (collect(9:15)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:15)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 16
         table = Dict(
-                atanh(0.1)  => (collect(80:100:580)),
-                atanh(0.2)  => (collect(291:2:305)),
+                atanh(0.1)  => (collect(1580:2:1600)),
+                atanh(0.2)  => (collect(285:2:305)),
                 atanh(0.3)  => (collect(115:125)),
                 atanh(0.4)  => (collect(75:85)),
                 atanh(0.5)  => (collect(45:55)),
                 atanh(0.6)  => (collect(25:32)),
-                atanh(1/√2)  => (collect(16:24)),
-                atanh(0.8)  => (collect(9:16)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:16)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 18
         table = Dict(
                 atanh(0.1)  => (collect(1780:2:1800)),
                 atanh(0.2)  => (collect(320:2:340)),
                 atanh(0.3)  => (collect(130:140)),
-                atanh(0.4)  => (collect(86:95)),
-                atanh(0.5)  => (collect(56:65)),
-                atanh(0.6)  => (collect(29:35)),
-                atanh(1/√2)  => (collect(20:25)),
-                atanh(0.8)  => (collect(10:16)),
-                atanh(0.9)  => (collect(10:10)),)
+                atanh(0.4)  => (collect(85:95)),
+                atanh(0.5)  => (collect(55:65)),
+                atanh(0.6)  => (collect(28:35)),
+                atanh(1/√2)  => (collect(1:10)),
+                atanh(0.8)  => (collect(1:10)),
+                atanh(0.9)  => (collect(1:10)),)
         δtlis = get(table, τ, collect(1:8))
     else
         δtlis = collect(1:10)
@@ -206,31 +204,32 @@ end
 
 @everywhere function organize(args::Tuple)
     L, τ = args
-    δtlis = get_δtL(τ, L)
+    δtlis = get_δtL_Born(τ, L)
     tcLlis = zeros(Float64, length(δtlis))
     tcstderrlis = zeros(Float64, length(δtlis))
-    
+    sample_numlis = zeros(Int, length(δtlis)+1)
     average_spatial_corr, spatial_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0_collect.jld", "average_spatial_corr", "spatial_corr_stderr", "samples_num")
+    sample_numlis[end] = sample_num
     for (j, δt) in enumerate(δtlis)
         average_temporal_corr, temporal_corr_stderr, sample_num = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)_collect.jld",  "average_temporal_corr", "temporal_corr_stderr", "samples_num")
         tcLlis[j] = average_temporal_corr
         tcstderrlis[j] = temporal_corr_stderr
-        @show sample_num
+        sample_numlis[j] = sample_num
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_num", sample_num)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_numlis", sample_numlis)
 end
 
 @everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 @everywhere τlis = atanh.(γlis)
 @everywhere τlis[end] = 1000.0 
 
-Llis = collect(8:2:10)
+Llis = collect(8:2:18)
 jobs = []
 
 for L in collect(18)
     for τ in τlis
-        δt_list = get_δtL(τ, L)
+        δt_list = get_δtL_Born(τ, L)
         for δt in δt_list
             push!(jobs, (L, τ, δt))
         end
