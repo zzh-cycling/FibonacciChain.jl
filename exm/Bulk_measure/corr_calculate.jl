@@ -167,7 +167,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
     S = ee(sysrdm)
     
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
     return temporal_corr, spatial_corr, S, sample_layer, sample_free_energy
 end
 
@@ -219,7 +219,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
         spatial_corr_lis[idx] = spatial_corr
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/D$(div(D,L))_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/D$(div(D1,L))_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
     return temporal_corr_lis, spatial_corr_lis, eelis
    
 end
