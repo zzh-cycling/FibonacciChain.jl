@@ -9,17 +9,16 @@ println("requested workers: ", nworkers())
 println("total procs:       ", nprocs())
 @everywhere println("host: ", gethostname(), "  pid: ", getpid())
 
-@everywhere function get_δtL(τ, L)
-    if L == 6
+@everywhere function get_δtL_Born(τ, L)
+if L == 6
         table = Dict(
                 atanh(0.1)  => (collect(580:2:620)),
                 atanh(0.2)  => (collect(100:2:120)),
                 atanh(0.3)  => (collect(40:50)),
                 atanh(0.4)  => (collect(25:35)),
                 atanh(0.5)  => (collect(15:25)),
-                atanh(0.6)  => (collect(5:15)),
-                atanh(1/√2)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(0.6)  => (collect(5:15)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 8
         table = Dict(
                 atanh(0.1)  => (collect(785:2:805)),
@@ -28,8 +27,8 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(35:45)),
                 atanh(0.5)  => (collect(20:30)),
                 atanh(0.6)  => (collect(8:16)),
-                atanh(1/√2)  => (collect(5:12)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:12)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 10
         table = Dict(
                 atanh(0.1)  => (collect(985:2:1005)),
@@ -38,9 +37,8 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(45:55)),
                 atanh(0.5)  => (collect(25:35)),
                 atanh(0.6)  => (collect(15:22)),
-                atanh(1/√2)  => (collect(8:16)),
-                atanh(0.8)  => (collect(5:10)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:16)),)
+        δtlis = get(table, τ, collect(1:10))
     elseif L == 12
         table = Dict(
                 atanh(0.1)  => (collect(1185:2:1205)),
@@ -49,8 +47,8 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(55:65)),
                 atanh(0.5)  => (collect(35:45)),
                 atanh(0.6)  => (collect(18:25)),
-                atanh(1/√2)  => (collect(10:18)),)
-        δtlis = get(table, τ, collect(1:8))
+                atanh(1/√2)  => (collect(1:18)),)
+        δtlis = get(table, τ, collect(1:15))
     elseif L == 14
         table = Dict(
                 atanh(0.1)  => (collect(1380:2:1400)),
@@ -59,8 +57,8 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(65:75)),
                 atanh(0.5)  => (collect(40:50)),
                 atanh(0.6)  => (collect(20:28)),
-                atanh(1/√2)  => (collect(15:23)),
-                atanh(0.8)  => (collect(5:15)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:15)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 16
         table = Dict(
@@ -70,8 +68,8 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(75:85)),
                 atanh(0.5)  => (collect(45:55)),
                 atanh(0.6)  => (collect(25:32)),
-                atanh(1/√2)  => (collect(16:24)),
-                atanh(0.8)  => (collect(8:16)),)
+                atanh(1/√2)  => (collect(1:8)),
+                atanh(0.8)  => (collect(1:16)),)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 18
         table = Dict(
@@ -81,9 +79,9 @@ println("total procs:       ", nprocs())
                 atanh(0.4)  => (collect(85:95)),
                 atanh(0.5)  => (collect(55:65)),
                 atanh(0.6)  => (collect(28:35)),
-                atanh(1/√2)  => (collect(18:25)),
-                atanh(0.8)  => (collect(10:16)),
-                atanh(0.9)  => (collect(5:10)),)
+                atanh(1/√2)  => (collect(1:10)),
+                atanh(0.8)  => (collect(1:10)),
+                atanh(0.9)  => (collect(1:10)),)
         δtlis = get(table, τ, collect(1:8))
     else
         δtlis = collect(1:10)
@@ -378,7 +376,7 @@ else
         # batch computation for multiple δt values
         start_seed = parse(Int, ARGS[4])
         end_seed = parse(Int, ARGS[5])
-        δt_list = get_δtL(τ, L)
+        δt_list = get_δtL_Born(τ, L)
         
         println("Batch computation mode")
         compute_parallel_multiple_dt(L, τ, start_seed:end_seed, D, δt_list)
