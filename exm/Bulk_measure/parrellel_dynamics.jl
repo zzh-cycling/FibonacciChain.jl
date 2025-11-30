@@ -131,7 +131,8 @@ end
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    tlis = collect(1:D)
+    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    tlis = collect(1:D1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
@@ -147,11 +148,13 @@ end
             spatial = true
             temporal = false
             view(sample_free_energy, 1:2D) .= view(Flis, :)
+            view(sample_layer, 1:2D, :) .= view(sample, :, :)
         else
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
             view(sample_free_energy, 1:2D) .= view(Flis, :)
+            view(sample_layer, 1:2D, :) .= view(sample, :, :)
         end
         sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
         eelis[idx] = ee(sysrdm)

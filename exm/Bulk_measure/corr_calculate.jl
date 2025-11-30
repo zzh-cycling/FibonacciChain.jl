@@ -144,7 +144,8 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
 
     statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
     D = div(D, 2)
-    ref_sample = zeros(Int, 2*(D+δt+D), length(2:2:L))
+    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    ref_sample = zeros(Int, 2*(D+δt+D1), length(2:2:L))
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
     if δt == 0
@@ -152,12 +153,15 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::I
         spatial = true
         temporal = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
+        view(sample_layer, 1:2D, :) .= view(sample, :, :)
     else
         ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
+        view(sample_layer, 1:2D, :) .= view(sample, :, :)
     end
+    
     spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
@@ -183,7 +187,8 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    tlis = collect(1:D)
+    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D  # to adjust for longer evolution time for certain τ
+    tlis = collect(1:D1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
@@ -199,11 +204,13 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
             spatial = true
             temporal = false
             view(sample_free_energy, 1:2D) .= view(Flis, :)
+            view(sample_layer, 1:2D, :) .= view(sample, :, :)
         else
             ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
             view(sample_free_energy, 1:2D) .= view(Flis, :)
+            view(sample_layer, 1:2D, :) .= view(sample, :, :)
         end
         sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
         eelis[idx] = ee(sysrdm)

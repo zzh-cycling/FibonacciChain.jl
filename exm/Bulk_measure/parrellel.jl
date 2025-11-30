@@ -119,22 +119,24 @@ end
     rng = MersenneTwister(index)
 
     statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
-    D = div(D, 2)
-    ref_sample = zeros(Int, 2*(D+δt+D), length(2:2:L))
+    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    ref_sample = zeros(Int, 2*(D+δt+D1), length(2:2:L))
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
     if δt == 0
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born)
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
+        view(sample_layer, 1:2D, :) .= view(sample, :, :)
     else
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born)
+        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
         view(sample_free_energy, 1:2D) .= view(Flis, :)
+        view(sample_layer, 1:2D, :) .= view(sample, :, :)
     end
-    
+        
     spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
