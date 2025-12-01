@@ -136,12 +136,12 @@ end
         view(sample_free_energy, 1:2D) .= view(Flis, :)
         view(sample_layer, 1:2D, :) .= view(sample, :, :)
     end
-        
+
     spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
     
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,L))_Samples$(index).jld", 
+    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", 
          "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, 
          "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
     
