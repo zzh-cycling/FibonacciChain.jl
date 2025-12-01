@@ -109,6 +109,17 @@ end
     return D, inds, avg_range
 end
 
+@everywhere function get_correlation_dynamics_D(τ, L)
+    cfg = Dict(
+        atanh(0.3)  => 50L,
+        atanh(0.4)  => 40L,
+        atanh(0.5)  => 30L,
+        atanh(0.6)  => 20L
+    )
+    D = get(cfg, τ, 0)
+    return D
+end
+
 @everywhere function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::Int64=2)
     pbc = true
     sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
@@ -119,7 +130,7 @@ end
     rng = MersenneTwister(index)
 
     statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
-    D1 = (τ ∈ τlis[3,4,5,6]) ? D + 20L : D 
+    D1 = D + get_correlation_dynamics_D(τ, L)
     ref_sample = zeros(Int, 2*(D+δt+D1), length(2:2:L))
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
