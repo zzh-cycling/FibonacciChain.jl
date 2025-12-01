@@ -130,7 +130,8 @@ end
     rng = MersenneTwister(index)
 
     statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
-    D1 = div(D,2) + get_correlation_dynamics_D(τ, L)
+    D = div(D, 2) # true circuits depth
+    D1 = D + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
     ref_sample = zeros(Int, 2*(D+δt+D1), length(2:2:L))
     view(ref_sample, 1:2D, :) .= view(sample, :, :)
 
