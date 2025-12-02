@@ -227,6 +227,8 @@ end
 function corr_collect(arg::Tuple)
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
+    D = div(D, 2) # true circuits depth
+    D1 = D + get_correlation_dynamics_D(τ, L)
     samples_num = 1000
     println("Sample number: ", samples_num)
     
@@ -234,12 +236,12 @@ function corr_collect(arg::Tuple)
         temporal_corr_ensemble = zeros(samples_num)
         spatial_corr_ensemble = zeros(samples_num)
         S_ensemble = zeros(samples_num)
-        sample_free_energy_ensemble = zeros(samples_num, 2*(D+δt))
+        sample_free_energy_ensemble = zeros(samples_num, 2*(D1+δt+D))
 
         for i in 1:samples_num
             # @show i
             try
-                temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
+                temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
                 temporal_corr_ensemble[i] = temporal_corr
                 spatial_corr_ensemble[i] = spatial_corr
                 sample_free_energy_ensemble[i, :] = sample_free_energy

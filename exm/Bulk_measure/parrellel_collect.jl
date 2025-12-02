@@ -3,9 +3,22 @@ using Distributed
 @everywhere using JLD
 @everywhere using Statistics
 
+@everywhere function get_correlation_dynamics_D(τ, L)
+    cfg = Dict(
+        atanh(0.3)  => 50L,
+        atanh(0.4)  => 40L,
+        atanh(0.5)  => 30L,
+        atanh(0.6)  => 20L
+    )
+    D = get(cfg, τ, 0)
+    return D
+end
+
 @everywhere function corr_collect(arg::Tuple)
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
+    D = div(D, 2) # true circuits depth
+    D1 = D + get_correlation_dynamics_D(τ, L)
     samples_num = 10000
     println("Sample number: ", samples_num)
     
@@ -13,12 +26,12 @@ using Distributed
         temporal_corr_ensemble = zeros(samples_num)
         spatial_corr_ensemble = zeros(samples_num)
         S_ensemble = zeros(samples_num)
-        sample_free_energy_ensemble = zeros(samples_num, 2*(D+δt))
+        sample_free_energy_ensemble = zeros(samples_num, 2*(D1+δt+D))
 
         for i in 1:samples_num
             # @show i
             try
-                temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
+                temporal_corr, spatial_corr, S, sample_free_energy = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy")
                 temporal_corr_ensemble[i] = temporal_corr
                 spatial_corr_ensemble[i] = spatial_corr
                 sample_free_energy_ensemble[i, :] = sample_free_energy
@@ -159,6 +172,8 @@ end
 @everywhere function dynamics_collect(arg::Tuple)
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
+    D = div(D, 2) # true circuits depth
+    D1 = D + get_correlation_dynamics_D(τ, L)
     samples_num = 1000
     println("Sample number: ", samples_num)
     success=0
@@ -167,11 +182,10 @@ end
     temporal_corr_ensemble = zeros(samples_num, div(D,2))
     spatial_corr_ensemble = zeros(samples_num, div(D,2))
     S_ensemble = zeros(samples_num, div(D,2))
-
         for i in 1:samples_num
             # @show i
             try
-                temporal_corr_lis, spatial_corr_lis, eelis= load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D,2L))_Samples$(i).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
+                temporal_corr_lis, spatial_corr_lis, eelis= load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(i).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
                 temporal_corr_ensemble[i,:] += temporal_corr_lis
                 spatial_corr_ensemble[i,:] += spatial_corr_lis
                 S_ensemble[i,:] += eelis
