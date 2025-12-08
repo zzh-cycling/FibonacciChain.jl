@@ -61,7 +61,7 @@ function get_δtL_Born(τ, L)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 16
         table = Dict(
-                atanh(0.1)  => (collect(80:100:680)),
+                atanh(0.1)  => vcat(collect(80:100:680), [740]),
                 atanh(0.2)  => (collect(135:2:149)),
                 atanh(0.3)  => (collect(55:65)),
                 atanh(0.4)  => (collect(32:42)),
