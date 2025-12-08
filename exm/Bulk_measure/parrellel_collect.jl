@@ -81,7 +81,7 @@ end
         δtlis = get(table, τ, collect(1:10))
     elseif L == 8
         table = Dict(
-                atanh(0.1)  => (collect(50:50:500)),
+                atanh(0.1)  => sort(vcat([375, 425], collect(50:50:500))),
                 atanh(0.2)  => (collect(65:2:145)),
                 atanh(0.3)  => (collect(1:54)),
                 atanh(0.4)  => (collect(1:45)),
@@ -91,7 +91,7 @@ end
         δtlis = get(table, τ, collect(1:10))
     elseif L == 10
         table = Dict(
-                atanh(0.1)  => (collect(100:50:500)),
+                atanh(0.1)  => sort(vcat([475], collect(100:50:500))),
                 atanh(0.2)  => (collect(80:2:120)),
                 atanh(0.3)  => (collect(30:60)),
                 atanh(0.4)  => (collect(1:25)),
@@ -101,7 +101,7 @@ end
         δtlis = get(table, τ, collect(1:10))
     elseif L == 12
         table = Dict(
-                atanh(0.1)  => (collect(300:50:600)),
+                atanh(0.1)  => sort(vcat([425, 475],collect(300:50:600))),
                 atanh(0.2)  => (collect(100:2:126)),
                 atanh(0.3)  => (collect(40:60)),
                 atanh(0.4)  => (collect(15:30)),
@@ -111,7 +111,7 @@ end
         δtlis = get(table, τ, collect(1:15))
     elseif L == 14
         table = Dict(
-                atanh(0.1)  => sort(vcat([475,500, 525], collect(50:100:550))),
+                atanh(0.1)  => sort(vcat([400, 475, 500, 525], collect(50:100:550))),
                 atanh(0.2)  => (collect(120:2:140)),
                 atanh(0.3)  => (collect(45:80)),
                 atanh(0.4)  => (collect(25:39)),
