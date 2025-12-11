@@ -280,7 +280,7 @@ function apply_measurement_mps(ψ::MPS, sites, i::Int, τ::Float64, sign::Int64;
     return ψ_normalized, prob
 end
 
-function _apply_measurement_layer!(N::Int64, τ::Float64, sites, ψ::MPS, layer_sample::Vector{Int64}, layer_idx::Int64, pbc::Bool=true; cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
+function _apply_measurement_layer!(N::Int64, τ::Float64, sites, ψ::MPS, layer_sample::Vector{Bool}, layer_idx::Int64, pbc::Bool=true; cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo) 
     # Helper function to apply measurements to a layer
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)
     F_layer = 0.0
@@ -301,7 +301,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, sites, ψ::MPS,
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
-    sample_layer = zeros(Int, n)
+    sample_layer = zeros(Bool, n)
     F_layer = 0.0
 
     final_state = copy(ψ)
@@ -338,13 +338,13 @@ Enumerate all possible measurement trajectories on MPS state.
 function mps_measurement_enumeration(ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; 
 pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
     # Initialize with single initial state
-    current_level_trajectories = [Int64[]]
+    current_level_trajectories = [Bool[]]
     current_level_probabilities = [1.0]
     current_level_states = [copy(ψ)]
 
     for (measurement_idx, site) in enumerate(measurement_sites)
         next_level_states = Vector{MPS}()
-        next_level_trajectories = Vector{Vector{Int64}}()
+        next_level_trajectories = Vector{Vector{Bool}}()
         next_level_probabilities = Vector{Float64}()
         
         # Branch for each current state
@@ -495,7 +495,7 @@ function measure_evolution!(N::Int,
                   mode::Symbol = :prob,
                   t₁::Int = 1,
                   cutoff::Float64=1e-10, maxdim::Int=100, verbose::Bool=false,
-                  sample::Union{Nothing,Matrix{Int}}=nothing, 
+                  sample::Union{Nothing,Matrix{Bool}}=nothing, 
                   enable_τ_eff::Bool=true)
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
@@ -512,7 +512,7 @@ function measure_evolution!(N::Int,
 
     if mode == :Born
          # 1. Initialize sample matrix
-        sample = zeros(Int, D, n_measure)   # to be filled during sampling
+        sample = zeros(Bool, D, n_measure)   # to be filled during sampling
 
         for period in 1:Δt
         
@@ -526,7 +526,7 @@ function measure_evolution!(N::Int,
         end
 
     elseif mode == :sample
-        isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
+        isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Bool}")
         size(sample) == (D, n_measure) ||
             error("sample size should be ($D, $n_measure)")
 
@@ -572,7 +572,7 @@ Perform boundary measurements on MPS state.
 """
 function mps_boundary_measure(τ::Float64, ψ::MPS, sites, layer_idx::Int=1; num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true, cutoff::Float64=1e-10, maxdim::Int=100, anyon_type::Symbol=:Fibo)
     measurement_sites, _ = _obtain_measurement_config(length(sites), layer_idx, anyon_type)
-    samples = zeros(Int, num_samples, length(measurement_sites))
+    samples = zeros(Bool, num_samples, length(measurement_sites))
     sample_free_energy = Vector{Float64}(undef, num_samples)
     
     for sample_idx in 1:num_samples
@@ -598,7 +598,7 @@ function mps_bulk_measure(N::Int, τ::Float64, ψ::MPS, sites, D::Int64; rng::Me
 end
 
 
-function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false) 
+function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Bool}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false) 
 
     N = (anyon_type == :Fibo) ? size(sample, 2) * 2 : size(sample, 2)
     D = size(sample, 1) # number of layers
@@ -609,10 +609,10 @@ function generate_state_mps(τ::Float64, sites, state::MPS, sample::Matrix{Int};
     sample=sample, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
     return final_state, free_energy
 end
-generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Int}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
+generate_state_mps(τ::Float64, sites, state::MPS, sample::Vector{Bool}; pbc::Bool=true, cutoff::Float64=1e-12, maxdim::Int=1000, anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true, verbose::Bool=false)  = generate_state_mps(τ, sites, state, reshape(sample, 1, :); pbc = pbc, anyon_type=anyon_type, cutoff=cutoff, maxdim=maxdim, enable_τ_eff=enable_τ_eff, verbose=verbose)
 
 
-function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Int}, 
+function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::Matrix{Bool}, 
     x₂::Int, t₁, t₂; x₁::Int=1, 
     rng::MersenneTwister=MersenneTwister(), pbc=true, 
     anyon_type::Symbol=:Fibo, verbose=false, 
@@ -633,7 +633,7 @@ function reference_evolution(τ::Float64, sites, forward::Vector{MPS}, sample::M
     state = forward[t₁]
     statelis = Vector{MPS}(undef, Δt) 
     view(statelis, 1:t₁) .= view(forward, 1:t₁)
-    sample_layer = zeros(Int, size(sample, 1), n_measure)
+    sample_layer = zeros(Bool, size(sample, 1), n_measure)
     view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
     sample_free_energy= zeros(Float64, D)
 

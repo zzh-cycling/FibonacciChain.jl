@@ -281,7 +281,7 @@ function measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{E
     
     # Initialize, only one initial state
     current_level_states = [copy(initial_state)]
-    current_level_trajectories = [Int64[]]
+    current_level_trajectories = [Bool[]]
     current_level_probabilities = [1.0]
     
     for (measurement_idx, site) in enumerate(measurement_sites)
@@ -514,7 +514,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
-    sample = zeros(Int, n)
+    sample = zeros(Bool, n)
     F_layer = 0.0
 
 
@@ -567,7 +567,7 @@ Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial
 - `pbc::Bool=true`: Periodic boundary conditions
 - `anyon_type::Symbol=:Fibo`: anyon type
 - `mode::Symbol=:prob`: evolution mode, one of `:prob`, `:sample`, `:Born`, Born is random sampling, driven by Born rule, the other is deterministic post-selection evolution, with given measurement outcomes.
-- `sample::Union{Nothing,Matrix{Int}}=nothing`: Predefined measurement sequences for `:sample` mode
+- `sample::Union{Nothing,Matrix{Bool}}=nothing`: Predefined measurement sequences for `:sample` mode
 - `t₁::Int=1`: Starting layer index for evolution (default is 1)
 - `verbose::Bool=false`: Verbosity flag for detailed output
 - `enable_τ_eff::Bool=true`: Whether to enable half-strength measurement for the last layer
@@ -588,7 +588,7 @@ function measure_evolution!(N::Int,
                   anyon_type::Symbol = :Fibo,
                   mode::Symbol = :sample,
                   t₁::Int = 1,
-                  sample::Union{Nothing,Matrix{Int}}=nothing,
+                  sample::Union{Nothing,Matrix{Bool}}=nothing,
                   verbose::Bool = false, enable_τ_eff::Bool = true) where {ET}
 
     n_measure = anyon_type == :Fibo ? N÷2 : N
@@ -605,7 +605,7 @@ function measure_evolution!(N::Int,
 
     if mode == :Born
          # 1. Initialize sample matrix
-        sample = zeros(Int, D, n_measure)   # to be filled during sampling
+        sample = zeros(Bool, D, n_measure)   # to be filled during sampling
 
         for period in 1:Δt
         
@@ -713,7 +713,7 @@ function boundary_measure(N::Int, τ::Float64, state::Vector{ET}, layer_idx::Int
     
     n_measure = anyon_type == :Fibo ? N ÷ 2 : N
     sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
-    samples = zeros(Int, num_samples, n_measure)
+    samples = zeros(Bool, num_samples, n_measure)
     sample_free_energy = Vector{Float64}(undef, num_samples)
 
     for sample_idx in 1:num_samples
@@ -752,7 +752,7 @@ function boundary_post_selection(N::Int64, τ::Float64, state::Vector{ET}, layer
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     n_measure = (anyon_type == :Fibo) ? N ÷ 2 : N
-    sample = (sign == 0) ? zeros(Int, n_measure) : ones(Int, n_measure)
+    sample = (sign == 0) ? zeros(Bool, n_measure) : ones(Bool, n_measure)
 
     state_measured, total_free_energy =  _apply_measurement_layer!(
         N, τ, state, sample, layer_idx, pbc;
@@ -829,7 +829,7 @@ function bulk_post_selection(
     # 1. Build the sample, all 0 or all 1, each layer N/2 or N measurements, depending on anyon_type, total D layers.
     n_measure = (anyon_type == :Fibo) ? N ÷ 2 : N
 
-    sample = (sign == 1) ? ones(Int, 2D, n_measure) : zeros(Int, 2D, n_measure)
+    sample = (sign == 1) ? ones(Bool, 2D, n_measure) : zeros(Bool, 2D, n_measure)
 
     # 2. generate_state to run all the layers
     sample_measured_states, samples, sample_free_energy = measure_evolution!(

@@ -14,7 +14,7 @@ println("total procs:       ", nprocs())
         table = Dict(
                 atanh(0.1)  => vcat(collect(1:150), collect(152:2:620)),
                 atanh(0.2)  => (collect(50:2:120)),
-                atanh(0.3)  => (collect(1:40)),
+                atanh(0.3)  => (collect(1:45)),
                 atanh(0.4)  => (collect(1:35)),
                 atanh(0.5)  => (collect(1:25)),
                 atanh(0.6)  => (collect(1:10)),)
@@ -32,9 +32,9 @@ println("total procs:       ", nprocs())
     elseif L == 10
         table = Dict(
                 atanh(0.1)  => collect(100:25:500),
-                atanh(0.2)  => (collect(80:2:120)),
+                atanh(0.2)  => (collect(80:2:130)),
                 atanh(0.3)  => (collect(30:60)),
-                atanh(0.4)  => (collect(1:25)),
+                atanh(0.4)  => (collect(1:35)),
                 atanh(0.5)  => (collect(1:16)),
                 atanh(0.6)  => (collect(1:22)),
                 atanh(1/√2)  => (collect(1:16)),)
@@ -42,9 +42,9 @@ println("total procs:       ", nprocs())
     elseif L == 12
         table = Dict(
                 atanh(0.1)  => collect(300:25:600),
-                atanh(0.2)  => (collect(100:2:126)),
-                atanh(0.3)  => (collect(40:60)),
-                atanh(0.4)  => (collect(15:30)),
+                atanh(0.2)  => (collect(100:2:136)),
+                atanh(0.3)  => (collect(40:2:64)),
+                atanh(0.4)  => (collect(15:35)),
                 atanh(0.5)  => (collect(1:15)),
                 atanh(0.6)  => (collect(1:25)),
                 atanh(1/√2)  => (collect(1:18)),)
@@ -52,8 +52,8 @@ println("total procs:       ", nprocs())
     elseif L == 14
         table = Dict(
                 atanh(0.1)  => (collect(50:25:550)),
-                atanh(0.2)  => (collect(120:2:140)),
-                atanh(0.3)  => (collect(45:80)),
+                atanh(0.2)  => (collect(120:2:146)),
+                atanh(0.3)  => (collect(45:85)),
                 atanh(0.4)  => (collect(25:39)),
                 atanh(0.5)  => (collect(5:20)),
                 atanh(0.6)  => (collect(1:28)),
@@ -63,8 +63,8 @@ println("total procs:       ", nprocs())
     elseif L == 16
         table = Dict(
                 atanh(0.1)  => sort(vcat(collect(80:100:780), [640, 740])),
-                atanh(0.2)  => (collect(135:2:149)),
-                atanh(0.3)  => (collect(55:65)),
+                atanh(0.2)  => (collect(135:2:160)),
+                atanh(0.3)  => (vcat(collect(55:65), collect(67:2:75))),
                 atanh(0.4)  => (collect(32:42)),
                 atanh(0.5)  => (collect(4:22)),
                 atanh(0.6)  => (collect(1:16)),
@@ -85,7 +85,7 @@ println("total procs:       ", nprocs())
         δtlis = get(table, τ, collect(1:8))
     elseif L == 20
         table = Dict(
-                atanh(0.2)  => collect(173:2:185),
+                atanh(0.2)  => collect(173:2:190),
                 atanh(0.3)  => (collect(68:4:88)),
                 atanh(0.4)  => (collect(38:48)),
                 atanh(0.5)  => (collect(24:34)),

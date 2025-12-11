@@ -74,7 +74,7 @@ end
         table = Dict(
                 atanh(0.1)  => vcat(collect(1:150), collect(152:2:620)),
                 atanh(0.2)  => (collect(50:2:120)),
-                atanh(0.3)  => (collect(1:40)),
+                atanh(0.3)  => (collect(1:45)),
                 atanh(0.4)  => (collect(1:35)),
                 atanh(0.5)  => (collect(1:25)),
                 atanh(0.6)  => (collect(1:10)),)
@@ -92,9 +92,9 @@ end
     elseif L == 10
         table = Dict(
                 atanh(0.1)  => collect(100:25:500),
-                atanh(0.2)  => (collect(80:2:120)),
+                atanh(0.2)  => (collect(80:2:130)),
                 atanh(0.3)  => (collect(30:60)),
-                atanh(0.4)  => (collect(1:25)),
+                atanh(0.4)  => (collect(1:35)),
                 atanh(0.5)  => (collect(1:16)),
                 atanh(0.6)  => (collect(1:22)),
                 atanh(1/√2)  => (collect(1:16)),)
@@ -102,9 +102,9 @@ end
     elseif L == 12
         table = Dict(
                 atanh(0.1)  => collect(300:25:600),
-                atanh(0.2)  => (collect(100:2:126)),
-                atanh(0.3)  => (collect(40:60)),
-                atanh(0.4)  => (collect(15:30)),
+                atanh(0.2)  => (collect(100:2:136)),
+                atanh(0.3)  => (collect(40:2:64)),
+                atanh(0.4)  => (collect(15:35)),
                 atanh(0.5)  => (collect(1:15)),
                 atanh(0.6)  => (collect(1:25)),
                 atanh(1/√2)  => (collect(1:18)),)
@@ -112,8 +112,8 @@ end
     elseif L == 14
         table = Dict(
                 atanh(0.1)  => (collect(50:25:550)),
-                atanh(0.2)  => (collect(120:2:140)),
-                atanh(0.3)  => (collect(45:80)),
+                atanh(0.2)  => (collect(120:2:146)),
+                atanh(0.3)  => (collect(45:85)),
                 atanh(0.4)  => (collect(25:39)),
                 atanh(0.5)  => (collect(5:20)),
                 atanh(0.6)  => (collect(1:28)),
@@ -123,8 +123,8 @@ end
     elseif L == 16
         table = Dict(
                 atanh(0.1)  => sort(vcat(collect(80:100:780), [640, 740])),
-                atanh(0.2)  => (collect(135:2:149)),
-                atanh(0.3)  => (collect(55:65)),
+                atanh(0.2)  => (collect(135:2:160)),
+                atanh(0.3)  => (vcat(collect(55:65), collect(67:2:75))),
                 atanh(0.4)  => (collect(32:42)),
                 atanh(0.5)  => (collect(4:22)),
                 atanh(0.6)  => (collect(1:16)),
@@ -145,7 +145,7 @@ end
         δtlis = get(table, τ, collect(1:8))
     elseif L == 20
         table = Dict(
-                atanh(0.2)  => collect(173:2:185),
+                atanh(0.2)  => collect(173:2:190),
                 atanh(0.3)  => (collect(68:4:88)),
                 atanh(0.4)  => (collect(38:48)),
                 atanh(0.5)  => (collect(24:34)),
@@ -223,6 +223,87 @@ end
     else
         println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
     end
+end
+
+@everywhere function data_compress(arg::Tuple)
+    L, τ, δt = arg
+    D = get_system_params(τ, L)[1]
+    D = div(D, 2) # true circuits depth
+    D1 = D + get_correlation_dynamics_D(τ, L)
+    # D1 = D
+    samples_num = 10000
+    println("Sample number: ", samples_num)
+    
+    success=0
+        temporal_corr_ensemble = zeros(Float32, samples_num)
+        spatial_corr_ensemble = zeros(Float32, samples_num)
+        S_ensemble = zeros(Float32, samples_num)
+        sample_free_energy_ensemble = zeros(Float32, samples_num, 2*(D1+δt+D))
+        sample_ensemble = zeros(Bool, samples_num, 2*(D1+δt+D), div(L,2))
+
+        for i in 1:samples_num
+            try
+                temporal_corr, spatial_corr, S, sample_free_energy, sample = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(i).jld",  "temporal_corr", "spatial_corr", "S", "sample_free_energy", "sample_layer")
+                temporal_corr_ensemble[i] = Float32(temporal_corr)
+                spatial_corr_ensemble[i] = Float32(spatial_corr)
+                sample_free_energy_ensemble[i, :] = Float32.(sample_free_energy)
+                sample_ensemble[i, :, :] = Bool.(sample)
+                S_ensemble[i] = Float32(S)
+                success += 1
+            catch e
+                println("Error loading sample $(i) for L=$(L), τ=$(τ), δt=$(δt): ", e)
+            end
+        end
+    
+        if success == samples_num
+            save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/compressed_dt$(δt)_data.jld", 
+        "temporal_corr_ensemble", temporal_corr_ensemble, 
+        "spatial_corr_ensemble", spatial_corr_ensemble, 
+        "S_ensemble", S_ensemble,
+        "sample_free_energy_ensemble", sample_free_energy_ensemble,
+        "sample_ensemble", sample_ensemble,
+        "samples_num", samples_num)
+        println("Completed L=$(L), τ=$(τ), δt=$(δt)")
+        else
+            println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
+        end
+end
+
+@everywhere function get_correlation_dynamics_D(τ, L)
+    cfg = Dict(
+        atanh(0.3)  => 50L,
+        atanh(0.4)  => 40L,
+        atanh(0.5)  => 30L,
+        atanh(0.6)  => 20L
+    )
+    D = get(cfg, τ, 0)
+    return D
+end
+
+
+@everywhere function compute_parallel_dt_GC(L::Int64, τ::Float64, δt_list::Vector{Int})
+    total_tasks = length(δt_list)
+    println("Starting computation for multiple δt values")
+    println("Total tasks: $total_tasks")
+    
+    all_results = Dict()
+    
+    batch_size = 63  
+    
+    for δt_start in 1:batch_size:total_tasks
+        jobs = []
+        δt_end = min(δt_start + batch_size - 1, length(δt_list))
+        println("\n" * "="^50)
+        println("Processing δt = $δt_start")
+        println("="^50)
+        
+        push!(jobs, [(L, τ, i) for i in δt_list[collect(δt_start:δt_end)]]...)
+        @show jobs
+        result = pmap(data_compress, jobs, batch_size=1)
+        @everywhere GC.gc()  # 强制垃圾回收
+    end
+    
+    return all_results
 end
 
 @everywhere function organize(args::Tuple)
