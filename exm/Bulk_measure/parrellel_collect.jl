@@ -95,7 +95,7 @@ end
                 atanh(0.2)  => (collect(80:2:130)),
                 atanh(0.3)  => (collect(30:60)),
                 atanh(0.4)  => (collect(1:35)),
-                atanh(0.5)  => (collect(1:16)),
+                atanh(0.5)  => (collect(1:24)),
                 atanh(0.6)  => (collect(1:22)),
                 atanh(1/√2)  => (collect(1:16)),)
         δtlis = get(table, τ, collect(1:10))
@@ -105,7 +105,7 @@ end
                 atanh(0.2)  => (collect(100:2:136)),
                 atanh(0.3)  => (collect(40:2:64)),
                 atanh(0.4)  => (collect(15:35)),
-                atanh(0.5)  => (collect(1:15)),
+                atanh(0.5)  => (collect(1:20)),
                 atanh(0.6)  => (collect(1:25)),
                 atanh(1/√2)  => (collect(1:18)),)
         δtlis = get(table, τ, collect(1:15))
@@ -113,9 +113,9 @@ end
         table = Dict(
                 atanh(0.1)  => (collect(50:25:550)),
                 atanh(0.2)  => (collect(120:2:146)),
-                atanh(0.3)  => (collect(45:85)),
+                atanh(0.3)  => (collect(45:80)),
                 atanh(0.4)  => (collect(25:39)),
-                atanh(0.5)  => (collect(5:20)),
+                atanh(0.5)  => (collect(5:24)),
                 atanh(0.6)  => (collect(1:28)),
                 atanh(1/√2)  => (collect(1:8)),
                 atanh(0.8)  => (collect(1:15)),)
