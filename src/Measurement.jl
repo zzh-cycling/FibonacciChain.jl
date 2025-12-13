@@ -155,10 +155,10 @@ function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sig
         coef = sign == 0 ? 0.5 : -0.5
     else
         cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
-        end
+        coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+    end
 
-        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
+    return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
 end
 
 
@@ -706,7 +706,6 @@ end
 measurement_time(::FibonacciAnyon) = 2
 measurement_time(::IsingAnyon) = 1
 
-function generate_state(τ::Float64, state::Vector{T}, sample::BitVector, pbc::Bool=true; anyon_type::Symbol=:Fibo, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
 function generate_state_by_measurement(anyon_type::AbstractAnyonType, τ::Float64, state::Vector{T}, sample::BitVector; pbc::Bool=true, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
     N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
     D = size(sample, 1) # number of layers
