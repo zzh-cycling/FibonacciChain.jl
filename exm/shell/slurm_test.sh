@@ -24,12 +24,19 @@ echo ""
 
 # Test 2: Check partition access
 echo "2. Checking partition access..."
-if sinfo -p i64m512re >/dev/null 2>&1; then
-    echo "  ✓ Partition i64m512re: Accessible"
-    sinfo -p i64m512re -o "%.10P %.5a %.10l %.6D %.6t"
-else
-    echo "  ✗ Partition i64m512re: Not accessible"
-fi
+partitions=("long_cpu" "i64m512u" "i64m512ue" "emergency_cpu" "a128m512u" "a128m512ue" "i64m512r" "i64m512re")
+
+# Print header for partition details
+sinfo -o "%.10P %.5a %.10l %.6D %.6t" | head -n 1
+
+for partition in "${partitions[@]}"; do
+    if sinfo -p "$partition" -h >/dev/null 2>&1; then
+        echo -n "  ✓ $partition: "
+        sinfo -p "$partition" -o -o "%.10P %.5a %.10l %.6D %.6t %.6c %.8z %.8m %.8d %.8w %.10f" | head -2
+    else
+        echo "  ✗ $partition: Not accessible"
+    fi
+done
 
 echo ""
 
@@ -39,8 +46,8 @@ job_count=$(squeue -u $USER -h | wc -l)
 echo "  Active jobs: $job_count"
 
 if [[ $job_count -gt 0 ]]; then
-    echo "  Current jobs:"
-    squeue -u $USER -o "%.10i %.20j %.10T %.15M"
+    echo "  Current jobs (up to 10):"
+    squeue -u $USER -o "%.10i %.20j %.10T %.15M" | head -n 11
 fi
 
 echo ""

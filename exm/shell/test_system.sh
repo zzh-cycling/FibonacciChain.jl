@@ -1,14 +1,14 @@
 #!/bin/bash
 
-# 测试系统资源检测脚本
+# System Resource Detection Script
 
 echo "=== System Resource Detection Test ==="
 
-# 检测操作系统
+# Detect operating system
 OS=$(uname -s)
 echo "Operating System: $OS"
 
-# 检测CPU核心数
+# Detect the number of CPU cores
 if [[ "$OS" == "Darwin" ]]; then
     # macOS
     CPU_LIMIT=$(sysctl -n hw.ncpu)
@@ -25,14 +25,14 @@ else
     echo "CPU Cores (Physical): $PHYSICAL_CPU"
 fi
 
-# 检测内存
+# Detect memory
 if [[ "$OS" == "Darwin" ]]; then
     # macOS
     TOTAL_MEM_BYTES=$(sysctl -n hw.memsize)
     TOTAL_MEM_GB=$(( TOTAL_MEM_BYTES / 1024 / 1024 / 1024 ))
     echo "Total Memory: ${TOTAL_MEM_GB}GB (${TOTAL_MEM_BYTES} bytes)"
     
-    # 当前内存使用
+    # Current memory usage
     if command -v vm_stat >/dev/null 2>&1; then
         echo ""
         echo "Current Memory Usage:"
@@ -44,13 +44,13 @@ else
     TOTAL_MEM_GB=$(( TOTAL_MEM_KB / 1024 / 1024 ))
     echo "Total Memory: ${TOTAL_MEM_GB}GB (${TOTAL_MEM_KB}KB)"
     
-    # 当前内存使用
+    # Current memory usage
     echo ""
     echo "Current Memory Usage:"
     free -h
 fi
 
-# 计算推荐的并发数
+# Calculate recommended concurrency
 PER_TASK_MEM_GB=2
 MEM_LIMIT=$(( TOTAL_MEM_GB / PER_TASK_MEM_GB ))
 
@@ -64,7 +64,7 @@ echo "Memory-based limit (${TOTAL_MEM_GB}GB / ${PER_TASK_MEM_GB}GB per task): $M
 echo "CPU-based limit: $CPU_LIMIT"
 echo "Recommended concurrency (with safety margin): $CONCURRENCY"
 
-# 系统负载
+# System load
 echo ""
 echo "=== System Load ==="
 if [[ "$OS" == "Darwin" ]]; then
@@ -73,7 +73,7 @@ else
     echo "Load average: $(uptime | awk -F'load average:' '{ print $2 }')"
 fi
 
-# 磁盘空间
+# Disk space
 echo ""
 echo "=== Disk Space ==="
 df -h .

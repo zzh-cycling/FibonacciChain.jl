@@ -6,6 +6,7 @@ using BitBasis
 using LaTeXStrings
 using Plots
 using Random
+using LsqFit
 
 function get_δtL(τ, sign::Int64=1)
     if sign == 0
@@ -28,7 +29,7 @@ end
 
 function organize(τ::Float64, sign::Int64=1)
     δtlis = get_δtL(τ, sign)
-    Llis = collect(8:4:20)
+    Llis = (sign==1) ? collect(8:2:20) : collect(6:6:24)
     scLlis = zeros(Float64, length(Llis))
     tcLlis = zeros(Float64, length(Llis), length(δtlis))
     for (i, L) in enumerate(Llis)
@@ -238,11 +239,11 @@ function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2))
 end
 
 function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
-    Llis = collect(8:2:20)
+    Llis = (sign == 1) ? collect(8:4:20) : collect(6:6:24)
     δtlis = get_δtL(τ, sign)
 
     idx = findall(x->x==τ, τlis)
-    tlis = tlis = [1.5622791153697357, 0.7780581224158777, 0.5083827557773009, 0.36709846127189905, 0.2760268365466788, 0.21191890015652085, 0.1568936137623848, 0.11830701021871359, 0.07607223477091314, 0.10374056220848625, 0.0, 0.0] # t obtained from α fitting
+    tlis = (sign==1) ? [1.555921499844019, 0.7656122752643163, 0.4989803597691102, 0.35908439421100435, 0.26702996240796666, 0.207503905626826, 0.15730972912766123, 0.1200023145127127, 0.07378287804757423, 0.04704355851034897, 0.0, 0.0] : [2.37017, 1.1654823245070127, 0.7631518032413759, 0.5555641984246366, 0.43075671034670565, 0.3429090132464811, 0.27246080615905355, 0.22173881849605775, 0.16639103643814843, 0.13907413514019382, 0.09403357048715472, 0.08707261034310568] # t obtained from α fitting
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
 
     c = cgrad(:blues, length(Llis), categorical=true)
@@ -255,12 +256,12 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
         # ylim = (0.97, 1.03),
         )
 
-    for (i, L) in enumerate(Llis[2:2:end-2])    
+    for (i, L) in enumerate(Llis)    
         scatter!(fig, δtlis./(L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
     end
 
-    index = 6
-    plot!(fig, δtlis./(Llis[index]), tcLlis[index, :]./scLlis[index], label=latexstring("L=$(Llis[index])"), color=c[index], linewidth=2, marker=:circle, markersize=4)
+    # index = 6
+    # plot!(fig, δtlis./(Llis[index]), tcLlis[index, :]./scLlis[index], label=latexstring("L=$(Llis[index])"), color=c[index], linewidth=2, marker=:circle, markersize=4)
 
     # for (i, L) in enumerate(Llis[1:end])    
     #     plot!(fig, δtlis./(2L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4, linewidth=2)
@@ -270,8 +271,9 @@ function plot_stc_scaling(τ::Float64=log(1+√2); sign::Int=1)
     return fig, tcLlis./scLlis  
 end
 
+
 function alpha_compute_corr(τ; sign::Int=1)
-    Llis = collect(8:4:20)
+    Llis = (sign == 1) ? collect(8:4:20) : collect(6:6:24)
     δtlis= get_δtL(τ, sign)
 
     scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr/stc$(sign)_τ$(τ)_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
@@ -279,18 +281,26 @@ function alpha_compute_corr(τ; sign::Int=1)
     ratio = tcLlis./scLlis
     inds = findall(x-> isapprox(x, 1.0, atol=0.1), ratio[end,:])
     
-    linear_model(x,p) = p[1] * x .+ p[2]
+    # linear_model(x,p) = p[1] * x .+ p[2]
 
-    if !isempty(inds)
-        fit = curve_fit(linear_model, δtlis[inds]./Llis[end], ratio[end, inds], [1.0, 1.0])
-        a = fit.param[1]
-        b = fit.param[2]
-        t = (1-b)/a
-        α = log(1+√2)/π/t
-        return α,t
-    else
-        return NaN
-    end
+    # if !isempty(inds)
+    #     fit = curve_fit(linear_model, δtlis[inds]./Llis[end], ratio[end, inds], [1.0, 1.0])
+    #     a = fit.param[1]
+    #     b = fit.param[2]
+    #     t = (1-b)/a
+    #     α = log(1+√2)/π/t
+    #     return α,t
+    # else
+    #     return NaN
+    # end
+    model(x, p) = @. p[1] .* exp.(-x ./p[2])  + p[3]
+    fit = curve_fit(model, δtlis./Llis[end], ratio[end, :], [1.0, 1.0, 1.0])
+    a, b, c = fit.param
+    t = -b * log((1-c)/a)  # exponential fit
+
+    α = log(1 + √2) / π / t
+
+    return α, t
 end
 
 function alphalis_corr(τlis; sign::Int=1)
@@ -300,10 +310,11 @@ function alphalis_corr(τlis; sign::Int=1)
     return αlis
 end
 
-
 # αlis = [0.1795773389079671, 0.36057708040946856, 0.551847840984768, 0.7642361812075126, 1.0163864125658897, 1.3238551444084465, 1.7881538925764218, 2.3713719554820867, 3.687941165583592]
 
-# trueαlis = [0.17479998016347537, 0.35335053506014624, 0.5379878111388026, 0.7513193004900436, 0.9973854818280089, 1.2954457344112627, 1.7342095249297775, 2.324623740539361, 3.6859611811798443, 5.660898631724869, 70.46901458043763, -3.291284646075844e13]
+# trueαlis1 = [0.18031110579660684, 0.3664386468630409, 0.5622464304996033, 0.7812924501662804, 1.0499308866604552, 1.352022388793634, 1.7834238716533293, 2.3978709594794476, 3.8023716828814287, 5.963620420165977, 0.0, 0.0]
+
+# trueαlis0 = [0.118367005813756, 0.24071572796117682, 0.36762007896462434, 0.504982011017125, 0.6512955444008806, 0.8181468416752649, 1.02968911427875, 1.2652269371345004, 1.686087977905452, 2.0172688896233755, 2.9835081739017246, 3.2220226896161237]
 
 # error = [2.7330430701558868, 2.0451491174598737, 2.5762720937165486, 1.7192265271295484, 1.9050739241818382, 2.1930220033566306, 3.11060266197238, 2.011001355938974, 0.05371690873624521] * 100%
 
@@ -321,6 +332,6 @@ else
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
-    spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
-    # compute_post_selection(L, τ, D, δt, sign=1)
+    # spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
+    compute_post_selection(L, τ, D, δt, sign=0)
 end
