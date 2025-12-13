@@ -85,7 +85,7 @@ println("total procs:       ", nprocs())
         δtlis = get(table, τ, collect(1:8))
     elseif L == 20
         table = Dict(
-                atanh(0.2)  => collect(173:2:190),
+                atanh(0.2)  => collect(173:2:193),
                 atanh(0.3)  => (collect(68:4:88)),
                 atanh(0.4)  => (collect(38:48)),
                 atanh(0.5)  => (collect(24:34)),

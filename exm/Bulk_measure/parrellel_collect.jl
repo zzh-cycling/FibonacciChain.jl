@@ -145,7 +145,7 @@ end
         δtlis = get(table, τ, collect(1:8))
     elseif L == 20
         table = Dict(
-                atanh(0.2)  => collect(173:2:190),
+                atanh(0.2)  => collect(173:2:193),
                 atanh(0.3)  => (collect(68:4:88)),
                 atanh(0.4)  => (collect(38:48)),
                 atanh(0.5)  => (collect(24:34)),
@@ -229,8 +229,8 @@ end
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
     D = div(D, 2) # true circuits depth
-    D1 = D + get_correlation_dynamics_D(τ, L)
-    # D1 = D
+    # D1 = D + get_correlation_dynamics_D(τ, L)
+    D1 = D
     samples_num = 10000
     println("Sample number: ", samples_num)
     
@@ -254,15 +254,21 @@ end
                 println("Error loading sample $(i) for L=$(L), τ=$(τ), δt=$(δt): ", e)
             end
         end
-    
+        
+        m, n, p = size(sample_ensemble)
+        Bit_sample_ensemble = BitMatrix(reshape(sample_ensemble, m, n*p))                  
+
+
         if success == samples_num
             save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/compressed_dt$(δt)_data.jld", 
         "temporal_corr_ensemble", temporal_corr_ensemble, 
         "spatial_corr_ensemble", spatial_corr_ensemble, 
         "S_ensemble", S_ensemble,
         "sample_free_energy_ensemble", sample_free_energy_ensemble,
-        "sample_ensemble", sample_ensemble,
-        "samples_num", samples_num)
+        "sample_ensemble", Bit_sample_ensemble,
+        "samples_num", samples_num, 
+        "D", div(D, L),
+        "totalD", div(n, 2p))
         println("Completed L=$(L), τ=$(τ), δt=$(δt)")
         else
             println("No successful samples loaded for L=$(L), τ=$(τ), δt=$(δt). Skipping save.")
@@ -300,7 +306,7 @@ end
         push!(jobs, [(L, τ, i) for i in δt_list[collect(δt_start:δt_end)]]...)
         @show jobs
         result = pmap(data_compress, jobs, batch_size=1)
-        @everywhere GC.gc()  # 强制垃圾回收
+        @everywhere GC.gc()  
     end
     
     return all_results
@@ -322,6 +328,52 @@ end
     end
 
     save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/stc_L$(L)_τ$(τ).jld", "average_spatial_corr", average_spatial_corr, "spatial_corr_stderr", spatial_corr_stderr, "δtlis", δtlis, "tcLlis", tcLlis, "tcstderrlis", tcstderrlis, "sample_numlis", sample_numlis)
+end
+
+@everywhere function pack_one_file(job::Tuple{String,Int})
+    path_jld, D = job
+    try
+        data = load(path_jld)
+        haskey(data, "sample_ensemble") || return (path_jld, false, "no key sample_ensemble")
+        M = data["sample_ensemble"]        # Matrix{Bool}
+        m, n, p = size(M)
+        B = BitMatrix(reshape(M, m, n*p))                  
+        data["sample_ensemble"] = B
+        data["totalD"] = div(n, 2p)
+        data["D"] = D
+        save(path_jld, data)        
+        println("Completed file: ", path_jld)
+        return (path_jld, true, "")
+    catch e
+        println("Error file $(path_jld)",e)
+        return (path_jld, false,  e)
+    end
+end
+
+
+@everywhere function pack_all_δt(L, τ, D; delete_old::Bool=false)
+    dir   = "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)"
+    # files = glob("compressed_dt*_data.jld", dir)  
+    files = [joinpath(dir, "compressed_dt$(δt)_data.jld") for δt in vcat(2 .*collect(64*5:64*5+63))]
+    if isempty(files)
+        @warn "no compressed_dt*_data.jld found in $dir"
+        return
+    end
+    @info "found $(length(files)) files, start packing..."
+    # pmap
+    jobs = [(file, D) for file in files]
+    results = pmap(pack_one_file, jobs, batch_size=1)
+    
+    # doing statistics
+    ok = count(x->x[2], results)
+    fail = length(results) - ok
+    @info "L=$L τ=$τ  finished  ok=$ok  fail=$fail"
+    if fail > 0
+        for (ok, err) in results
+            ok && continue
+            @error "pack failed: $err"
+        end
+    end
 end
 
 @everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]

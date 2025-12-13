@@ -10,7 +10,7 @@ end
 build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET} = build_extended_basis(basis, BitStr{k_total, Int})
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 
-function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Int64, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
+function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Bool, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
     # default for PBC system, map basis
     @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
     @assert M == N + k_old "The output basis should be with length $(N + k_old), but got $M"
@@ -22,7 +22,7 @@ function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state:
 end
 
 num_digits(::Type{<:BitStr{N}}) where N = N
-function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr{M}, pretype <: BitStr{k_old, Int}}
+function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr{M}, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -56,7 +56,7 @@ function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Ve
 
     return mapped_state
 end
-reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Int64, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, BitStr{k_old, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type, extended_basis=extended_basis)
+reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, BitStr{k_old, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type, extended_basis=extended_basis)
 
 function concat_bell_pair!(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1, new_dim::Int64=2^(N+k_old), verbose =false) where {ET}
     # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
@@ -307,7 +307,7 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 
     measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
     n = length(measurement_sites)
-    sample = zeros(Bool, n)
+    sample = BitVector(zeros(Bool, n))
     F_layer = 0.0
 
 
@@ -524,7 +524,7 @@ function reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::M
     state = forward[t₁]
     statelis = Vector{ET}(undef, Δt) 
     view(statelis, 1:t₁) .= view(forward, 1:t₁)
-    sample_layer = zeros(Bool, size(sample, 1), n_measure)
+    sample_layer = BitMatrix(undef, (size(sample, 1), n_measure))
     view(sample_layer, 1:t₁, :) .= Bool.(view(sample, 1:t₁, :))
     sample_free_energy= zeros(Float64, D)
 
