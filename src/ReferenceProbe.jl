@@ -22,7 +22,7 @@ function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state:
 end
 
 num_digits(::Type{<:BitStr{N}}) where N = N
-function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr{M}, pretype <: BitStr{k_old, Int}}
+function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if anyon_type == :Fibo
         @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
