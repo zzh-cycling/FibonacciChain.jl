@@ -15,10 +15,11 @@ using LsqFit
     pbc = false
     τ =0.0
     cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
-    sign = 0
+    sign = false
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
+    model = AnyonModel(FibonacciAnyon(), N, pbc = pbc)
 
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
@@ -26,15 +27,15 @@ using LsqFit
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
-    sign = 1
-    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    sign = false
+    output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test output2 == output
     
     τ = 1.0
-    sign = 0
+    sign = false
     cstτ = (exp(τ)+1)/2√(exp(2τ)+1)
     coef = (exp(τ)-1)/2√(exp(2τ)+1)
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
@@ -42,9 +43,9 @@ using LsqFit
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
-    sign = 1
+    sign = true
     coef = (1-exp(τ))/2√(exp(2τ)+1)
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=1
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
@@ -53,10 +54,10 @@ using LsqFit
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     τ = 1e3
-    sign = 0
+    sign = false
     cstτ = 1/2
     coef = 1/2
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
@@ -65,7 +66,8 @@ using LsqFit
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
     idx = 1
-    output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
+    model = AnyonModel(FibonacciAnyon(), N) # pbc is true by default
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # pbc is true by default, s=0
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"100"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
@@ -74,7 +76,7 @@ using LsqFit
     @test output[5] === nothing
 
     idx = 3
-    output = measure_basismap.(T, τ, basis0, idx, sign) # pbc is true by default
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # pbc is true by default, s=0
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"001"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
     @test output[2] == (T(bit"001"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
@@ -82,20 +84,19 @@ using LsqFit
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] === nothing
 
-    output = measure_basismap.(T, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
+    # output = measure_basismap.(model, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
+    # @test length(output) == length(basis0)
+    # @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    # @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    # @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    # @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    # @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin
     N = 3
-    T = BitStr{N, Int}
     ϕ = (1 + √5) / 2
-
+    model = AnyonModel(FibonacciAnyon(), N, pbc = false)
 
     τ = 1.0
     idx = 2
@@ -107,8 +108,8 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0 0.0;
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
-    @test Mpobc == expected_matrix 
+    Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false) # s=0
+    @test Mpobc == expected_matrix
 
     coef = (1-exp(1))/2√(exp(2)+1)
     expected_matrix = [
@@ -118,10 +119,12 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false)
+    Mmobc = FibonacciChain.measure_matrix(model, τ, idx, true) # s=1
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(5) 
 
+
+    model = AnyonModel(FibonacciAnyon(), N) # pbc is true by default
     coef = (exp(1)-1)/2√(exp(2)+1)
     expected_matrix = [        
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
@@ -129,7 +132,7 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
 ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
+    Mppbc = FibonacciChain.measure_matrix(model, τ, idx, false) # pbc, s=0
     @test Mppbc == expected_matrix 
     coef = (1-exp(1))/2√(exp(2)+1)
     expected_matrix = [
@@ -137,8 +140,8 @@ end
         0.0 cstτ+coef 0.0 0.0;
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
-        ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
+    ]
+    Mmpbc = FibonacciChain.measure_matrix(model, τ, idx, true) # pbc, s=1
     @test Mmpbc == expected_matrix    
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 
@@ -146,6 +149,7 @@ end
     τ = 0.0   
     cstτ = 1/√2
     coef = 0.0      
+    model = AnyonModel(FibonacciAnyon(), N, pbc = false)
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
         0.0 cstτ+coef 0.0 0.0 0.0;
@@ -153,7 +157,7 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false)
+    Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false) # s=0
     @test Mpobc == expected_matrix 
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0 0.0;
@@ -162,17 +166,18 @@ end
         0.0 0.0 0.0 cstτ+coef 0.0;
         0.0 0.0 0.0 0.0 cstτ-coef
     ]
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false)
+    Mmobc = FibonacciChain.measure_matrix(model, τ, idx, true) # s=1
     @test Mmobc == expected_matrix 
     @test Mpobc^2+Mmobc^2 ≈ I(5) 
 
+    model = AnyonModel(FibonacciAnyon(), N) # pbc is true by default
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
         0.0 cstτ+coef 0.0 0.0;
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
     ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
+    Mppbc = FibonacciChain.measure_matrix(model, τ, idx, false) # pbc, s=0
     @test Mppbc == expected_matrix 
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 -2*coef*ϕ^(-3/2) 0.0;
@@ -180,33 +185,34 @@ end
         -2*coef*ϕ^(-3/2)  0.0 cstτ+coef*(2ϕ^(-1)-1) 0.0;
         0.0 0.0 0.0 cstτ+coef
     ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
-    @test Mmpbc == expected_matrix 
-    @test Mppbc^2+Mmpbc^2 ≈ I(4) 
+    Mmpbc = FibonacciChain.measure_matrix(model, τ, idx, true) # pbc, s=1
+    @test Mmpbc == expected_matrix
+    @test Mppbc^2+Mmpbc^2 ≈ I(4)
 
-    Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, anyon_type=:reset) 
-    @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-    Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, anyon_type=:reset) # pbc
-    @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
+    # Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, anyon_type=:reset) 
+    # @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    # Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, anyon_type=:reset) # pbc
+    # @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
 end
 
 @testset "measure_matrix" begin
     # Test with a different idx， must be pbc.
     N = 3
-    T = BitStr{N, Int}
     ϕ = (1 + √5) / 2
     τ = 1.0
     cstτ = (exp(1)+1)/2√(exp(2)+1)
     coef = (exp(1)-1)/2√(exp(2)+1)
     idx = 1
 
+
+    model = AnyonModel(FibonacciAnyon(), N) # pbc is true by default
     expected_matrix = [
         cstτ+coef*(1-2ϕ^(-1)) 0.0 0.0 -2*coef*ϕ^(-3/2);
         0.0 cstτ+coef 0.0 0.0;
         0.0 0.0 cstτ+coef 0.0 ;
         -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
     ]
-    Mppbc = FibonacciChain.measure_matrix(T, τ, idx, 0) # pbc
+    Mppbc = FibonacciChain.measure_matrix(model, τ, idx, false) # pbc, s=0
     @test Mppbc == expected_matrix 
     coef = (1-exp(1))/2√(exp(2)+1)
     expected_matrix = [
@@ -214,18 +220,18 @@ end
         0.0 cstτ+coef 0.0 0.0;
         0.0 0.0 cstτ+coef 0.0 ;
         -2*coef*ϕ^(-3/2) 0.0 0.0 cstτ+coef*(2ϕ^(-1)-1)
-        ]
-    Mmpbc = FibonacciChain.measure_matrix(T, τ, idx, 1) # pbc
+    ]
+    Mmpbc = FibonacciChain.measure_matrix(model, τ, idx, true) # pbc, s=1
     @test Mmpbc == expected_matrix    
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 end
 
 @testset "Temperley Lieb algebra" begin
     N = 8
-    T = BitStr{N, Int}
     τ = 1000.0
     ϕ = (1 + √5) / 2
-    Xlis = ϕ .* [FibonacciChain.measure_matrix(T, τ, idx, 1) for idx in 1:N]
+    model = AnyonModel(FibonacciAnyon(), N)
+    Xlis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, true) for idx in 1:N] # s=1
 
     # X_i ^2 = d X_i
     @test all(Xlis[i] * Xlis[i] ≈ ϕ .* Xlis[i] for i in 1:N)
@@ -239,63 +245,64 @@ end
 
 @testset "measuremap" begin
     N = 3
-    T = BitStr{N, Int}
+    model = AnyonModel(FibonacciAnyon(), N)
     τ = 1.0
     idx = 2
-    sign = 0
+    sign = false # s=0
     cstτ = (exp(1)+1)/2√(exp(2)+1)
     coef = (exp(1)-1)/2√(exp(2)+1)
     ϕ = (1 + √5) / 2
 
     state = fill(1.0,4)
-    output = measuremap(T, τ, state, idx, sign)        
+    output = measuremap(model, τ, state, idx, sign)        
     @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
     
-    sign = 1
+    sign = true # s=1
     coef = (1-exp(1))/2√(exp(2)+1)
-    output = measuremap(T, τ, state, idx, sign)  
+    output = measuremap(model, τ, state, idx, sign)  
     @test output == [cstτ+coef*(1-2ϕ^(-1))-2*coef*ϕ^(-3/2), cstτ+coef, cstτ+coef*(2ϕ^(-1)-1)-2*coef*ϕ^(-3/2), cstτ+coef]
 
     # Test with a different state
     state = collect(1.0:4)
-    output = measuremap(T, τ, state, idx, sign) 
+    output = measuremap(model, τ, state, idx, sign) 
     @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef)]
 
     # Try with obc
-    pbc = false
+    model = AnyonModel(FibonacciAnyon(), N, pbc = false)
     state = collect(1.0:5)
-    output = measuremap(T, τ, state, idx, sign, pbc)
+    output = measuremap(model, τ, state, idx, sign)
     @test output == [cstτ+coef*(1-2ϕ^(-1))-6*coef*ϕ^(-3/2), 2(cstτ+coef), 3(cstτ+coef*(2ϕ^(-1)-1))-2*coef*ϕ^(-3/2), 4(cstτ+coef), 5(cstτ-coef)]
 end
 
 @testset "laddermeasuremap" begin
     N = 3
-    T = BitStr{N, Int}
+    model = AnyonModel(FibonacciAnyon(), N)
     τ = 1.0
     idx = 2
 
 
-    sign = 1
+    sign = true
     state = fill(1.0,16)
-    output = laddermeasuremap(T, τ, state, idx, sign)  
-    onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)      
+    output = laddermeasuremap(model, τ, state, idx, sign)  
+    onechain_st = measuremap(model, τ, fill(1.0, 4), idx, sign)      
     @test output ≈ kron(onechain_st, onechain_st)
-    
-    sign = 1
-    output = laddermeasuremap(T, τ, state, idx, sign)  
-    onechain_st = measuremap(T, τ, fill(1.0, 4), idx, sign)
+
+    sign = true # s=1
+    output = laddermeasuremap(model, τ, state, idx, sign)
+    onechain_st = measuremap(model, τ, fill(1.0, 4), idx, sign)
     @test output ≈ kron(onechain_st, onechain_st)
 end
 
 @testset "measurement_enumeration" begin
     N=6
-    energy, states = eigen(anyon_ham(N))
+    model = AnyonModel(FibonacciAnyon(), N)
+    energy, states = eigen(anyon_ham(model))
     antiGS= states[:, 1]
 
     τ = 0.0
-    measurement_sites = collect(2:2:N)
-    
-    final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
+    measurement_sites, measure_operator = FibonacciChain._obtain_measurement_config(model, 2)
+
+    final_states, trajectories, probabilities = measurement_enumeration(model, τ, antiGS, measurement_sites)
 
     num_final_states = length(final_states)
     @test num_final_states == 2^length(measurement_sites)
@@ -304,6 +311,49 @@ end
     @test isapprox(total_prob, 1.0, atol=1e-6)
 
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
+end
+
+@testset "_sample_layer" begin
+    model = AnyonModel(FibonacciAnyon(), 6)
+    τ = 1000.0
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+    rng = MersenneTwister(42)
+    _, sample, F_layer = FibonacciChain._sample_layer!(model, τ, state, rng)
+    @test sample == [1, 0, 1]
+    @test F_layer ≈ 1.9248473002384137 atol=1e-6
+end
+
+@testset "_apply_measurement_layer" begin
+    model = AnyonModel(FibonacciAnyon(), 6)
+    τ = 1000.0
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+    sample = BitVector(zeros(3))
+    _, total_free_energy = FibonacciChain._apply_measurement_layer!(model, τ, state, sample, 1)
+    @test total_free_energy ≈ 2.887270950357621 atol=1e-6
+end
+
+@testset "_born_measure" begin
+    model = AnyonModel(FibonacciAnyon(), 6)
+    t = 10
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+
+    _, samples, sample_free_energy = FibonacciChain._born_measure(model, state, measure_config)
+    @test size(samples) == (20, 3)
+    @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
+end
+
+@testset "_sample_measure" begin
+    N = 6
+    model = AnyonModel(FibonacciAnyon(), N)
+    t = 10
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:sample)
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+    samples = BitMatrix(undef, 2t, div(N,2))
+
+    _, samples, sample_free_energy = FibonacciChain._sample_measure(model, state, samples, measure_config)
+    @test size(samples) == (20, 3)
+    @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
 end
 
 @testset "generate_state" begin

@@ -21,10 +21,10 @@ struct AnyonModel{AT<:AbstractAnyonType}
     anyon_type::AT # anyon type
     N::Int   # system size
     pbc::Bool # periodic boundary conditions
-    interaction_type::Symbol # interaction type, e.g., :Antiferro, :Ferro
-    function AnyonModel(anyon_type::AT, N::Int; pbc::Bool=true, interaction_type::Symbol=:Antiferro) where {AT<:AbstractAnyonType}
+    measure_operator::Symbol # measure operator, e.g., :Antiferro, :Ferro for Fibonacci anyon, :X, :ZZ for Ising anyon. We can use such operator to define Hamiltonian.(Trotterization)
+    function AnyonModel(anyon_type::AT, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro) where {AT<:AbstractAnyonType}
         @assert N > 0 "N is expected to be greater than 0, but got $N"
-        return new{AT}(anyon_type, N, pbc, interaction_type)
+        return new{AT}(anyon_type, N, pbc, measure_operator)
     end
 end
 
@@ -245,6 +245,32 @@ function topological_symmetry_basismap(model::AnyonModel{AT}, state::T) where {N
     return coeflis
 end
 
+"""
+    topological_charge_operator(model::AnyonModel{FibonacciAnyon}, ::Type{T}) where {N, T <: BitStr{N}}
+
+Compute the topological charge operator matrix for Fibonacci anyon model.
+
+# Arguments
+- `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model
+- `T::Type`: BitStr type specifying chain length N
+
+# Returns
+- `Matrix{Float64}`: Topological charge operator matrix (Y matrix)
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> N = 4; T = BitStr{N, Int};
+
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
+
+julia> Y = topological_charge_operator(model, T);
+
+julia> size(Y) == (length(anyon_basis(model)), length(anyon_basis(model)))
+true
+```
+"""
 function topological_charge_operator(model::AnyonModel{AT}, ::Type{T}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
 
@@ -401,7 +427,7 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
     ϕ = (1+√5)/2
     pbc = model.pbc
 
-    if model.interaction_type == :Antiferro
+    if model.measure_operator == :Antiferro
         mask=bmask(T, N, N-2)
         output = Dict{T, Float64}()
     
@@ -442,7 +468,7 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
             end
         end
 
-    elseif model.interaction_type == :Ferro
+    elseif model.measure_operator == :Ferro
         mask=bmask(T, N, N-2)
         
         output = Dict{T, Float64}()
@@ -538,7 +564,7 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4;
 
-julia> model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, interaction_type=:Antiferro);
+julia> model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
 
 julia> H_fibo = anyon_ham(model_fibo);
 

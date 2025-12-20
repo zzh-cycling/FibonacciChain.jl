@@ -1,21 +1,19 @@
 """
-    measure_basismap(anyon_model::AnyonModel, τ::Float64, state::T, i::Int, sign::Bool where {T}
+    measure_basismap(model::AnyonModel, τ::Float64, state::T, i::Int, sign::Bool) where {T}
 
 Map single basis state under measurement operation at site i.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, measure_operator)
 - `τ::Float64`: Measurement strength parameter
 - `state::T`: Input basis state
 - `i::Int`: Measurement site index (1 ≤ i ≤ N)
-- `sign::Bool`: Measurement outcome (0 for +, 1 for -)
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `sign::Bool`: Measurement outcome (false for +, true for -)
 
 # Returns
-- Basis-dependent output: Either `(basis, coefficient)` or `(basis1, basis2, coeff1, coeff2)`
+- `Tuple`: Either `(basis1, basis2, coeff1, coeff2)` for superposition output or `(basis, coeff)` for single output
 
-Maps individual basis states according to measurement protocols and fusion rules. Here we choose Heisenberg-like preferring way, selecting specific fusion outcome.
+Maps individual basis states according to measurement protocols and fusion rules.
 
 # Examples
 ```jldoctest
@@ -23,41 +21,40 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4; T = BitStr{N, Int};
 
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
+
 julia> state = T(0b0100);  # Single τ at site 2
 
 julia> τ = 1.0;  # Measurement strength
 
-julia> # Measure at site 2 with outcome + (sign=0)
-       result = measure_basismap(T, τ, state, 2, 0, true);
+julia> result = measure_basismap(model, τ, state, 2, false);
 
 julia> length(result) ∈ [2, 4]  # Returns 2 or 4 elements depending on configuration
 true
-
-julia> # The first element is always a basis state
-       typeof(result[1]) == T
-true
 ```
 """
-function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Bool, pbc::Bool=true) where {N, T <: BitStr{N}}
+function measure_basismap(model::AnyonModel{AT}, τ::Float64, state::T, i::Int, sign::Bool) where {T, AT<:AbstractAnyonType}
     # default for PBC system, map basis (not state!!!), and index count from the left.
-    @assert 1 <= i <= N "Index i must be in the range [1, N]"
+    @assert 1 <= i <= model.N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
-    
+
+    return _apply_result(model, τ, state, i, sign)
+end
+
+function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+    @assert model.measure_operator ∈ [:Ferro, :Antiferro] "measure_operator must be :Ferro or :Antiferro"
+    N = model.N
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
 
-    return _apply_result(anyon_type, τ, state, i, sign, measure_operator)
-end
-
-function _apply_result(anyontype::FibonacciAnyon, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
-    @assert measure_operator ∈ [:reset, :Fibo] "measure_operator must be :Fibo or :reset"
     if τ >= 1e2
+        # true is 1, false is 0
         cstτ = 0.5
-        coef = sign == 0 ? 0.5 : -0.5
+        coef = sign ? -0.5 : 0.5 
     else
         cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        coef = sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) : (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) 
     end
     
     if 2<= i <= N-1
@@ -76,7 +73,7 @@ function _apply_result(anyontype::FibonacciAnyon, τ::Float64, state::T, i::Int,
         end
     end
 
-    if pbc
+    if model.pbc
         if i == 1 #count from the left
         mask=bmask(T, N, N-1,1)
         str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
@@ -109,26 +106,31 @@ function _apply_result(anyontype::FibonacciAnyon, τ::Float64, state::T, i::Int,
     end
 end
 
-function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sign::Int64, measure_operator::Symbol) where {T}
-    @assert measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
-    if measure_operator == :X
+function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+    @assert model.measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
+
+    N = model.N
+    fl=bmask(T, N)
+    X(state,i) = flip(state, fl >> (i-1))
+
+    if model.measure_operator == :X
         if τ >= 1e2
             cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
+            coef = sign ? -0.5 : 0.5 
         else
             cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+            coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ)) 
         end
 
         return state, X(state,i), cstτ, coef
 
-    elseif measure_operator == :ZZ
+    elseif model.measure_operator == :ZZ
         if τ >= 1e2
             cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
+            coef = sign ? -0.5 : 0.5
         else
             cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+            coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
         end
 
         if 1<= i <= N-1
@@ -149,37 +151,38 @@ function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sig
     end
 end
 
-function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sign::Int64) where {T}
-    if τ >= 1e2
-        cstτ = 0.5
-        coef = sign == 0 ? 0.5 : -0.5
+# function _apply_result(anyontype::IsingAnyon, τ::Float64, state::T, i::Int, sign::Int64) where {T}
+#     For :reset, :resetFibo, :IsingZ, not sure if needed yet.
+#     if τ >= 1e2
+#         cstτ = 0.5
+#         coef = sign ? 0.5 : -0.5
+#     else
+#         cstτ = cosh(τ/2) / √(2cosh(τ))
+#         coef = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+#     end
+
+#     return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
+# end
+
+
+function measure_matrix(model::AnyonModel{AT}, τ::Float64, idx::Int, sign::Bool) where {AT<:AbstractAnyonType}
+
+    if model.measure_operator ∈ [:Ferro, :Antiferro]
+        @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif model.measure_operator == :IsingZZ
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
+    elseif model.measure_operator ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
-        cstτ = cosh(τ/2) / √(2cosh(τ))
-        coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+        error("Unknown measure class: $(model.anyon_type)")
     end
 
-    return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
-end
-
-
-function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-
-    if anyon_type == :Fibo
-        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif anyon_type == :IsingZZ
-        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
-        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
-    else
-        error("Unknown measure class: $anyon_type")
-    end
-
-    basis = anyon_basis(T, pbc; anyon_type = anyon_type)
+    basis = anyon_basis(model)
     l = length(basis)
     Bmatrix = zeros(l, l)
 
     for i in 1:l
-        s1, s2, w1, w2 = measure_basismap(T, τ, basis[i], idx, sign, pbc; anyon_type = anyon_type)
+        s1, s2, w1, w2 = measure_basismap(model, τ, basis[i], idx, sign)
 
         if w2 == 0
             Bmatrix[i, i] += w1
@@ -193,25 +196,25 @@ function measure_matrix(::Type{T}, τ::Float64, idx::Int, sign::Bool, pbc::Bool=
     return Bmatrix
 end
 
-function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
     # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
-    if anyon_type == :Fibo
-        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif anyon_type == :IsingZZ
-        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
-        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
+    if model.measure_operator ∈ [:Ferro, :Antiferro]
+        @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif model.measure_operator == :IsingZZ
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
+    elseif model.measure_operator ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
-        error("Unknown measure class: $anyon_type")
+        error("Unknown measure class: $(model.anyon_type)")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(model)
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
-        outputstate1, outputstate2, output1, output2 = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
+        outputstate1, outputstate2, output1, output2 = measure_basismap(model, τ, basis[i], idx, sign)
         
         if output2 == 0
             mapped_state[i]+=output1*state[i] # outputstate is the same as basis[i]
@@ -224,21 +227,20 @@ function measuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::B
     
     return mapped_state
 end
-measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = measuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type)
 
-function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function laddermeasuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
     # input a superposition state, and output the braided state
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+    @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(model)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
     for i in 1:l
         for j in 1:l
-            output1 = measure_basismap(T, τ, basis[i], idx, sign, pbc, anyon_type=anyon_type)
-            output2 = measure_basismap(T, τ, basis[j], idx, sign, pbc, anyon_type=anyon_type)
+            output1 = measure_basismap(model, τ, basis[i], idx, sign)
+            output2 = measure_basismap(model, τ, basis[j], idx, sign)
             if length(output1) == 4 && length(output2) == 4
                 basisi1, basisi2, coefi1, coefi2=output1
                 basisj1, basisj2, coefj1, coefj2=output2
@@ -271,19 +273,39 @@ function laddermeasuremap(::Type{T}, τ::Float64, state::Vector{ET}, idx::Int, s
     
     return mapped_state
 end
-laddermeasuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = laddermeasuremap(BitStr{N, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type)
 
 """
-    measurement_enumeration(::Type{T}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    measurement_enumeration(model::AnyonModel, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}) where {ET}
 
-Enumerating all trajectories of measurements on a given initial state.
+Enumerate all trajectories of measurements on a given initial state.
 
-Args:T, τ, initial_state, measurement_sites, pbc
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `τ::Float64`: Measurement strength parameter
+- `initial_state::Vector{ET}`: Initial quantum state vector
+- `measurement_sites::Vector{Int}`: Sites to measure
 
-Returns:
-    final_states, trajectories, probabilities
+# Returns
+- `Tuple{Vector{Vector{ET}}, Vector{Vector{Int64}}, Vector{Float64}}`:
+  (final_states, trajectories, probabilities)
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true, measure_operator=:Antiferro);
+
+julia> basis = anyon_basis(model);
+
+julia> state = normalize(ones(length(basis)));
+
+julia> states, trajs, probs = measurement_enumeration(model, 1.0, state, [2]);
+
+julia> length(states) == 2  # Two possible outcomes
+true
+```
 """
-function measurement_enumeration(anyon_model::AnyonModel, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}) where {ET}
+function measurement_enumeration(model::AnyonModel{AT}, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     
     # Initialize, only one initial state
@@ -300,8 +322,8 @@ function measurement_enumeration(anyon_model::AnyonModel, τ::Float64, initial_s
         for (state_idx, state) in enumerate(current_level_states)
             current_trajectory = current_level_trajectories[state_idx]
             current_prob = current_level_probabilities[state_idx]
-            
-            state_after_p = measuremap(T, τ, state, site, 0, pbc, anyon_type=anyon_type)
+
+            state_after_p = measuremap(model, τ, state, site, false)
             prob_p = real(dot(state_after_p, state_after_p))
 
             normalized_state_p = state_after_p / sqrt(prob_p)
@@ -311,9 +333,8 @@ function measurement_enumeration(anyon_model::AnyonModel, τ::Float64, initial_s
             push!(next_level_states, normalized_state_p)
             push!(next_level_trajectories, new_trajectory_p)
             push!(next_level_probabilities, new_prob_p)
-        
-            
-            state_after_m = measuremap(T, τ, state, site, 1, pbc, anyon_type=anyon_type)
+
+            state_after_m = measuremap(model, τ, state, site, true)
             prob_m = real(dot(state_after_m, state_after_m))
 
             normalized_state_m = state_after_m / sqrt(prob_m)
@@ -335,9 +356,6 @@ function measurement_enumeration(anyon_model::AnyonModel, τ::Float64, initial_s
 
     return current_level_states, current_level_trajectories, current_level_probabilities
 end
-
-measurement_enumeration(N::Int, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = 
-measurement_enumeration(BitStr{N, Int}, τ, initial_state, measurement_sites, pbc, anyon_type=anyon_type)
 
 
 function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
@@ -372,29 +390,30 @@ function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, pro
 end
 
 """
-    transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symbol=:Fibo, enable_τ_eff::Bool=true)
+    transfer_matrix(model::AnyonModel, τ::Float64; sign::Bool=true)
+
 Construct the transfer matrix for two measurement layers.
+
 # Arguments
-- `N::Int64`: Chain length N
+- `model::AnyonModel`: Anyon model containing system parameters
 - `τ::Float64`: Measurement strength parameter
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
-- `enable_τ_eff::Bool=true`: Whether to enable effective τ calculation
+- `sign::Bool=true`: Measurement outcome sign
+
 # Returns
-`Matrix{Float64}`: Transfer matrix between two measurement layers.
+- `Matrix{Float64}`: Transfer matrix between two measurement layers
 """
-function transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symbol=:Fibo, sign::Bool=0)
-    measurement_sites1, measure_type = _obtain_measurement_config(N, 1, anyon_type)  
-    measurement_sites2, measure_type = _obtain_measurement_config(N, 2, anyon_type)  
-    
-    basis = anyon_basis(BitStr{N, Int}, pbc; anyon_type = anyon_type)
+function transfer_matrix(model::AnyonModel{AT}, τ::Float64; sign::Bool=true) where {AT<:AbstractAnyonType}
+    measurement_sites1, measure_type = _obtain_measurement_config(model.N, 1)  
+    measurement_sites2, measure_type = _obtain_measurement_config(model.N, 2)  
+
+    basis = anyon_basis(model)
     l = length(basis)
     TM = zeros(Float64, l, l)   
 
     for i in 1:l
         # First layer
         for (idx, site) in enumerate(measurement_sites1)
-            outputstate1, outputstate2, output1, output2 = measure_basismap(BitStr{N, Int}, τ, basis[i], site, sign, pbc; anyon_type = measure_type)
+            outputstate1, outputstate2, output1, output2 = measure_basismap(model, τ, basis[i], site, sign)
 
             if output2 == 0
                 TM[i,i] += output1
@@ -409,7 +428,7 @@ function transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symb
     for i in 1:l
         # Second layer
         for (idx, site) in enumerate(measurement_sites2)
-            outputstate1, outputstate2, output1, output2 = measure_basismap(BitStr{N, Int}, τ, basis[i], site, sign, pbc; anyon_type = measure_type)
+            outputstate1, outputstate2, output1, output2 = measure_basismap(model, τ, basis[i], site, sign)
 
             if output2 == 0
                 TM[i,i] += output1
@@ -424,60 +443,50 @@ function transfer_matrix(N::Int64, τ::Float64, pbc::Bool=true; anyon_type::Symb
     return TM
 end
 
-function _obtain_measurement_config(N::Int, layer_idx::Int, anyon_type::Symbol=:Fibo)
-    if anyon_type == :Fibo
-        measurement_sites = iseven(layer_idx) ? collect(1:2:N) : collect(2:2:N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites, 
-        measure_type = :Fibo
-    elseif anyon_type ∈ (:IsingX, :IsingZ, :IsingZZ, :reset, :resetFibo)
-        # measure at all sites!!!
-        measurement_sites = collect(1:N)
-        measure_type = iseven(layer_idx) ? :IsingZZ : :IsingX # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
-    else
-        error("Unknown measure class: $anyon_type")
-    end
+function _obtain_measurement_config(model::AnyonModel{FibonacciAnyon}, layer_idx::Int)
+        measurement_sites = iseven(layer_idx) ? collect(1:2:model.N) : collect(2:2:model.N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites,
+        measure_operator = :Antiferro
+        measure_anyon_model = AnyonModel(FibonacciAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+    return measurement_sites, measure_anyon_model
+end
 
-    return measurement_sites, measure_type
+function _obtain_measurement_config(model::AnyonModel{IsingAnyon}, layer_idx::Int)
+    # measure at all sites!!!
+    measurement_sites = collect(1:model.N)
+    measure_operator = iseven(layer_idx) ? :IsingZZ : :IsingX # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
+    measure_anyon_model = AnyonModel(IsingAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+    return measurement_sites, measure_anyon_model
 end
 
 """
-    _apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{T}, 
-    layer_sample::BitVector, 
-    layer_idx::Int64, 
-    pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo) where {T}
+    _apply_measurement_layer!(model::AnyonModel, τ::Float64, state::Vector{T}, 
+                              layer_sample::BitVector; layer_idx::Int=1) where {T}
 
-Generate measurement samples at 1 layer with post_selection outcomes, i.e., with time step 1.
+Apply deterministic measurements to a layer with given measurement outcomes.
 
 # Arguments
-- `N::Int`: Chain length N
+- `model::AnyonModel`: Anyon model containing system parameters
 - `τ::Float64`: Measurement strength parameter
-- `state::Vector{ET}`: Initial quantum state vector
-- `layer_sample::Vector{Int64}`: Measurement outcomes for the layer
-- `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `state::Vector{T}`: Quantum state vector (modified in place)
+- `layer_sample::BitVector`: Measurement outcomes for the layer
+- `layer_idx::Int=1`: Layer index (1-based) to determine measurement pattern
 
 # Returns
-`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
-- `post-measurement states`
-- `free energies`
-
-Samples measurement outcomes with given measurement outcomes.
+- `Tuple{Vector{T}, Float64}`: (post-measurement state, total free energy)
 """
-function _apply_measurement_layer!(anyon_model::AnyonModel, τ::Float64, state::Vector{T}, 
-    layer_sample::BitVector, layer_idx::Int64) where {T}
+function _apply_measurement_layer!(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T}, 
+    layer_sample::BitVector; layer_idx::Int64=1) where {T, AT<:AbstractAnyonType}
     # Helper function to apply deterministic measurements to a layer, connect measure on each site together.
 
     total_free_energy = zero(real(T))
 
-    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
+    measurement_sites, measure_anyon_model = _obtain_measurement_config(anyon_model, layer_idx)  
 
     for (idx, sign) in enumerate(layer_sample)
         # Apply measurement at site measurement_sites[idx] with outcome sign
-        state = measuremap(N, τ, state, measurement_sites[idx], sign, pbc, anyon_type = measure_type)
+        state = measuremap(measure_anyon_model, τ, state, measurement_sites[idx], sign)
         prob = real(dot(state, state))
         total_free_energy += -log(prob)
-
         state ./= sqrt(prob)
     end
 
@@ -485,39 +494,29 @@ function _apply_measurement_layer!(anyon_model::AnyonModel, τ::Float64, state::
 end
 
 """
-    _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
-    rng::MersenneTwister = MersenneTwister(), 
-    layer_idx::Int64, 
-    pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo) where {T}
+    _sample_layer!(model::AnyonModel, τ_eff::Float64, state::Vector{T};
+                   layer_idx::Int=1, rng::MersenneTwister=MersenneTwister(), 
+                   verbose::Bool=false) where {T}
 
-Do the random measurement on a layer, in contrast to _apply_measurement_layer! No sample input, but output the sample.
+Perform random measurement on a layer using Born rule sampling.
 
 # Arguments
-- `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
-- `state::Vector{ET}`: Initial quantum state vector
-- `rng::MersenneTwister = MersenneTwister()`: Random number generator
-- `layer_idx::Int64`: Layer index (1-based) to determine measurement pattern
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `model::AnyonModel`: Anyon model containing system parameters
+- `τ_eff::Float64`: Effective measurement strength parameter
+- `state::Vector{T}`: Quantum state vector
+- `layer_idx::Int=1`: Layer index (1-based) to determine measurement pattern
+- `rng::MersenneTwister`: Random number generator
+- `verbose::Bool=false`: Whether to print debug information
 
 # Returns
-`Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
-- `state_Born_measured`, 
-- `samples`, 
-- `free_energy` of one layer.
-
-Samples measurement outcomes with Born rule driven trajectories.
+- `Tuple{Vector{T}, BitVector, Float64}`: (post-measurement state, sample outcomes, free energy)
 """
-function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
-    rng::MersenneTwister = MersenneTwister(), 
-    layer_idx::Int64=1, 
-    pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    verbose::Bool=false) where {T}
+function _sample_layer!(anyon_model::AnyonModel{AT}, τ_eff::Float64, state::Vector{T};
+    layer_idx::Int64=1,
+    rng::MersenneTwister = MersenneTwister(),
+    verbose::Bool=false) where {T, AT<:AbstractAnyonType}
 
-    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
+    measurement_sites, measure_anyon_model = _obtain_measurement_config(anyon_model, layer_idx)  
     n = length(measurement_sites)
     sample = BitVector(zeros(Bool, n))
     F_layer = 0.0
@@ -525,7 +524,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
-        ψ0 = measuremap(N, τ_eff, state, site, 0, pbc, anyon_type = measure_type)
+        ψ0 = measuremap(measure_anyon_model, τ_eff, state, site, false)
         p0 = real(dot(ψ0, ψ0))
         p1 = 1 - p0
 
@@ -538,7 +537,7 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
             verbose && @show -log(p0)
         else
             # else 1 branch
-            ψ1 = measuremap(N, τ_eff, state, site, 1, pbc, anyon_type = measure_type)
+            ψ1 = measuremap(measure_anyon_model, τ_eff, state, site, true)
             sample[i] = 1
             state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
@@ -549,13 +548,16 @@ function _sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 end
 
 """
+Configuration struct for measurement evolution parameters.
+
+# Fields
 - `τ::Float64`: Measurement strength parameter
 - `t₂::Int`: Number of measurement layers (time steps)
-- `rng::MersenneTwister = MersenneTwister()`: Random number generator
-- `mode::Symbol = :sample`: Sampling mode, one of `:sample`, `:Born`
-- `t₁::Int = 1`: Starting layer index for evolution (default is 1)
-- `verbose::Bool = false`: Verbosity flag for detailed output
-- `enable_τ_eff::Bool = true`: Whether to enable half-strength measurement for the last layer
+- `rng::MersenneTwister`: Random number generator (default: `MersenneTwister()`)
+- `mode::Symbol`: Sampling mode, one of `:sample`, `:Born` (default: `:sample`)
+- `t₁::Int`: Starting layer index for evolution (default: 1)
+- `verbose::Bool`: Verbosity flag for detailed output (default: false)
+- `enable_τ_eff::Bool`: Whether to enable half-strength measurement for the last layer (default: true)
 """
 Base.@kwdef struct MeasureConfig
     τ::Float64
@@ -568,81 +570,87 @@ Base.@kwdef struct MeasureConfig
 end
 
 """
-    measure_evolution!(N::Int,
-                  τ::Float64,
-                  state::Vector{ET},
-                  t₂::Int = 1;
-                  rng::MersenneTwister = MersenneTwister(),
-                  pbc::Bool = true,
-                  anyon_type::Symbol = :Fibo,
-                  mode::Symbol = :sample,
-                  t₁::Int = 1,
-                  sample::Union{Nothing,Matrix{Int}}=nothing,
-                  verbose::Bool = false, enable_τ_eff::Bool = true) where {ET}
+    measure_evolution!(model::AnyonModel, state::Vector{ET}, 
+                       samples::Union{Nothing,BitMatrix}, 
+                       measure_config::MeasureConfig) where {ET}
                   
-Perform measurement evolution from t₁ (default to be 1) to t₂ on the initial state with specified parameters, returning final states, measurement sequences, and free energies, with options for different sampling modes and temporal settings. KEEP IN MIND: In such definition, (2N+1) layers of measurements correspond to N time steps of evolution, with the last layer being half-strength. The first and end layer should not be √ZZ or √M₁ᵒ
+Perform measurement evolution from t₁ to t₂ on the initial state.
 
 # Arguments
-- `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
+- `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `t₂::Int=1`: Number of measurement layers (time steps)
-- `rng`: Random number generator (default: `MersenneTwister()`)
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
-- `mode::Symbol=:prob`: evolution mode, one of `:prob`, `:sample`, `:Born`, Born is random sampling, driven by Born rule, the other is deterministic post-selection evolution, with given measurement outcomes.
-- `sample::Union{Nothing,BitMatrix}=nothing`: Predefined measurement sequences for `:sample` mode
-- `t₁::Int=1`: Starting layer index for evolution (default is 1)
-- `verbose::Bool=false`: Verbosity flag for detailed output
-- `enable_τ_eff::Bool=true`: Whether to enable half-strength measurement for the last layer
+- `samples::Union{Nothing,BitMatrix}`: Predefined measurement sequences for `:sample` mode
+- `measure_config::MeasureConfig`: Configuration struct containing τ, t₁, t₂, mode, etc.
 
 # Returns
-- `Tuple{Union{Vector{ET}, Vector{Vector{ET}}}, Matrix{Int}, Vector{Float64}}`: 
-  (final state or all intermediate states, measurement sequences, free energies)
-- states        : final state
-- samples       : measurement sequences (Matrix{Int})
-- sample_free_energy : cumulative free energy for each layer (or each sample)
+- `Tuple{Vector{Vector{ET}}, BitMatrix, Vector{Float64}}`:
+  - `states`: Intermediate states at each time step
+  - `samples`: Measurement outcome sequences
+  - `sample_free_energy`: Free energy for each layer
+
+# Notes
+- In `:Born` mode, samples are generated probabilistically via Born rule
+- In `:sample` mode, samples must be provided as input
+- (2N+1) layers of measurements correspond to N time steps of evolution
 """
-function measure_evolution!(anyon_model::AnyonModel,   # DRY: don't repeat yourself.
+function measure_evolution!(anyon_model::AnyonModel{AT},   # DRY: don't repeat yourself.
                   state::Vector{ET},
-                  sample::Union{Nothing,BitMatrix},
-                  measure_config::MeasureConfig) where {ET}
-
-    n_measure = anyon_type == :Fibo ? N÷2 : N
-
+                  samples::Union{Nothing,BitMatrix},
+                  measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
     # ---------- Sample decided according to mode ----------
-    Δt = t₂ - t₁ + 1 
-    Δt >= 0 || error("t₂ must be >= t₁")
-    D = Δt * 2 # number of layers to evolve
+    mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
-    sample_free_energy = zeros(D) # free energy of each layer
-    states = Vector{Vector{ET}}(undef, Δt)  # states of each layer
     current_state = copy(state)
     if measure_config.mode == :Born
-        _born_measure(model, current_state, sample, measure_config)
+        _born_measure(anyon_model, current_state, measure_config)
     elseif measure_config.mode == :sample
-        _sample_measure(model, current_state, sample, measure_config)
+        _sample_measure(anyon_model, current_state, samples, measure_config)
     end
 end
 
-function _born_measure(model, current_state, sample, measure_config)
-         # 1. Initialize sample matrix
-        sample = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure_config::MeasureConfig) where {AT, ET}
 
-        for period in 1:Δt
-        
-            # Random sampling for this period
-            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
-            current_state, sample[2*period-1, :], sample_free_energy[2*period-1] = _sample_layer!(N, τ, current_state, rng, 2*period-1, pbc, anyon_type = anyon_type, verbose=verbose)
-            current_state, sample[2*period, :], sample_free_energy[2*period] = _sample_layer!(N, τ_eff, current_state, rng, 2*period, pbc, anyon_type = anyon_type, verbose=verbose)
+    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    Δt = measure_config.t₂ - measure_config.t₁ + 1
+    Δt >= 0 || error("t₂ must be >= t₁")
+    D = Δt * 2 # number of layers to evolve
 
-            states[period] = current_state
-        end
-        
-    # elseif mode == :sample
-        isnothing(sample) && error("When mode=:sample sample must be ::Matrix{Int}")
-        size(sample) == (D, n_measure) ||
+    # 1. Initialize sample matrix
+    samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+    sample_free_energy = zeros(D)
+    states = Vector{Vector{ET}}(undef, Δt)
+
+    for period in 1:Δt
+    
+        # Random sampling for this period
+        τ = measure_config.τ
+        enable_τ_eff = measure_config.enable_τ_eff
+        rng = measure_config.rng
+        verbose = measure_config.verbose
+        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+        current_state, samples[2*period-1, :], sample_free_energy[2*period-1] = _sample_layer!(model, τ, current_state, layer_idx=2*period-1, rng=rng, verbose=verbose)
+        current_state, samples[2*period, :], sample_free_energy[2*period] = _sample_layer!(model, τ_eff, current_state, layer_idx=2*period, rng=rng, verbose=verbose)
+
+        states[period] = current_state
+    end
+
+    return states, samples, sample_free_energy
+end
+
+function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig) where {AT, ET}
+
+        n_measure = measurement_num(model.anyon_type)*model.N÷2
+        Δt = measure_config.t₂ - measure_config.t₁ + 1
+        Δt >= 0 || error("t₂ must be >= t₁")
+        D = Δt * 2 # number of layers to evolve
+
+        samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+        sample_free_energy = zeros(D)
+        states = Vector{Vector{ET}}(undef, Δt)
+        # 2. Validate sample matrix
+        isnothing(samples) && error("When mode=:sample samples must be ::BitMatrix")
+        size(samples) == (D, n_measure) ||
             error("sample size should be ($D, $n_measure)")
 
         # 3. Deterministic trajectory for modes :sample, directly deterministic trajectory
@@ -672,39 +680,37 @@ function _born_measure(model, current_state, sample, measure_config)
             # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
             # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer doesn't matter.
             # Or √ZZ X √ZZ √ZZ X √ZZ ⋯ X √ZZ X √ZZ→ X ZZ X ZZ ⋯ X √ZZ, also works
+            τ = measure_config.τ
+            enable_τ_eff = measure_config.enable_τ_eff
             τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
             current_state, sample_free_energy[2*period-1] = _apply_measurement_layer!(
-                            N, τ, current_state,
-                            sample[2*period-1, :], 2*period-1, pbc;
-                            anyon_type=anyon_type)
+                            model, τ, current_state,
+                            samples[2*period-1, :], layer_idx=2*period-1)
             current_state, sample_free_energy[2*period] = _apply_measurement_layer!(
-                            N, τ_eff, current_state,
-                            sample[2*period, :], 2*period, pbc;
-                            anyon_type=anyon_type)
+                            model, τ_eff, current_state,
+                            samples[2*period, :], layer_idx=2*period)
 
             states[period] = current_state
         end
-    
-    return states, sample, sample_free_energy
+    return states, samples, sample_free_energy
 end
 
-struct StateByMeasurement{T}
+struct Measurement_outcome{T}
     state::Vector{T}
     samples::Matrix{Int}
     free_energy::Float64
 end
-function generate_state_by_measurement(anyon_model::AnyonModel, state::Vector{T}, sample::BitMatrix; τ::Float64, enable_τ_eff::Bool=true) where{T}
-    N = measurement_time(anyon_model.anyon_type) * size(sample, 2)
-    D = size(sample, 1) # number of layers
+
+function generate_state_by_measurement(anyon_model::AnyonModel{AT}, state::Vector{T}, samples, measure_config::MeasureConfig) where{T, AT<:AbstractAnyonType}
+    N = measurement_num(anyon_model.anyon_type) * size(samples, 2)
+    D = size(samples, 1) # number of layers
     t₂ = D ÷ 2 # number of time steps/ periods
 
-    final_state, sample, free_energy = measure_evolution!(anyon_model, τ, state, t₂; 
-        mode=:sample, 
-        sample=sample, enable_τ_eff=enable_τ_eff)
-    return StateByMeasurement(final_state, sample, free_energy)
+    final_state, sample, free_energy = measure_evolution!(anyon_model, state, samples,  measure_config)
+    return Measurement_outcome(final_state, sample, free_energy)
 end
-measurement_time(::FibonacciAnyon) = 2
-measurement_time(::IsingAnyon) = 1
+measurement_num(::FibonacciAnyon) = 1
+measurement_num(::IsingAnyon) = 2
 
 function generate_state_by_measurement(anyon_type::AbstractAnyonType, τ::Float64, state::Vector{T}, sample::BitVector; pbc::Bool=true, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
     N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
@@ -714,40 +720,36 @@ function generate_state_by_measurement(anyon_type::AbstractAnyonType, τ::Float6
     final_state, sample, free_energy = measure_evolution!(N, τ, state, t₂; 
     pbc=pbc, anyon_type=anyon_type, mode=:sample, 
     sample=sample, enable_τ_eff=enable_τ_eff)
-    return StateByMeasurement(final_state, sample, free_energy)
+    return Measurement_outcome(final_state, sample, free_energy)
 end
 
 """
-    boundary_measure(::Type{T}, τ::Float64, state::Vector{ET}, layer_idx::Int, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    boundary_measure(model::AnyonModel, state::Vector{ET}, layer_idx::Int=1, 
+                     num_samples::Int=1000, measure_config::MeasureConfig) where {ET}
 
-Generate measurement samples at boundary sites with probabilistic outcomes, i.e., without time axis evolution. DO num_samples times sampling.
+Generate measurement samples at boundary sites with probabilistic outcomes (Born rule).
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `τ::Float64`: Measurement strength parameter
+- `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `layer_idx::Int`: measurement layer index, (layer_idx is even, measurement sites is collect(1:2:N), layer_idx is odd, measurement sites is collect(2:2:N) for Fibonacci anyon type, layer_idx is always 1 for Ising anyon type)
+- `layer_idx::Int=1`: Measurement layer index
 - `num_samples::Int=1000`: Number of measurement samples to generate
-- `rng::MersenneTwister`: Random number generator
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `measure_config::MeasureConfig`: Configuration containing rng and other parameters
 
 # Returns
-- `Tuple{Vector{Vector{Float64}}, Matrix{Int64}, Vector{Float64}}`: 
+- `Tuple{Vector{Vector{Float64}}, BitMatrix, Vector{Float64}}`:
   (post-measurement states, measurement sequences, free energies)
-
-Samples measurement outcomes probabilistically based on Born rule.
 """
-function boundary_measure(N::Int, τ::Float64, state::Vector{ET}, layer_idx::Int=1, num_samples::Int=1000, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+function boundary_measure(model::AnyonModel{AT}, state::Vector{ET}, layer_idx::Int=1, num_samples::Int=1000, measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    
-    n_measure = anyon_type == :Fibo ? N ÷ 2 : N
+
+    n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
     sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
-    samples = zeros(Bool, num_samples, n_measure)
+    samples = BitMatrix(undef, num_samples, n_measure)
     sample_free_energy = Vector{Float64}(undef, num_samples)
 
     for sample_idx in 1:num_samples
-        final_state, sample, free_energy = _sample_layer!(N, τ, state,  rng, layer_idx, pbc; anyon_type=anyon_type)
+        final_state, sample, free_energy = _sample_layer!(model, state, rng, layer_idx = layer_idx)
 
         sample_measured_states[sample_idx] = final_state
         samples[sample_idx, :] = sample
@@ -759,34 +761,29 @@ end
 
 
 """
-    boundary_post_selection(N::Int64, τ::Float64, state::Vector{ET}, layer_idx::Int=1, sign::Bool=1, pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    boundary_post_selection(model::AnyonModel, state::Vector{ET}, 
+                            layer_idx::Int=1, sign::Bool=true) where {ET}
 
-Generate measurement samples at boundary sites with post_selection outcomes, i.e., given spatial evolution without time axis evolution.
+Apply deterministic measurements at boundary sites with specified outcomes.
 
 # Arguments
-- `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
+- `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `layer_idx::Int=1`: measurement layer index, (layer_idx is even, measurement sites is collect(1:2:N), layer_idx is odd, measurement sites is collect(2:2:N) for Fibonacci anyon type, layer_idx is always 1 for Ising anyon type)
-- `sign::Bool=1`: Measurement outcome sign (0 or 1)
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `layer_idx::Int=1`: Measurement layer index
+- `sign::Bool=true`: Measurement outcome (false for all +, true for all -)
 
 # Returns
-- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
-  (post-measurement states, measurement sequences, free energies)
-
-Samples measurement outcomes with given measurement outcomes.
+- `Tuple{Vector{ET}, BitVector, Float64}`:
+  (post-measurement state, measurement outcomes, total free energy)
 """
-function boundary_post_selection(N::Int64, τ::Float64, state::Vector{ET}, layer_idx::Int=1, sign::Bool=1, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+function boundary_post_selection(model::AnyonModel{AT}, state::Vector{ET}, layer_idx::Int=1, sign::Bool=true) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
-    n_measure = (anyon_type == :Fibo) ? N ÷ 2 : N
+    n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
     sample = (sign == 0) ? BitVector(zeros(Bool, n_measure)) : BitVector(ones(Bool, n_measure))
 
     state_measured, total_free_energy =  _apply_measurement_layer!(
-        N, τ, state, sample, layer_idx, pbc;
-        anyon_type=anyon_type
+        model, state, sample, layer_idx
     )  # return the final state after applying all measurements in the layer
 
     return state_measured, sample, total_free_energy
@@ -794,80 +791,67 @@ end
 
 
 """
-    bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, t₂::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    bulk_measure(model::AnyonModel, state::Vector{ET}, t::Int64, 
+                 measure_config::MeasureConfig) where {ET}
 
-Generate measurement samples at bulk sites with probabilistic outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
+Generate measurement samples at bulk sites with probabilistic outcomes.
+
+Performs both time and spatial axis evolution for bulk measurements.
 
 # Arguments
-- `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
+- `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `t₂::Int64`: Number of measurement layers (depth), or time step (over 2)
-- `rng::MersenneTwister`: Random number generator
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `t::Int64`: Number of measurement layers (depth)
+- `measure_config::MeasureConfig`: Measurement configuration parameters
 
 # Returns
-- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
-  (post-measurement states, measurement sequences, free energies)
+- `Tuple{Vector, BitMatrix, Float64}`:
+  (final state, measurement samples, sample free energy)
 
 Samples measurement outcomes probabilistically based on Born rule.
 """
-function bulk_measure(N::Int64, τ::Float64, state::Vector{ET}, D::Int64, rng::MersenneTwister=MersenneTwister(), pbc::Bool=true; anyon_type::Symbol=:Fibo, verbose::Bool=false) where {ET}
+function bulk_measure(model::AnyonModel{AT}, state::Vector{ET}, t::Int64, measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
 
     final_state, samples, sample_free_energy = measure_evolution!(
-        N, τ, state, D;
-        rng=rng,
-        pbc=pbc,
-        anyon_type=anyon_type,
-        mode=:Born,
-        verbose=verbose
-    )  # need all the intermediate states, measure_evolution! return each layer free energy
+        model, state, t, measure_config;
+    )
+
     return final_state, samples, sample_free_energy
 end
 
 """
-    bulk_post_selection(N::Int64, τ::Float64, state::Vector{ET}, t₂::Int64, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo)
+    bulk_post_selection(model::AnyonModel, state::Vector{ET}, sign::Bool,
+                        measure_config::MeasureConfig) where {ET}
 
-Generate measurement samples at bulk sites with post_selection outcomes, i.e., with time axis evolution, together with spatial evolution axis as bulk.
+Generate measurement samples at bulk sites with deterministic (post-selected) outcomes.
+
+Performs both time and spatial axis evolution with specified measurement outcomes.
 
 # Arguments
-- `N::Int`: Chain length N
-- `τ::Float64`: Measurement strength parameter
+- `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `t₂::Int64`: Number of measurement layers (depth), or time step (over 2)
-- `sign::Bool`: Measurement sign, 0 for positive, 1 for negative
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `sign::Bool`: Measurement outcome (false for all +, true for all -)
+- `measure_config::MeasureConfig`: Measurement configuration parameters
 
 # Returns
-- `Tuple{Vector{Vector{Float64}}, Vector{Vector{Int64}}, Vector{Float64}}`: 
-  (post-measurement states, measurement sequences, free energies)
-
-Samples measurement outcomes with given measurement outcomes.
+- `Tuple{Vector, BitMatrix, Float64}`:
+  (post-measurement states, measurement samples, sample free energy)
 """
 function bulk_post_selection(
-        N::Int64,
-        τ::Float64,
+        model::AnyonModel{AT},
         state::Vector{ET},
-        D::Int64,
         sign::Bool,
-        pbc::Bool=true;
-        anyon_type::Symbol=:Fibo
+        measure_config::MeasureConfig
     ) where {ET}
 
     # 1. Build the sample, all 0 or all 1, each layer N/2 or N measurements, depending on anyon_type, total D layers.
-    n_measure = (anyon_type == :Fibo) ? N ÷ 2 : N
+    n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
 
     sample = (sign == 1) ? BitMatrix(undef, (2D, n_measure)) : BitMatrix(undef, (2D, n_measure))
 
     # 2. generate_state to run all the layers
     sample_measured_states, samples, sample_free_energy = measure_evolution!(
-        N, τ, state, D;
-        pbc=pbc,
-        anyon_type=anyon_type,
-        mode=:sample,
-        sample=sample
+        model, state, sample, measure_config
     )        # need all the intermediate states, measure_evolution! return each layer free energy
 
     return sample_measured_states, sample, sample_free_energy
@@ -876,21 +860,25 @@ end
 
 
 """
-Distort the measurement trajectories based on a Bayesian distortion factor γ. Noting that it only works for one layer measurement to generate new sample for the other factor γ based on Projective limit measurement.
+    bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
 
-This function implements the distortion process where each faithful sample s is converted to a distorted sample s̃ according to the conditional probability:
-P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2
+Distort measurement trajectories based on a Bayesian distortion factor γ.
 
-Args:
-    γ: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1).
-    trajectories: Vector of measurement trajectories.
-    probabilities: Corresponding probabilities for each trajectory.
-    
-Returns:
-    Tuple of (distorted_trajectories, distorted_probabilities) where:
-    - distorted_trajectories: All possible distorted trajectories
-    - distorted_probabilities: Their corresponding probabilities after distortion
-    in corresponding order.
+This function implements the distortion process where each faithful sample s 
+is converted to a distorted sample s̃ according to the conditional probability:
+    P(s̃|s) = ∏ⱼ (1 + γ s̃ⱼ sⱼ)/2
+
+Only works for single-layer measurements to generate new samples based on 
+the projective limit measurement.
+
+# Arguments
+- `γ::Float64`: Distortion factor (readout fidelity parameter, 0 ≤ γ ≤ 1)
+- `trajectories::Vector{Int64}`: Vector of measurement trajectories
+- `probabilities::Vector{Float64}`: Corresponding probabilities for each trajectory
+
+# Returns
+- `Tuple{Vector{Vector{Int64}}, Vector{Float64}}`:
+  (distorted_trajectories, distorted_probabilities) in corresponding order
 """
 function bayes_distort(γ::Float64, trajectories::Vector{Int64}, probabilities::Vector{Float64})
     
