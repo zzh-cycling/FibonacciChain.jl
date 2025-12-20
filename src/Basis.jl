@@ -54,10 +54,10 @@ function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block
 end
 anyon_basis(model::AnyonModel{AT}; symmetry_block=nothing) where {AT<:FibonacciAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc, symmetry_block=symmetry_block)
 
-function anyon_basis(::IsingAnyon, ::Type{T}) where {N, T <: BitStr{N}}
+function anyon_basis(::IsingAnyon, ::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
     return [T(i) for i in 0:(2^N - 1)]
 end
-anyon_basis(model::AnyonModel{AT}) where {AT<:IsingAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int})
+anyon_basis(model::AnyonModel{AT}) where {AT<:IsingAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}, model.pbc)
 
 """
     Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
@@ -90,7 +90,7 @@ julia> abs(coef - (1-1/ϕ)) < 1e-10  # Should equal φ for this configuration
 true
 ```
 """
-function Fsymmetry_coef(state::T, base::T, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function Fsymmetry_coef(model::AnyonModel{AT}, state::T, base::T) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
     #  %%
@@ -176,7 +176,7 @@ julia> all(x -> abs(x) > 1e-10 || abs(x) < 1e-10, coeffs)  # All coeffs are well
 true
 ```
 """
-function topological_symmetry_basismap(state::T, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function topological_symmetry_basismap(model::AnyonModel{AT}, state::T) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # Compute the topological symmetry map for a given state using the topological symmetry site map for all site
     # However, it seems not easy to separate the state into different topological symmetric sectors.
     basis = anyon_basis(model)
@@ -184,17 +184,17 @@ function topological_symmetry_basismap(state::T, model::AnyonModel{AT}) where {N
     
     # For each base in basis, check the state at each site
     for (idx, base) in enumerate(basis)
-        coef = Fsymmetry_coef(state, base, model)
+        coef = Fsymmetry_coef(model, state, base)
         coeflis[idx] = coef
     end
     return coeflis
 end
 
-function topological_charge_operator(::Type{T}, model::AnyonModel{AT}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function topological_charge_operator(model::AnyonModel{AT}, ::Type{T}) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
 
     basis=anyon_basis(model)
-    Ymatrix=hcat(topological_symmetry_basismap.(basis, model)...)
+    Ymatrix=hcat(topological_symmetry_basismap.(Ref(model), basis)...)
 
     return Ymatrix
 end
@@ -582,7 +582,7 @@ function joint_basis(AT::AbstractAnyonType, lengthlis::Vector{Int}, pbc::Bool=fa
     if isempty(lengthlis)
         return BitStr{0, Int}[]
     else
-        return sort(mapreduce(len -> anyon_basis(AT, BitStr{len, Int}, pbc = pbc), process_join, lengthlis))
+        return sort(mapreduce(len -> anyon_basis(AT, BitStr{len, Int}, pbc), process_join, lengthlis))
     end
 end
 
@@ -660,11 +660,11 @@ julia> tr(rdm) ≈ 1.0 + 0.0im  # Trace should be 1
 true
 ```
 """
-function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true;) where {N,T <: BitStr{N}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = anyon_basis(T, pbc; anyon_type=anyon_type)
+    unsorted_basis = anyon_basis(AT, T, pbc;)
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -684,19 +684,10 @@ function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}
         @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
 
         basis, state = unsorted_basis[order], state[order]
-    elseif state isa Matrix
-        if isempty(subsystems)
-            return ones(ET, 1, 1) # Return empty matrix if no subsystems
-        elseif subsystems == collect(1:N)
-            return state
-        end
-        @assert length(unsorted_basis) == size(state, 2) "state size is expected to be $(length(unsorted_basis)), but got $(size(state, 2))"
-
-        basis, state = unsorted_basis[order], state[order, order]
     end
 
     
-    reduced_basis = move_subsystem.(T, joint_basis(lengthlis, anyon_type=anyon_type), Ref(subsystems))
+    reduced_basis = move_subsystem.(T, joint_basis(AT, lengthlis), Ref(subsystems))
     # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
     # TIPS: mask must have common non-zero part with reduced_basis (thus for comparing)
     len = length(reduced_basis)
@@ -727,7 +718,66 @@ function anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}
 
     return reduced_dm
 end
-anyon_rdm(N::Int, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET} = anyon_rdm(BitStr{N, Int}, subsystems, state, pbc; anyon_type=anyon_type)
+anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vector{ET}) where {ET} = anyon_rdm(model.anyon_type, BitStr{model.N, Int}, subsystems, state, model.pbc;)
+
+function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}, pbc::Bool=true;) where {N,T <: BitStr{N}, ET}
+    # Usually subsystem indices count from the right of binary string.
+    # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
+
+    unsorted_basis = anyon_basis(AT, T, pbc;)
+    subsystems=connected_components(subsystems)
+    lengthlis=length.(subsystems)
+    subsystems=vcat(subsystems...)
+    # mask = bmask(T, subsystems...)
+    mask = bmask(T, (N .-subsystems .+1)...)
+
+    
+    order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
+
+    if state isa Matrix
+        if isempty(subsystems)
+            return ones(ET, 1, 1) # Return empty matrix if no subsystems
+        elseif subsystems == collect(1:N)
+            return state
+        end
+        @assert length(unsorted_basis) == size(state, 2) "state size is expected to be $(length(unsorted_basis)), but got $(size(state, 2))"
+
+        basis, state = unsorted_basis[order], state[order, order]
+    end
+
+    
+    reduced_basis = move_subsystem.(T, joint_basis(AT, lengthlis), Ref(subsystems))
+    # The reduced_basis counting order doesn't matter, as long as it place subsystem part in basis correctly.
+    # TIPS: mask must have common non-zero part with reduced_basis (thus for comparing)
+    len = length(reduced_basis)
+    # Initialize the reduced density matrix
+    reduced_dm = zeros(ET, (len, len))
+
+    # Keep track of indices where the key changes
+    result_indices = Int[]
+    current_key = -1
+    for (idx, i) in enumerate(basis)
+        key = takeenviron(i, mask)  # Get environment l bits
+        if key != current_key
+            @assert key > current_key "key is expected to be greater than $current_key, but got $key"
+            push!(result_indices, idx)
+            current_key = key
+        end
+    end
+
+    # Add the final index to get complete ranges
+    push!(result_indices, length(basis) + 1)
+
+    for i in 1:length(result_indices)-1
+        range = result_indices[i]:result_indices[i+1]-1         
+        # Get indices in the reduced basis
+        indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
+        view(reduced_dm, indices, indices) .+= (state isa Vector) ? view(state, range) .* view(state, range)' : view(state, range, range)
+    end
+
+    return reduced_dm
+end
+anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Matrix{ET}) where {ET} = anyon_rdm(model.anyon_type, BitStr{model.N, Int}, subsystems, state, model.pbc;)
 
 """
     mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 

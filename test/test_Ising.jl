@@ -39,28 +39,29 @@ end
 
 @testset "actingHamobc" begin
     N = 3
+    model = AnyonModel(IsingAnyon(), N, pbc=false)
     T = BitStr{N, Int}
-    output1 = FibonacciChain.actingHam(T, bit"000", false, anyon_type=:IsingX, J=2.0, h=1.0) 
+    output1 = FibonacciChain.actingHam(model, T, bit"000", J=2.0, h=1.0) 
     states, weights = keys(output1), values(output1)
     @test [states...]== T.([bit"000", bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-4.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(T, bit"010",false, anyon_type=:IsingX) 
+    output2 = FibonacciChain.actingHam(model, T, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
     @test [weights...] ≈ [-1.0, -1.0, 2.0, -1.0]
 
-    output3 = FibonacciChain.actingHam(T, bit"001",false, anyon_type=:IsingX) 
+    output3 = FibonacciChain.actingHam(model, T, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
     @test [weights...] ≈ [-1.0, -1.0, -1.0, 0.0]
 
-    output4 = FibonacciChain.actingHam(T, bit"100",false, anyon_type=:IsingX) 
+    output4 = FibonacciChain.actingHam(model, T, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== T.([bit"000", bit"100", bit"110", bit"101"])
     @test [weights...] ≈ [-1.0, 0.0, -1.0, -1.0]
 
-    output = FibonacciChain.actingHam(T, bit"101",false, anyon_type=:IsingX)
+    output = FibonacciChain.actingHam(model, T, bit"101")
     states, weights = keys(output), values(output)
     @test [states...]== T.([bit"101", bit"100", bit"111", bit"001"])
     @test [weights...] ≈ [2.0, -1.0, -1.0, -1.0]
@@ -69,42 +70,44 @@ end
 @testset "actingHampbc" begin
     N = 3
     T = BitStr{N, Int}
-    output1 = FibonacciChain.actingHam(T, bit"000", anyon_type=:IsingX, J=2.0, h=1.0) 
+    model = AnyonModel(IsingAnyon(), N, pbc=true)
+    output1 = FibonacciChain.actingHam(model, T, bit"000", J=2.0, h=1.0) 
     states, weights = keys(output1), values(output1)
     @test [states...]== T.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-6.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(T, bit"010", anyon_type=:IsingX) 
+    output2 = FibonacciChain.actingHam(model, T, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
     @test [weights...] ≈ [-1.0, -1.0, 1.0, -1.0]
-    
-    output3 = FibonacciChain.actingHam(T, bit"001", anyon_type=:IsingX) 
+
+    output3 = FibonacciChain.actingHam(model, T, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
     @test [weights...] ≈ [-1.0, -1.0, -1.0, 1.0]
 
-    output4 = FibonacciChain.actingHam(T, bit"100", anyon_type=:IsingX) 
+    output4 = FibonacciChain.actingHam(model, T, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== T.([bit"000",bit"100", bit"110", bit"101"])
     @test [weights...] ≈ [-1.0, 1.0, -1.0, -1.0]
 
-    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000", anyon_type=:IsingX)
+    output = FibonacciChain.actingHam(AnyonModel(IsingAnyon(), 10, pbc=true), BitStr{10}, bit"1000010000")
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([16, 560, 656, 532, 529, 784, 512, 536, 528, 530, 592])
     @test [weights...] ≈ vcat(-ones(8),[-2.0, -1.0, -1.0])
 end
 
 @testset "basis.jl" begin
-    # Test the Fibonacci basis creation
-    fib_basis = anyon_basis(5, false, anyon_type=:IsingX)
+    # Test the Ising basis creation
+    fib_basis = anyon_basis(AnyonModel(IsingAnyon(), 5, pbc=false))
     @test length(fib_basis) == 32
-    fib_basis = anyon_basis(5, anyon_type=:IsingX)
+    fib_basis = anyon_basis(AnyonModel(IsingAnyon(), 5, pbc=true))
     @test length(fib_basis) == 32
-    # Test the Fibonacci Hamiltonian
-    fib_ham = anyon_ham(5, anyon_type=:IsingX)
+    # Test the Ising Hamiltonian
+    fib_ham = anyon_ham(AnyonModel(IsingAnyon(), 5, pbc=true))
     @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
+    # Test the ground state energy
     @test eigvals(fib_ham)[1] ≈ -1/(2*sin(π/10))*4 atol=1e-10
 
     X= Float64[0 1; 1 0]
@@ -115,14 +118,14 @@ end
     ⊗(A::AbstractArray, B::AbstractArray) = kron(A, B)
     H_temp = - (Z ⊗ Z ⊗ Id + Id ⊗ Z ⊗ Z  + X ⊗ Id ⊗ Id + Id ⊗ Id ⊗ X + Id ⊗ X ⊗ Id)
 
-    @test anyon_ham(3,false, anyon_type=:IsingX) == H_temp
+    @test anyon_ham(AnyonModel(IsingAnyon(), 3, pbc=false)) == H_temp
 
-    H = anyon_ham(3, anyon_type=:IsingX)
+    H = anyon_ham(AnyonModel(IsingAnyon(), 3, pbc=true))
     @test H == H_temp - Z ⊗ Id ⊗ Z
 
     gs = eigvecs(fib_ham)[:,1]
     # Test the reduced density matrix function
-    rdm = anyon_rdm(5, collect(1:1), gs, anyon_type=:IsingX)
+    rdm = anyon_rdm(AnyonModel(IsingAnyon(), 5, pbc=true), collect(1:1), gs)
     @test size(rdm) == (2, 2)
     @test rdm ≈ [0.49999999999995276 0.3236067977499789; 0.3236067977499789 0.5000000000000473]
 end

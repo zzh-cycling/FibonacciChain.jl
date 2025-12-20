@@ -22,23 +22,24 @@ end
 
 @testset "actingHamobc" begin
     ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000",false) 
+    model = AnyonModel(FibonacciAnyon(), 3, pbc=false)
+    output1 = FibonacciChain.actingHam(model, BitStr{3}, bit"000") 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-1), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010",false) 
+    output2 = FibonacciChain.actingHam(model, BitStr{3}, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001",false) 
+    output3 = FibonacciChain.actingHam(model, BitStr{3}, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"001"])
     @test [weights...] ≈ [0.0]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100",false) 
+    output4 = FibonacciChain.actingHam(model, BitStr{3}, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"100"])
     @test [weights...] ≈ [0.0]
-    output = FibonacciChain.actingHam(BitStr{3}, bit"101",false)
+    output = FibonacciChain.actingHam(model, BitStr{3}, bit"101")
     states, weights = keys(output), values(output)
     @test [states...]== BitStr{3}.([bit"101"])
     @test [weights...] ≈ [-1.0]
@@ -46,23 +47,25 @@ end
 
 @testset "Fsymmetry_coef" begin
     ϕ = (1+√5)/2
-    N=3
+    N = 3
+    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
     T = BitStr{N}
-    output1 = FibonacciChain.Fsymmetry_coef(T(bit"000"), T(bit"010"))
+    output1 = FibonacciChain.Fsymmetry_coef(model, T(bit"000"), T(bit"010"))
     @test output1 ≈ -ϕ^(-3/2)
-    output2 = FibonacciChain.Fsymmetry_coef(T(bit"010"), T(bit"000"))
+    output2 = FibonacciChain.Fsymmetry_coef(model, T(bit"010"), T(bit"000"))
     @test output2 ≈ -ϕ^(-3/2)
-    output3 = FibonacciChain.Fsymmetry_coef(T(bit"000"), T(bit"000"))
+    output3 = FibonacciChain.Fsymmetry_coef(model, T(bit"000"), T(bit"000"))
     @test output3 ≈ -ϕ^(-3)
 end
 
 @testset "topological_symmetry_basismap" begin
     N = 4
     T = BitStr{N}
+    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
     ϕ = (1+√5)/2
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"0100")) ≈ [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
-    @test FibonacciChain.topological_symmetry_basismap(T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0100")) ≈ [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
 end
 
 
@@ -70,7 +73,8 @@ end
     ϕ = (1+√5)/2
     N = 4
     T = BitStr{N}
-    Y =FibonacciChain.topological_charge_operator(T)
+    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
+    Y =FibonacciChain.topological_charge_operator(model, T)
     Y = (Y + Y') / 2
     vals = eigvals(Y)
     @test vals ≈ [-1.0799610383969367, -0.23606797749978994, -0.23606797749978972, -0.23606797749978964, 0.4778136965285674, 1.9041523147215358, 3.079961038396939]
@@ -79,23 +83,24 @@ end
 
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
-    output1 = FibonacciChain.actingHam(BitStr{3}, bit"000") 
+    model = AnyonModel(FibonacciAnyon(), 3, pbc=true)
+    output1 = FibonacciChain.actingHam(model, BitStr{3}, bit"000") 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(BitStr{3}, bit"010") 
+    output2 = FibonacciChain.actingHam(model, BitStr{3}, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(BitStr{3}, bit"001") 
+    output3 = FibonacciChain.actingHam(model, BitStr{3}, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"000", bit"001"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(BitStr{3}, bit"100") 
+    output4 = FibonacciChain.actingHam(model, BitStr{3}, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"000",bit"100"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output = FibonacciChain.actingHam(BitStr{10}, bit"1000010000")
+    output = FibonacciChain.actingHam(model, BitStr{10}, bit"1000010000")
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
@@ -103,17 +108,17 @@ end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = anyon_basis(5)
+    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc=true))
     @test length(fib_basis) == 11
-    fib_basis = anyon_basis(5,false)
+    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc=false))
     @test length(fib_basis) == 13
     # Test the Fibonacci Hamiltonian
-    fib_ham = anyon_ham(5)
+    fib_ham = anyon_ham(AnyonModel(FibonacciAnyon(), 5, pbc=true))
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
-    @test anyon_ham(3,false) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-    @test anyon_ham(3) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=false)) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=true)) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
 end
 
 @testset "process_join" begin
@@ -124,12 +129,12 @@ end
     @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
     # joint_basis
-    res = FibonacciChain.joint_basis([2, 3])
+    res = FibonacciChain.joint_basis(FibonacciAnyon(), [2, 3])
     @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
-    lis1 = anyon_basis(1,false)
-    lis2 = anyon_basis(2,false)
-    res = FibonacciChain.joint_basis([1, 2])  
+    lis1 = anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc=false))
+    lis2 = anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc=false))
+    res = FibonacciChain.joint_basis(FibonacciAnyon(), [1, 2])
     # Ensureing the order is 2*1, not 1*2
     # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
     @test res == vec([join(l1, l2) for l1 in lis1 for l2 in lis2])
