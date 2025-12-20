@@ -318,7 +318,7 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(model{AT}, ::Type{T}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -440,6 +440,8 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
     
     return output
 end
+
+
 """
     anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
 
@@ -473,7 +475,7 @@ julia> size(H_Ising)      # full Hilbert space for Ising model
 (16, 16)
 ```
 """
-function anyon_ham(model::AnyonModel{AT}, ::Type{T}, kwargs...) where {N, T <: BitStr{N}, AT<:AbstractAnyonType}
+function anyon_ham(model::AnyonModel{AT}, ::Type{T}; kwargs...) where {N, T <: BitStr{N}, AT<:AbstractAnyonType}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=anyon_basis(model)
 
@@ -490,7 +492,7 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}, kwargs...) where {N, T <: B
 
     return H
 end
-anyon_ham(model::AnyonModel{AT}; kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{N, Int};kwargs...)
+anyon_ham(model::AnyonModel{AT}; kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{model.N, Int};kwargs...)
 # Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
@@ -566,7 +568,7 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=noth
     H=(H+H')/2
     return H
 end
-anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing, kwargs...) = anyon_ham(model, BitStr{N, Int}, k, symmetry_block=symmetry_block, kwargs...)
+anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing, kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{N, Int}, k, symmetry_block=symmetry_block, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
@@ -798,10 +800,10 @@ function anyon_rdm_sec(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int6
     reduced_dm = anyon_rdm(T, subsystems, state, true; anyon_type=anyon_type)
     return reduced_dm
 end
-anyon_rdm_sec(model::AnyonModel{AT}, subsystems::Vector{Int64},state::Vector{ET}, k::Int64;) where {ET} = anyon_rdm_sec(AT, BitStr{N, Int}, subsystems, state, k)
+anyon_rdm_sec(model::AnyonModel{AT}, subsystems::Vector{Int64},state::Vector{ET}, k::Int64;) where {AT <: AbstractAnyonType, ET} = anyon_rdm_sec(AT, BitStr{N, Int}, subsystems, state, k)
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
-function joint_basis(AT1::AbstractAnyonType=FibonacciAnyon(), AT2::AbstractAnyonType=FibonacciAnyon(), lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false)
+function joint_basis(AT1::AbstractAnyonType, AT2::AbstractAnyonType, lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false)
     # subpbc is used to indicate whether the subsystem is periodic or not
     lisA = sort(mapreduce(len -> anyon_basis(AT1, BitStr{len, Int}, subApbc), process_join, lengthlisA))
     lisB = sort(mapreduce(len -> anyon_basis(AT2, BitStr{len, Int}, subBpbc), process_join, lengthlisB))

@@ -421,3 +421,140 @@ function fidelity(st1::AbstractVector, st2::AbstractVector)
     # For pure states, fidelity defined as F(ψ,φ) = |<ψ|φ>|²
     return abs(dot(st1, st2))^2
 end
+
+function qfi(Ob::Vector{Float64}, state::Vector{T}) where T    
+    # Calculate the quantum fisher information, espeically for diagonal operators.
+    DeltaOb=state'*(Ob.^2 .*state)-(state'*(Ob.*state))^2
+    # Calculate the Quantum Fisher Information
+    # For spin 1/2, w/o 4
+    F_Q = 4*DeltaOb
+
+    return F_Q
+end
+
+function qfi(Ob::Matrix{Float64}, state::Vector{T}) where T
+    rho=state*state'
+    DeltaOb=tr(rho*Ob^2)-tr(rho*Ob)^2
+    # Calculate the Quantum Fisher Information
+    # For spin 1/2, w/o 4
+    F_Q = 4*DeltaOb
+
+    return F_Q
+end
+
+function anti_ferro_order(model::AnyonModel{AT}, ::Type{T}) where {N, T <: BitStr{N}, AT<:AbstractAnyonType}
+#param N: Number of sites
+#return:  antiferromagnetic order diagonal elements
+#The eigenvectors of this operator are going from -N to N, increasing by 2, totally N+1 eigenvectors. Number of each eigenvalues is N choose k, 
+#where k is the number of domain walls when we consider total Hilbert space. Defined as sum_i Z_i =1/2 (-1)^(i+1) * Z_i, we aim for spin systems.(S_Z= 1/2 Pauli Z)
+    basis = anyon_basis(model)
+    l=length(basis)
+    anti_ferro = zeros(l)
+
+    mask = bmask(T, collect(2:2:N)...)
+    for (idx, str) in enumerate(basis)
+        masked_str = flip(str, mask)
+        Zi=sum([masked_str...].-1/2)
+        anti_ferro[idx] = Zi
+    end
+
+    return anti_ferro
+end
+anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonType} = anti_ferro_order(model, BitStr{model.N, Int})
+
+
+"""
+    mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+
+Calculate the mutual information between two subsystems.
+
+Computes I(A:B) = S_A + S_B - S_AB where S represents the Von Neumann entropy.
+Mutual information quantifies the total correlation between subsystems A and B.
+
+# Arguments
+- `N::Int64`: Total system size
+- `subsystems::Tuple{Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites)
+- `state::Vector{ET}`: Quantum state vector
+
+# Returns
+- `Float64`: Mutual information I(A:B)
+
+# Example
+```julia
+A_sites = [1, 2, 3]
+B_sites = [7, 8, 9]
+mi = mutual_information(10, (A_sites, B_sites), psi)
+```
+"""
+function mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+    A, B = subsystems
+    # MI formula defined as: I(A:B) = S_A + S_B - S_AB
+    # Calculate the reduced density matrices
+    ρ_A = rdm_PXP(N, A, state)
+    ρ_B = rdm_PXP(N, B, state)
+    ρ_AB = rdm_PXP(N, vcat(A, B), state)
+    # Calculate the Von Neumann entropies
+    S_A = ee(ρ_A)
+    S_B = ee(ρ_B)
+    S_AB = ee(ρ_AB)
+    # Calculate the mutual information
+    I_AB = S_A + S_B - S_AB
+    return I_AB
+    
+end
+
+
+
+"""
+    tri_mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+
+Calculate the tripartite mutual information between three subsystems.
+
+Computes I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC.
+This measures genuine three-partie quantum correlations.
+
+# Arguments
+- `N::Int64`: Total system size
+- `subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites, C_sites)
+- `state::Vector{ET}`: Quantum state vector
+
+# Returns
+- `Float64`: Tripartite mutual information I(A:B:C)
+
+# Example
+```julia
+A_sites = [1, 2]
+B_sites = [5, 6]
+C_sites = [9, 10]
+tmi = tri_mutual_information(10, (A_sites, B_sites, C_sites), psi)
+```
+"""
+function tri_mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+    A, B, C = subsystems
+    # TMI formula defined as: I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC
+    
+    ρ_A = rdm_PXP(N, A, state)
+    ρ_B = rdm_PXP(N, B, state)
+    ρ_C = rdm_PXP(N, C, state)
+
+    ρ_AB = rdm_PXP(N, vcat(A,B), state)
+    ρ_BC = rdm_PXP(N, vcat(B,C), state)
+    ρ_AC = rdm_PXP(N, vcat(A,C), state)
+    
+    ρ_ABC = rdm_PXP(N, vcat(A,B,C), state)
+    
+    # Calculate the Von Neumann entropies
+    
+    S_A = ee(ρ_A)
+    S_B = ee(ρ_B)
+    S_C = ee(ρ_C)
+    S_AB = ee(ρ_AB)
+    S_BC = ee(ρ_BC)
+    S_AC = ee(ρ_AC)
+    S_ABC = ee(ρ_ABC)
+
+    # Calculate the mutual information
+    I_ABC = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC
+    
+    return I_ABC
+end
