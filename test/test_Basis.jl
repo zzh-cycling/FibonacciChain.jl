@@ -142,13 +142,13 @@ end
 
 
     # Test disjoint system joint_basis
-    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:Fibo)
-    @test res == [join(l1, l2) for l1 in anyon_basis(1) for l2 in anyon_basis(2,false)]
-    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:IsingX)
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(1, anyon_type=:IsingX) for l2 in anyon_basis(2, anyon_type=:IsingX, false)])
-    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:IsingX, anyon_typeB=:Fibo)
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(1, anyon_type=:IsingX) for l2 in anyon_basis(2, false)])
-    res = FibonacciChain.joint_basis([1], [2], anyon_typeA=:Fibo, anyon_typeB=:IsingX)
+    res = FibonacciChain.joint_basis(FibonacciAnyon(), FibonacciAnyon(), [1], [2])
+    @test res == [join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))]
+    res = FibonacciChain.joint_basis(IsingAnyon(), IsingAnyon(), [1], [2])
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1)) for l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))])
+    res = FibonacciChain.joint_basis(IsingAnyon(), FibonacciAnyon(), [1], [2])
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))])
+    res = FibonacciChain.joint_basis(FibonacciAnyon(), IsingAnyon(), [1], [2])
 
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
@@ -170,63 +170,68 @@ end
 
 @testset "anyon_rdm" begin
     N = 3
-    st = ones(length(anyon_basis(N))); st /= norm(st)  # Normalize the state
+    model = AnyonModel(FibonacciAnyon(), N)
+    st = ones(length(anyon_basis(model))); st /= norm(st)  # Normalize the state
     # The empty subsystem
-    rdm = anyon_rdm(N, Int64[], st)
+    rdm = anyon_rdm(model, Int64[], st)
     @test rdm ≈ ones(Float64, 1,1)
 
     # The total system
-    rdm = anyon_rdm(N, collect(1:N), st)
+    rdm = anyon_rdm(model, collect(1:N), st)
     @test rdm ≈ st*st'
 
-    rdm = anyon_rdm(N, [1], st)
+    rdm = anyon_rdm(model, [1], st)
     @test rdm ≈ [0.75 0.25; 0.25 0.25]
 end
 
 @testset "anyon_rdm_Ising" begin
     N = 3
     st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
-    rdm = anyon_rdm(N, Int[], st)
+    model = AnyonModel(IsingAnyon(), N)
+    rdm = anyon_rdm(model, Int[], st)
     @test rdm ≈ ones(Float64, 1,1)
 
-    rdm = anyon_rdm(N, collect(1:N), st, anyon_type=:IsingX)
+    rdm = anyon_rdm(model, collect(1:N), st)
     @test rdm ≈ st*st'
-    
-    rdm = anyon_rdm(N, [1], st, anyon_type=:IsingX) ≈ 0.5*I(2)
+
+    rdm = anyon_rdm(model, [1], st)
+    @test rdm ≈ 0.5*I(2)
 end
 
 @testset "anyon_rdm_matrix" begin
     N = 4
-    st = zeros(length(anyon_basis(N)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    model = AnyonModel(FibonacciAnyon(), N)
+    st = zeros(length(anyon_basis(model)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm = anyon_rdm(N, collect(1:2), st*st')
+    rdm = anyon_rdm(model, collect(1:2), st*st')
     @test rdm ≈ diagm([0.0, 0.5, 0.5])
-    rdm = anyon_rdm(N, collect(1:N), st*st')
+    rdm = anyon_rdm(model, collect(1:N), st*st')
     @test rdm ≈ st*st'
 
+    model2 = AnyonModel(IsingAnyon(), N)
     st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
 
-    rdm = anyon_rdm(N, [1,2], st*st', anyon_type=:IsingX) ≈ diagm([0.5, 0.0, 0.0, 0.5])
+    rdm = anyon_rdm(model2, [1,2], st*st') ≈ diagm([0.5, 0.0, 0.0, 0.5])
 
-    st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # 
-    rdm = anyon_rdm(2, [1], st*st', anyon_type=:IsingX) ≈ 0.5 * I(2)
+    st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    rdm = anyon_rdm(AnyonModel(IsingAnyon(), 2), [1], st*st') ≈ 0.5 * I(2)
 end
 
 @testset "anyon_basis_K" begin
     N = 8
-    T = BitStr{N}
+    model = AnyonModel(FibonacciAnyon(), N)
     k = 0
-    fib_basis_k = anyon_basis(T, k)[1]
+    fib_basis_k = anyon_basis(model, k)[1]
     @test length(fib_basis_k) == 8  # Check the length of the basis
     @test [i.buf for i in fib_basis_k] == [0, 1, 5, 9, 17, 21, 37, 85]
 end
 
 @testset "anyon_ham_K" begin
     N = 8
-    T = BitStr{N}
+    model = AnyonModel(FibonacciAnyon(), N)
     k = 0
-    fib_ham_k = anyon_ham(T, k)
-    H = anyon_ham(N)
+    fib_ham_k = anyon_ham(model, k)
+    H = anyon_ham(model)
     @test size(fib_ham_k) == (8, 8)  # Check the size of the Hamiltonian matrix
     @test ishermitian(fib_ham_k)  # Check if the Hamiltonian is Hermitian
     @test eigvals(H)[1] ≈ eigvals(fib_ham_k)[1]  # Check if the ground state energy matches
@@ -235,60 +240,60 @@ end
 @testset "mapst_sec2tot, anyon_rdm_sec" begin
     N = 8
     k = 0
-    T = BitStr{N}
-    fib_ham_k = anyon_ham(T, k)
-    H = anyon_ham(N)
-    
+    model = AnyonModel(FibonacciAnyon(), N)
+    fib_ham_k = anyon_ham(model, k)
+    H = anyon_ham(model)
+
     sec_gs = eigvecs(fib_ham_k)[:, 1]
     gs = eigvecs(H)[:, 1]
-    mapped_st = FibonacciChain.mapst_sec2tot(T, sec_gs, k)
+    mapped_st = FibonacciChain.mapst_sec2tot(model, sec_gs, k)
     @test mapped_st ≈ gs  # Check if the mapped state matches the ground state
 
-    rdm_sec = anyon_rdm_sec(N, collect(1:div(N,2)), sec_gs, k)
-    rdm = anyon_rdm(N, collect(1:div(N,2)), gs)
+    rdm_sec = anyon_rdm_sec(model, collect(1:div(N,2)), sec_gs, k)
+    rdm = anyon_rdm(model, collect(1:div(N,2)), gs)
     @test rdm_sec ≈ rdm  # Check if the reduced density matrix matches
 end
 
 @testset "disjoint_rdm" begin
     N1 = 4
     N2 = 4
-    T1 = BitStr{N1}
-    T2 = BitStr{N2}
-    state = zeros(length(anyon_basis(N1)) * length(anyon_basis(N2))); state[1] = 1; state[end] = 1
+    model1 = AnyonModel(FibonacciAnyon(), N1)
+    model2 = AnyonModel(FibonacciAnyon(), N2)
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
-    
-    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state)
+
+    rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
     
     # Test for one subsystem is empty
-    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state)
+    rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
 
-    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state)
+    rdm_result_empty2 = disjoint_rdm(model1, model2, subsystemsA, Int64[], state)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end
 
 @testset "disjoint_rdm_Ising" begin
     N1 = 4
     N2 = 4
-    T1 = BitStr{N1}
-    T2 = BitStr{N2}
-    state = zeros(length(anyon_basis(N1, anyon_type = :IsingX)) * length(anyon_basis(N2, anyon_type=:IsingX))); state[1] = 1; state[end] = 1
+    model1 = AnyonModel(IsingAnyon(), N1)
+    model2 = AnyonModel(IsingAnyon(), N2)
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
-    
-    rdm_result = disjoint_rdm(N1, N2, subsystemsA, subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+
+    rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
 
-    rdm_result_empty1 = disjoint_rdm(N1, N2, Int64[], subsystemsB, state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
-    @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]) 
+    rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
+    @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5])
 
-    rdm_result_empty2 = disjoint_rdm(N1, N2, subsystemsA, Int64[], state, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(model1, model2, subsystemsA, Int64[], state)
     @test all(diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.0, 0.5])
 
 end
@@ -296,22 +301,22 @@ end
 @testset "disjoint_rdm_mixed" begin
     N1 = 4
     N2 = 4
-    T1 = BitStr{N1}
-    T2 = BitStr{N2}
-    state = zeros(length(anyon_basis(N1)) * length(anyon_basis(N2, anyon_type = :IsingX))); state[1] = 1; state[end] = 1
+    model1 = AnyonModel(FibonacciAnyon(), N1)
+    model2 = AnyonModel(IsingAnyon(), N2)
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
-    
-    rdm_result = disjoint_rdm(T1, T2, subsystemsA, subsystemsB, state, anyon_typeB=:IsingX)
+
+    rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
     @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
     
     # Test for one subsystem is empty
-    rdm_result_empty1 = disjoint_rdm(T1, T2, Int64[], subsystemsB, state, anyon_typeB=:IsingX)
+    rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
 
-    rdm_result_empty2 = disjoint_rdm(T1, T2, subsystemsA, Int64[], state, anyon_typeB=:IsingX)
+    rdm_result_empty2 = disjoint_rdm(model1, model2, subsystemsA, Int64[], state)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 end
 

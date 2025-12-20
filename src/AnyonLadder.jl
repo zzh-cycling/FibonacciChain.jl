@@ -40,11 +40,11 @@ julia> norm(ρ_braided) > 0  # Should be non-zero
 true
 ```
 """
-function ladderbraidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
+function ladderbraidingsqmap(model::AnyonModel{AT}, ::Type{T}, state::Vector{ET}, idx::Int) where {N, T <: BitStr{N}, ET, AT<:AbstractAnyonType} 
     # input a superposition of basis, and output the braided state
     @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=anyon_basis(T, pbc, anyon_type=anyon_type)
+    basis=anyon_basis(model)
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     

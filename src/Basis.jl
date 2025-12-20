@@ -28,6 +28,53 @@ struct AnyonModel{AT<:AbstractAnyonType}
     end
 end
 
+"""
+    anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_basis(model::AnyonModel; symmetry_block=nothing)
+
+Generate basis states for anyon chain models.
+
+# Arguments
+## Low-level interface
+- `::AbstractAnyonType`: Anyon type instance (`FibonacciAnyon()` or `IsingAnyon()`)
+- `T::Type`: BitStr type specifying chain length N
+- `pbc::Bool=true`: Periodic boundary conditions
+- `symmetry_block`: Topological charge sector (optional, not yet implemented for filtering)
+
+## High-level interface
+- `model::AnyonModel`: Anyon model containing system parameters
+- `symmetry_block`: Topological charge sector (optional)
+
+# Returns
+- `Vector{T}`: Sorted basis states
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> # Low-level interface
+julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true);
+
+julia> length(basis_fibo)
+7
+
+julia> # High-level interface
+julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true);
+
+julia> basis = anyon_basis(model);
+
+julia> length(basis)
+7
+
+julia> model_ising = AnyonModel(IsingAnyon(), 4; pbc=true);
+
+julia> basis_ising = anyon_basis(model_ising);
+
+julia> length(basis_ising)
+16
+```
+"""
 function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     # Generate basis for Fibonacci model, return BitBasis form, which can be used as binary and decimal form. Here we both consider PBC and OBC
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
@@ -52,23 +99,31 @@ function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block
 
     return sorted_basis
 end
-anyon_basis(model::AnyonModel{AT}; symmetry_block=nothing) where {AT<:FibonacciAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc, symmetry_block=symmetry_block)
 
-function anyon_basis(::IsingAnyon, ::Type{T}, pbc::Bool=true) where {N, T <: BitStr{N}}
+function anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     return [T(i) for i in 0:(2^N - 1)]
 end
-anyon_basis(model::AnyonModel{AT}) where {AT<:IsingAnyon} = anyon_basis(model.anyon_type, BitStr{model.N, Int}, model.pbc)
+
+anyon_basis(model::AnyonModel; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc, symmetry_block=symmetry_block)
 
 """
-    Fsymmetry_coef(state::T, base::T, pbc::Bool=true, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
+    Fsymmetry_coef(model::AnyonModel{FibonacciAnyon}, state::T, base::T)
 
 Compute topological symmetry coefficient for state in given base configurations for Fibonacci anyon chain.
 
 # Arguments
+## Low-level interface
+- `::FibonacciAnyon`: Fibonacci anyon type instance
+- `::Type{T}`: BitStr type specifying chain length N
 - `state::T`: Target state configuration
 - `base::T`: Base state configuration  
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Measurement class
+
+## High-level interface
+- `model::AnyonModel{FibonacciAnyon}`: Anyon model containing system parameters
+- `state::T`: Target state configuration
+- `base::T`: Base state configuration
 
 # Returns
 - `Float64`: Topological symmetry coefficient based on Fibonacci fusion rules
@@ -79,18 +134,17 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4; T = BitStr{N, Int};
 
-julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2;  # Example state configuration
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
 
-julia> base = T(0b0101);   # Example base configuration
+julia> state = T(0b1010); ϕ = (1 + sqrt(5)) / 2;
 
-julia> coef = Fsymmetry_coef(state, base, true, :Fibo); coef ≈ 0.3819660112501051
-true
+julia> base = T(0b0101);
 
-julia> abs(coef - (1-1/ϕ)) < 1e-10  # Should equal φ for this configuration
+julia> coef = Fsymmetry_coef(model, state, base); coef ≈ 0.3819660112501051
 true
 ```
 """
-function Fsymmetry_coef(model::AnyonModel{AT}, state::T, base::T) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
     #  %%
@@ -103,7 +157,7 @@ function Fsymmetry_coef(model::AnyonModel{AT}, state::T, base::T) where {N, T <:
     ϕ = (1+√5)/2
     prod=1
 
-    @assert model.pbc || site != N "For OBC, site must not be $N, but got $site"
+    @assert pbc || site != N "For OBC, site must not be $N, but got $site"
         for site in 1:N-1
             # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
             if state[N - site + 1] == 1
@@ -123,7 +177,7 @@ function Fsymmetry_coef(model::AnyonModel{AT}, state::T, base::T) where {N, T <:
             end
         end
 
-        if model.pbc
+        if pbc
             # Check x_N', if x_N' is 1, return 1, otherwise, check x_1', if x_1' is 1, return 1.
             if state[1] == 1
                 prod *= 1
@@ -146,15 +200,17 @@ function Fsymmetry_coef(model::AnyonModel{AT}, state::T, base::T) where {N, T <:
 
         return prod
 end
+Fsymmetry_coef(model::AnyonModel{FibonacciAnyon}, state::T, base::T) where {N, T <: BitStr{N}} = 
+    Fsymmetry_coef(model.anyon_type, T, state, base; pbc=model.pbc)
 
 """
-    topological_symmetry_basismap(state::T, pbc::Bool=true) where {N, T <: BitStr{N}}
+    topological_symmetry_basismap(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
 
 Compute topological symmetry coefficients for all basis states relative to given state.
 
 # Arguments
+- `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model
 - `state::T`: Reference state configuration
-- `pbc::Bool=true`: Periodic boundary conditions
 
 # Returns
 - `Vector{Float64}`: Coefficients for each basis state
@@ -165,14 +221,13 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4; T = BitStr{N, Int};
 
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
+
 julia> state = T(0b0000);  # Vacuum state
 
-julia> coeffs = topological_symmetry_basismap(state, true);
+julia> coeffs = topological_symmetry_basismap(model, state);
 
-julia> length(coeffs) == length(anyon_basis(T, true, anyon_type=:Fibo))
-true
-
-julia> all(x -> abs(x) > 1e-10 || abs(x) < 1e-10, coeffs)  # All coeffs are well-defined
+julia> length(coeffs) == length(anyon_basis(model))
 true
 ```
 """
@@ -200,19 +255,38 @@ function topological_charge_operator(model::AnyonModel{AT}, ::Type{T}) where {N,
 end
 
 """
-    anyon_basis(::Type{T}, k::Int64; symmetry_block=nothing, anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing)
 
 Generate basis states in specific momentum sector `k` and topological sector `symmetry_block`.
 
 # Arguments
+## Low-level interface
+- `AT::AbstractAnyonType`: Anyon type instance (e.g., `FibonacciAnyon()`, `IsingAnyon()`)
 - `T::Type`: BitStr type specifying chain length N
-- `k::Int64`: Momentum sector (0 ≤ k ≤ N-1)
-- `symmetry_block`: Topological charge sector
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
+- `symmetry_block`: Topological charge sector (optional)
+
+## High-level interface  
+- `model::AnyonModel`: Anyon model containing system parameters
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
+- `symmetry_block`: Topological charge sector (optional)
 
 # Returns
 - `Vector{T}`: Basis states in momentum sector k
 - `Dict{T, Vector{T}}`: Representative mapping for translation equivalence classes
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, BitBasis
+
+julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
+
+julia> basisK, basis_dic = anyon_basis(model, 0);
+
+julia> length(basisK) > 0
+true
+```
 """
 function anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
     #params: a int of lattice number, momentum of system, topological_charge symmetry_block, which default to be nothing
@@ -243,7 +317,7 @@ function anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=no
 
     return basisK, basis_dic
 end
-anyon_basis(model, k::Int64; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N}, k=k; symmetry_block=symmetry_block)
+anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N, Int}, k; symmetry_block=symmetry_block)
 
 function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
@@ -443,15 +517,15 @@ end
 
 
 """
-    anyon_ham(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel, ::Type{T}; kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel; kwargs...)
 
 Construct Hamiltonian matrix for 1D anyon chain.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
-- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model.
+- `model::AnyonModel`: Anyon model containing anyon type, system size, boundary conditions, and interaction type
+- `T::Type`: BitStr type specifying chain length N (optional, inferred from model)
+- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model
 
 # Returns
 - `Matrix{Float64}`: Hamiltonian matrix in chosen basis
@@ -462,16 +536,20 @@ Supports various anyon models including Fibonacci and Ising anyons.
 ```jldoctest
 julia> using FibonacciChain, BitBasis
 
-julia> N = 4; T = BitStr{N,Int};
+julia> N = 4;
 
-julia> H_fibo = anyon_ham(T, true, anyon_type=:Fibo);
+julia> model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, interaction_type=:Antiferro);
+
+julia> H_fibo = anyon_ham(model_fibo);
 
 julia> size(H_fibo)       # Hamiltonian dimension matches basis size
 (7, 7)
 
-julia> H_Ising = anyon_ham(T, true, anyon_type=:IsingX, J=1.0, h=1.0);
+julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true);
 
-julia> size(H_Ising)      # full Hilbert space for Ising model
+julia> H_ising = anyon_ham(model_ising; J=1.0, h=1.0);
+
+julia> size(H_ising)      # full Hilbert space for Ising model
 (16, 16)
 ```
 """
@@ -523,18 +601,32 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    anyon_ham(::Type{T}, k::Int; symmetry_block=nothing, anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel, ::Type{T}, k::Int; symmetry_block=nothing, kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel, k::Int; symmetry_block=nothing, kwargs...)
 
-Construct Hamiltonian matrix in specific symmetry sector for 1D anyon chain.
+Construct Hamiltonian matrix in specific momentum sector for 1D anyon chain.
     
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
-- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model.
+- `model::AnyonModel`: Anyon model containing system parameters
+- `T::Type`: BitStr type specifying chain length N (optional)
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
+- `symmetry_block`: Topological charge sector (optional)
+- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model
 
 # Returns
-- `Matrix{Float64}`: Hamiltonian matrix in chosen basis
+- `Matrix`: Hamiltonian matrix in chosen momentum sector (ComplexF64, or real if k=0 or k=N/2)
+
+# Examples
+```jldoctest
+julia> using FibonacciChain
+
+julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
+
+julia> H_k0 = anyon_ham(model, 0);
+
+julia> size(H_k0)[1] > 0
+true
+```
 """
 function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=nothing, kwargs...) where {N, T <: BitStr{N}, AT <: AbstractAnyonType}
 #params: a int of lattice number, momentum of system and topological_charge of system
@@ -543,7 +635,7 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=noth
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
-    basisK, basis_dic =anyon_basis(model, T, k, symmetry_block=symmetry_block)
+    basisK, basis_dic =anyon_basis(model, k, symmetry_block=symmetry_block)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
@@ -568,7 +660,7 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=noth
     H=(H+H')/2
     return H
 end
-anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing, kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{N, Int}, k, symmetry_block=symmetry_block, kwargs...)
+anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing, kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{model.N, Int}, k, symmetry_block=symmetry_block, kwargs...)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)
@@ -582,7 +674,7 @@ function joint_basis(AT::AbstractAnyonType, lengthlis::Vector{Int}, pbc::Bool=fa
     if isempty(lengthlis)
         return BitStr{0, Int}[]
     else
-        return sort(mapreduce(len -> anyon_basis(AT, BitStr{len, Int}, pbc), process_join, lengthlis))
+        return sort(mapreduce(len -> anyon_basis(AT, BitStr{len, Int}; pbc=pbc), process_join, lengthlis))
     end
 end
 
@@ -622,16 +714,24 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
 """
-    anyon_rdm(::Type{T}, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N,T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}})
 
 Compute reduced density matrix for specified subsystems from quantum state or density matrix.
 
 # Arguments
+## Low-level interface
+- `AT::AbstractAnyonType`: Anyon type instance (e.g., `FibonacciAnyon()`, `IsingAnyon()`)
 - `T::Type`: BitStr type specifying chain length N
 - `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
 - `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
+
+## High-level interface
+- `model::AnyonModel`: Anyon model containing system parameters
+- `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
+- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
 
 # Returns
 - `Matrix{ET}`: Reduced density matrix for specified subsystems
@@ -642,13 +742,15 @@ Subsystem indices are counted from right in binary representation.
 ```jldoctest
 julia> using FibonacciChain, BitBasis, LinearAlgebra
 
-julia> N = 4; T = BitStr{N, Int};
+julia> N = 4;
 
-julia> basis = anyon_basis(T, true, anyon_type=:Fibo);
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
+
+julia> basis = anyon_basis(model);
 
 julia> state = randn(ComplexF64, length(basis)); state ./= norm(state);  
 
-julia> rdm = anyon_rdm(T, [1, 2], state, true, anyon_type=:Fibo);
+julia> rdm = anyon_rdm(model, [1, 2], state);
 
 julia> size(rdm)  # Reduced density matrix dimension
 (3, 3)
@@ -656,7 +758,7 @@ julia> size(rdm)  # Reduced density matrix dimension
 julia> ishermitian(rdm)  # RDM should be Hermitian
 true
 
-julia> tr(rdm) ≈ 1.0 + 0.0im  # Trace should be 1
+julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # Trace should be 1
 true
 ```
 """
@@ -664,7 +766,7 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = anyon_basis(AT, T, pbc;)
+    unsorted_basis = anyon_basis(AT, T, pbc=pbc) # Input like: FibonacciAnyon(), IsingAnyon(), not the type, the instance. 
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -674,17 +776,15 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
     
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
 
-    if state isa Vector
-        if isempty(subsystems)
-            return ones(ET, 1, 1) # Return empty matrix if no subsystems
-        elseif subsystems == collect(1:N)
-            # If subsystems is all sites, return the full density matrix
-            return state * state' # Full density matrix
-        end
-        @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
-
-        basis, state = unsorted_basis[order], state[order]
+    if isempty(subsystems)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystems == collect(1:N)
+        # If subsystems is all sites, return the full density matrix
+        return state * state' # Full density matrix
     end
+    @assert length(unsorted_basis) == length(state) "state length is expected to be $(length(unsorted_basis)), but got $(length(state))"
+
+    basis, state = unsorted_basis[order], state[order]
 
     
     reduced_basis = move_subsystem.(T, joint_basis(AT, lengthlis), Ref(subsystems))
@@ -713,7 +813,7 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
         range = result_indices[i]:result_indices[i+1]-1         
         # Get indices in the reduced basis
         indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= (state isa Vector) ? view(state, range) .* view(state, range)' : view(state, range, range)
+        view(reduced_dm, indices, indices) .+= view(state, range) .* view(state, range)'
     end
 
     return reduced_dm
@@ -724,7 +824,7 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = anyon_basis(AT, T, pbc;)
+    unsorted_basis = anyon_basis(AT, T, pbc=pbc)
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -734,16 +834,14 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
     
     order = sortperm(unsorted_basis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
 
-    if state isa Matrix
-        if isempty(subsystems)
-            return ones(ET, 1, 1) # Return empty matrix if no subsystems
-        elseif subsystems == collect(1:N)
-            return state
-        end
-        @assert length(unsorted_basis) == size(state, 2) "state size is expected to be $(length(unsorted_basis)), but got $(size(state, 2))"
-
-        basis, state = unsorted_basis[order], state[order, order]
+    if isempty(subsystems)
+        return ones(ET, 1, 1) # Return empty matrix if no subsystems
+    elseif subsystems == collect(1:N)
+        return state
     end
+    @assert length(unsorted_basis) == size(state, 2) "state size is expected to be $(length(unsorted_basis)), but got $(size(state, 2))"
+
+    basis, state = unsorted_basis[order], state[order, order]
 
     
     reduced_basis = move_subsystem.(T, joint_basis(AT, lengthlis), Ref(subsystems))
@@ -772,7 +870,7 @@ function anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, 
         range = result_indices[i]:result_indices[i+1]-1         
         # Get indices in the reduced basis
         indices = searchsortedfirst.(Ref(reduced_basis), takesystem.(basis[range], mask))
-        view(reduced_dm, indices, indices) .+= (state isa Vector) ? view(state, range) .* view(state, range)' : view(state, range, range)
+        view(reduced_dm, indices, indices) .+= view(state, range, range)
     end
 
     return reduced_dm
@@ -780,23 +878,50 @@ end
 anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Matrix{ET}) where {ET} = anyon_rdm(model.anyon_type, BitStr{model.N, Int}, subsystems, state, model.pbc;)
 
 """
-    mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
+    mapst_sec2tot(AT::AbstractAnyonType, ::Type{T}, state::Vector{ET}, k::Int; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    mapst_sec2tot(model::AnyonModel, state::Vector{ET}, k::Int)
 
-map state in symmetric sector to total Hilbert space.
+Map state in momentum sector to total Hilbert space.
 
 # Arguments
+## Low-level interface
+- `AT::AbstractAnyonType`: Anyon type instance
 - `T::Type`: BitStr type specifying chain length N
-- `state::Vector{ET}`: State vector in symmetric sector Hilbert space
-- `anyon_type::Symbol=:Fibo`: anyon type
+- `state::Vector{ET}`: State vector in momentum sector Hilbert space
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
+- `pbc::Bool=true`: Periodic boundary conditions
+
+## High-level interface
+- `model::AnyonModel`: Anyon model containing system parameters
+- `state::Vector{ET}`: State vector in momentum sector Hilbert space
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
 
 # Returns
-- `Vector{ET}`: Total space state vector
+- `Vector{ET}`: State vector in total Hilbert space
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
+
+julia> H_k0 = anyon_ham(model, 0);
+
+julia> eigvecs_k0 = eigvecs(H_k0);
+
+julia> kstate = eigvecs_k0[:, 1];
+
+julia> total_state = mapst_sec2tot(model, kstate, 0);
+
+julia> length(total_state) == length(anyon_basis(model))
+true
+```
 """
-function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+function mapst_sec2tot(AT::AbstractAnyonType, ::Type{T}, state::Vector{ET}, k::Int; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     # Map the symmetric sector Hilbert space state to total space state
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
 
-    basis = anyon_basis(T, anyon_type=anyon_type)
+    basis = anyon_basis(AT, T; pbc=pbc)
     k_dic = Dict{Int, Vector{Int64}}()
     basisK = Vector{T}(undef, 0)
     for i in eachindex(basis)
@@ -826,77 +951,104 @@ function mapst_sec2tot(::Type{T}, state::Vector{ET}, k::Int64; anyon_type::Symbo
 
     return total_state
 end
-mapst_sec2tot(N::Int, state::Vector{ET}, k::Int64; anyon_type::Symbol=:Fibo) where {ET} = mapst_sec2tot(BitStr{N, Int}, state, k, anyon_type=anyon_type)
+# High-level wrapper for mapst_sec2tot
+mapst_sec2tot(model::AnyonModel, state::Vector{ET}, k::Int) where {ET} = mapst_sec2tot(model.anyon_type, BitStr{model.N, Int}, state, k; pbc=model.pbc)
 
 """
-    anyon_rdm_sec(::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64) where {N,T <: BitStr{N}, ET} 
+    anyon_rdm_sec(model::AnyonModel, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int) where {ET}
 
-Compute reduced density matrix for specified subsystems from quantum state or density matrix in specific symmetry sector.
+Compute reduced density matrix for specified subsystems from quantum state in specific momentum sector.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
+- `model::AnyonModel`: Anyon model containing system parameters
 - `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
-- `kstate::Vector{ET}`: State vector in symmetric sector Hilbert space
-- `k::Int64`: Momentum sector (0 ≤ k ≤ N-1)
-- `anyon_type::Symbol=:Fibo`: anyon type
-
-# Returns
-- `Matrix{ET}`: Reduced density matrix in total Hilbert basis
-"""
-function anyon_rdm_sec(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int64;) where {N,T <: BitStr{N}, ET}
-    l = length(anyon_basis(AT, T, k)[1])
-    @assert length(kstate) == l "state length is expected to be $(l), but got $(length(kstate))"
-    state = mapst_sec2tot(T, kstate, k)
-    reduced_dm = anyon_rdm(T, subsystems, state, true; anyon_type=anyon_type)
-    return reduced_dm
-end
-anyon_rdm_sec(model::AnyonModel{AT}, subsystems::Vector{Int64},state::Vector{ET}, k::Int64;) where {AT <: AbstractAnyonType, ET} = anyon_rdm_sec(AT, BitStr{N, Int}, subsystems, state, k)
-
-# create Fibonacci basis composed of multiple disjoint chains with different basis type
-function joint_basis(AT1::AbstractAnyonType, AT2::AbstractAnyonType, lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false)
-    # subpbc is used to indicate whether the subsystem is periodic or not
-    lisA = sort(mapreduce(len -> anyon_basis(AT1, BitStr{len, Int}, subApbc), process_join, lengthlisA))
-    lisB = sort(mapreduce(len -> anyon_basis(AT2, BitStr{len, Int}, subBpbc), process_join, lengthlisB))
-    return vec([join(i, j) for i in lisA for j in lisB])
-end
-
-"""
-    disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
-
-Compute reduced density matrix for two joint different systems, or two parallel chains. Where specified subsystems is given, output quantum state or density matrix.
-
-# Arguments
-- `T1::Type`: BitStr type specifying chain length N1
-- `T2::Type`: BitStr type specifying chain length N2
-- `subsystemsA::Vector{Int64}`: Indices of subsystem sites to keep
-- `subsystemsB::Vector{Int64}`: Indices of subsystem sites to keep
-- `state::Vector{ET}`: Quantum state vector in total Hilbert space
-- `pbc::Bool=true`: Periodic boundary conditions
-- `totalsubApbc::Bool=false`: Whether the total subsystem A is periodic
-- `totalsubBpbc::Bool=false`: Whether the total subsystem B is periodic
-- `anyon_typeA::Symbol=:Fibo`: anyon type for subsystem A
-- `anyon_typeB::Symbol=:Fibo`: anyon type for subsystem B
+- `kstate::Vector{ET}`: State vector in momentum sector Hilbert space
+- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
 
 # Returns
 - `Matrix{ET}`: Reduced density matrix in total Hilbert basis
 
 # Examples
 ```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
+
+julia> H_k0 = anyon_ham(model, 0);
+
+julia> eigvecs_k0 = eigvecs(H_k0);
+
+julia> kstate = eigvecs_k0[:, 1];
+
+julia> rdm = anyon_rdm_sec(model, [1, 2, 3], kstate, 0);
+
+julia> isapprox(tr(rdm), 1.0; atol=1e-10)
+true
+```
+"""
+function anyon_rdm_sec(model::AnyonModel{AT}, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int;) where {ET, AT <: AbstractAnyonType}
+    l = length(anyon_basis(model, k)[1])
+    @assert length(kstate) == l "state length is expected to be $(l), but got $(length(kstate))"
+    state = mapst_sec2tot(model, kstate, k)
+    reduced_dm = anyon_rdm(model, subsystems, state)
+    return reduced_dm
+end
+
+# create Fibonacci basis composed of multiple disjoint chains with different basis type
+function joint_basis(AT1::AbstractAnyonType, AT2::AbstractAnyonType, lengthlisA::Vector{Int}, lengthlisB::Vector{Int};subApbc::Bool=false, subBpbc::Bool=false)
+    # subpbc is used to indicate whether the subsystem is periodic or not
+    lisA = sort(mapreduce(len -> anyon_basis(AT1, BitStr{len, Int}, pbc= subApbc), process_join, lengthlisA))
+    lisB = sort(mapreduce(len -> anyon_basis(AT2, BitStr{len, Int}, pbc= subBpbc), process_join, lengthlisB))
+    return vec([join(i, j) for i in lisA for j in lisB])
+end
+
+"""
+    disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {N1, N2, T1 <: BitStr{N1}, T2 <: BitStr{N2}, ET}
+    disjoint_rdm(model1::AnyonModel, model2::AnyonModel, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET})
+
+Compute reduced density matrix for two joint different systems, or two parallel chains.
+
+# Arguments
+## Low-level interface
+- `AT1::AbstractAnyonType`: Anyon type for subsystem A
+- `AT2::AbstractAnyonType`: Anyon type for subsystem B
+- `T1::Type`: BitStr type specifying chain length N1
+- `T2::Type`: BitStr type specifying chain length N2
+- `subsystemsA::Vector{Int64}`: Indices of subsystem A sites to keep
+- `subsystemsB::Vector{Int64}`: Indices of subsystem B sites to keep
+- `state::Vector{ET}`: Quantum state vector in total Hilbert space
+- `totalsubApbc::Bool=false`: Whether subsystem A is periodic
+- `totalsubBpbc::Bool=false`: Whether subsystem B is periodic
+
+## High-level interface
+- `model1::AnyonModel`: Anyon model for subsystem A
+- `model2::AnyonModel`: Anyon model for subsystem B
+- `subsystemsA::Vector{Int64}`: Indices of subsystem A sites to keep
+- `subsystemsB::Vector{Int64}`: Indices of subsystem B sites to keep
+- `state::Vector{ET}`: Quantum state vector in total Hilbert space
+
+# Returns
+- `Matrix{ET}`: Reduced density matrix
+
+# Examples
+```jldoctest
 julia> using FibonacciChain, BitBasis, LinearAlgebra
 
-julia> N1, N2 = 4, 4; T1, T2 = BitStr{N1,Int}, BitStr{N2,Int};
+julia> N1, N2 = 4, 4;
 
-julia> basisA = anyon_basis(T1, true, anyon_type=:Fibo);
+julia> model1 = AnyonModel(FibonacciAnyon(), N1; pbc=true);
 
-julia> basisB = anyon_basis(T2, true, anyon_type=:Fibo);
+julia> model2 = AnyonModel(FibonacciAnyon(), N2; pbc=true);
+
+julia> basisA = anyon_basis(model1);
+
+julia> basisB = anyon_basis(model2);
 
 julia> state = randn(ComplexF64, length(basisA) * length(basisB));
 
 julia> state ./= norm(state);
 
-julia> rdm = disjoint_rdm(T1, T2, [1,2], [1,2], state, true,
-                          totalsubApbc=false, totalsubBpbc=false,
-                          anyon_typeA=:Fibo, anyon_typeB=:Fibo);
+julia> rdm = disjoint_rdm(model1, model2, [1,2], [1,2], state);
 
 julia> size(rdm)          # reduced density matrix dimension
 (9, 9)
@@ -904,11 +1056,11 @@ julia> size(rdm)          # reduced density matrix dimension
 julia> ishermitian(rdm)   # should be Hermitian
 true
 
-julia> tr(rdm) ≈ 0.9999999999999999 + 0.0im  # trace should be 1
+julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # trace should be 1
 true
 ```
 """
-function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false,  AT1::AbstractAnyonType=FibonacciAnyon(), AT2::AbstractAnyonType=FibonacciAnyon()) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
@@ -919,8 +1071,8 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
         return state * state'
     end
 
-    unsorted_basisA = anyon_basis(AT1, T1, pbc)
-    unsorted_basisB = anyon_basis(AT2, T2, pbc)
+    unsorted_basisA = anyon_basis(AT1, T1, pbc=totalsubApbc)
+    unsorted_basisB = anyon_basis(AT2, T2, pbc=totalsubBpbc)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
@@ -946,11 +1098,11 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     if isempty(subsystemsA)
         # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, anyon_typeB
-        reduced_basis = move_subsystem.(newT, joint_basis(AT1, lengthlis, totalsubBpbc), Ref(subsystems))
+        reduced_basis = move_subsystem.(newT, joint_basis(AT2, lengthlis, totalsubBpbc), Ref(subsystems))
     elseif isempty(subsystemsB)
-        reduced_basis = move_subsystem.(newT, joint_basis(AT2, lengthlis, totalsubApbc), Ref(subsystems))
+        reduced_basis = move_subsystem.(newT, joint_basis(AT1, lengthlis, totalsubApbc), Ref(subsystems))
     else
-        reduced_basis = move_subsystem.(newT, joint_basis(AT1, AT2, lengthlisA, lengthlisB, totalsubApbc, totalsubBpbc), Ref(vcat(subsystemsA, subsystemsB)))
+        reduced_basis = move_subsystem.(newT, joint_basis(AT1, AT2, lengthlisA, lengthlisB, subApbc = totalsubApbc, subBpbc = totalsubBpbc), Ref(vcat(subsystemsA, subsystemsB)))
     end
 
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
@@ -984,7 +1136,6 @@ function disjoint_rdm(::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsys
 
     return reduced_dm
 end
-disjoint_rdm(N1::Int64, N2::Int64, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}, pbc::Bool=true; totalsubApbc::Bool=false, totalsubBpbc::Bool=false, anyon_typeA::Symbol=:Fibo, anyon_typeB::Symbol=:Fibo) where {ET} = 
-disjoint_rdm(BitStr{N1, Int}, BitStr{N2, Int}, subsystemsA, subsystemsB, state, pbc, 
-totalsubApbc=totalsubApbc, totalsubBpbc=totalsubBpbc,
-anyon_typeA=anyon_typeA, anyon_typeB=anyon_typeB)
+disjoint_rdm(model1::AnyonModel{AT1}, model2::AnyonModel{AT2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}) where {ET, AT1<:AbstractAnyonType, AT2<:AbstractAnyonType} =
+disjoint_rdm(model1.anyon_type, model2.anyon_type, BitStr{model1.N, Int}, BitStr{model2.N, Int}, subsystemsA, subsystemsB, state,
+totalsubApbc=model1.pbc, totalsubBpbc=model2.pbc)

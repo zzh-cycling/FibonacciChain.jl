@@ -38,7 +38,7 @@ julia> # The first element is always a basis state
 true
 ```
 """
-function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Bool, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+function measure_basismap(::Type{T}, τ::Float64, state::T, i::Int, sign::Bool, pbc::Bool=true) where {N, T <: BitStr{N}}
     # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
