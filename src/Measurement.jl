@@ -141,7 +141,7 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
             end
         end
 
-        if pbc && i == N
+        if model.pbc && i == N
             if (state & 1) == (state >> (N-1) & 1)
                 return state, state, cstτ+coef, 0
             else
@@ -169,9 +169,9 @@ function measure_matrix(model::AnyonModel{AT}, τ::Float64, idx::Int, sign::Bool
 
     if model.measure_operator ∈ [:Ferro, :Antiferro]
         @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif model.measure_operator == :IsingZZ
+    elseif model.measure_operator == :ZZ
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif model.measure_operator ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
+    elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
     else
         error("Unknown measure class: $(model.anyon_type)")
@@ -200,10 +200,10 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
     # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
     if model.measure_operator ∈ [:Ferro, :Antiferro]
         @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif model.measure_operator == :IsingZZ
-        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif model.measure_operator ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
-        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
+    elseif model.measure_operator == :ZZ
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
+    elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
+        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
     else
         error("Unknown measure class: $(model.anyon_type)")
     end
@@ -712,17 +712,6 @@ end
 measurement_num(::FibonacciAnyon) = 1
 measurement_num(::IsingAnyon) = 2
 
-function generate_state_by_measurement(anyon_type::AbstractAnyonType, τ::Float64, state::Vector{T}, sample::BitVector; pbc::Bool=true, layer_idx::Int=1, enable_τ_eff::Bool=true) where{T} 
-    N = (anyon_type == :Fibo) ? length(sample) * 2 : length(sample)
-    D = size(sample, 1) # number of layers
-    t₂ = D ÷ 2 # number of time steps/ periods
-
-    final_state, sample, free_energy = measure_evolution!(N, τ, state, t₂; 
-    pbc=pbc, anyon_type=anyon_type, mode=:sample, 
-    sample=sample, enable_τ_eff=enable_τ_eff)
-    return Measurement_outcome(final_state, sample, free_energy)
-end
-
 """
     boundary_measure(model::AnyonModel, state::Vector{ET}, layer_idx::Int=1, 
                      num_samples::Int=1000, measure_config::MeasureConfig) where {ET}
@@ -740,16 +729,17 @@ Generate measurement samples at boundary sites with probabilistic outcomes (Born
 - `Tuple{Vector{Vector{Float64}}, BitMatrix, Vector{Float64}}`:
   (post-measurement states, measurement sequences, free energies)
 """
-function boundary_measure(model::AnyonModel{AT}, state::Vector{ET}, layer_idx::Int=1, num_samples::Int=1000, measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
+function boundary_measure(model::AnyonModel{AT}, state::Vector{ET}, measure_config::MeasureConfig, layer_idx::Int=1, num_samples::Int=1000) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
     sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
     samples = BitMatrix(undef, num_samples, n_measure)
     sample_free_energy = Vector{Float64}(undef, num_samples)
-
+    rng = measure_config.rng
+    τ = measure_config.τ
     for sample_idx in 1:num_samples
-        final_state, sample, free_energy = _sample_layer!(model, state, rng, layer_idx = layer_idx)
+        final_state, sample, free_energy = _sample_layer!(model, τ, state, rng = rng, layer_idx = layer_idx)
 
         sample_measured_states[sample_idx] = final_state
         samples[sample_idx, :] = sample

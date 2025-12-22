@@ -137,10 +137,11 @@ end
     pbc = false
     τ =0.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
-    sign = 0
+    sign = false
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
+    model = AnyonModel(IsingAnyon(), N, pbc=pbc, measure_operator=:X)
 
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingX)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
     @test output[2] == (T(bit"001"), T(bit"011"), cstτ, 0.0)
@@ -148,15 +149,15 @@ end
     @test output[4] == (T(bit"100"), T(bit"110"), cstτ, 0.0)
     @test output[5] == (T(bit"101"), T(bit"111"), cstτ, 0.0)
 
-    sign = 1
-    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingX)
+    sign = true
+    output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test output2 == output
 
     τ = 1.0
-    sign = 0
+    sign = false
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingX)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
     @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
@@ -164,9 +165,9 @@ end
     @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
     @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
 
-    sign = 1
+    sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingX)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
     @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
@@ -175,10 +176,10 @@ end
     @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
 
     τ = 1e3
-    sign = 0
+    sign = false
     cstτ = 1/2
     coef = 1/2
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingX)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
     @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
@@ -188,7 +189,7 @@ end
 
 
     idx = 3
-    output = measure_basismap.(T, τ, basis0, idx, sign, true, anyon_type=:IsingX)
+    output = measure_basismap.(Ref(AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:X)), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"001"), cstτ, coef)
     @test output[2] == (T(bit"001"), T(bit"000"), cstτ, coef)
@@ -205,11 +206,11 @@ end
     pbc = false
     τ =0.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
-    sign = 0
+    sign = false
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
+    model = AnyonModel(IsingAnyon(), N, pbc=pbc, measure_operator=:ZZ)
 
-
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"000"), cstτ, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
@@ -217,15 +218,15 @@ end
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
 
-    sign = 1
-    output2 = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
+    sign = true
+    output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test output2 == output
 
     τ = 1.0
-    sign = 0
+    sign = false
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
@@ -233,9 +234,9 @@ end
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
 
-    sign = 1
+    sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
-    output = measure_basismap.(T, τ, basis0, idx, sign, pbc, anyon_type=:IsingZZ)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
@@ -245,10 +246,11 @@ end
 
     idx=3
     τ = 1e3
-    sign = 0
+    sign = false
     cstτ = 1/2
     coef = 1/2
-    output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ)
+    model = AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:ZZ)
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
@@ -257,20 +259,18 @@ end
     @test output[5] == (T(bit"101"), T(bit"101"), 1.0, 0.0)
 
 
-    sign = 1
-    output = measure_basismap.(T, τ, basis0, idx, sign, anyon_type=:IsingZZ) # pbc is true by default
+    sign = true
+    output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (T(bit"000"), T(bit"000"), 0.0, 0.0)
     @test output[2] == (T(bit"001"), T(bit"001"), 1.0, 0.0)
     @test output[3] == (T(bit"010"), T(bit"010"), 0.0, 0.0)
     @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
     @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0)
-
 end
 
 @testset "measure_matrix" begin
     N = 3
-    T = BitStr{N, Int}
     
     ⊗(a,b) = kron(a, b)
     τ = 1.0
@@ -282,98 +282,98 @@ end
     σz = [1.0 0.0; 0.0 -1.0]
     # measuring X
     expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σx ⊗ I(2)
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false, anyon_type=:IsingX)
+
+    model = AnyonModel(IsingAnyon(), N, pbc=false, measure_operator=:X)
+    Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false)
     @test Mpobc == expected_matrix 
 
     coef = -sinh(τ/2) / √(2cosh(τ))
     expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σx ⊗ I(2)
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false, anyon_type=:IsingX)
+    Mmobc = FibonacciChain.measure_matrix(model, τ, idx, true)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
 
     # measuring ZZ
     coef = sinh(τ/2) / √(2cosh(τ))
     expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σz ⊗ σz
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, false, anyon_type=:IsingZZ)
-    @test Mpobc == expected_matrix 
+    Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false)
+    @test Mpobc == expected_matrix
 
     coef = -sinh(τ/2) / √(2cosh(τ))
     expected_matrix = cstτ* I(8) + coef * I(2) ⊗ σz ⊗ σz
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, false, anyon_type=:IsingZZ)
+    Mmobc = FibonacciChain.measure_matrix(model, τ, idx, true)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
-
+w
     # Test with a different τ, idx
     idx = 3
     τ = 1000.0   
     cstτ = 0.5
     coef = 0.5      
     expected_matrix = cstτ* I(8) + coef * σz ⊗ I(2) ⊗ σz 
-    Mpobc = FibonacciChain.measure_matrix(T, τ, idx, 0, anyon_type=:IsingZZ)
+    Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false)
     @test Mpobc == expected_matrix 
 
-    coef = -0.5    
-    expected_matrix = cstτ* I(8) + coef * σz ⊗ I(2) ⊗ σz 
-    Mmobc = FibonacciChain.measure_matrix(T, τ, idx, 1, anyon_type=:IsingZZ)
+    coef = -0.5
+    expected_matrix = cstτ* I(8) + coef * σz ⊗ I(2) ⊗ σz
+    Mmobc = FibonacciChain.measure_matrix(model, τ, idx, true)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
-
-
 end
 
 @testset "measuremap_IsingX" begin
     N = 3
-    T = BitStr{N, Int}
     τ = 1.0
     idx = 2
-    sign = 0
+    sign = false
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:X)
     state = fill(1.0,2^N)
-    output = measuremap(T, τ, state, idx, sign, anyon_type=:IsingX)        
+    output = measuremap(model, τ, state, idx, sign)
     @test output == (cstτ+coef) .* ones(2^N)
     
-    sign = 1
+    sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
-    output = measuremap(T, τ, state, idx, sign, anyon_type=:IsingX)  
+    output = measuremap(model, τ, state, idx, sign)
     @test output == (cstτ+coef) .* ones(2^N)
 end
 
 @testset "measuremap_IsingZZ" begin
     N = 3
-    T = BitStr{N, Int}
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:ZZ)
     τ = 1.0
     idx = 2
-    sign = 0
+    sign = false
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
 
     state = fill(1.0,2^N)
-    output = measuremap(T, τ, state, idx, sign, anyon_type=:IsingZZ)        
+    output = measuremap(model, τ, state, idx, sign)
     @test output == [cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef, cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef]
     
-    sign = 1
+    sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
-    output = measuremap(T, τ, state, idx, sign, anyon_type=:IsingZZ)  
+    output = measuremap(model, τ, state, idx, sign)
     @test output == [cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef, cstτ+coef, cstτ-coef,cstτ-coef, cstτ+coef]
 
 
     # Try with idx=3 pbc
     state = ones(2^N)
-    output = measuremap(T, 1000.0, state, idx, sign, anyon_type=:IsingZZ)
+    output = measuremap(model, 1000.0, state, idx, sign)
     @test output == [0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0]
 end
 
 
 @testset "measurement_enumeration" begin
     N=6
-    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:X)
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0 
     τ = 0.0
     measurement_sites = collect(2:2:N)
 
-    final_states, trajectories, probabilities = measurement_enumeration(N, τ, st, measurement_sites, anyon_type=:IsingX)
+    final_states, trajectories, probabilities = measurement_enumeration(model, τ, st, measurement_sites)
 
     num_final_states = length(final_states)
     @test num_final_states == 2^length(measurement_sites)
@@ -384,7 +384,8 @@ end
     @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
     @test sum(map(x->-x*log(x)/length(measurement_sites), probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 
-    final_states, trajectories, probabilities = measurement_enumeration(N, τ, st, measurement_sites, anyon_type=:IsingZZ)
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:ZZ)
+    final_states, trajectories, probabilities = measurement_enumeration(model, τ, st, measurement_sites)
 
     num_final_states = length(final_states)
     @test num_final_states == 2^length(measurement_sites)
@@ -397,11 +398,12 @@ end
 
 @testset "Boundary_measure" begin
     N=6
-    st = zeros(length(anyon_basis(N, anyon_type=:IsingX)))
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:X)
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0 
     τ = 3.802
-
-    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 500,MersenneTwister(90), anyon_type=:IsingX)
+    measure_config = MeasureConfig(:random, nothing)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, st, 1, 500, measure_config)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 500

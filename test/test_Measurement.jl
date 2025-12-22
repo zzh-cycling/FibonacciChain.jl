@@ -359,11 +359,13 @@ end
 @testset "generate_state" begin
     N = 10
     τ = 1e3
-    energy, states = Arpack.eigs(anyon_ham(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N)
+    energy, states = Arpack.eigs(anyon_ham(model), nev=1, which=:SR)
     antiGS = states[:, 1]
+    measure_config = MeasureConfig(τ=τ, t₂=10, rng=MersenneTwister(42), mode=:sample)
 
-    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1)
-    state, F = generate_state(τ, antiGS, samples[1, :])
+    sample_measured_states, samples, sample_free_energy = boundary_measure(model, antiGS, 1)
+    state, F = generate_state_by_measurement(τ, antiGS, samples[1, :])
 
     @test state ≈ sample_measured_states[1]
     @test F[1] ≈ sample_free_energy[1] atol=1e-6
@@ -385,8 +387,10 @@ end
     
     seed = 100
     rng = MersenneTwister(seed)
+    measure_config = MeasureConfig(t₂=1, τ=τ, rng=rng)
+    model = AnyonModel(FibonacciAnyon(), N)
     # all samples are Matrix now
-    sample_measured_states, samples, sample_free_energy = boundary_measure(N, τ, antiGS, 1, 1000, rng)
+    sample_measured_states, samples, sample_free_energy = boundary_measure(model, antiGS, measure_config)
 
     num_final_states = length(sample_measured_states)
     @test num_final_states == 1000
