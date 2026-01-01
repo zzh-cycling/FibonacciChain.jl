@@ -552,7 +552,7 @@ Configuration struct for measurement evolution parameters.
 
 # Fields
 - `τ::Float64`: Measurement strength parameter
-- `t₂::Int`: Number of measurement layers (time steps)
+- `t₂::Int`: 2*Number of measurement layers (time steps)
 - `rng::MersenneTwister`: Random number generator (default: `MersenneTwister()`)
 - `mode::Symbol`: Sampling mode, one of `:sample`, `:Born` (default: `:sample`)
 - `t₁::Int`: Starting layer index for evolution (default: 1)
@@ -570,33 +570,33 @@ Base.@kwdef struct MeasureConfig
 end
 
 """
-    measure_evolution!(model::AnyonModel, state::Vector{ET}, 
-                       samples::Union{Nothing,BitMatrix}, 
-                       measure_config::MeasureConfig) where {ET}
-                  
+        measure_evolution!(model::AnyonModel, state::Vector{ET},
+                                             measure_config::MeasureConfig,
+                                             samples::Union{Nothing,BitMatrix}=nothing) where {ET}
+
 Perform measurement evolution from t₁ to t₂ on the initial state.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
-- `samples::Union{Nothing,BitMatrix}`: Predefined measurement sequences for `:sample` mode
 - `measure_config::MeasureConfig`: Configuration struct containing τ, t₁, t₂, mode, etc.
+- `samples::Union{Nothing,BitMatrix}=nothing`: Predefined measurement sequences for `:sample` mode (optional)
 
 # Returns
 - `Tuple{Vector{Vector{ET}}, BitMatrix, Vector{Float64}}`:
-  - `states`: Intermediate states at each time step
-  - `samples`: Measurement outcome sequences
-  - `sample_free_energy`: Free energy for each layer
+    - `states`: Intermediate states at each time step
+    - `samples`: Measurement outcome sequences
+    - `sample_free_energy`: Free energy for each layer
 
 # Notes
 - In `:Born` mode, samples are generated probabilistically via Born rule
-- In `:sample` mode, samples must be provided as input
+- In `:sample` mode, `samples` must be provided as input and match expected shape
 - (2N+1) layers of measurements correspond to N time steps of evolution
 """
 function measure_evolution!(anyon_model::AnyonModel{AT},   # DRY: don't repeat yourself.
-                  state::Vector{ET},
-                  samples::Union{Nothing,BitMatrix},
-                  measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
+                                    state::Vector{ET},
+                                    measure_config::MeasureConfig,
+                                    samples::Union{Nothing,BitMatrix}=nothing) where {ET, AT<:AbstractAnyonType}
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
@@ -645,13 +645,12 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         Δt >= 0 || error("t₂ must be >= t₁")
         D = Δt * 2 # number of layers to evolve
 
-        samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+
         sample_free_energy = zeros(D)
         states = Vector{Vector{ET}}(undef, Δt)
+        
         # 2. Validate sample matrix
-        isnothing(samples) && error("When mode=:sample samples must be ::BitMatrix")
-        size(samples) == (D, n_measure) ||
-            error("sample size should be ($D, $n_measure)")
+        size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
 
         # 3. Deterministic trajectory for modes :sample, directly deterministic trajectory
     
@@ -697,37 +696,43 @@ end
 
 struct Measurement_outcome{T}
     state::Vector{T}
-    samples::Matrix{Int}
-    free_energy::Float64
+    samples::BitMatrix
+    free_energy::Vector{Float64}
 end
 
-function generate_state_by_measurement(anyon_model::AnyonModel{AT}, state::Vector{T}, samples, measure_config::MeasureConfig) where{T, AT<:AbstractAnyonType}
-    N = measurement_num(anyon_model.anyon_type) * size(samples, 2)
-    D = size(samples, 1) # number of layers
-    t₂ = D ÷ 2 # number of time steps/ periods
-
-    final_state, sample, free_energy = measure_evolution!(anyon_model, state, samples,  measure_config)
+function generate_state_by_measurement(anyon_model::AnyonModel{AT}, state::Vector{T}, samples::BitMatrix, measure_config::MeasureConfig) where{T, AT<:AbstractAnyonType}
+    
+    final_state, sample, free_energy = measure_evolution!(anyon_model, state, measure_config, samples)
     return Measurement_outcome(final_state, sample, free_energy)
+end
+
+function generate_state_by_measurement(anyon_model::AnyonModel{AT}, state::Vector{T}, samples::BitVector, measure_config::MeasureConfig, layer_idx::Int=1) where{T, AT<:AbstractAnyonType}
+    τ = measure_config.τ
+    final_state, free_energy = _apply_measurement_layer!(anyon_model, τ, state, samples, layer_idx=layer_idx)
+    return final_state, free_energy
 end
 measurement_num(::FibonacciAnyon) = 1
 measurement_num(::IsingAnyon) = 2
 
 """
-    boundary_measure(model::AnyonModel, state::Vector{ET}, layer_idx::Int=1, 
-                     num_samples::Int=1000, measure_config::MeasureConfig) where {ET}
+        boundary_measure(model::AnyonModel, state::Vector{ET}, 
+                                         measure_config::MeasureConfig, layer_idx::Int=1, 
+                                         num_samples::Int=1000) where {ET}
 
 Generate measurement samples at boundary sites with probabilistic outcomes (Born rule).
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
+- `measure_config::MeasureConfig`: Configuration containing rng and other parameters
 - `layer_idx::Int=1`: Measurement layer index
 - `num_samples::Int=1000`: Number of measurement samples to generate
-- `measure_config::MeasureConfig`: Configuration containing rng and other parameters
 
 # Returns
-- `Tuple{Vector{Vector{Float64}}, BitMatrix, Vector{Float64}}`:
-  (post-measurement states, measurement sequences, free energies)
+- `Measurement_outcome{Vector{Float64}}`:
+    - `state`: Vector of post-measurement states (one per sample)
+    - `samples`: BitMatrix of measurement outcomes (num_samples × n_measure)
+    - `free_energy`: Vector of free energies (one per sample)
 """
 function boundary_measure(model::AnyonModel{AT}, state::Vector{ET}, measure_config::MeasureConfig, layer_idx::Int=1, num_samples::Int=1000) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -745,38 +750,43 @@ function boundary_measure(model::AnyonModel{AT}, state::Vector{ET}, measure_conf
         samples[sample_idx, :] = sample
         sample_free_energy[sample_idx] = free_energy
     end
-    
-    return sample_measured_states, samples, sample_free_energy
+
+    return Measurement_outcome(sample_measured_states, samples, sample_free_energy)
 end
 
 
 """
-    boundary_post_selection(model::AnyonModel, state::Vector{ET}, 
-                            layer_idx::Int=1, sign::Bool=true) where {ET}
+        boundary_post_selection(model::AnyonModel, state::Vector{ET}, 
+                                                        measure_config::MeasureConfig, layer_idx::Int=1, 
+                                                        sign::Bool=true) where {ET}
 
 Apply deterministic measurements at boundary sites with specified outcomes.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
 - `state::Vector{ET}`: Initial quantum state vector
+- `measure_config::MeasureConfig`: Configuration containing τ and rng
 - `layer_idx::Int=1`: Measurement layer index
 - `sign::Bool=true`: Measurement outcome (false for all +, true for all -)
 
 # Returns
-- `Tuple{Vector{ET}, BitVector, Float64}`:
-  (post-measurement state, measurement outcomes, total free energy)
+- `Measurement_outcome{ET}`: a single-element outcome containing
+    - `state`: post-measurement state vector
+    - `samples`: 1×n_measure BitMatrix with the applied sample
+    - `free_energy`: Vector with a single total free energy value
 """
-function boundary_post_selection(model::AnyonModel{AT}, state::Vector{ET}, layer_idx::Int=1, sign::Bool=true) where {ET, AT<:AbstractAnyonType}
+function boundary_post_selection(model::AnyonModel{AT}, state::Vector{ET}, measure_config::MeasureConfig, layer_idx::Int=1, sign::Bool=true) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
     sample = (sign == 0) ? BitVector(zeros(Bool, n_measure)) : BitVector(ones(Bool, n_measure))
 
+    τ = measure_config.τ
     state_measured, total_free_energy =  _apply_measurement_layer!(
-        model, state, sample, layer_idx
+        model, τ, state, sample, layer_idx = layer_idx
     )  # return the final state after applying all measurements in the layer
 
-    return state_measured, sample, total_free_energy
+    return Measurement_outcome(state_measured, reshape(sample, 1, :), [total_free_energy])
 end
 
 
@@ -800,13 +810,13 @@ Performs both time and spatial axis evolution for bulk measurements.
 
 Samples measurement outcomes probabilistically based on Born rule.
 """
-function bulk_measure(model::AnyonModel{AT}, state::Vector{ET}, t::Int64, measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
+function bulk_measure(model::AnyonModel{AT}, state::Vector{ET}, measure_config::MeasureConfig) where {ET, AT<:AbstractAnyonType}
 
     final_state, samples, sample_free_energy = measure_evolution!(
-        model, state, t, measure_config;
+        model, state, measure_config
     )
 
-    return final_state, samples, sample_free_energy
+    return Measurement_outcome(final_state, samples, sample_free_energy)
 end
 
 """
@@ -832,19 +842,20 @@ function bulk_post_selection(
         state::Vector{ET},
         sign::Bool,
         measure_config::MeasureConfig
-    ) where {ET}
+    ) where {ET, AT<:AbstractAnyonType}
 
     # 1. Build the sample, all 0 or all 1, each layer N/2 or N measurements, depending on anyon_type, total D layers.
     n_measure = measurement_num(model.anyon_type)*(model.N ÷ 2)
-
-    sample = (sign == 1) ? BitMatrix(undef, (2D, n_measure)) : BitMatrix(undef, (2D, n_measure))
+    D = (measure_config.t₂ - measure_config.t₁ + 1) * 2  # total number of layers
+    temp_sample = (sign == 1) ? ones(Int8, (D, n_measure)) : zeros(Int8, (D, n_measure))
+    sample = BitMatrix(temp_sample)
 
     # 2. generate_state to run all the layers
     sample_measured_states, samples, sample_free_energy = measure_evolution!(
-        model, state, sample, measure_config
+        model, state, measure_config, sample
     )        # need all the intermediate states, measure_evolution! return each layer free energy
 
-    return sample_measured_states, sample, sample_free_energy
+    return sample_measured_states, samples, sample_free_energy
 end
 
 

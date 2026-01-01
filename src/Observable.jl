@@ -80,16 +80,17 @@ julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
 true
 ```
 """
-function anyon_eelis(N::Int64,state::Union{Vector{ET}, Matrix{ET}},pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+function anyon_eelis(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}) where {ET}
     # Generate ee list for a given state from the left to the right
+    N = model.N
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         if m<= div(N,2)
-            subrho=anyon_rdm(N, collect(1:m), state, pbc, anyon_type=anyon_type)
+            subrho=anyon_rdm(model, collect(1:m), state)
             EE_lis[m]=ee(subrho)
         else
-            subrho=anyon_rdm(N, collect(m+1:N), state, pbc, anyon_type=anyon_type)
+            subrho=anyon_rdm(model, collect(m+1:N), state)
             EE_lis[m]=ee(subrho)
         end
     end

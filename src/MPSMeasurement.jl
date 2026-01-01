@@ -87,56 +87,62 @@ Construct Fibonacci chain Hamiltonian as Matrix Product Operator (MPO).
 # Returns
 - `MPO`: Hamiltonian for different anyon types. Fibonacci: three-body interactions based on Fibonacci fusion rules, IsingX: transverse field Ising model.
 """
-function anyon_ham(sites; pbc::Bool=true, anyon_type::Symbol=:Fibo, kwargs...)
+function anyon_ham(model::AnyonModel{AT}, sites; kwargs...) where AT <: FibonacciAnyon
     N = length(sites)
     os = OpSum()
+    pbc = model.pbc
     
-    if anyon_type ∈ [:IsingX, :IsingZZ, :IsingZ]
-        J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
-        for i in 1:N
-            os += -h, "X", i
-        end
-
-        for i in 1:N-1
-            os += -J, "Z", i, "Z", i+1
-        end
-        if pbc && N > 2
-            os += -J, "Z", N, "Z", 1
-        end
-        return MPO(os, sites)
-
-    elseif anyon_type == :Fibo  
-        # Golden ratio
-        ϕ = (1 + √5) / 2
-        coef = 1/2
-        # Three-body interactions for Fibonacci chain
-        for i in 2:(N-1)
-            # Add three-body terms based on Fibonacci fusion rules
-            os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
-            os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
-            os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
-            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
-            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
-        end
-        
-        # Periodic boundary conditions
-        if pbc && N > 2
-            # H1 term
-            os += coef, "Proj0", N, "Z", 1, "Proj1", 2
-            os += coef, "Proj1", N, "Z", 1, "Proj0", 2
-            os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
-            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
-            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
-            # HN term (wrap around)
-            os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
-            os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
-            os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
-            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
-            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
-        end
-        
-        return MPO(os, sites)
+    # Golden ratio
+    ϕ = (1 + √5) / 2
+    coef = 1/2
+    # Three-body interactions for Fibonacci chain
+    for i in 2:(N-1)
+        # Add three-body terms based on Fibonacci fusion rules
+        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
     end
+    
+    # Periodic boundary conditions
+    if pbc && N > 2
+        # H1 term
+        os += coef, "Proj0", N, "Z", 1, "Proj1", 2
+        os += coef, "Proj1", N, "Z", 1, "Proj0", 2
+        os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
+        # HN term (wrap around)
+        os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
+        os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
+        os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
+        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+    end
+    
+    return MPO(os, sites)
+
+end
+
+function anyon_ham(model::AnyonModel{AT}, sites; kwargs...) where AT <: IsingAnyon
+    J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
+    N = length(sites)
+    os = OpSum()
+    pbc = model.pbc
+    
+    for i in 1:N
+        os += -h, "X", i
+    end
+
+    for i in 1:N-1
+        os += -J, "Z", i, "Z", i+1
+    end
+    if pbc && N > 2
+        os += -J, "Z", N, "Z", 1
+    end
+    
+    return MPO(os, sites)
 end
 
 """
