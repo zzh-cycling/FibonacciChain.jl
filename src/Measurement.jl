@@ -327,7 +327,7 @@ function measurement_enumeration(model::AnyonModel{AT}, τ::Float64, initial_sta
             prob_p = real(dot(state_after_p, state_after_p))
 
             normalized_state_p = state_after_p / sqrt(prob_p)
-            new_trajectory_p = [current_trajectory; 0]
+            new_trajectory_p = [current_trajectory; false]
             new_prob_p = current_prob * prob_p
             
             push!(next_level_states, normalized_state_p)
@@ -338,7 +338,7 @@ function measurement_enumeration(model::AnyonModel{AT}, τ::Float64, initial_sta
             prob_m = real(dot(state_after_m, state_after_m))
 
             normalized_state_m = state_after_m / sqrt(prob_m)
-            new_trajectory_m = [current_trajectory; 1]
+            new_trajectory_m = [current_trajectory; true]
             new_prob_m = current_prob * prob_m
             
             push!(next_level_states, normalized_state_m)

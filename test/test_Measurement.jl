@@ -540,9 +540,10 @@ end
     samples = BitMatrix(ones(Int8, 15N, div(N,2)))
     measure_config = MeasureConfig(τ=τ, t₂=div(15N, 2), rng=MersenneTwister(42), mode=:sample)
     ψ0, sites = initial_mps(N)
-    generated_statelis_mps, F = generate_state_mps(τ, sites, ψ0, samples; pbc= true)
+    measure_outcome_mps = generate_state_mps(model, sites, ψ0, samples, measure_config)
+    generated_statelis_mps, F = measure_outcome_mps.state, measure_outcome_mps.free_energy
     final_mps = generated_statelis_mps[end]
-    EE_mps = anyon_eelis(N, final_mps)
+    EE_mps = anyon_eelis(model, final_mps)
     c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1]
     @test c ≈ 0.7 atol=1e-1
 end 

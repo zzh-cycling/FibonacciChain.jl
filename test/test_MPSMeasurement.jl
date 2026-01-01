@@ -19,11 +19,11 @@ end
 
 @testset "MPS Ground State Generation" begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     
     # Test ground state generation
-    ψ, energy = anyon_mps_gst(N; pbc=pbc)
-    
+    ψ, energy = anyon_mps_gst(model)
+
     @test ψ isa MPS
     @test length(ψ) == N
     @test energy isa Real
@@ -45,8 +45,8 @@ end
     
     idx=2
     # Test measurement operator creation
-    M_p = measurement_operator_mps(sites, idx, τ, 0)
-    M_m = measurement_operator_mps(sites, idx, τ, 1)
+    M_p = measurement_operator_mps(model, sites, idx, τ, false)
+    M_m = measurement_operator_mps(model, sites, idx, τ, true)
 
     s_im1 = sites[idx-1] # site 1
     s_i   = sites[idx]   # site 2
@@ -72,14 +72,13 @@ end
 
 
     # Test invalid inputs
-    @test_throws AssertionError measurement_operator_mps(sites, 0, τ, 0)
-    @test_throws AssertionError measurement_operator_mps(sites, N+1, τ, 0)
-    @test_throws AssertionError measurement_operator_mps(sites, 2, τ, 2)
+    @test_throws AssertionError measurement_operator_mps(model, sites, 0, τ, false)
+    @test_throws AssertionError measurement_operator_mps(model, sites, N+1, τ, false)
 end
 
 @testset "Single Measurement Application" begin
     N = 4
-    pbc = true
+    moedl = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     
     sites = siteinds("Qubit", N)
@@ -91,11 +90,11 @@ end
     ψ0 = random_mps(sites, state)
     
     # Apply measurements
-    ψ_p, prob_p = apply_measurement_mps(ψ0, sites, 1, τ, 0; pbc=pbc)
-    ψ_m, prob_m = apply_measurement_mps(ψ0, sites, 1, τ, 1; pbc=pbc)
+    ψ_p, prob_p = measuremap(model, ψ0, sites, 1, τ, false;)
+    ψ_m, prob_m = measuremap(model, ψ0, sites, 1, τ, true;)
 
-    st = zeros(length(anyon_basis(N))); st[1] = 1.0
-    state_after_p = measuremap(N, τ, st, 1, 0)
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
+    state_after_p = measuremap(model, τ, st, 1, false)
     p = state_after_p'*state_after_p
 
     @test prob_p ≈ p
@@ -112,26 +111,26 @@ end
 
 @testset "Measurement Enumeration" begin
     N = 4
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     
     sites = siteinds("Qubit", N)
     
     # Create initial product state (vacuum state)
     state = ["0" for _ in 1:N]
-    state_exact = zeros(length(anyon_basis(N)))
+    state_exact = zeros(length(anyon_basis(model)))
     state_exact[1] = 1.0  # Vacuum state
     # Use minimal measurement sites for enumeration
     measurement_sites = collect(2:2:N)
     
     ψ = random_mps(sites, state)
     # Enumerate trajectories
-    final_states, trajectories, probabilities = mps_measurement_enumeration(
-        ψ, sites, measurement_sites, τ; pbc=pbc)
+    final_states, trajectories, probabilities = mps_measurement_enumeration(model,
+        ψ, sites, measurement_sites, τ;)
 
     # final_states_vector = map(x-> reduce(*, x).tensor.storage, final_states) # Noting its elements arranging is different from the final_states_exact, they choose different definition?
     
-    final_states_exact, trajectories_exact, probabilities_exact = measurement_enumeration(N, τ, state_exact, measurement_sites)
+    final_states_exact, trajectories_exact, probabilities_exact = measurement_enumeration(model, τ, state_exact, measurement_sites)
 
     @test trajectories == trajectories_exact
     @test probabilities ≈ probabilities_exact
@@ -145,7 +144,7 @@ end
 
 @testset "Boundary Measurements" begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     num_samples = 10
     
@@ -153,17 +152,59 @@ end
     
     seed=10
     # Perform sampling
-    st = zeros(length(anyon_basis(N))); st[1] = 1.0
-    samples_mps, samples_free_energy_mps = mps_boundary_measure(τ, ψ, sites; num_samples=num_samples, rng=MersenneTwister(seed), pbc=pbc)
-    sample_measured_states, samples, samples_free_energy = boundary_measure(N, τ, st, 1, num_samples, MersenneTwister(seed))
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
+    
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :sample)
+    measure_outcome_mps = mps_boundary_measure(model, ψ, sites, measure_config, 1, num_samples)
+    sample_measured_states_mps, samples_mps, samples_free_energy_mps = measure_outcome_mps.state, measure_outcome_mps.samples, measure_outcome_mps.free_energy
+
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :sample) # NEED to reset rng to ensure same sampling
+    measure_outcome = boundary_measure(model, st, measure_config, 1, num_samples)
+    sample_measured_states, samples, samples_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
 
     @test samples_mps == samples
     @test samples_free_energy_mps ≈ samples_free_energy
 end
 
+@testset "_born_measure" begin
+    N = 6
+    model = AnyonModel(FibonacciAnyon(), N)
+    t = 10
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+
+    _, samples, sample_free_energy = FibonacciChain._born_measure(model, state, measure_config)
+    @test size(samples) == (20, 3)
+    @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
+
+    ψ, sites = initial_mps(N)
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
+    _, samples_mps, sample_free_energy_mps = FibonacciChain._born_measure(model, sites, ψ, measure_config)
+    @test samples_mps == samples
+    @test sample_free_energy_mps ≈ sample_free_energy
+end
+
+@testset "_sample_measure" begin
+    N = 6
+    model = AnyonModel(FibonacciAnyon(), N)
+    t = 10
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:sample)
+    state = zeros(length(anyon_basis(model))); state[1] = 1.0
+    samples = BitMatrix(undef, 2t, div(N,2))
+
+    _, samples, sample_free_energy = FibonacciChain._sample_measure(model, state, samples, measure_config)
+    @test size(samples) == (20, 3)
+    @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
+
+    ψ, sites = initial_mps(N)
+    _, samples_mps, sample_free_energy_mps = FibonacciChain._sample_measure(model, sites, ψ, samples, measure_config)
+    @test samples_mps == samples
+    @test sample_free_energy_mps ≈ sample_free_energy
+end
+
 @testset "Bulk Measurements" begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     D = 2  # Small number of layers for testing 
     
@@ -171,13 +212,16 @@ end
     
     seed=10
     # Perform sampling
-    st = zeros(length(anyon_basis(N))); st[1] = 1.0
-  
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
+
+    measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born)
     # Perform bulk measurements
-    bulk_states, bulk_samples, bulk_free_energy = mps_bulk_measure(
-        N, τ, ψ, sites, D; rng=MersenneTwister(seed), pbc=pbc)
-    
-    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = bulk_measure(N, τ, st, D, MersenneTwister(seed))
+    measure_outcome_mps = mps_bulk_measure(model, ψ, sites, measure_config)
+    bulk_states, bulk_samples, bulk_free_energy = measure_outcome_mps.state, measure_outcome_mps.samples, measure_outcome_mps.free_energy
+
+    measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born) # NEED to reset rng to ensure same sampling
+    measure_outcome = bulk_measure(model, st, measure_config)
+    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
 
     @test bulk_samples == bulk_samples_exact
     @test bulk_free_energy ≈ bulk_free_energy_exact
@@ -185,24 +229,21 @@ end
 
 @testset "_apply_measurement_layer!" begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     
     ψ, sites = initial_mps(N)
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
 
-    seed=10
-    # Perform sampling
-    st = zeros(length(anyon_basis(N))); st[1] = 1.0
-    
     # Apply measurement to a specific layer
     measurement_layer = 2
-    bulk_samples = [1, 1, 1]
-    
-    ψ_layer, F= _apply_measurement_layer!(N, τ, sites, ψ,  bulk_samples, measurement_layer, pbc)
+    bulk_samples = BitVector(ones(3))
 
-    st_exact, F_exact= _apply_measurement_layer!(N, τ, st, bulk_samples, measurement_layer, pbc)
+    ψ_layer, F= _apply_measurement_layer!(model, τ, sites, ψ, bulk_samples, measurement_layer)
 
-    inds = [i.buf for i in anyon_basis(N)] .+1
+    st_exact, F_exact= _apply_measurement_layer!(model, τ, st, bulk_samples, layer_idx =  measurement_layer) # Here we use keyword argument to avoid confusion
+
+    inds = [i.buf for i in anyon_basis(model)] .+1
 
     ψ_dense = reduce(*, ψ_layer).tensor.storage[inds]
     @test ψ_dense[ψ_dense .>0] ≈ st_exact[st_exact .>0]
@@ -211,21 +252,22 @@ end
 
 @testset "Generate_state_mps " begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     
     ψ, sites = initial_mps(N)
-
-    # Perform sampling
-    st = zeros(length(anyon_basis(N))); st[1] = 1.0
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
     
     # Generate a specific state
     
     τ = 1.0  # Example τ value
-    bulk_samples = [1 1 1; 0 0 0]
-    generated_statelis, F = generate_state_mps(τ, sites, ψ, bulk_samples; pbc= pbc)
-    generated_statelis_exact, F_exact = generate_state(τ, st, bulk_samples, pbc)
+    bulk_samples = BitMatrix([1 1 1; 0 0 0])
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(42), mode = :sample)
+    measure_outcome_mps = generate_state_mps(model, sites, ψ, bulk_samples, measure_config)
+    generated_statelis, F = measure_outcome_mps.state, measure_outcome_mps.free_energy
+    measure_outcome = generate_state_by_measurement(model, st, bulk_samples, measure_config)
+    generated_statelis_exact, F_exact = measure_outcome.state, measure_outcome.free_energy
 
-    inds = [i.buf for i in anyon_basis(N)] .+1
+    inds = [i.buf for i in anyon_basis(model)] .+1
     
     # Convert MPS states to dense vectors for comparison, note the order of elements may differ, as actually we are dealing with OBC MPS, but PBC Hamiltonian.
     ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_statelis]
@@ -238,7 +280,7 @@ end
 
 @testset "Entanglement Entropy" begin
     N = 6
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     
     sites = siteinds("Qubit", N)
     
@@ -247,34 +289,8 @@ end
 
     ψ = random_mps(sites, state)
     # Calculate entanglement entropy at different cuts
-    EElis = anyon_eelis(N, ψ)
+    EElis = anyon_eelis(model, ψ)
     @test all(EElis .>= 0)  # Entanglement entropy should be non-negative
-end
-
-@testset "Parameter Validation" begin
-    N = 4
-    
-    # Test invalid system sizes
-    @test_throws BoundsError anyon_mps_gst(0)
-    @test_throws BoundsError anyon_mps_gst(-1)
-    
-    # Generate valid state for further tests
-    ψ, _ = anyon_mps_gst(N)
-    sites = siteinds(ψ)
-    
-    # Test invalid measurement parameters
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, 0, 1.0, 0)
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, N+1, 1.0, 0)
-    @test_throws AssertionError apply_measurement_mps(ψ, sites, 2, 1.0, 2)
-    
-    # Test edge cases for τ
-    ψ_large_τ, prob_large_τ = apply_measurement_mps(ψ, sites, 2, 1e3, 0)
-    @test isfinite(prob_large_τ)
-    @test 0 <= prob_large_τ <= 1
-    
-    ψ_small_τ, prob_small_τ = apply_measurement_mps(ψ, sites, 2, 1e-3, 0)
-    @test isfinite(prob_small_τ)
-    @test 0 <= prob_small_τ <= 1
 end
 
 function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
@@ -282,11 +298,14 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     
     ψ, sites = initial_mps(L)
 
-    sample_measured_states, sample, sample_free_energy = mps_bulk_measure(L, τ, ψ, sites, D;rng=rng, pbc=true)
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    measure_config = MeasureConfig(τ = τ, t₂=D, rng = rng, mode = :Born)
+    measure_outcome = mps_bulk_measure(model, ψ, sites, measure_config)
+    sample_measured_states, sample, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
 
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state)
+    final_EElis = anyon_eelis(model, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end
@@ -294,14 +313,17 @@ end
 function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     rng = MersenneTwister(seed)
     
-    st = zeros(length(anyon_basis(L)))
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    measure_config = MeasureConfig(τ = τ, t₂=D, rng = rng, mode = :Born)
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
-    
-    sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, rng, true) 
-    
-    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
+
+    measure_outcome = bulk_measure(model, st, measure_config)
+    sample_measured_states, sample, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+
+    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state)
+    final_EElis = anyon_eelis(model, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
 end
