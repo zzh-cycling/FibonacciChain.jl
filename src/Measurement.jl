@@ -857,7 +857,7 @@ function bulk_post_selection(
         model, state, measure_config, sample
     )        # need all the intermediate states, measure_evolution! return each layer free energy
 
-    return sample_measured_states, samples, sample_free_energy
+    return Measurement_outcome(sample_measured_states, samples, sample_free_energy)
 end
 
 

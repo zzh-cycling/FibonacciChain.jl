@@ -446,7 +446,8 @@ end
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    sample_measured_states, samples, sample_free_energy = bulk_post_selection(model, st, false, measure_config)
+    measure_outcome = bulk_post_selection(model, st, false, measure_config)
+    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
     state_t = sample_measured_states[end]
     EE = anyon_eelis(model, state_t)[5]
     @test samples[end,:] == fill(0, div(L,2))
