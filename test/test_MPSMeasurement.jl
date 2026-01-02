@@ -142,11 +142,10 @@ end
     @test all(p -> p > 0, probabilities)
 end
 
-@testset "Boundary Measurements" begin
+@testset "Boundary evolution" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
-    num_samples = 10
     
     ψ, sites = initial_mps(N)
     
@@ -154,15 +153,15 @@ end
     # Perform sampling
     st = zeros(length(anyon_basis(model))); st[1] = 1.0
     
-    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :sample)
-    measure_outcome_mps = mps_boundary_measure(model, ψ, sites, measure_config, 1, num_samples)
-    sample_measured_states_mps, samples_mps, samples_free_energy_mps = measure_outcome_mps.state, measure_outcome_mps.samples, measure_outcome_mps.free_energy
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born)
+    measure_outcome_mps = boundary_evolution(model, sites, ψ, measure_config)
+    sample_measured_states_mps, sample_mps, samples_free_energy_mps = measure_outcome_mps.state, measure_outcome_mps.sample, measure_outcome_mps.free_energy
 
-    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :sample) # NEED to reset rng to ensure same sampling
-    measure_outcome = boundary_measure(model, st, measure_config, 1, num_samples)
-    sample_measured_states, samples, samples_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born) # NEED to reset rng to ensure same sampling
+    measure_outcome = boundary_evolution(model, st, measure_config)
+    sample_measured_states, sample, samples_free_energy = measure_outcome.state, measure_outcome.sample, measure_outcome.free_energy
 
-    @test samples_mps == samples
+    @test sample_mps == sample
     @test samples_free_energy_mps ≈ samples_free_energy
 end
 
@@ -173,13 +172,15 @@ end
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
 
-    _, samples, sample_free_energy = FibonacciChain._born_measure(model, state, measure_config)
+    measure_outcome = FibonacciChain._born_measure(model, state, measure_config)
+    _, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
 
     ψ, sites = initial_mps(N)
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
-    _, samples_mps, sample_free_energy_mps = FibonacciChain._born_measure(model, sites, ψ, measure_config)
+    measure_outcome_mps =  FibonacciChain._born_measure_mps(model, sites, ψ, measure_config)
+    _, samples_mps, sample_free_energy_mps = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
     @test samples_mps == samples
     @test sample_free_energy_mps ≈ sample_free_energy
 end
@@ -188,21 +189,23 @@ end
     N = 6
     model = AnyonModel(FibonacciAnyon(), N)
     t = 10
-    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:sample)
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, mode=:sample)
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
     samples = BitMatrix(undef, 2t, div(N,2))
 
-    _, samples, sample_free_energy = FibonacciChain._sample_measure(model, state, samples, measure_config)
+    measure_outcome = FibonacciChain._sample_measure(model, state, samples, measure_config)
+    _, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
 
     ψ, sites = initial_mps(N)
-    _, samples_mps, sample_free_energy_mps = FibonacciChain._sample_measure(model, sites, ψ, samples, measure_config)
+    measure_outcome_mps =  FibonacciChain._sample_measure_mps(model, sites, ψ, samples, measure_config)
+    _, samples_mps, sample_free_energy_mps = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
     @test samples_mps == samples
     @test sample_free_energy_mps ≈ sample_free_energy
 end
 
-@testset "Bulk Measurements" begin
+@testset "Bulk Born" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
@@ -216,18 +219,18 @@ end
 
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born)
     # Perform bulk measurements
-    measure_outcome_mps = mps_bulk_measure(model, ψ, sites, measure_config)
-    bulk_states, bulk_samples, bulk_free_energy = measure_outcome_mps.state, measure_outcome_mps.samples, measure_outcome_mps.free_energy
+    measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config)
+    bulk_states, bulk_samples, bulk_free_energy = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
 
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born) # NEED to reset rng to ensure same sampling
-    measure_outcome = bulk_measure(model, st, measure_config)
-    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_outcome = bulk_evolution(model, st, measure_config)
+    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
 
     @test bulk_samples == bulk_samples_exact
     @test bulk_free_energy ≈ bulk_free_energy_exact
 end
 
-@testset "_apply_measurement_layer!" begin
+@testset "_apply_measurement_layer" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
@@ -239,9 +242,12 @@ end
     measurement_layer = 2
     bulk_samples = BitVector(ones(3))
 
-    ψ_layer, F= _apply_measurement_layer!(model, τ, sites, ψ, bulk_samples, measurement_layer)
+    measure_outcome_mps = FibonacciChain._apply_measurement_layer_mps(model, τ, sites, ψ, bulk_samples, measurement_layer)
+    ψ_layer, F = measure_outcome_mps.state, measure_outcome_mps.free_energy
 
-    st_exact, F_exact= _apply_measurement_layer!(model, τ, st, bulk_samples, layer_idx =  measurement_layer) # Here we use keyword argument to avoid confusion
+    measure_outcome = FibonacciChain._apply_measurement_layer(model, τ, st, bulk_samples, layer_idx =  measurement_layer)
+    st_exact, F_exact= measure_outcome.state, measure_outcome.free_energy
+    # Here we use keyword argument to avoid confusion
 
     inds = [i.buf for i in anyon_basis(model)] .+1
 
@@ -250,7 +256,7 @@ end
     @test F ≈ F_exact
 end 
 
-@testset "Generate_state_mps " begin
+@testset "bulk_evolution " begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     
@@ -261,11 +267,11 @@ end
     
     τ = 1.0  # Example τ value
     bulk_samples = BitMatrix([1 1 1; 0 0 0])
-    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(42), mode = :sample)
-    measure_outcome_mps = generate_state_mps(model, sites, ψ, bulk_samples, measure_config)
-    generated_statelis, F = measure_outcome_mps.state, measure_outcome_mps.free_energy
-    measure_outcome = generate_state_by_measurement(model, st, bulk_samples, measure_config)
-    generated_statelis_exact, F_exact = measure_outcome.state, measure_outcome.free_energy
+    measure_config = MeasureConfig(τ = τ, t₂=1, mode = :sample)
+    measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, bulk_samples)
+    generated_statelis, F = measure_outcome_mps.states, measure_outcome_mps.free_energys
+    measure_outcome = bulk_evolution(model, st, measure_config, bulk_samples)
+    generated_statelis_exact, F_exact = measure_outcome.states, measure_outcome.free_energys
 
     inds = [i.buf for i in anyon_basis(model)] .+1
     
@@ -300,8 +306,8 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
 
     model = AnyonModel(FibonacciAnyon(), L; pbc=true)
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = rng, mode = :Born)
-    measure_outcome = mps_bulk_measure(model, ψ, sites, measure_config)
-    sample_measured_states, sample, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_outcome = bulk_evolution(model, sites, ψ, measure_config)
+    sample_measured_states, sample, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
 
     halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
@@ -318,8 +324,8 @@ function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
-    measure_outcome = bulk_measure(model, st, measure_config)
-    sample_measured_states, sample, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_outcome = bulk_evolution(model, st, measure_config)
+    sample_measured_states, sample, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
 
     halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]

@@ -318,9 +318,9 @@ end
     τ = 1000.0
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
     rng = MersenneTwister(42)
-    _, sample, F_layer = FibonacciChain._sample_layer!(model, τ, state, rng = rng)
-    @test sample == [1, 0, 1]
-    @test F_layer ≈ 1.9248473002384137 atol=1e-6
+    measure_outcome = FibonacciChain._sample_layer(model, τ, state, rng = rng)
+    @test measure_outcome.sample == [1, 0, 1]
+    @test measure_outcome.free_energy ≈ 1.9248473002384137 atol=1e-6
 end
 
 @testset "_apply_measurement_layer" begin
@@ -328,8 +328,8 @@ end
     τ = 1000.0
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
     sample = BitVector(zeros(3))
-    _, total_free_energy = FibonacciChain._apply_measurement_layer!(model, τ, state, sample, layer_idx = 1)
-    @test total_free_energy ≈ 2.887270950357621 atol=1e-6
+    measure_outcome = FibonacciChain._apply_measurement_layer(model, τ, state, sample, layer_idx = 1)
+    @test measure_outcome.free_energy ≈ 2.887270950357621 atol=1e-6
 end
 
 @testset "_born_measure" begin
@@ -338,9 +338,9 @@ end
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
 
-    _, samples, sample_free_energy = FibonacciChain._born_measure(model, state, measure_config)
-    @test size(samples) == (20, 3)
-    @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
+    measure_outcome = FibonacciChain._born_measure(model, state, measure_config)
+    @test size(measure_outcome.samples) == (20, 3)
+    @test measure_outcome.free_energys[end] ≈ 1.5009765892377303 atol=1e-6
 end
 
 @testset "_sample_measure" begin
@@ -351,42 +351,43 @@ end
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
     samples = BitMatrix(undef, 2t, div(N,2))
 
-    _, samples, sample_free_energy = FibonacciChain._sample_measure(model, state, samples, measure_config)
-    @test size(samples) == (20, 3)
-    @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
+    measure_outcome = FibonacciChain._sample_measure(model, state, samples, measure_config)
+    @test size(measure_outcome.samples) == (20, 3)
+    @test measure_outcome.free_energys[end] ≈ 0.5385529416309107 atol=1e-6
 end
 
-@testset "generate_state" begin
+@testset "boundary_evolution, bulk_evolution" begin
     N = 10
     τ = 1e3
     model = AnyonModel(FibonacciAnyon(), N)
     energy, states = Arpack.eigs(anyon_ham(model), nev=1, which=:SR)
     antiGS = states[:, 1]
-    measure_config = MeasureConfig(τ=τ, t₂=1, rng=MersenneTwister(42), mode=:sample)
+    measure_config = MeasureConfig(τ=τ, t₂=1, rng=MersenneTwister(42), mode=:Born)
 
-    measure_outcome = boundary_measure(model, antiGS, measure_config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
-    
-    state, F =  generate_state_by_measurement(model, antiGS, samples[1, :], measure_config)
+    measure_outcome = boundary_evolution(model, antiGS, measure_config)
+    sample_measured_state, sample, sample_free_energy = measure_outcome.state, measure_outcome.sample, measure_outcome.free_energy
 
-    @test state ≈ sample_measured_states[1]
-    @test F[1] ≈ sample_free_energy[1] atol=1e-6
+    measure_config_boundary_generate = MeasureConfig(τ=τ, t₂=1, mode=:sample)
+    measure_outcome_boundary =  boundary_evolution(model, antiGS, measure_config_boundary_generate, sample)
 
+    @test measure_outcome_boundary.state ≈ sample_measured_state
+    @test measure_outcome_boundary.free_energy[1] ≈ sample_free_energy[1] atol=1e-6
+""
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
-    measure_config_bulk_measure = MeasureConfig(τ=τ, t₂=N, rng=MersenneTwister(42), mode=:Born)
-    measure_outcome3 = bulk_measure(model, st, measure_config_bulk_measure)
-    sample_measured_states, sample_bulk, sample_free_energy = measure_outcome3.state, measure_outcome3.samples, measure_outcome3.free_energy
+    measure_config_bulk_evolution = MeasureConfig(τ=τ, t₂=N, rng=MersenneTwister(42), mode=:Born)
+    measure_outcome3 = bulk_evolution(model, st, measure_config_bulk_evolution)
+    sample_measured_states, sample_bulk, sample_free_energy = measure_outcome3.states, measure_outcome3.samples, measure_outcome3.free_energys
 
-    measure_config_generate = MeasureConfig(τ=τ, t₂=N, rng=MersenneTwister(42), mode=:sample)
-    measure_outcome4 = generate_state_by_measurement(model, st, sample_bulk, measure_config_generate)
-    statelis, F = measure_outcome4.state, measure_outcome4.free_energy
+    measure_config_bulk_generate = MeasureConfig(τ=τ, t₂=N, mode=:sample)
+    measure_outcome4 = bulk_evolution(model, st, measure_config_bulk_generate, sample_bulk)
+    statelis, Fs = measure_outcome4.states, measure_outcome4.free_energys
     state = statelis[end]
     @test state ≈ sample_measured_states[end]
 end
 
-@testset "boundary_measure" begin
+@testset "boundary_Born" begin
     N=6
     model = AnyonModel(FibonacciAnyon(), N)
     energy, states = Arpack.eigs(anyon_ham(model), nev=1, which=:SR)
@@ -395,44 +396,45 @@ end
     
     seed = 100
     rng = MersenneTwister(seed)
-    measure_config = MeasureConfig(t₂=1, τ=τ, rng=rng)
+    measure_config = MeasureConfig(t₂=1, τ=τ, rng=rng, mode=:Born)
     # all samples are Matrix now
-    measure_outcome = boundary_measure(model, antiGS, measure_config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_outcome = boundary_evolution(model, antiGS, measure_config)
+    measured_state, sample, sample_free_energy = measure_outcome.state, measure_outcome.sample, measure_outcome.free_energy
 
-    num_final_states = length(sample_measured_states)
-    @test num_final_states == 1000
-
-    @test fill(zero(Int(0)), 3) == samples[16,:]
+    @test BitVector(ones(3)) == sample
+    @test sample_free_energy ≈ 0.38031571763999733 atol=1e-6
 end
 
 @testset "boundary_post_selection" begin
     N = 10
     τ = 1e3
-    measure_config = MeasureConfig(τ=τ, t₂=10, rng=MersenneTwister(42), mode=:sample)
+    measure_config = MeasureConfig(τ=τ, t₂=1, mode=:sample)
     model = AnyonModel(FibonacciAnyon(), N)
+
     energy, states = Arpack.eigs(anyon_ham(model), nev=1, which=:SR)
     antiGS = states[:, 1]
-    measure_outcome = boundary_post_selection(model, antiGS, measure_config, 1, false)
-    final_state_p, samples, total_free_energy_p = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    sample = BitVector(zeros(div(N,2)))
+    measure_outcome = boundary_evolution(model, antiGS, measure_config, sample) # layer_idx default to 1
 
-    @test total_free_energy_p[1] /5 ≈ 1.1136495433981064 
+    @test measure_outcome.free_energy /5 ≈ 1.1136495433981064 
 end
 
-@testset "bulk_measure" begin
+@testset "bulk_Born" begin
     L = 10
     t = 2L
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(2), mode=:Born)
     model = AnyonModel(FibonacciAnyon(), L)
+    
     st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
-    measure_outcome = bulk_measure(model, st, measure_config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    measure_outcome = bulk_evolution(model, st, measure_config)
+    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
     EElis = [anyon_eelis(model, state_t)[5] for state_t in sample_measured_states]
     @test size(samples) == (2t, 5)
     @test EElis[1] ≈ 0.6895721925700435 atol = 1e-4
     @test EElis[end] > 0.7
+    @test sample_free_energy[end] ≈  3.371812546192422 atol=1e-6
 end
 
 @testset "bulk_post_selection" begin
@@ -440,14 +442,15 @@ end
     τ = 0.1
     D = 15L
     model = AnyonModel(FibonacciAnyon(), L)
-    measure_config = MeasureConfig(τ=τ, t₂=div(D,2), rng=MersenneTwister(2), mode=:sample)
+    measure_config = MeasureConfig(τ=τ, t₂=div(D,2), mode=:sample)
     st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
     EE_tlis = zeros(D)
-    measure_outcome = bulk_post_selection(model, st, false, measure_config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energy
+    samples = BitMatrix(zeros(Int8, D, div(L,2)))
+    measure_outcome = bulk_evolution(model, st, measure_config, samples)
+    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
     state_t = sample_measured_states[end]
     EE = anyon_eelis(model, state_t)[5]
     @test samples[end,:] == fill(0, div(L,2))
@@ -530,7 +533,7 @@ end
     st[1] = 1.0
     t = 6N
     samples = BitMatrix(zeros(Int8, 2t, div(N,2)))
-    measure_config = MeasureConfig(τ=τ, t₂=t, rng=MersenneTwister(42), mode=:sample)
+    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
 
     measure_outcome = generate_state_by_measurement(model, st, samples, measure_config)
     generated_statelis, F = measure_outcome.state, measure_outcome.free_energy
@@ -539,7 +542,7 @@ end
     @test fitCCEntEntScal(EE, mincut=2, pbc=true)[1][1] ≈ 0.8 atol=1e-1
 
     samples = BitMatrix(ones(Int8, 15N, div(N,2)))
-    measure_config = MeasureConfig(τ=τ, t₂=div(15N, 2), rng=MersenneTwister(42), mode=:sample)
+    measure_config = MeasureConfig(τ=τ, t₂=div(15N, 2), mode=:sample)
     ψ0, sites = initial_mps(N)
     measure_outcome_mps = generate_state_mps(model, sites, ψ0, samples, measure_config)
     generated_statelis_mps, F = measure_outcome_mps.state, measure_outcome_mps.free_energy

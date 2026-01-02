@@ -10,28 +10,28 @@ end
 build_extended_basis(k_total::Int, basis::Vector{ET}) where {ET} = build_extended_basis(basis, BitStr{k_total, Int})
 # process_join([suffix], basis) will give [0000, 0001, 0010, 0011], but process_join(basis, [suffix]) will give [0000, 0001, 0010, 0100]
 
-function reference_measure_basismap(::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Bool, pbc::Bool=true; k_old::Int64=1, anyon_type::Symbol=:Fibo) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
+function reference_measure_basismap(model::AnyonModel, ::Type{T}, ::Type{newT}, τ::Float64, state::ET, i::Int, sign::Bool; k_old::Int64=1) where {N, M, T <: BitStr{N}, ET, newT <: BitStr{M}}
     # default for PBC system, map basis
     @assert k_old >= 0 "k_old must be at least 0, but got $(k_old)"
     @assert M == N + k_old "The output basis should be with length $(N + k_old), but got $M"
     
     mask = bmask(newT, 1:N...)
     action_state = T(takesystem(state, mask))
-    return measure_basismap(T, τ, action_state, i, sign, pbc, anyon_type=anyon_type)
+    return measure_basismap(model, τ, action_state, i, sign)
     
 end
 
 num_digits(::Type{<:BitStr{N}}) where N = N
-function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, anyon_type::Symbol=:Fibo) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+function reference_measuremap(model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
-    if anyon_type == :Fibo
-        @assert pbc || (2 <= idx <= N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif anyon_type == :IsingZZ
-        @assert pbc || (1 <= idx <= N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
-    elseif anyon_type ∈ (:IsingX, :IsingZ, :reset, :resetFibo)
-        @assert pbc || (1 <= idx <= N) "Index idx must be in [1, N] for open BC (IsingX)"
+    if model.measure_operator ∈ [:Ferro, :Antiferro]
+        @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif model.measure_operator == :ZZ
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
+    elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
+        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
     else
-        error("Unknown measure class: $anyon_type")
+        error("Unknown measure class: $(model.anyon_type)")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     @assert num_digits(newT) == N + k_old "The output basis should be with length $(N + k_old), but got $(num_digits(newT))"
@@ -41,8 +41,8 @@ function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Ve
     mask = bmask(newT, 1:N...)
     
     for (i, ext_basis_i) in enumerate(extended_basis)
-        outputstate1, outputstate2, output1, output2 = reference_measure_basismap(T, newT, τ, ext_basis_i, idx, sign, pbc, k_old=k_old, anyon_type=anyon_type)
-        
+        outputstate1, outputstate2, output1, output2 = reference_measure_basismap(model, T, newT, τ, ext_basis_i, idx, sign, k_old=k_old)
+
         prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
 
         if output2 ==0
@@ -56,7 +56,7 @@ function reference_measuremap(::Type{T}, ::Type{pretype}, τ::Float64, state::Ve
 
     return mapped_state
 end
-reference_measuremap(N::Int, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, pbc::Bool=true; extended_basis::Vector{newT}, k_old::Int64=1, anyon_type::Symbol=:Fibo) where {ET, newT} = reference_measuremap(BitStr{N, Int}, BitStr{k_old, Int}, τ, state, idx, sign, pbc, anyon_type=anyon_type, extended_basis=extended_basis)
+reference_measuremap(model::AnyonModel, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}, k_old::Int64=1) where {ET, newT} = reference_measuremap(model, BitStr{model.N, Int}, BitStr{k_old, Int}, τ, state, idx, sign, extended_basis=extended_basis)
 
 function concat_bell_pair!(N::Int, current_state::Vector{ET}, extended_basis_old, extended_basis; site_idx::Int64, k_old::Int64=1, new_dim::Int64=2^(N+k_old), verbose =false) where {ET}
     # inds is the indices of the basis that has 0 at site_idx. flipped_inds is the indices of the Bell pair corresponding basis in the extended_basis. existed is the indices of the flipped basis that exists in the constraint Hilbert space.
@@ -109,12 +109,13 @@ Add reference qubits to quantum state at specified site for correlation measurem
 
 For multiple reference qubits, call this function multiple times at different sites.
 """
-function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new::Int=1, pbc::Bool=true, anyon_type::Symbol=:Fibo, verbose = false, entangle_way::Symbol = :copy) where {ET}
+function add_reference_qubits!(model::AnyonModel, state::Vector{ET}, site_idx::Int64; k_new::Int=1, verbose = false, entangle_way::Symbol = :copy) where {ET}
     # Add k_new reference qubits to the state at the specified site_idx, and place them to the left part of basis (index N-site_idx+1) to form a maximally entangled state.
-    @assert 1 <= site_idx <= N "Site index must be in the range [1, N]"
+    N = model.N
+    @assert 1 <= site_idx <= N "Site index must be in the range [1, $(N)]"
     1 >= k_new >= 0 || error("k_new must be in [0,1]")
     # Because each qubit can only concat with one reference qubit, so k_new can only be 0 or 1. If need to add more reference qubits, use add_reference_qubits! multiple times at different site.
-    basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
+    basis_F = anyon_basis(model)
     len_F   = length(basis_F)
         
 
@@ -147,8 +148,8 @@ function add_reference_qubits!(N::Int, state::Vector{ET}, site_idx::Int64; k_new
         anyon_type ∈ keys(resettable) || error("Unknown anyon type: $anyon_type")
         resettype = resettable[anyon_type]
 
-        state_after_0 = reference_measuremap(N, 1000.0, state, site_idx, 0, pbc, extended_basis=extended_basis_old, k_old=k_old, anyon_type=resettype)
-        state_after_1 = reference_measuremap(N, 1000.0, state, site_idx, 1, pbc, extended_basis=extended_basis_old, k_old=k_old, anyon_type=resettype)
+        state_after_0 = reference_measuremap(model, 1000.0, state, site_idx, false, extended_basis=extended_basis_old, k_old=k_old)
+        state_after_1 = reference_measuremap(model, 1000.0, state, site_idx, true,extended_basis=extended_basis_old, k_old=k_old)
 
         prob_sqrt0 = state_after_0' * state_after_0
         prob_sqrt1 = 1 - prob_sqrt0
@@ -223,7 +224,7 @@ end
 
 
 """
-    reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{ET},
+    _reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{ET},
     layer_sample::Vector{Int64}, layer_idx::Int64,
     pbc::Bool=true; 
     extended_basis::Vector{newT}, k_old::Int64=1, 
@@ -249,18 +250,15 @@ Generate measurement samples at 1 layer with post_selection outcomes, i.e., with
 
 Samples measurement outcomes with given measurement outcomes.
 """
-function reference_apply_measurement_layer!(N::Int64, τ::Float64, state::Vector{ET},
-    layer_sample::Vector{Bool}, layer_idx::Int64,
-    pbc::Bool=true; 
-    extended_basis::Vector{newT}, k_old::Int64=1, 
-    anyon_type::Symbol=:Fibo) where {ET, newT}
+function _reference_apply_measurement_layer!(model::AnyonModel, τ::Float64, state::Vector{ET},
+    layer_sample::Vector{Bool}, layer_idx::Int64; 
+    extended_basis::Vector{newT}, k_old::Int64=1, ) where {ET, newT}
 
     total_free_energy = zero(real(ET))
-    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
+    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)  
 
     for (idx, sign) in enumerate(layer_sample)
-        state = reference_measuremap(N, τ, state, measurement_sites[idx], sign, pbc, 
-        k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
+        state = reference_measuremap(measure_anyon_model, τ, state, measurement_sites[idx], sign, extended_basis=extended_basis, k_old=k_old)
 
         prob = real(dot(state, state))
         total_free_energy += -log(prob)
@@ -272,7 +270,7 @@ end
 
 
 """
-    reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
+    _reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64=1, 
     pbc::Bool=true; 
@@ -300,14 +298,12 @@ Do the random measurement on a layer, in contrast to _apply_measurement_layer! N
 
 Samples measurement outcomes with Born rule driven trajectories.
 """
-function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T}, 
+function _reference_sample_layer!(model::AnyonModel, τ_eff::Float64, state::Vector{T}, 
     rng::MersenneTwister = MersenneTwister(), 
-    layer_idx::Int64=1, 
-    pbc::Bool=true; 
-    anyon_type::Symbol=:Fibo, 
-    extended_basis::Vector{newT}, k_old::Int64=1) where {T, newT}
+    layer_idx::Int64=1; 
+    extended_basis::Vector{newT}, k_old::Int64=1, verbose::Bool=false) where {T, newT}
 
-    measurement_sites, measure_type = _obtain_measurement_config(N, layer_idx, anyon_type)  
+    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)
     n = length(measurement_sites)
     sample = BitVector(zeros(Bool, n))
     F_layer = 0.0
@@ -315,22 +311,24 @@ function reference_sample_layer!(N::Int64, τ_eff::Float64, state::Vector{T},
 
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
-        ψ0 = reference_measuremap(N, τ_eff, state, site, 0, pbc, 
-        k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
+        ψ0 = reference_measuremap(measure_anyon_model, τ_eff, state, site, false, extended_basis=extended_basis, k_old=k_old)
         p0 = real(dot(ψ0, ψ0))
         p1 = 1 - p0
 
-        if rand(rng) < p0
+        random_number = rand(rng)
+        verbose && @show random_number
+        if random_number < p0
             sample[i] = 0
             state = ψ0 ./ sqrt(p0)
             F_layer += -log(p0)
+            verbose && @show -log(p0)
         else
             # else 1 branch
-            ψ1 = reference_measuremap(N, τ_eff, state, site, 1, pbc, 
-            k_old=k_old, anyon_type = measure_type, extended_basis=extended_basis)
+            ψ1 = reference_measuremap(measure_anyon_model, τ_eff, state, site, true, extended_basis=extended_basis, k_old=k_old)
             sample[i] = 1
             state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
+            verbose && @show -log(p1)
         end
     end
     return state, sample, F_layer
@@ -386,10 +384,7 @@ julia> size(trajectory, 1) == size(sample, 1)
 true
 ```
 """
-function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{Bool}, pbc::Bool=true;
-    anyon_type::Symbol=:Fibo, verbose=false, 
-    rng::MersenneTwister=MersenneTwister(),
-    mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T}
+function reference_bulk_evolution(model::AnyonModel, state::Vector{T}, measure_config::MeasureConfig, samples::Union{Nothing,BitMatrix}=nothing) where{T}
 
     D = size(sample, 1) # D is the number of layers, while Δt is the true time(# period)
     Δt = D ÷ 2
@@ -398,7 +393,7 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{
     statelis = Vector{Vector{T}}(undef, Δt)
     sample_free_energy = zeros(Float64, D) 
 
-    basis_F = anyon_basis(N, pbc, anyon_type=anyon_type)
+    basis_F = anyon_basis(model)
 
     len_F   = length(basis_F)
     # old reference qubit number, k_old
@@ -415,8 +410,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{
             verbose && @info "Evolving period $period / $Δt"
             τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            state, sample[2*period-1, :], sample_free_energy[2*period-1] = reference_sample_layer!(N, τ, state, rng, 2*period-1, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
-            state, sample[2*period, :], sample_free_energy[2*period] = reference_sample_layer!(N, τ_eff, state, rng, 2*period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample[2*period-1, :], sample_free_energy[2*period-1] = _reference_sample_layer!(model, τ, state, rng, 2*period-1, k_old=k_old, extended_basis=extended_basis)
+            state, sample[2*period, :], sample_free_energy[2*period] = _reference_sample_layer!(model, τ_eff, state, rng, 2*period, k_old=k_old, extended_basis=extended_basis)
 
             statelis[period] = copy(state)
         end
@@ -428,8 +423,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{
             verbose && @info "Evolving period $period / $Δt"
             τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-            state, sample_free_energy[2*period-1] = reference_apply_measurement_layer!(N, τ, state, sample[2*period-1, :], 2*period-1, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
-            state, sample_free_energy[2*period] = reference_apply_measurement_layer!(N, τ_eff, state, sample[2*period, :], 2*period, pbc, k_old=k_old, anyon_type = anyon_type, extended_basis=extended_basis)
+            state, sample_free_energy[2*period-1] = _reference_apply_measurement_layer!(model, τ, state, sample[2*period-1, :], 2*period-1, k_old=k_old, extended_basis=extended_basis)
+            state, sample_free_energy[2*period] = _reference_apply_measurement_layer!(model, τ_eff, state, sample[2*period, :], 2*period, k_old=k_old, extended_basis=extended_basis)
 
             statelis[period] = copy(state)
         end
@@ -437,7 +432,8 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Matrix{
 
     return statelis, sample, sample_free_energy
 end
-function reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{Bool}, pbc::Bool=true;
+
+function reference_boundary_evolution(model::AnyonModel, state::Vector{T}, sample::Vector{Bool}, pbc::Bool=true;
     anyon_type::Symbol=:Fibo, verbose=false, layer_idx::Int64=1, rng::MersenneTwister=MersenneTwister(),
     mode::Symbol=:sample, enable_τ_eff::Bool=false) where{T} 
 
@@ -455,13 +451,23 @@ function reference_generate_state(τ::Float64, state::Vector{T}, sample::Vector{
     τ_eff = enable_τ_eff ? τ/2 : τ
     if mode == :sample
         verbose && @info "Using given sample evolution mode"
-        current_state, sample_layer = reference_apply_measurement_layer!(N, τ_eff, state, sample, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
+        current_state, sample_layer = _reference_apply_measurement_layer!(N, τ_eff, state, sample, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
     elseif mode == :Born
         verbose && @info "Using Born rule driven evolution mode"
-        current_state, sample_layer, free_energy = reference_sample_layer!(N, τ_eff, state, rng, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
+        current_state, sample_layer, free_energy = _reference_sample_layer!(N, τ_eff, state, rng, layer_idx, pbc; anyon_type=anyon_type, extended_basis=extended_basis, k_old=k_old)
     end
 
     return current_state, sample_layer
+end
+
+function _reference_born_measure(model::AnyonModel, state::Vector{ET}, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {ET, newT}
+    # Implement the Born measurement process for reference qubit system.
+    
+end
+
+function _reference_sample_measure(model::AnyonModel, state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {ET, newT}
+    # Implement the post_selection measurement process for reference qubit system.
+
 end
 
 
