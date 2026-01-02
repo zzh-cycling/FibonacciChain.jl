@@ -376,8 +376,8 @@ end
     D= 10 
 
     sample = BitMatrix(zeros(Int, D, N))
-    config = MeasureConfig(τ=τ, t₂ =div(D,2), rng = MersenneTwister(1234), mode=:sample)
-    measure_outcome = generate_state_by_measurement(model, mes, sample, config)
+    config = MeasureConfig(τ=τ, t₂ =div(D,2), mode=:sample)
+    measure_outcome = bulk_evolution(model, mes, config, sample)
     statelis, free_energy = measure_outcome.state, measure_outcome.free_energy
     # Noting that the first state of statelis is not mes.
     spatial_corr_lis = [spatial_correlation(model, st, 1, div(N,2)) for st in statelis]

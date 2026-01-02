@@ -371,8 +371,8 @@ end
     measure_outcome_boundary =  boundary_evolution(model, antiGS, measure_config_boundary_generate, sample)
 
     @test measure_outcome_boundary.state ≈ sample_measured_state
-    @test measure_outcome_boundary.free_energy[1] ≈ sample_free_energy[1] atol=1e-6
-""
+    @test measure_outcome_boundary.free_energy ≈ sample_free_energy atol=1e-6
+
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 

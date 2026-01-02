@@ -142,7 +142,7 @@ end
     @test all(p -> p > 0, probabilities)
 end
 
-@testset "Boundary evolution" begin
+@testset "Boundary_Born" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
@@ -205,7 +205,7 @@ end
     @test sample_free_energy_mps ≈ sample_free_energy
 end
 
-@testset "Bulk Born" begin
+@testset "Bulk_Born" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
@@ -256,7 +256,7 @@ end
     @test F ≈ F_exact
 end 
 
-@testset "bulk_evolution " begin
+@testset "bulk_evolution" begin
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     
