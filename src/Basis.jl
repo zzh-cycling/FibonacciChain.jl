@@ -17,6 +17,17 @@ abstract type AbstractAnyonType end
 struct FibonacciAnyon <: AbstractAnyonType end
 struct IsingAnyon <: AbstractAnyonType end
 
+"""
+    AnyonModel(anyon_type::AbstractAnyonType, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro)
+
+Represents a 1D anyon chain model.
+
+# Fields
+- `anyon_type::AbstractAnyonType`: The type of anyon, e.g., `FibonacciAnyon()` or `IsingAnyon()`.
+- `N::Int`: The number of sites in the chain.
+- `pbc::Bool`: A boolean indicating whether periodic boundary conditions are applied (`true`) or not (`false`).
+- `measure_operator::Symbol`: The operator type used for defining the Hamiltonian, e.g., `:Antiferro` or `:Ferro` for Fibonacci anyons.
+"""
 struct AnyonModel{AT<:AbstractAnyonType}
     anyon_type::AT # anyon type
     N::Int   # system size
@@ -29,48 +40,44 @@ struct AnyonModel{AT<:AbstractAnyonType}
 end
 
 """
-    anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
-    anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     anyon_basis(model::AnyonModel; symmetry_block=nothing)
+    anyon_basis(anyon_type::AbstractAnyonType, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
 
-Generate basis states for anyon chain models.
+Generate basis states for an anyon chain model.
+
+This function provides two interfaces: a high-level one that takes an `AnyonModel` object, and a low-level one that takes the model parameters directly.
 
 # Arguments
-## Low-level interface
-- `::AbstractAnyonType`: Anyon type instance (`FibonacciAnyon()` or `IsingAnyon()`)
-- `T::Type`: BitStr type specifying chain length N
-- `pbc::Bool=true`: Periodic boundary conditions
-- `symmetry_block`: Topological charge sector (optional, not yet implemented for filtering)
-
 ## High-level interface
-- `model::AnyonModel`: Anyon model containing system parameters
-- `symmetry_block`: Topological charge sector (optional)
+- `model::AnyonModel`: An `AnyonModel` object containing the system parameters (anyon type, size, and boundary conditions).
+- `symmetry_block`: Optional. The topological charge sector to filter the basis. Not yet implemented.
+
+## Low-level interface
+- `anyon_type::AbstractAnyonType`: The type of anyon, e.g., `FibonacciAnyon()` or `IsingAnyon()`.
+- `T::Type`: The `BitStr` type specifying the chain length `N`.
+- `pbc::Bool=true`: Specifies whether to use periodic (`true`) or open (`false`) boundary conditions.
+- `symmetry_block`: Optional. The topological charge sector.
 
 # Returns
-- `Vector{T}`: Sorted basis states
+- `Vector{T}`: A sorted vector of the basis states.
 
 # Examples
 ```jldoctest
 julia> using FibonacciChain, BitBasis
 
-julia> # Low-level interface
-julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true);
-
-julia> length(basis_fibo)
-7
-
 julia> # High-level interface
 julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true);
-
 julia> basis = anyon_basis(model);
-
 julia> length(basis)
 7
 
+julia> # Low-level interface
+julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true);
+julia> length(basis_fibo)
+7
+
 julia> model_ising = AnyonModel(IsingAnyon(), 4; pbc=true);
-
 julia> basis_ising = anyon_basis(model_ising);
-
 julia> length(basis_ising)
 16
 ```
@@ -144,7 +151,7 @@ julia> coef = Fsymmetry_coef(model, state, base); coef ≈ 0.3819660112501051
 true
 ```
 """
-function Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
+function Fsymmetry_coef(::FibonacciAnyon, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
     # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
     #  %%%%%%%%%%%% τ, idxin, τ         idxbond
     #  %%
@@ -201,7 +208,7 @@ function Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Boo
         return prod
 end
 Fsymmetry_coef(model::AnyonModel{FibonacciAnyon}, state::T, base::T) where {N, T <: BitStr{N}} = 
-    Fsymmetry_coef(model.anyon_type, T, state, base; pbc=model.pbc)
+    Fsymmetry_coef(model.anyon_type, state, base; pbc=model.pbc)
 
 """
     topological_symmetry_basismap(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
@@ -345,7 +352,7 @@ function anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=no
 end
 anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N, Int}, k; symmetry_block=symmetry_block)
 
-function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+function antimap(state::T, i::Int) where {N, T <: BitStr{N}}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
@@ -361,7 +368,7 @@ function antimap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     end
 end
 
-function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
+function ferromap(state::T, i::Int) where {N, T <: BitStr{N}}
     ϕ = (1+√5)/2
     fl=bmask(T, N)
 
@@ -374,7 +381,7 @@ function ferromap(::Type{T}, state::T, i::Int) where {N, T <: BitStr{N}}
     end
 end
 
-function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
+function Isingmap(state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
     
     fl=bmask(T, N)
@@ -399,7 +406,7 @@ function Isingmap(::Type{T}, state::T, i::Int, pbc::Bool=true; kwargs...) where 
     end
 end
 
-function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
+function count_subBitStr(state::T) where {N, T <: BitStr{N}}
     n = length(state)
     n < 3 && return 0 
     
@@ -418,26 +425,27 @@ function count_subBitStr(::Type{T}, state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
+function actingHam(model::AnyonModel{AT}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
     # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
     pbc = model.pbc
-
+    
     if model.measure_operator == :Antiferro
         mask=bmask(T, N, N-2)
         output = Dict{T, Float64}()
     
         # count 101, 100, 001
-        output[state] = get(output, state, 0.0) - count_subBitStr(T, state)
+        output[state] = get(output, state, 0.0) - count_subBitStr(state)
     
         # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
         for i in 2:N-1 
             if state & (mask >> (i-2)) == 0
-                state1, state2, weight1, weight2 = antimap(T, state, i)
+                state1, state2, weight1, weight2 = antimap(state, i)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
@@ -446,13 +454,13 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
         if pbc
             # 1 site antimap
             if state[1]==0 && state[N-1]==0
-                state1, state2, weight1, weight2 = antimap(T, state, 1)
+                state1, state2, weight1, weight2 = antimap(state, 1)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
             # N site antimap
             if state[2]==0 && state[N]==0
-                state1, state2, weight1, weight2 = antimap(T, state, N)
+                state1, state2, weight1, weight2 = antimap(state, N)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
@@ -474,12 +482,12 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
         output = Dict{T, Float64}()
         
         # count 101, 100, 001
-        output[state] = get(output, state, 0.0) + count_subBitStr(T, state)
-        
+        output[state] = get(output, state, 0.0) + count_subBitStr(state)
+
         # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
         for i in 2:N-1 
             if state & (mask >> (i-2)) == 0
-                state1, state2, weight1, weight2 = ferromap(T, state, i)
+                state1, state2, weight1, weight2 = ferromap(state, i)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
@@ -488,13 +496,13 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
         if pbc
             # 1 site ferromap
             if state[1]==0 && state[N-1]==0
-                state1, state2, weight1, weight2 = ferromap(T, state, 1)
+                state1, state2, weight1, weight2 = ferromap(state, 1)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
             # N site ferromap
             if state[2]==0 && state[N]==0
-                state1, state2, weight1, weight2 = ferromap(T, state, N)
+                state1, state2, weight1, weight2 = ferromap(state, N)
                 output[state1] = get(output, state1, 0.0) + weight1
                 output[state2] = get(output, state2, 0.0) + weight2
             end
@@ -514,26 +522,27 @@ function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where 
     return output
 end
 
-function actingHam(model::AnyonModel{AT}, ::Type{T}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:IsingAnyon}
-    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
+function actingHam(model::AnyonModel{AT}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:IsingAnyon}
+    # The type of state is BitStr{D, N, Int}, which is a binary string with length N in D-ary form.
     # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
     # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
     pbc = model.pbc
 
     # Generate Ising model Hamiltonian
     output = Dict{T, Float64}()
     for i in 1:N-1
-        state1, state2, weight1, weight2 = Isingmap(T, state, i, pbc; kwargs...)
+        state1, state2, weight1, weight2 = Isingmap(state, i, pbc; kwargs...)
         output[state1] = get(output, state1, 0.0) + weight1
         output[state2] = get(output, state2, 0.0) + weight2
     end
 
     if pbc
-        state1, state2, weight1, weight2 = Isingmap(T, state, N, pbc; kwargs...)
+        state1, state2, weight1, weight2 = Isingmap(state, N, pbc; kwargs...)
         output[state1] = get(output, state1, 0.0) + weight1
         output[state2] = get(output, state2, 0.0) + weight2
     else
-        state1, weight1 = Isingmap(T, state, N, pbc; kwargs...)
+        state1, weight1 = Isingmap(state, N, pbc; kwargs...)
         output[state1] = get(output, state1, 0.0) + weight1
     end
 
@@ -543,20 +552,26 @@ end
 
 
 """
-    anyon_ham(model::AnyonModel, ::Type{T}; kwargs...) where {N, T <: BitStr{N}}
     anyon_ham(model::AnyonModel; kwargs...)
+    anyon_ham(model::AnyonModel, ::Type{T}; kwargs...) where {N, T <: BitStr{N}}
 
-Construct Hamiltonian matrix for 1D anyon chain.
+Construct the Hamiltonian matrix for a 1D anyon chain.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing anyon type, system size, boundary conditions, and interaction type
-- `T::Type`: BitStr type specifying chain length N (optional, inferred from model)
-- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model
+## High-level interface
+- `model::AnyonModel`: An `AnyonModel` object specifying the anyon type, system size, boundary conditions, and interaction type.
+- `kwargs...`: Additional model-specific parameters, such as `J` and `h` for the Ising model.
+
+## Low-level usage (discouraged)
+While not a direct low-level function, you can construct the model on the fly:
+`anyon_ham(AnyonModel(IsingAnyon(), N), ...)`
 
 # Returns
-- `Matrix{Float64}`: Hamiltonian matrix in chosen basis
+- `Matrix{Float64}`: The Hamiltonian matrix constructed in the chosen basis.
 
-Supports various anyon models including Fibonacci and Ising anyons.
+# Supported Models
+- **Fibonacci Anyons**: Supports `:Antiferro` and `:Ferro` interaction terms.
+- **Ising Anyons**: Transverse field Ising model.
 
 # Examples
 ```jldoctest
@@ -564,29 +579,27 @@ julia> using FibonacciChain, BitBasis
 
 julia> N = 4;
 
+julia> # Fibonacci model
 julia> model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
-
 julia> H_fibo = anyon_ham(model_fibo);
-
 julia> size(H_fibo)       # Hamiltonian dimension matches basis size
 (7, 7)
 
+julia> # Ising model
 julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true);
-
 julia> H_ising = anyon_ham(model_ising; J=1.0, h=1.0);
-
-julia> size(H_ising)      # full Hilbert space for Ising model
+julia> size(H_ising)      # Full Hilbert space for Ising model
 (16, 16)
 ```
 """
-function anyon_ham(model::AnyonModel{AT}, ::Type{T}; kwargs...) where {N, T <: BitStr{N}, AT<:AbstractAnyonType}
+function anyon_ham(model::AnyonModel{AT}; kwargs...) where {AT<:AbstractAnyonType}
     # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
     basis=anyon_basis(model)
 
     l=length(basis)
     H=zeros(Float64,(l,l))
     for i in 1:l
-        output=actingHam(model, T, basis[i];kwargs...) 
+        output=actingHam(model, basis[i];kwargs...) 
         states, weights = keys(output), values(output)
         for m in states
             j=searchsortedfirst(basis, m)
@@ -596,7 +609,6 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}; kwargs...) where {N, T <: B
 
     return H
 end
-anyon_ham(model::AnyonModel{AT}; kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{model.N, Int};kwargs...)
 # Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
 
 function cyclebits(state::T) where {N, T <: BitStr{N}}
@@ -668,7 +680,7 @@ function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=noth
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(model, T, n; kwargs...)
+        output = actingHam(model, n; kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
@@ -740,51 +752,52 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
 """
-    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
-    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}})
 
-Compute reduced density matrix for specified subsystems from quantum state or density matrix.
+Compute the reduced density matrix (RDM) for a specified subsystem.
+
+This function can operate on both state vectors and density matrices.
 
 # Arguments
-## Low-level interface
-- `AT::AbstractAnyonType`: Anyon type instance (e.g., `FibonacciAnyon()`, `IsingAnyon()`)
-- `T::Type`: BitStr type specifying chain length N
-- `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
-- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
-- `pbc::Bool=true`: Periodic boundary conditions
-
 ## High-level interface
-- `model::AnyonModel`: Anyon model containing system parameters
-- `subsystems::Vector{Int64}`: Indices of subsystem sites to keep
-- `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
+- `model::AnyonModel`: An `AnyonModel` object containing the system parameters.
+- `subsystems::Vector{Int64}`: A vector of site indices to keep in the reduced system. Indices are 1-based.
+- `state::Union{Vector{ET}, Matrix{ET}}`: The quantum state, either as a state vector or a full density matrix.
+
+## Low-level interface
+- `AT::AbstractAnyonType`: The anyon type, e.g., `FibonacciAnyon()`.
+- `T::Type`: The `BitStr` type specifying the total chain length `N`.
+- `subsystems::Vector{Int64}`: The indices of the subsystem sites.
+- `state::Union{Vector{ET}, Matrix{ET}}`: The quantum state vector or density matrix.
+- `pbc::Bool=true`: Specifies whether the original system has periodic boundary conditions.
 
 # Returns
-- `Matrix{ET}`: Reduced density matrix for specified subsystems
+- `Matrix{ET}`: The reduced density matrix for the specified subsystem.
 
-Subsystem indices are counted from right in binary representation.
+# Details
+The subsystem indices are 1-based and refer to the site positions in the chain. The function correctly handles both contiguous and non-contiguous subsystems.
 
 # Examples
 ```jldoctest
 julia> using FibonacciChain, BitBasis, LinearAlgebra
 
 julia> N = 4;
-
 julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
-
 julia> basis = anyon_basis(model);
+julia> state = randn(ComplexF64, length(basis)); state ./= norm(state);
 
-julia> state = randn(ComplexF64, length(basis)); state ./= norm(state);  
-
+julia> # Compute RDM for sites 1 and 2
 julia> rdm = anyon_rdm(model, [1, 2], state);
 
-julia> size(rdm)  # Reduced density matrix dimension
+julia> size(rdm)  # Dimension of the reduced density matrix
 (3, 3)
 
-julia> ishermitian(rdm)  # RDM should be Hermitian
+julia> ishermitian(rdm)  # RDM must be Hermitian
 true
 
-julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # Trace should be 1
+julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # Trace must be 1
 true
 ```
 """
@@ -910,31 +923,28 @@ anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Matrix{ET}) where
 Map state in momentum sector to total Hilbert space.
 
 # Arguments
-## Low-level interface
-- `AT::AbstractAnyonType`: Anyon type instance
-- `T::Type`: BitStr type specifying chain length N
-- `state::Vector{ET}`: State vector in momentum sector Hilbert space
-- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
-- `pbc::Bool=true`: Periodic boundary conditions
-
 ## High-level interface
-- `model::AnyonModel`: Anyon model containing system parameters
-- `state::Vector{ET}`: State vector in momentum sector Hilbert space
-- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
+- `model::AnyonModel`: An `AnyonModel` object containing system parameters
+- `state::Vector{ET}`: The state vector in the Hilbert space of the specified momentum sector
+- `k::Int`: The momentum sector index (0 ≤ k ≤ N-1)
+
+## Low-level interface
+- `AT::AbstractAnyonType`: The anyon type.
+- `T::Type`: The `BitStr` type specifying the chain length `N`.
+- `state::Vector{ET}`: The state vector in the momentum sector.
+- `k::Int`: The momentum sector index.
+- `pbc::Bool=true`: Specifies periodic boundary conditions (required for momentum sectors).
 
 # Returns
-- `Vector{ET}`: State vector in total Hilbert space
+- `Vector{ET}`: The state vector represented in the total Hilbert space basis.
 
 # Examples
 ```jldoctest
 julia> using FibonacciChain, LinearAlgebra
 
 julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
-
 julia> H_k0 = anyon_ham(model, 0);
-
 julia> eigvecs_k0 = eigvecs(H_k0);
-
 julia> kstate = eigvecs_k0[:, 1];
 
 julia> total_state = mapst_sec2tot(model, kstate, 0);
@@ -1025,7 +1035,7 @@ function joint_basis(AT1::AbstractAnyonType, AT2::AbstractAnyonType, lengthlisA:
     # subpbc is used to indicate whether the subsystem is periodic or not
     lisA = sort(mapreduce(len -> anyon_basis(AT1, BitStr{len, Int}, pbc= subApbc), process_join, lengthlisA))
     lisB = sort(mapreduce(len -> anyon_basis(AT2, BitStr{len, Int}, pbc= subBpbc), process_join, lengthlisB))
-    return vec([join(i, j) for i in lisA for j in lisB])
+    return vec([join(i,j) for i in lisA for j in lisB])
 end
 
 """
@@ -1047,8 +1057,8 @@ Compute reduced density matrix for two joint different systems, or two parallel 
 - `totalsubBpbc::Bool=false`: Whether subsystem B is periodic
 
 ## High-level interface
-- `model1::AnyonModel`: Anyon model for subsystem A
-- `model2::AnyonModel`: Anyon model for subsystem B
+- `model1::AnyonModel`: The model for the first subsystem (A).
+- `model2::AnyonModel`: The model for the second subsystem (B).
 - `subsystemsA::Vector{Int64}`: Indices of subsystem A sites to keep
 - `subsystemsB::Vector{Int64}`: Indices of subsystem B sites to keep
 - `state::Vector{ET}`: Quantum state vector in total Hilbert space

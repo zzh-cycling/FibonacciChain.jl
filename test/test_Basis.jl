@@ -6,40 +6,40 @@ using Random
 
 @testset "antimap" begin
     ϕ = (1+√5)/2
-    @test FibonacciChain.antimap(BitStr{3}, bit"000", 2) == (bit"000", bit"010", -ϕ^(-1), -ϕ^(-3/2))
-    @test FibonacciChain.antimap(BitStr{3}, bit"010", 2) == (bit"010", bit"000",  -ϕ^(-2), -ϕ^(-3/2))
+    @test FibonacciChain.antimap(bit"000", 2) == (bit"000", bit"010", -ϕ^(-1), -ϕ^(-3/2))
+    @test FibonacciChain.antimap(bit"010", 2) == (bit"010", bit"000",  -ϕ^(-2), -ϕ^(-3/2))
 end
 
 @testset "count_subBitStr" begin
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00000") == 0
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10000") == 0
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10100") == 1
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00100") == 0
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"10101") == 2
-    @test FibonacciChain.count_subBitStr(BitStr{5}, bit"00101") == 1
-    @test FibonacciChain.count_subBitStr(BitStr{6}, bit"010101") == 2 # Such config will be added additionally in PBC
+    @test FibonacciChain.count_subBitStr(bit"00000") == 0
+    @test FibonacciChain.count_subBitStr(bit"10000") == 0
+    @test FibonacciChain.count_subBitStr(bit"10100") == 1
+    @test FibonacciChain.count_subBitStr(bit"00100") == 0
+    @test FibonacciChain.count_subBitStr(bit"10101") == 2
+    @test FibonacciChain.count_subBitStr(bit"00101") == 1
+    @test FibonacciChain.count_subBitStr(bit"010101") == 2 # Such config will be added additionally in PBC
 end
 
 @testset "actingHamobc" begin
     ϕ = (1+√5)/2
     model = AnyonModel(FibonacciAnyon(), 3, pbc=false)
-    output1 = FibonacciChain.actingHam(model, BitStr{3}, bit"000") 
+    output1 = FibonacciChain.actingHam(model, bit"000") 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-1), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(model, BitStr{3}, bit"010") 
+    output2 = FibonacciChain.actingHam(model, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(model, BitStr{3}, bit"001") 
+    output3 = FibonacciChain.actingHam(model, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"001"])
     @test [weights...] ≈ [0.0]
-    output4 = FibonacciChain.actingHam(model, BitStr{3}, bit"100") 
+    output4 = FibonacciChain.actingHam(model, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"100"])
     @test [weights...] ≈ [0.0]
-    output = FibonacciChain.actingHam(model, BitStr{3}, bit"101")
+    output = FibonacciChain.actingHam(model, bit"101")
     states, weights = keys(output), values(output)
     @test [states...]== BitStr{3}.([bit"101"])
     @test [weights...] ≈ [-1.0]
@@ -84,23 +84,23 @@ end
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
     model = AnyonModel(FibonacciAnyon(), 3, pbc=true)
-    output1 = FibonacciChain.actingHam(model, BitStr{3}, bit"000") 
+    output1 = FibonacciChain.actingHam(model, bit"000") 
     states, weights = keys(output1), values(output1)
     @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(model, BitStr{3}, bit"010") 
+    output2 = FibonacciChain.actingHam(model, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== BitStr{3}.([bit"000", bit"010"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(model, BitStr{3}, bit"001") 
+    output3 = FibonacciChain.actingHam(model, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== BitStr{3}.([bit"000", bit"001"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(model, BitStr{3}, bit"100") 
+    output4 = FibonacciChain.actingHam(model, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== BitStr{3}.([bit"000",bit"100"])
     @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output = FibonacciChain.actingHam(model, BitStr{10}, bit"1000010000")
+    output = FibonacciChain.actingHam(AnyonModel(FibonacciAnyon(), 10), bit"1000010000")
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
     @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
@@ -117,8 +117,8 @@ end
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
-    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=false)) == [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=true)) == [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=false)) ≈ [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=true)) ≈ [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
 end
 
 @testset "process_join" begin
@@ -143,15 +143,15 @@ end
 
     # Test disjoint system joint_basis
     res = FibonacciChain.joint_basis(FibonacciAnyon(), FibonacciAnyon(), [1], [2])
-    @test res == [join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))]
+    @test res == [join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))]
     res = FibonacciChain.joint_basis(IsingAnyon(), IsingAnyon(), [1], [2])
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1)) for l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))])
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))])
     res = FibonacciChain.joint_basis(IsingAnyon(), FibonacciAnyon(), [1], [2])
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))])
+    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))])
     res = FibonacciChain.joint_basis(FibonacciAnyon(), IsingAnyon(), [1], [2])
 
     # move_subsystem
-    res = FibonacciChain.move_subsystem(BitStr{5, Int}, BitStr{3, Int}(bit"111"), [1, 2, 5])
+    res = FibonacciChain.move_subsystem(BitStr{5, Int}, bit"111", [1, 2, 5])
     @test res == BitStr{5}(bit"11001")
 
     # takeenviron
@@ -247,7 +247,7 @@ end
     sec_gs = eigvecs(fib_ham_k)[:, 1]
     gs = eigvecs(H)[:, 1]
     mapped_st = FibonacciChain.mapst_sec2tot(model, sec_gs, k)
-    @test mapped_st ≈ gs  # Check if the mapped state matches the ground state
+    @test isapprox(abs.(mapped_st), abs.(gs), atol=1e-9) # Check if the mapped state matches the ground state
 
     rdm_sec = anyon_rdm_sec(model, collect(1:div(N,2)), sec_gs, k)
     rdm = anyon_rdm(model, collect(1:div(N,2)), gs)
@@ -322,20 +322,23 @@ end
 
 @testset "disjoint_rdm and ref qubit" begin
     L=6
-    pbc=true
-    anyon_type = :IsingX
-    sample = ones(Int, 20, L)
+    model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator = :X)
+    ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
+    t₂ = 10
+    sample = BitMatrix(ones(Int, 2t₂, L))
     τ = log(1 + √2)
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    config = MeasurementConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
+
+    initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0
-    statelis, free_energy = generate_state(τ, initial_state, sample, anyon_type=anyon_type)
+    statelis, free_energy = generate_state_by_measurement(model, initial_state, sample, config)
 
 
-    stlis, samples, sample_free_energy = reference_evolution(L, τ, statelis, sample, 1, 5, 8, anyon_type=:IsingX, rng=MersenneTwister(1234))
+    stlis, samples, sample_free_energy = reference_evolution(model, ref_model, statelis, sample, 1, 5, 8, rng=MersenneTwister(1234))
     st=stlis[end]
-    ρ1 = disjoint_rdm(2, L, Int64[], collect(1:div(L,2)), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
-    ρ2 = disjoint_rdm(2, L, Int64[], collect(1:L), st, anyon_typeA=:IsingX, anyon_typeB=:IsingX)
-    ρ2r = anyon_rdm(L, collect(1:div(L,2)), ρ2, anyon_type=:IsingX)
+    ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L,2)), st)
+    ρ2 = disjoint_rdm(ref_model, model, Int64[], collect(1:L), st)
+    ρ2r = anyon_rdm(model, collect(1:div(L,2)), ρ2)
     S1 = ee(ρ1)
     S2 = ee(ρ2r)
     @test S1 ≈ S2

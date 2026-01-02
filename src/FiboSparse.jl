@@ -1,24 +1,22 @@
 """
-    anyon_ham_sparse(::Type{T}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_ham_sparse(model::AnyonModel; kwargs...)
 
-Construct anyon chain Hamiltonian as sparse matrix.
+Construct the anyon chain Hamiltonian as a sparse matrix.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
-- `kwargs...`: Additional keyword arguments passed to `actingHam`, e.g. `J`, `h`.
+- `model::AnyonModel`: An `AnyonModel` object containing the system parameters.
+- `kwargs...`: Additional keyword arguments passed to `actingHam`, e.g., `J`, `h` for the Ising model.
 
 # Returns
-- `SparseMatrixCSC{Float64, Int}`: Sparse Hamiltonian matrix in anyon basis
+- `SparseMatrixCSC{Float64, Int}`: The sparse Hamiltonian matrix in the anyon basis.
 
 # Examples
 ```jldoctest
 julia> using FibonacciChain, BitBasis, SparseArrays, LinearAlgebra
 
-julia> N = 6; T = BitStr{N, Int};
-
-julia> H_sparse = anyon_ham_sparse(T, true, anyon_type=:Fibo);
+julia> N = 6;
+julia> model = AnyonModel(FibonacciAnyon(), N, pbc=true);
+julia> H_sparse = anyon_ham_sparse(model);
 
 julia> H_sparse isa SparseMatrixCSC # Check it's a sparse matrix
 true
@@ -26,19 +24,19 @@ true
 julia> ishermitian(H_sparse) # Should be Hermitian
 true
 
-julia> H_dense = anyon_ham(N, true); # Compare with dense version for small system
+julia> H_dense = anyon_ham(model); # Compare with dense version for small system
 
 julia> norm(Matrix(H_sparse) - H_dense) < 1e-10
 true
 ```
 """
-function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
-    basis=anyon_basis(T,pbc, anyon_type=anyon_type)
+function anyon_ham_sparse(model::AnyonModel; kwargs...)
+    basis=anyon_basis(model)
 
     l=length(basis)
     I, J, V = Int[], Int[], Float64[]
     for i in 1:l
-        output=actingHam(T, basis[i], pbc; anyon_type=anyon_type, kwargs...)
+        output=actingHam(model, basis[i]; kwargs...)
         states, weights = keys(output), values(output)
         for (idx, m) in enumerate(states)
             j=searchsortedfirst(basis, m)
@@ -50,30 +48,30 @@ function anyon_ham_sparse(::Type{T}, pbc::Bool=true;anyon_type::Symbol=:Fibo, kw
     
     return H
 end
-anyon_ham_sparse(N::Int64, pbc::Bool=true; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, pbc; anyon_type=anyon_type, kwargs...)
+
 
 """
-    anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    anyon_ham_sparse(model::AnyonModel, k::Int; symmetric_block=nothing, kwargs...)
 
-Construct Hamiltonian in momentum-topological sector as sparse matrix.
+Construct the Hamiltonian in a specific momentum and/or topological sector as a sparse matrix.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `k::Int`: Momentum quantum number (0 ≤ k ≤ N-1)
-- `Y`: Topological charge sector
-- `anyon_type::Symbol=:Fibo`: Model type
-- `kwargs...`: Additional keyword arguments passed to `actingHam`, e.g. `J`, `h`.
+- `model::AnyonModel`: An `AnyonModel` object containing the system parameters.
+- `k::Int`: The momentum quantum number (0 ≤ k ≤ N-1).
+- `symmetric_block`: Optional. The topological charge sector (e.g., `:trivial`, `:nontrivial`).
+- `kwargs...`: Additional keyword arguments passed to `actingHam`, e.g., `J`, `h`.
 
 # Returns
-- `SparseMatrixCSC{ComplexF64, Int}`: Sparse Hamiltonian in symmetric sector
+- `SparseMatrixCSC`: The sparse Hamiltonian in the specified symmetric sector. The element type will be `ComplexF64` for general `k` and `Float64` for `k=0` or `k=N/2`.
 """
-function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo, kwargs...) where {N, T <: BitStr{N}}
+function anyon_ham_sparse(model::AnyonModel, k::Int; symmetry_block=nothing, kwargs...)
 #params: a int of lattice number, momentum of system and topological charge which default to be nothing
 #return: the Hamiltonian matrix in given symmetric sector
+    N = model.N
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert Y === nothing || Y in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
+    @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "Y is expected to be nothing or 1 or 2 or :trivial or :nontrivial, but got $Y"
 
-    basisK, basis_dic = anyon_basis(T, k, Y=Y, anyon_type=anyon_type)
+    basisK, basis_dic = anyon_basis(model, k; symmetry_block= symmetry_block)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     # H = spzeros(ComplexF64, (l, l))
@@ -81,7 +79,7 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
 
     for i in 1:l
         n=basisK[i]
-        output = actingHam(T, n, true; anyon_type=anyon_type, kwargs...)
+        output = actingHam(model, n; kwargs...)
         states, weights = keys(output), values(output)
         for m in states
             mbar, d = get_representative(m)
@@ -97,11 +95,9 @@ function anyon_ham_sparse(::Type{T}, k::Int, Y=nothing; anyon_type::Symbol=:Fibo
 
     H = sparse(I, J, V, l, l)
 
-    H=(H+H')/2
     if k==0 || k==div(N,2)
         H=real(H)
     end
+    H=(H+H')/2
     return H
 end
-anyon_ham_sparse(N::Int64, k::Int, Y=nothing; anyon_type::Symbol=:Fibo, kwargs...) = anyon_ham_sparse(BitStr{N, Int}, k, Y; anyon_type=anyon_type, kwargs...)
-
