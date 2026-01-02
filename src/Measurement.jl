@@ -531,6 +531,10 @@ Base.@kwdef struct MeasureConfig
     t₁::Int = 1
     verbose::Bool = false
     enable_τ_eff::Bool = true
+    x₂::Int = 1
+    x₁::Int = 1
+    cutoff::Float64 = 1e-12
+    maxdim::Int = 1000
 end
 
 measurement_num(::FibonacciAnyon) = 1
@@ -579,16 +583,19 @@ Evolve an MPS state under boundary measurements.
   - `samples::BitVector`: The measurement outcomes for the layer.
   - `free_energy::Float64`: The free energy associated with the measurement layer.
 """
-function boundary_evolution(anyon_model::AnyonModel{AT}, state::Vector{T}, measure_config::MeasureConfig, sample::Union{Nothing, BitVector}=nothing; layer_idx::Int=1) where{T, AT<:AbstractAnyonType}
+function boundary_evolution(anyon_model::AnyonModel{AT}, state::Vector{T}, measure_config::MeasureConfig, 
+    sample::Union{Nothing, BitVector}=nothing; layer_idx::Int=1) where{T, AT<:AbstractAnyonType}
+    
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
+    τ_eff = measure_config.enable_τ_eff ? measure_config.τ / 2 : measure_config.τ
     if measure_config.mode == :sample
         N = anyon_model.N
         size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
-        return _apply_measurement_layer(anyon_model, measure_config.τ, state, sample; layer_idx=layer_idx)
+        return _apply_measurement_layer(anyon_model, τ_eff, state, sample; layer_idx=layer_idx)
     elseif measure_config.mode == :Born
-        return _sample_layer(anyon_model, measure_config.τ, state; layer_idx=layer_idx, rng=measure_config.rng, verbose=measure_config.verbose)
+        return _sample_layer(anyon_model, τ_eff, state; layer_idx=layer_idx, rng=measure_config.rng, verbose=measure_config.verbose)
     end
 end
 

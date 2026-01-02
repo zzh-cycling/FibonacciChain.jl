@@ -355,10 +355,12 @@ Evolve an MPS state under boundary measurements.
   - `samples::BitVector`: The measurement outcomes for the layer.
   - `free_energy::Float64`: The free energy associated with the measurement layer.
 """
-function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; cutoff::Float64=1e-12, maxdim::Int=1000, layer_idx::Int=1) where AT <: AbstractAnyonType
+function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; layer_idx::Int=1) where AT <: AbstractAnyonType
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
+    cutoff = measure_config.cutoff
+    maxdim = measure_config.maxdim
     if measure_config.mode == :sample
         N = anyon_model.N
         size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
@@ -636,12 +638,14 @@ function bulk_evolution(model::AnyonModel{AT},
                   sites::Vector{<:Index},
                   state::MPS,
                   measure_config::MeasureConfig,
-                  samples::Union{Nothing,BitMatrix}=nothing; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+                  samples::Union{Nothing,BitMatrix}=nothing;) where AT <: AbstractAnyonType
 
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
+    cutoff = measure_config.cutoff
+    maxdim = measure_config.maxdim
     current_state = copy(state)
     if mode == :Born
         return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim)
