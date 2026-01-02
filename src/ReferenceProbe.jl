@@ -196,11 +196,11 @@ end
 
 
 # subsystems is the system to keep, not throw!!!
-function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, traceref::Bool=true) where {N, T <: BitStr{N}, ET}
+function reference_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vector{ET}; traceref::Bool=true) where {ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # N is the particle number of system, while k_old is the number of reference qubit, which is deduced from the state length.
-    unsorted_basis = anyon_basis(T, pbc; anyon_type=anyon_type)
+    unsorted_basis = anyon_basis(model)
     len_F   = length(unsorted_basis)
     k_old = round(Int, log2(length(state) ÷ len_F))
     
@@ -209,15 +209,17 @@ function reference_rdm(::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; 
 
     if traceref
         # If traceref is true, we need to trace out the reference qubit. otherwise, we trace out system.
-        return disjoint_rdm(BitStr{k_old, Int}, T, subsystems, Int[], state, pbc; anyon_typeA=:IsingX, anyon_typeB=anyon_type)
+        ref_model = AnyonModel(IsingAnyon(), k_old, pbc=false)
+        return disjoint_rdm(ref_model, model, subsystems, Int[], state;)
     else
+        ref_model = AnyonModel(IsingAnyon(), k_old, pbc=false)
         totalsubBpbc = (length(subsystems) == N) ? true : false
-        return disjoint_rdm(BitStr{k_old, Int}, T, Int[], subsystems, state, pbc; anyon_typeA=:IsingX, totalsubBpbc=totalsubBpbc, anyon_typeB=anyon_type)
+        model = AnyonModel(model.anyon_type, model.N, pbc=totalsubBpbc)
+        return disjoint_rdm(ref_model, model, Int[], subsystems, state;)
     end
    
   
 end
-reference_rdm(N::Int, subsystems::Vector{Int}, state::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, traceref::Bool=true) where {ET} = reference_rdm(BitStr{N, Int}, subsystems, state, pbc=pbc, anyon_type=anyon_type, traceref=traceref)
 
 
 """

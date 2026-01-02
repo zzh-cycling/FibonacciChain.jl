@@ -44,15 +44,13 @@ function ee(subrm::Matrix{ET}) where {ET}
 end
 
 """
-    anyon_eelis(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {ET}
+    anyon_eelis(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}) where {ET}
 
 Calculate entanglement entropy profile along the chain for given quantum state or density matrix.
 
 # Arguments
-- `N::Int64`: System size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix in anyon basis
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: anyon type
 
 # Returns
 - `Vector{Float64}`: Entanglement entropy at each bipartition from left to right
@@ -63,15 +61,17 @@ julia> using FibonacciChain, LinearAlgebra
 
 julia> N = 6;
 
+julia> model = AnyonModel(FibonacciAnyon(), N, true);
+
 julia> # Create ground state of Fibonacci Hamiltonian
-       H = anyon_ham(N, true);
+       H = anyon_ham(model);
 
 julia> eigenvals, eigenvecs = eigen(H);
 
 julia> ground_state = eigenvecs[:, 1];
 
 julia> # Calculate entanglement entropy profile
-       ee_profile = anyon_eelis(N, ground_state, true);
+       ee_profile = anyon_eelis(model, ground_state);
 
 julia> length(ee_profile) == N - 1  # Profile has N-1 points
 true
@@ -97,16 +97,17 @@ function anyon_eelis(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}) wh
     return EE_lis
 end
 
-function anyonladder_eelis(N::Int64,state::Vector{ET},pbc::Bool=true) where {ET}
+function anyonladder_eelis(model::AnyonModel, state::Vector{ET}) where {ET}
     # Generate ee list for a given state from the left to the right
+    N = model.N
     splitlis=Vector(1:N-1)
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         if m<= div(N,2)
-            subrho=ladderrdm(N, collect(1:m), state, pbc)
+            subrho=ladderrdm(model, collect(1:m), state)
             EE_lis[m]=ee(subrho)
         else
-            subrho=ladderrdm(N, collect(m+1:N), state, pbc)
+            subrho=ladderrdm(model, collect(m+1:N), state)
             EE_lis[m]=ee(subrho)
         end
     end
@@ -125,8 +126,8 @@ Generate translation operator matrix for Fibonacci basis states.
 # Returns
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
 """
-function translation_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    basis=anyon_basis(T, anyon_type=anyon_type) 
+function translation_matrix(model::AnyonModel)
+    basis=anyon_basis(model) 
     l = length(basis) 
     Mat=zeros(Float64,(l,l))
     translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
@@ -137,7 +138,6 @@ function translation_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: 
     
     return Mat
 end
-translation_matrix(N::Int; anyon_type::Symbol=:Fibo) = translation_matrix(BitStr{N, Int}, anyon_type=anyon_type)
 
 """
     inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
@@ -151,8 +151,8 @@ Generate spatial inversion operator matrix for Fibonacci basis states.
 # Returns
 - `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
 """
-function inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
-    basis=anyon_basis(T, anyon_type=anyon_type)
+function inversion_matrix(model::AnyonModel)
+    basis=anyon_basis(model)
     l=length(basis)
     Imatrix=zeros((l,l))
     # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
@@ -165,7 +165,6 @@ function inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: Bi
    
     return Imatrix
 end
-inversion_matrix(N::Int; anyon_type::Symbol=:Fibo) = inversion_matrix(BitStr{N, Int}, anyon_type=anyon_type)
 
 """
     braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
@@ -184,9 +183,10 @@ Apply braiding squared operation to quantum state at specified site.
 
 Braiding is a fundamental topological operation that exchanges adjacent anyons.
 """
-function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+function _braidingsq_apply(model::AnyonModel{FibonacciAnyon}, state::T, i::Int) where {N, T <: BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
+    @assert num_digits(T) == N "State length mismatch: expected $(N), got $(num_digits(T))"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
@@ -206,7 +206,7 @@ function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where 
             return state, state, exp(-2im*π/5), 0
         end
     end
-    if pbc
+    if model.pbc
         if i == 1 #count from the left
         mask=bmask(T, N, N-1,1)
         str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
@@ -239,14 +239,14 @@ function braidingsq_basismap(::Type{T}, state::T, i::Int, pbc::Bool=true) where 
     end
 end
 
-function braidingsq_matrix(::Type{T}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+function braidingsq_matrix(model::AnyonModel{FibonacciAnyon}, idx::Int) 
+    @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=anyon_basis(T, pbc)
+    basis=anyon_basis(model)
     l=length(basis)
     Bmatrix=zeros(ComplexF64, (l,l))
     for i in 1:l
-        outputstate1, outputstate2, output1, output2 = braidingsq_basismap(T, basis[i], idx, pbc)
+        outputstate1, outputstate2, output1, output2 = _braidingsq_apply(model, basis[i], idx)
         if output2 == 0
             Bmatrix[i,i]+=output1
         else
@@ -273,16 +273,16 @@ Apply braiding squared operation to quantum state at specified site.
 # Returns
 - `Vector{ET}`: Transformed state after braiding operation
 """
-function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+function braidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx::Int) where {ET}
     # input a superposition state, and output the braided state
-    @assert pbc || (2 <= idx <= N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
+    @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
-    basis=anyon_basis(T, pbc)
+    basis=anyon_basis(model)
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
     for i in 1:l
-        outputstate1, outputstate2, output1, output2 = braidingsq_basismap(T, basis[i], idx, pbc)
+        outputstate1, outputstate2, output1, output2 = _braidingsq_apply(model, basis[i], idx)
         if output2 == 0
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
         else    
@@ -294,35 +294,33 @@ function braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true) w
     
     return mapped_state
 end
-braidingsqmap(N::Int, state::Vector{ET}, idx::Int, pbc::Bool=true) where {ET} = braidingsqmap(BitStr{N, Int}, state, idx, pbc)
 
 """
-    spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+    spatial_correlation(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64) where {ET}
 
 Calculate mutual information between two sites as spatial correlation measure.
 
 # Arguments
-- `N::Int64`: System size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
 - `site1::Int64`: First site index (1 ≤ site1 ≤ N)
 - `site2::Int64`: Second site index (1 ≤ site2 ≤ N, site2 ≠ site1)
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
 - `Float64`: Mutual information I(1:2) = S(1) + S(2) - S(1,2)
 
 Computes quantum mutual information as measure of spatial correlations.
 """
-function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+function spatial_correlation(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64) where {ET}
     # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
+    N = model.N
     @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
     @assert 1 <= site2 <= N "Site2 index must be in the range [1, $(N)]"
     @assert site1 != site2 "Site1 and Site2 must be different"
 
-    ρ1 = anyon_rdm(N, [site1], state, pbc, anyon_type=anyon_type)
-    ρ2 = anyon_rdm(N, [site2], state, pbc, anyon_type=anyon_type)
-    ρ12 = anyon_rdm(N, [site1, site2], state, pbc, anyon_type=anyon_type)
+    ρ1 = anyon_rdm(model, [site1], state)
+    ρ2 = anyon_rdm(model, [site2], state)
+    ρ12 = anyon_rdm(model, [site1, site2], state)
     
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
@@ -330,42 +328,38 @@ function spatial_correlation(N::Int64, state::Union{Vector{ET}, Matrix{ET}}, sit
 end
 
 """
-    temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+    temporal_correlation(model::AnyonModel, state_addref2::Vector{ET}) where {ET}
 
 Calculate temporal correlation using state with two reference qubits.
 
 # Arguments
-- `N::Int64`: System size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `state_addref2::Vector{ET}`: Quantum state with two reference qubits added
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
 - `Float64`: Temporal correlation measure between time slices
 
 Uses reference qubit protocol to measure temporal correlations at single site.
 """
-function temporal_correlation(N::Int64, state_addref2::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+function temporal_correlation(model::AnyonModel, state_addref2::Vector{ET}) where {ET}
     # Calculate the temporal correlation between two time slices at one site in a given initial_state
-
-    ρ1 = reference_rdm(N, [2], state_addref2, pbc=pbc, anyon_type=anyon_type)
-    ρ2 = reference_rdm(N, [1], state_addref2, pbc=pbc, anyon_type=anyon_type) 
-    ρ12 = reference_rdm(N, [1,2], state_addref2, pbc=pbc, anyon_type=anyon_type)
+    # traceref default true, thus keep reference qubits
+    ρ1 = reference_rdm(model, [2], state_addref2)
+    ρ2 = reference_rdm(model, [1], state_addref2)
+    ρ12 = reference_rdm(model, [1,2], state_addref2)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation
 end
 
 """
-    ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo) where {ET}
+    ref_correlation(model::AnyonModel, state_addref3::Vector{ET}; spatial::Bool=false, temporal::Bool=false) where {ET}
 
 Calculate spatio-temporal correlation using state with three reference qubits.
 
 # Arguments
-- `N::Int64`: System size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `state_addref3::Vector{ET}`: Quantum state with three reference qubits added
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
 - `spatial::Bool=false`: If true, calculate only spatial correlation
 - `temporal::Bool=false`: If true, calculate only temporal correlation
 
@@ -374,7 +368,7 @@ Calculate spatio-temporal correlation using state with three reference qubits.
 
 Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
 """
-function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, anyon_type::Symbol=:Fibo, spatial::Bool=false, temporal::Bool=false) where {ET}
+function ref_correlation(model::AnyonModel, state_addref3::Vector{ET}; spatial::Bool=false, temporal::Bool=false) where {ET}
     # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
     # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
     #                 Ref3  |   t₂
@@ -382,22 +376,21 @@ function ref_correlation(N::Int64, state_addref3::Vector{ET}; pbc::Bool=true, an
     #                  |
     #  Ref1 --------> Ref2      t₁
     #   x₁             x₂
-
-    if spatial # pure spatial correlation, only 2 reference qubits
+    if spatial # pure spatial correlation, only 2 reference qubits, NEED to note that calculate spatial correlation also needs 2 reference qubits, so use `temporal_correlation` function, the only difference is where the reference qubits are added in the circuit.
         @info "Only spatial correlation is calculated."
-        spatial_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        spatial_corr = temporal_correlation(model, state_addref3)
         return spatial_corr, 0
     elseif temporal # pure temporal correlation, only 2 reference qubits
         @info "Only temporal correlation is calculated."
-        temporal_corr = temporal_correlation(N, state_addref3, pbc=pbc, anyon_type=anyon_type)
+        temporal_corr = temporal_correlation(model, state_addref3)
         return 0, temporal_corr
     else # compute both spatial and temporal correlation, 3-point correlation
-        ρ1 = reference_rdm(N, [3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-        ρ2 = reference_rdm(N, [2], state_addref3, pbc=pbc, anyon_type=anyon_type) 
-        ρ3 = reference_rdm(N, [1], state_addref3, pbc=pbc, anyon_type=anyon_type)
-        ρ12 = reference_rdm(N, [2, 3], state_addref3, pbc=pbc, anyon_type=anyon_type)
-        ρ23 = reference_rdm(N, [1, 2], state_addref3, pbc=pbc, anyon_type=anyon_type)
-    
+        ρ1 = reference_rdm(model, [3], state_addref3)
+        ρ2 = reference_rdm(model, [2], state_addref3)
+        ρ3 = reference_rdm(model, [1], state_addref3)
+        ρ12 = reference_rdm(model, [2, 3], state_addref3)
+        ρ23 = reference_rdm(model, [1, 2], state_addref3)
+
         spatial_corr = ee(ρ1) + ee(ρ2) - ee(ρ12)
         temporal_corr = ee(ρ2) + ee(ρ3) - ee(ρ23)
     end
@@ -465,7 +458,7 @@ anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonType} = anti_fer
 
 
 """
-    mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+    mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
 
 Calculate the mutual information between two subsystems.
 
@@ -473,7 +466,7 @@ Computes I(A:B) = S_A + S_B - S_AB where S represents the Von Neumann entropy.
 Mutual information quantifies the total correlation between subsystems A and B.
 
 # Arguments
-- `N::Int64`: Total system size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `subsystems::Tuple{Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites)
 - `state::Vector{ET}`: Quantum state vector
 
@@ -482,18 +475,19 @@ Mutual information quantifies the total correlation between subsystems A and B.
 
 # Example
 ```julia
+model = AnyonModel(FibonacciAnyon(), 10, true)
 A_sites = [1, 2, 3]
 B_sites = [7, 8, 9]
-mi = mutual_information(10, (A_sites, B_sites), psi)
+mi = mutual_information(model, (A_sites, B_sites), psi)
 ```
 """
-function mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+function mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
     A, B = subsystems
     # MI formula defined as: I(A:B) = S_A + S_B - S_AB
     # Calculate the reduced density matrices
-    ρ_A = rdm_PXP(N, A, state)
-    ρ_B = rdm_PXP(N, B, state)
-    ρ_AB = rdm_PXP(N, vcat(A, B), state)
+    ρ_A = anyon_rdm(model, A, state)
+    ρ_B = anyon_rdm(model, B, state)
+    ρ_AB = anyon_rdm(model, vcat(A, B), state)
     # Calculate the Von Neumann entropies
     S_A = ee(ρ_A)
     S_B = ee(ρ_B)
@@ -507,7 +501,7 @@ end
 
 
 """
-    tri_mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+    tri_mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
 
 Calculate the tripartite mutual information between three subsystems.
 
@@ -515,7 +509,7 @@ Computes I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC.
 This measures genuine three-partie quantum correlations.
 
 # Arguments
-- `N::Int64`: Total system size
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 - `subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites, C_sites)
 - `state::Vector{ET}`: Quantum state vector
 
@@ -524,25 +518,26 @@ This measures genuine three-partie quantum correlations.
 
 # Example
 ```julia
+model = AnyonModel(FibonacciAnyon(), 10, true)
 A_sites = [1, 2]
 B_sites = [5, 6]
 C_sites = [9, 10]
-tmi = tri_mutual_information(10, (A_sites, B_sites, C_sites), psi)
+tmi = tri_mutual_information(model, (A_sites, B_sites, C_sites), psi)
 ```
 """
-function tri_mutual_information(N::Int64, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+function tri_mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
     A, B, C = subsystems
     # TMI formula defined as: I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC
     
-    ρ_A = rdm_PXP(N, A, state)
-    ρ_B = rdm_PXP(N, B, state)
-    ρ_C = rdm_PXP(N, C, state)
+    ρ_A = anyon_rdm(model, A, state)
+    ρ_B = anyon_rdm(model, B, state)
+    ρ_C = anyon_rdm(model, C, state)
 
-    ρ_AB = rdm_PXP(N, vcat(A,B), state)
-    ρ_BC = rdm_PXP(N, vcat(B,C), state)
-    ρ_AC = rdm_PXP(N, vcat(A,C), state)
+    ρ_AB = anyon_rdm(model, vcat(A,B), state)
+    ρ_BC = anyon_rdm(model, vcat(B,C), state)
+    ρ_AC = anyon_rdm(model, vcat(A,C), state)
     
-    ρ_ABC = rdm_PXP(N, vcat(A,B,C), state)
+    ρ_ABC = anyon_rdm(model, vcat(A,B,C), state)
     
     # Calculate the Von Neumann entropies
     

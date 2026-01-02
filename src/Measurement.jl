@@ -44,6 +44,8 @@ end
 function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
     @assert model.measure_operator ∈ [:Ferro, :Antiferro] "measure_operator must be :Ferro or :Antiferro"
     N = model.N
+    @assert num_digits(T) == N "State length mismatch: expected $(N), got $(num_digits(T))"
+
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
@@ -453,7 +455,7 @@ end
 function _obtain_measurement_config(model::AnyonModel{IsingAnyon}, layer_idx::Int)
     # measure at all sites!!!
     measurement_sites = collect(1:model.N)
-    measure_operator = iseven(layer_idx) ? :IsingZZ : :IsingX # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
+    measure_operator = iseven(layer_idx) ? :ZZ : :X # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
     measure_anyon_model = AnyonModel(IsingAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
     return measurement_sites, measure_anyon_model
 end
