@@ -15,7 +15,7 @@ export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst, measurement_operator_mps, apply_measurement_mps, initial_mps, mps_measurement_enumeration, ee_mps
 # Reference qubits functions
-export add_reference_qubits!, reference_measuremap, reference_bulk_evolution, reference_boundary_evolution, reference_rdm, reference_evolution
+export add_reference_qubits, reference_measuremap, reference_bulk_evolution, reference_boundary_evolution, reference_rdm, reference_evolution
 
 include("Basis.jl") 
 include("Observable.jl")

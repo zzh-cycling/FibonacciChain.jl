@@ -84,13 +84,14 @@ using LsqFit
     @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
     @test output[5] === nothing
 
-    # output = measure_basismap.(model, 1000.0, basis0, idx, sign, anyon_type=:resetFibo)
-    # @test length(output) == length(basis0)
-    # @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
-    # @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
-    # @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
-    # @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
-    # @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true, measure_operator=:reset)
+    output = measure_basismap.(Ref(model), 1000.0, basis0, idx, sign)
+    @test length(output) == length(basis0)
+    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
+    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
+    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
+    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
+    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin
@@ -189,10 +190,12 @@ end
     @test Mmpbc == expected_matrix
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 
-    # Mppbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 0, anyon_type=:reset) 
-    # @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
-    # Mmpbc = FibonacciChain.measure_matrix(T, 1000.0, idx, 1, anyon_type=:reset) # pbc
-    # @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
+    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator=:reset)
+    Mppbc = FibonacciChain.measure_matrix(model, 1000.0, idx, false) 
+    @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
+    Mmpbc = FibonacciChain.measure_matrix(model, 1000.0, idx, true) # pbc
+    @test diag(Mmpbc) ≈ [0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 1.0, 1.0]
+    # false = 0 → +1 eigenvalue, 1+ Id ⊕ Z ⊕ Id; true = 1 → -1 eigenvalue, 1 - Id ⊕ Z ⊕ Id
 end
 
 @testset "measure_matrix" begin
@@ -345,15 +348,15 @@ end
 
 @testset "_sample_measure" begin
     N = 6
-    model = AnyonModel(FibonacciAnyon(), N)
+    model = AnyonModel(IsingAnyon(), N, measure_operator=:X)
     t = 10
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:sample)
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
-    samples = BitMatrix(undef, 2t, div(N,2))
+    samples = BitMatrix(zeros(2t, N))
 
-    measure_outcome = FibonacciChain._sample_measure(model, state, samples, measure_config)
-    @test size(measure_outcome.samples) == (20, 3)
-    @test measure_outcome.free_energys[end] ≈ 0.5385529416309107 atol=1e-6
+    measure_outcome = FibonacciChain._sample_measure(model, state , samples, measure_config)
+    @test measure_outcome.states[end][[1,64]] ≈ 1/√2 .* ones(2)
+    @test measure_outcome.free_energys[end] ≈ 5log(2) atol=1e-6
 end
 
 @testset "boundary_evolution, bulk_evolution" begin

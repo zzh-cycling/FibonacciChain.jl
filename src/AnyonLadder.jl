@@ -1,7 +1,7 @@
 """
     ladderbraidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx::Int) where {ET}
 
-Apply braiding squared operation to density matrix state in vectorized form. Effectively, it's the noise induced by inter-two layer chain braiding.
+Apply braiding squared operation to density matrix state in vectorized form. Effectively, it describes the noise induced by inter-two layer chain braiding.
 
 # Arguments
 - `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model containing system parameters (N, pbc)

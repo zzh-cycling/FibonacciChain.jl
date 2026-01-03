@@ -115,13 +115,12 @@ function anyonladder_eelis(model::AnyonModel, state::Vector{ET}) where {ET}
 end
 
 """
-    translation_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    translation_matrix(model::AnyonModel)
 
-Generate translation operator matrix for Fibonacci basis states.
+Generate translation operator matrix for anyon basis states.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `anyon_type::Symbol=:Fibo`: Model type
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 
 # Returns
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
@@ -140,13 +139,12 @@ function translation_matrix(model::AnyonModel)
 end
 
 """
-    inversion_matrix(::Type{T}; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}}
+    inversion_matrix(model::AnyonModel)
 
-Generate spatial inversion operator matrix for Fibonacci basis states.
+Generate spatial inversion operator matrix for anyon basis states.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `anyon_type::Symbol=:Fibo`: Model type
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
 
 # Returns
 - `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
@@ -167,19 +165,17 @@ function inversion_matrix(model::AnyonModel)
 end
 
 """
-    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET}
+    _braidingsq_apply(model::AnyonModel{FibonacciAnyon}, state::T, i::Int) where {N, T <: BitStr{N}}
 
-Apply braiding squared operation to quantum state at specified site.
+Apply braiding squared operation on a single basis state at specified site.
 
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
-- `state::Vector{ET}`: Quantum state vector in anyon basis
-- `idx::Int`: Site index for braiding operation
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
+- `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model containing system parameters
+- `state::T`: Single basis state (BitStr)
+- `i::Int`: Site index for braiding operation
 
 # Returns
-- `Vector{ET}`: Transformed state after braiding operation
+- `Tuple{T, T, ComplexF64, ComplexF64}`: (output_state1, output_state2, coefficient1, coefficient2)
 
 Braiding is a fundamental topological operation that exchanges adjacent anyons.
 """
@@ -260,18 +256,17 @@ function braidingsq_matrix(model::AnyonModel{FibonacciAnyon}, idx::Int)
 end
 
 """
-    braidingsqmap(::Type{T}, state::Vector{ET}, idx::Int, pbc::Bool=true; anyon_type::Symbol=:Fibo) where {N, T <: BitStr{N}, ET} 
+    braidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx::Int) where {ET}
 
 Apply braiding squared operation to quantum state at specified site.
+
 # Arguments
-- `T::Type`: BitStr type specifying chain length N
+- `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model containing system parameters (N, pbc)
 - `state::Vector{ET}`: Quantum state vector in anyon basis
 - `idx::Int`: Site index for braiding operation
-- `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Model type
 
 # Returns
-- `Vector{ET}`: Transformed state after braiding operation
+- `Vector{ComplexF64}`: Transformed state after braiding operation
 """
 function braidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx::Int) where {ET}
     # input a superposition state, and output the braided state
