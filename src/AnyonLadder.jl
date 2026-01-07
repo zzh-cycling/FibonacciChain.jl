@@ -19,7 +19,7 @@ julia> using FibonacciChain, LinearAlgebra, BitBasis
 
 julia> N = 4;
 
-julia> model = AnyonModel(FibonacciAnyon(), N, true);
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
 
 julia> # Create PBC Fibonacci anyon basis 
        basis = anyon_basis(model);

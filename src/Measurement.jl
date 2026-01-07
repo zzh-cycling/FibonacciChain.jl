@@ -402,10 +402,20 @@ function measurement_enumeration(model::AnyonModel{AT}, τ::Float64, initial_sta
 end
 
 
+"""
+    measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
+
+Visualize a measurement tree given trajectories and their probabilities.
+
+# Arguments
+- `trajectories::Vector{Vector{Int64}}`: Measurement outcome sequences at each branch.
+- `probabilities::Vector{Float64}`: Corresponding probabilities for each trajectory.
+
+# Behavior
+- Normalizes probabilities to sum to 1.
+- Prints levels from root to leaves with indentation representing depth.
+"""
 function measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
-    """
-    visualize measurement tree
-    """
     total_prob = sum(probabilities)
     normalized_probs = probabilities / total_prob
     

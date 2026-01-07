@@ -1,16 +1,17 @@
 using FibonacciChain
 using Documenter
 
-DocMeta.setdocmeta!(FibonacciChain, :DocTestSetup, :(using FibonacciChain); recursive=true)
+DocMeta.setdocmeta!(FibonacciChain, :DocTestSetup, :(using FibonacciChain, Random, LinearAlgebra, BitBasis, ITensorMPS, ITensors); recursive=true)
 
 makedocs(;
     modules=[FibonacciChain],
+    doctest=false,
     authors="Zhaohui Zhi",
     sitename="FibonacciChain.jl",
     format=Documenter.HTML(;
         canonical="https://zzh-cycling.github.io/FibonacciChain.jl",
-        edit_link="main",
         assets=String[],
+        edit_link=nothing,
     ),
     pages=[
         "Home" => "index.md",

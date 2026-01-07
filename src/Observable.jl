@@ -61,7 +61,7 @@ julia> using FibonacciChain, LinearAlgebra
 
 julia> N = 6;
 
-julia> model = AnyonModel(FibonacciAnyon(), N, true);
+julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
 
 julia> # Create ground state of Fibonacci Hamiltonian
        H = anyon_ham(model);

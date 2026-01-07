@@ -1,3 +1,23 @@
+"""
+        build_extended_basis(k_total::Int, basis::Vector{T}) where {T<:BitStr}
+        build_extended_basis(basis::Vector{ET}, ::Type{T}) where {k_total, ET, T<:BitStr{k_total, Int}}
+
+Construct the extended basis that concatenates `k_total` reference qubits (as a prefix)
+with the anyon constraint system basis.
+
+# Arguments
+- `k_total::Int`: Total number of reference qubits to include as prefix.
+- `basis::Vector{T}`: Sorted anyon basis of the system (suffix).
+- `::Type{T}`: BitStr type for the extended basis when using the low-level interface.
+
+# Returns
+- `Vector{T}`: Sorted extended basis with reference prefix concatenated to system basis.
+
+# Notes
+- Reference bits occupy the highest-order positions (leftmost) in the binary representation.
+- Use high-level `build_extended_basis(k_total, basis)` for convenience; low-level variant
+    accepts the extended `BitStr` type.
+"""
 function build_extended_basis(basis::Vector{ET}, ::Type{T}) where {k_total, ET, T <: BitStr{k_total, Int}}
     ref_strings = [T(i) for i in 0:(2^k_total-1)] 
     extended_basis = sort(
