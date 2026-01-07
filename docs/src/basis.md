@@ -32,13 +32,15 @@ using FibonacciChain
 
 # Generate Fibonacci basis for 6 sites with PBC
 N = 6
-basis_pbc = anyon_basis(N, true, measure_class=:Fibo)
+model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true)
+basis_pbc = anyon_basis(model_fibo)
 
 # Generate Ising anyon basis  
-basis_ising = anyon_basis(N, true, measure_class=:IsingX)
+model_ising = AnyonModel(IsingAnyon(), N; pbc=true)
+basis_ising = anyon_basis(model_ising)
 
 # Generate basis in momentum sector k=0
-basis_k0, rep_dict = anyon_basis(N, 0)
+basis_k0, rep_dict = anyon_basis(model_fibo, 0)
 ```
 
 ## Hamiltonian Construction
@@ -56,6 +58,9 @@ The topological symmetry operations are crucial for understanding the anyonic na
 
 ## Reduced Density Matrices
 
-Both for state and density matrix in specific symmetry sector: `anyon_rdm(N, subsystems, state, k=0)`
+For a given model and subsystems, compute reduced density matrices:
 
-And we also have `disjoint_rdm` for two parallel chains with two different anyon type.
+- `anyon_rdm(model, subsystems, state)`
+- Sector version: `anyon_rdm_sec(model, subsystems, state, k)`
+
+And we also have `disjoint_rdm` for two parallel chains with two different anyon types.

@@ -69,6 +69,7 @@ The correlation functions measure quantum correlations between different regions
 corr_spatial = spatial_correlation(N, ground_state, 1, 4)
 
 # Temporal correlation using reference qubits
-state_with_ref = add_reference_qubits!(N, ground_state, 3)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+state_with_ref = add_reference_qubits(model, ground_state, 3)
 corr_temporal = temporal_correlation(N, state_with_ref)
 ```

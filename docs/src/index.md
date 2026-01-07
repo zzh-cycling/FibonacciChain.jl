@@ -40,17 +40,18 @@ using FibonacciChain
 
 # Create a Fibonacci anyon chain with N=6 sites
 N = 6
-basis = anyon_basis(N, true)  # periodic boundary conditions
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+basis = anyon_basis(model)  # periodic boundary conditions
 
 # Generate the Hamiltonian
-H = anyon_ham(N, true)
+H = anyon_ham(model)
 
 # Find ground state
 eigenvals, eigenvecs = eigen(H)
 ground_state = eigenvecs[:, 1]
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis(N, ground_state)
+ee_profile = anyon_eelis(model, ground_state)
 ```
 
 ## Documentation Sections

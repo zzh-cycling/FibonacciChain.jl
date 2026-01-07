@@ -50,12 +50,12 @@ laddertranslationmap
 
 ```@docs
 measure_basismap
+measuremap
 measurement_enumeration
-boundary_measure
-boundary_post_selection
-bulk_measure
-bulk_post_selection
-measure_evolution!
+measurement_tree_visualization
+transfer_matrix
+boundary_evolution
+bulk_evolution
 ```
 
 ## MPS Functions
@@ -72,8 +72,11 @@ mps_bulk_measure
 ## Reference Qubit Functions
 
 ```@docs
-spatial_correlation
-temporal_correlation
+add_reference_qubits
+add_reference_qubits_reset
+reference_measuremap
+reference_boundary_evolution
+reference_bulk_evolution
+reference_rdm
 reference_evolution
-reference_apply_measurement_layer!
 ```

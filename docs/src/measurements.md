@@ -51,33 +51,36 @@ using FibonacciChain
 
 N = 6
 τ = 1.0  # evolution time parameter
-initial_state = normalize!(ones(ComplexF64, length(anyon_basis(N))))
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+initial_state = normalize!(ones(ComplexF64, length(anyon_basis(model))))
 
 # Perform measurement at site 2 with outcome 0 (+)
-final_state = measuremap(N, τ, initial_state, 2, 0)
+final_state = measuremap(model, τ, initial_state, 2, false)
 ```
 
 ### Measurement Layer Protocol
 
 ```julia
-# Define measurement sites (even sites for Fibonacci anyons)
-measurement_sites = 2:2:N
-
-# Generate random measurement layer
-layer_sample = rand([0, 1], length(measurement_sites))
-
-# Apply measurement layer
-evolved_state = _apply_measurement_layer!(N, initial_state, τ, layer_sample, 1)
+# Apply a single boundary measurement layer (Born mode)
+out = boundary_evolution(
+	model,
+	initial_state,
+	MeasureConfig(τ=τ, t₁=1, t₂=1, mode=:Born, rng=MersenneTwister()),
+)
+evolved_state = out.state
+layer_sample = out.sample
+layer_free_energy = out.free_energy
 ```
 
 ### Boundary Measurement Sampling
 
 ```julia
-# Generate 1000 measurement samples
-measurement_sites = [2, 4, 6]
-states, sequences, free_energies = boundary_measure(N, τ, initial_state, measurement_sites, 1000)
+# Sample multiple layers with bulk evolution (Born rule)
+D = 10  # number of time steps
+config = MeasureConfig(τ=τ, t₁=1, t₂=D, mode=:Born, rng=MersenneTwister())
+mo = bulk_evolution(model, initial_state, config)
 
-# Analyze free energy distribution
+# Analyze free energy across layers
 using Statistics
-mean_free_energy = mean(free_energies)
+mean_free_energy = mean(mo.free_energys)
 ```

@@ -180,7 +180,8 @@ ground_state = eigenvecs[:, 1]
 
 # Add reference qubit at site 4
 println("Adding reference qubit at site $site...")
-state_with_ref = add_reference_qubits!(N, ground_state, site)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+state_with_ref = add_reference_qubits(model, ground_state, site)
 
 # Perform measurement protocol to create temporal correlation
 τ = 0.5
@@ -190,9 +191,11 @@ sample_sequence = rand([0, 1], 5, N÷2)  # 5 time steps, N/2 measurement sites p
 forward_states = reference_generate_state(N, τ, state_with_ref, sample_sequence, temp=true)
 
 # Generate how temporal correlation between time slices 1 and 4
-time_corr = reference_evolution(τ, forward_states, sample_sequence, site, 1, 4)
+outcome = reference_evolution(model, forward_states,
+    MeasureConfig(τ=τ, t₁=1, t₂=4, x₁=site, x₂=site, mode=:sample),
+    sample_sequence)
 
-println("Temporal correlation: $(round(real(time_corr), digits=4))")
+println("Temporal evolution layers: $(size(outcome.samples, 1))")
 
 # Compare with spatial correlation in ground state
 spatial_corr = spatial_correlation(N, ground_state, 1, 5)

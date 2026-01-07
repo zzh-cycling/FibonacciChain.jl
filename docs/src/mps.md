@@ -12,7 +12,8 @@ using FibonacciChain
 
 # Find ground state for N=50 Fibonacci anyon chain
 N = 50
-ψ, E0 = anyon_mps_gst(N, pbc=true, maxdim=100, cutoff=1e-10)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+ψ, E0 = anyon_mps_gst(model; maxdim=100, cutoff=1e-10)
 ```
 
 ## Hamiltonian Construction
@@ -23,7 +24,7 @@ The MPS Hamiltonian is constructed as a Matrix Product Operator (MPO) with three
 ```julia
 # Create sites and Hamiltonian MPO
 sites = siteinds("Qubit", N)
-H = anyon_ham(sites, pbc=true)
+H = anyon_ham(model, sites)
 ```
 
 ## MPS Measurements
@@ -47,7 +48,7 @@ L = N ÷ 2
 S = ee_mps(ψ, L)
 
 # Get full entanglement profile
-ee_profile = anyon_eelis(N, ψ)
+ee_profile = anyon_eelis(model, ψ)
 ```
 
 ## State Generation and Evolution
@@ -76,14 +77,14 @@ maxdim = 200
 cutoff = 1e-12
 
 # Find ground state
-ψ_gs, E0 = anyon_mps_gst(N, 
-                                      pbc=true,
-                                      sweep_times=30, 
-                                      maxdim=maxdim,
-                                      cutoff=cutoff)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+ψ_gs, E0 = anyon_mps_gst(model,
+                         sweep_times=30,
+                         maxdim=maxdim,
+                         cutoff=cutoff)
 
 # Calculate observables
-ee_profile = anyon_eelis(N, ψ_gs)
+ee_profile = anyon_eelis(model, ψ_gs)
 central_ee = ee_profile[N÷2]
 
 println("Ground state energy: $E0")
@@ -92,7 +93,8 @@ println("Central entanglement entropy: $central_ee")
 # Apply measurement and evolve
 τ = 0.5
 measurement_site = N÷2
-ψ_measured, prob = apply_measurement_mps(ψ_gs, sites, measurement_site, τ, 0)
+sites = siteinds("Qubit", N)
+ψ_measured, prob = measuremap(model, ψ_gs, sites, measurement_site, τ, false)
 
 println("Measurement probability: $prob")
 ```
