@@ -12,28 +12,28 @@ using LsqFit
     state = T(0)
     idx = 2
     pbc = false
-    output = FibonacciChain.Isingmap(T, state, idx)
+    output = FibonacciChain.Isingmap(state, idx)
     @test output == (state, T(bit"010000"), -1.0, -1.0)
 
     state = T(bit"001000")
-    output = FibonacciChain.Isingmap(T, state, idx)
+    output = FibonacciChain.Isingmap(state, idx)
     @test output == (state, T(bit"011000"), 1.0, -1.0)
 
     state = T(bit"010100")
-    output = FibonacciChain.Isingmap(T, state, idx)
+    output = FibonacciChain.Isingmap(state, idx)
     @test output == (state, T(bit"000100"), 1.0, -1.0)
 
     state = T(bit"111111")
-    output = FibonacciChain.Isingmap(T, state, idx)
+    output = FibonacciChain.Isingmap(state, idx)
     @test output == (state, T(bit"101111"), -1.0, -1.0)
 
     state = T(bit"111111")
-    output = FibonacciChain.Isingmap(T, state, 6, false)
+    output = FibonacciChain.Isingmap(state, 6, false)
     @test output == (T(bit"111110"), -1.0)
 
     # Test with periodic boundary conditions
     pbc = true
-    output_pbc = FibonacciChain.Isingmap(T, state, N, pbc)
+    output_pbc = FibonacciChain.Isingmap(state, N, pbc)
     @test output_pbc == (state, T(bit"111110"), -1.0, -1.0)
 end
 
@@ -41,27 +41,27 @@ end
     N = 3
     model = AnyonModel(IsingAnyon(), N, pbc=false)
     T = BitStr{N, Int}
-    output1 = FibonacciChain.actingHam(model, T, bit"000", J=2.0, h=1.0) 
+    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0) 
     states, weights = keys(output1), values(output1)
     @test [states...]== T.([bit"000", bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-4.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(model, T, bit"010") 
+    output2 = FibonacciChain.actingHam(model, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
     @test [weights...] ≈ [-1.0, -1.0, 2.0, -1.0]
 
-    output3 = FibonacciChain.actingHam(model, T, bit"001") 
+    output3 = FibonacciChain.actingHam(model, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
     @test [weights...] ≈ [-1.0, -1.0, -1.0, 0.0]
 
-    output4 = FibonacciChain.actingHam(model, T, bit"100") 
+    output4 = FibonacciChain.actingHam(model, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== T.([bit"000", bit"100", bit"110", bit"101"])
     @test [weights...] ≈ [-1.0, 0.0, -1.0, -1.0]
 
-    output = FibonacciChain.actingHam(model, T, bit"101")
+    output = FibonacciChain.actingHam(model, bit"101")
     states, weights = keys(output), values(output)
     @test [states...]== T.([bit"101", bit"100", bit"111", bit"001"])
     @test [weights...] ≈ [2.0, -1.0, -1.0, -1.0]
@@ -71,27 +71,27 @@ end
     N = 3
     T = BitStr{N, Int}
     model = AnyonModel(IsingAnyon(), N, pbc=true)
-    output1 = FibonacciChain.actingHam(model, T, bit"000", J=2.0, h=1.0) 
+    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0) 
     states, weights = keys(output1), values(output1)
     @test [states...]== T.([bit"000",bit"100", bit"010", bit"001"])
     @test [weights...] ≈ [-6.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(model, T, bit"010") 
+    output2 = FibonacciChain.actingHam(model, bit"010") 
     states, weights = keys(output2), values(output2)
     @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
     @test [weights...] ≈ [-1.0, -1.0, 1.0, -1.0]
 
-    output3 = FibonacciChain.actingHam(model, T, bit"001") 
+    output3 = FibonacciChain.actingHam(model, bit"001") 
     states, weights = keys(output3), values(output3)
     @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
     @test [weights...] ≈ [-1.0, -1.0, -1.0, 1.0]
 
-    output4 = FibonacciChain.actingHam(model, T, bit"100") 
+    output4 = FibonacciChain.actingHam(model, bit"100") 
     states, weights = keys(output4), values(output4)
     @test [states...]== T.([bit"000",bit"100", bit"110", bit"101"])
     @test [weights...] ≈ [-1.0, 1.0, -1.0, -1.0]
 
-    output = FibonacciChain.actingHam(AnyonModel(IsingAnyon(), 10, pbc=true), BitStr{10}, bit"1000010000")
+    output = FibonacciChain.actingHam(AnyonModel(IsingAnyon(), 10, pbc=true), bit"1000010000")
     states, weights = keys(output), values(output)
     @test [states...] == BitStr{10}.([16, 560, 656, 532, 529, 784, 512, 536, 528, 530, 592])
     @test [weights...] ≈ vcat(-ones(8),[-2.0, -1.0, -1.0])
@@ -556,7 +556,7 @@ end
 
     t = 5N
     samples = BitMatrix(zeros(Int, 2t, N))
-    config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+    config = MeasureConfig(τ=τ, t₂=t, mode=:sample, cutoff=1e-10, maxdim=1000)
 
     measure_outcome = bulk_evolution(model, st, config, samples)
     generated_statelis, F = measure_outcome.states, measure_outcome.free_energys
@@ -565,7 +565,7 @@ end
     @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.5 atol=1e-2
     
     ψ0, sites = initial_mps(N)
-    measure_outcome_mps = bulk_evolution(model, sites, ψ0, config, samples, cutoff=1e-10, maxdim=1000)
+    measure_outcome_mps = bulk_evolution(model, sites, ψ0, config, samples)
     generated_statelis_mps, F = measure_outcome_mps.states, measure_outcome_mps.free_energys
     final_mps = generated_statelis_mps[end]
     EE_mps = anyon_eelis(model, final_mps)

@@ -677,14 +677,15 @@ function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign
     mo = bulk_evolution(model, initial_state, config, sample)
     statelis = mo.states
 
+    ref_sample = sign ? BitMatrix(ones(Int, 2*(D+δt+D), L)) : BitMatrix(zeros(Int, 2*(D+δt+D), L))
     
     if δt == 0
         ref_config = MeasureConfig(τ = τ, t₂ = D, t₁ = D, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1)
-        mo = reference_evolution(model, statelis, ref_config)
+        mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     else
         ref_config = MeasureConfig(τ = τ, t₂ = D+δt, t₁ = D, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
-        mo = reference_evolution(model, statelis, ref_config)
+        mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     end
 
@@ -711,5 +712,5 @@ end
     spatial_corr, _ = ref_correlation(model, ref2st, spatial = true)
     ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=true)
     _, temporal_corr = ref_correlation(model, ref2st, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 9.881413517280196
+    @test temporal_corr/spatial_corr ≈ 9.31373572272615
 end

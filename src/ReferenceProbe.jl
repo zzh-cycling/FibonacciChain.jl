@@ -332,6 +332,7 @@ function reference_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vect
     len_F   = length(unsorted_basis)
     k_old = round(Int, log2(length(state) ÷ len_F))
     
+    N = model.N
     length(state) == (2^k_old * len_F) || error("state length is not compatible with ($(k_old), $(N)), can not deduce k_old from state length")
     @assert 2^k_old*length(unsorted_basis) == length(state) "state length is expected to be $(2^k_old*length(unsorted_basis)), but got $(length(state))"
 
@@ -685,7 +686,7 @@ This function avoids recomputing the forward evolution up to time `t₁` by usin
            |
           Ref2 --> Ref3               x₂ = N/2
     | ----> |______| -----> |
-    0      t₁   t₂=t₁+δt   Δt
+    1      t₁   t₂=t₁+δt   Δt
     | --------------------->|
     sample
 ```
@@ -723,7 +724,7 @@ Based on `δt = t₂ - t₁` and `δx = |x₂ - x₁|`:
 
 See also: [`add_reference_qubits`](@ref), [`reference_bulk_evolution`](@ref), [`ref_correlation`](@ref)
 """
-function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_config::MeasureConfig, sample::Union{BitMatrix, Nothing}=nothing) where {ET}
+function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_config::MeasureConfig, sample::BitMatrix) where {ET}
     # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
     # The length of forward is to t₁, but the time length of sample is 0-> D, need to note that the input sample will be updated in :Born mode, and the smaple front part must be consistent with forward.
     # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
@@ -734,7 +735,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     #        |
     #       Ref2 --> Ref3               x₂ = N/2
     # | ----> |______| -----> |
-    # 0      t₁   t₂=t₁+δt   Δt
+    # 1      t₁   t₂=t₁+δt   Δt
     # | --------------------->|
     # sample
 
@@ -760,7 +761,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     δt = t₂ - t₁ # if δt = 0, pure spatial correlation
     δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
     
-    # 1) 0 → t₁, the steady state, at the t₁ of forward evolution
+    # 1) 1 → t₁, the steady state, at the t₁ of forward evolution
     state = forward[t₁]
     statelis = Vector{ET}(undef, Δt) 
     view(statelis, 1:t₁) .= view(forward, 1:t₁)

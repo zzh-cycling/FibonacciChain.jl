@@ -1096,10 +1096,13 @@ julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # trace should be 1
 true
 ```
 """
-function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {N1, N2,T1 <: BitStr{N1},T2 <: BitStr{N2}, ET}
+function disjoint_rdm(model1::AnyonModel, model2::AnyonModel, ::Type{newT}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {newT, ET}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
-    # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
+    # model.pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not. Roughly speaking, if partition is Int[] and collect(1:N2), thus the totalsubBpbc must be the same with model2.pbc.
+    N1 = model1.N
+    N2 = model2.N
+    # newT should is BitStr{N1+N2, Int} 
     @assert all(subsystemsA .<= N1) "subsystemsA is expected to be in [1, $N1], but got $(subsystemsA)"
     @assert all(subsystemsB .<= N2) "subsystemsB is expected to be in [1, $N2], but got $(subsystemsB)"
     
@@ -1109,11 +1112,10 @@ function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}
         return state * state'
     end
 
-    unsorted_basisA = anyon_basis(AT1, T1, pbc=totalsubApbc)
-    unsorted_basisB = anyon_basis(AT2, T2, pbc=totalsubBpbc)
+    unsorted_basisA = anyon_basis(model1)
+    unsorted_basisB = anyon_basis(model2)
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
-    newT = BitStr{N1+N2, Int} # double the length of the basis
     doublebasis = vec([join(i,j) for i in unsorted_basisA for j in unsorted_basisB])
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
@@ -1140,13 +1142,13 @@ function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}
     if isempty(subsystemsA)
         # Only B subsystem, use lengthlis from B
         lengthlisB_orig = length.(connected_components(subsystemsB))
-        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT2, lengthlisB_orig, totalsubBpbc), Ref(subsystemsB_flat)))
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(model2.anyon_type, lengthlisB_orig, totalsubBpbc), Ref(subsystemsB_flat)))
     elseif isempty(subsystemsB)
         # Only A subsystem
-        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT1, lengthlisA, totalsubApbc), Ref(subsystemsA_flat)))
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(model1.anyon_type, lengthlisA, totalsubApbc), Ref(subsystemsA_flat)))
     else
         # Both subsystems present
-        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT1, AT2, lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc), Ref(combined_subsystems)))
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(model1.anyon_type, model2.anyon_type, lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc), Ref(combined_subsystems)))
     end
 
     order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
@@ -1180,6 +1182,6 @@ function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}
 
     return reduced_dm
 end
-disjoint_rdm(model1::AnyonModel{AT1}, model2::AnyonModel{AT2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}) where {ET, AT1<:AbstractAnyonType, AT2<:AbstractAnyonType} =
-disjoint_rdm(model1.anyon_type, model2.anyon_type, BitStr{model1.N, Int}, BitStr{model2.N, Int}, subsystemsA, subsystemsB, state,
-totalsubApbc=model1.pbc, totalsubBpbc=model2.pbc)
+disjoint_rdm(model1::AnyonModel, model2::AnyonModel, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; pbcA::Bool=false, pbcB::Bool=false) where {ET} =
+disjoint_rdm(model1, model2, BitStr{model1.N + model2.N, Int}, subsystemsA, subsystemsB, state, totalsubApbc=pbcA, totalsubBpbc=pbcB
+)

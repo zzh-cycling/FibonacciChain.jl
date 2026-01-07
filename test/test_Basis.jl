@@ -318,6 +318,12 @@ end
 
     rdm_result_empty2 = disjoint_rdm(model1, model2, subsystemsA, Int64[], state)
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
+
+    # One is empty, the other is total
+    rdm_result_empty_total1 = disjoint_rdm(model1, model2, Int64[], collect(1:N2), state, pbcB = model2.pbc) # add pbcB no difference here since pbc 2^N basis is no difference with obc
+    rdm_result_empty_total2 = disjoint_rdm(model1, model2, collect(1:N1), Int64[], state, pbcA = model1.pbc) # only difference for Fibonacci model
+    @test rdm_result_empty_total1[1,1] ≈ rdm_result_empty_total1[16,16] ≈ 0.5
+    @test rdm_result_empty_total2[1,1] ≈ rdm_result_empty_total2[7,7] ≈ 0.5
 end
 
 @testset "disjoint_rdm and ref qubit" begin
@@ -326,7 +332,7 @@ end
     t₂ = 10
     sample = BitMatrix(ones(Int, 2t₂, L))
     τ = log(1 + √2)
-    config = MeasurementConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
+    config = MeasureConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
     
     initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0
@@ -334,8 +340,9 @@ end
     statelis = mo.states
     
     ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
-    ref_congfig = MeasurementConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
-    stlis, samples, sample_free_energy = reference_evolution(model, statelis, ref_config, sample)
+    ref_config = MeasureConfig(τ = τ, t₂ = 8, t₁ = 5, x₁ = 1,  x₂ = 1, rng=MersenneTwister(1234), mode =:sample)
+    ref_mo = reference_evolution(model, statelis, ref_config, sample)
+    stlis, samples, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys
     st=stlis[end]
     ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L,2)), st)
     ρ2 = disjoint_rdm(ref_model, model, Int64[], collect(1:L), st)

@@ -383,8 +383,9 @@ end
     spatial_corr_lis = [spatial_correlation(model, st, 1, div(N,2)) for st in statelis]
     @test spatial_corr_lis ≈ log(2)*ones(div(D,2))
 
-    ref_config = MeasureConfig(τ=τ, rng = MersenneTwister(1234))
-    final_stlis, samples, sample_free_energy = reference_evolution(model, statelis, ref_config, sample)
+    ref_config = MeasureConfig(τ=τ, rng = MersenneTwister(1234), x₂ = div(N,2), mode=:sample, t₁ = 2, t₂ = 4)
+    ref_mo = reference_evolution(model, statelis, ref_config, sample)
+    final_stlis = ref_mo.states
     final_st = final_stlis[end]
     tc = temporal_correlation(model, final_st)
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]

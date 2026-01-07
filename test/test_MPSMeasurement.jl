@@ -153,11 +153,11 @@ end
     # Perform sampling
     st = zeros(length(anyon_basis(model))); st[1] = 1.0
     
-    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born)
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born, enable_τ_eff=false)
     measure_outcome_mps = boundary_evolution(model, sites, ψ, measure_config)
     sample_measured_states_mps, sample_mps, samples_free_energy_mps = measure_outcome_mps.state, measure_outcome_mps.sample, measure_outcome_mps.free_energy
 
-    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born) # NEED to reset rng to ensure same sampling
+    measure_config = MeasureConfig(τ = τ, t₂=1, rng = MersenneTwister(seed), mode = :Born, enable_τ_eff =false) # NEED to reset rng to ensure same sampling
     measure_outcome = boundary_evolution(model, st, measure_config)
     sample_measured_states, sample, samples_free_energy = measure_outcome.state, measure_outcome.sample, measure_outcome.free_energy
 
