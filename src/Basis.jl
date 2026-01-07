@@ -1100,7 +1100,9 @@ function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the two disjoint basis (two part in one chain), espeically, can be viewed as two parrelel chain. Given the system size, subsystem and basis type, to get the index of system parts in reduced basis, and then calculate the reduced density matrix.
     # pbc is the basis boundary condition, while totalsubpbc is used to indicate whether the total subsystem is periodic or not
+    @assert all(subsystemsA .<= N1) "subsystemsA is expected to be in [1, $N1], but got $(subsystemsA)"
     @assert all(subsystemsB .<= N2) "subsystemsB is expected to be in [1, $N2], but got $(subsystemsB)"
+    
     if isempty(subsystemsA) && isempty(subsystemsB)
         return ones(ET, 1, 1) # Return empty matrix if no subsystems
     elseif subsystemsA == collect(1:N1) && subsystemsB == collect(1:N2)
@@ -1112,36 +1114,42 @@ function disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}
     lenubasisA = length(unsorted_basisA)
     lenubasisB = length(unsorted_basisB)
     newT = BitStr{N1+N2, Int} # double the length of the basis
-    doublebasis = reshape([join(i,j) for i in unsorted_basisA for j in unsorted_basisB], lenubasisA*lenubasisB)
+    doublebasis = vec([join(i,j) for i in unsorted_basisA for j in unsorted_basisB])
     # Align as [A, B] basis
     @assert lenubasisA*lenubasisB == length(state) "state length is expected to be $(lenubasisA*lenubasisB), but got $(length(state))"
 
-    mask = bmask(newT, (N1 .-subsystemsA .+1).+N2..., (N2 .-subsystemsB .+1)...)
+    # Compute mask using original subsystems (before connected_components)
+    # In the combined [A, B] basis, A occupies bits N1+N2 down to N2+1, B occupies bits N2 down to 1
+    mask = bmask(newT, (N1 .- subsystemsA .+ 1) .+ N2..., (N2 .- subsystemsB .+ 1)...)
     
+    # Process subsystemsA for reduced basis construction
+    subsystemsA_cc = connected_components(subsystemsA)
+    lengthlisA = length.(subsystemsA_cc)
+    subsystemsA_flat = vcat(subsystemsA_cc...)
     
-    subsystems = vcat(subsystemsA, subsystemsB .+N1)
-    subsystems = connected_components(subsystems)
-    lengthlis = length.(subsystems)
-    subsystems = vcat(subsystems...)
+    # Process subsystemsB, shifted to combined basis indices
+    subsystemsB_shifted = subsystemsB .+ N1
+    subsystemsB_cc = connected_components(subsystemsB_shifted)
+    lengthlisB = length.(subsystemsB_cc)
+    subsystemsB_flat = vcat(subsystemsB_cc...)
     
-    subsystemsB = subsystemsB.+N1 # add the second half of the system to the subsystems
-    subsystemsA = connected_components(subsystemsA)
-    subsystemsB = connected_components(subsystemsB)
-    lengthlisA = length.(subsystemsA)
-    lengthlisB = length.(subsystemsB)
-    subsystemsA = vcat(subsystemsA...)
-    subsystemsB = vcat(subsystemsB...)
+    # Combined subsystems for move_subsystem
+    combined_subsystems = vcat(subsystemsA_flat, subsystemsB_flat)
 
+    # Construct reduced_basis
     if isempty(subsystemsA)
-        # If subsystemsA is empty, we only consider subsystemsB, thus parameter is all about B, totalsubBpbc, anyon_typeB
-        reduced_basis = move_subsystem.(newT, joint_basis(AT2, lengthlis, totalsubBpbc), Ref(subsystems))
+        # Only B subsystem, use lengthlis from B
+        lengthlisB_orig = length.(connected_components(subsystemsB))
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT2, lengthlisB_orig, totalsubBpbc), Ref(subsystemsB_flat)))
     elseif isempty(subsystemsB)
-        reduced_basis = move_subsystem.(newT, joint_basis(AT1, lengthlis, totalsubApbc), Ref(subsystems))
+        # Only A subsystem
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT1, lengthlisA, totalsubApbc), Ref(subsystemsA_flat)))
     else
-        reduced_basis = move_subsystem.(newT, joint_basis(AT1, AT2, lengthlisA, lengthlisB, subApbc = totalsubApbc, subBpbc = totalsubBpbc), Ref(vcat(subsystemsA, subsystemsB)))
+        # Both subsystems present
+        reduced_basis = sort(move_subsystem.(newT, joint_basis(AT1, AT2, lengthlisA, lengthlisB, subApbc=totalsubApbc, subBpbc=totalsubBpbc), Ref(combined_subsystems)))
     end
 
-    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter. Taking order starts from the left.
+    order = sortperm(doublebasis, by = x -> (takeenviron(x, mask), takesystem(x, mask))) #first sort by environment, then by system. The order of environment doesn't matter.
     basis, state = doublebasis[order], state[order]
     
     len = length(reduced_basis)

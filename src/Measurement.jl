@@ -55,7 +55,7 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
         cstτ = 0.5
         coef = sign ? -0.5 : 0.5
         
-        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
+        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0.0
     else
         if τ >= 1e2
             # true is 1, false is 0
@@ -74,11 +74,11 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
             elseif state & mask == str010
                 return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
             elseif state & mask == str001
-                return state, state, cstτ+coef, 0
+                return state, state, cstτ+coef, 0.0
             elseif state & mask == str100
-                return state, state, cstτ+coef, 0
+                return state, state, cstτ+coef, 0.0
             elseif state & mask == str101
-                return state, state, cstτ-coef, 0
+                return state, state, cstτ-coef, 0.0
             end
         end
 
@@ -91,11 +91,11 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
                 elseif state & mask == str010
                     return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
                 elseif state & mask == str001
-                    return state, state, cstτ+coef, 0
+                    return state, state, cstτ+coef, 0.0
                 elseif state & mask == str100
-                    return state, state, cstτ+coef, 0
+                    return state, state, cstτ+coef, 0.0
                 elseif state & mask == str101
-                    return state, state, cstτ-coef, 0
+                    return state, state, cstτ-coef, 0.0
                 end
             elseif i == N #count from the left
             mask=bmask(T, N, 2, 1)
@@ -105,11 +105,11 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
                 elseif state & mask == str010
                     return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
                 elseif state & mask == str001
-                    return state, state, cstτ+coef, 0
+                    return state, state, cstτ+coef, 0.0
                 elseif state & mask == str100
-                    return state, state, cstτ+coef, 0
+                    return state, state, cstτ+coef, 0.0
                 elseif state & mask == str101
-                    return state, state, cstτ-coef, 0
+                    return state, state, cstτ-coef, 0.0
                 end
             end
         end
@@ -146,17 +146,15 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
 
         if 1<= i <= N-1
             if ((state >> (N - i)) & 1) == ((state >> (N - i -1)) & 1)
-                return state, state, cstτ+coef, 0
+                return state, state, cstτ+coef, 0.0
             else
-                return state, state, cstτ-coef, 0
+                return state, state, cstτ-coef, 0.0
             end
-        end
-
-        if model.pbc && i == N
+        elseif model.pbc && i == N
             if (state & 1) == (state >> (N-1) & 1)
-                return state, state, cstτ+coef, 0
+                return state, state, cstτ+coef, 0.0
             else
-                return state, state, cstτ-coef, 0
+                return state, state, cstτ-coef, 0.0
             end
         end
     elseif measure_operator ∈ [:reset,:Z] 
@@ -168,7 +166,7 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
             coef = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
         end
         
-        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0
+        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0.0
     end
 end
 

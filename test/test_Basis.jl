@@ -323,18 +323,19 @@ end
 @testset "disjoint_rdm and ref qubit" begin
     L=6
     model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator = :X)
-    ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
     t₂ = 10
     sample = BitMatrix(ones(Int, 2t₂, L))
     τ = log(1 + √2)
     config = MeasurementConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
-
+    
     initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0
-    statelis, free_energy = generate_state_by_measurement(model, initial_state, sample, config)
-
-
-    stlis, samples, sample_free_energy = reference_evolution(model, ref_model, statelis, sample, 1, 5, 8, rng=MersenneTwister(1234))
+    mo = bulk_evolution(model, initial_state, config,sample)
+    statelis = mo.states
+    
+    ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
+    ref_congfig = MeasurementConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
+    stlis, samples, sample_free_energy = reference_evolution(model, statelis, ref_config, sample)
     st=stlis[end]
     ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L,2)), st)
     ρ2 = disjoint_rdm(ref_model, model, Int64[], collect(1:L), st)
