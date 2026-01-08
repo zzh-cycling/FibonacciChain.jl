@@ -140,7 +140,7 @@ end
     rng = MersenneTwister(index)
 
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t)
-    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
     statelis, Flis = pre_mo.states, pre_mo.free_energys
 
     t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
@@ -184,11 +184,11 @@ end
     rng = MersenneTwister(index)
 
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t)
-    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
     statelis, Flis = pre_mo.states, pre_mo.free_energys
 
     t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
-    ref_sample = BitMatrix(zeros(Int, 2*(t+δt+t1), length(2:2:L)))
+    ref_sample = BitMatrix(zeros(Int, 2*(t+t1), length(2:2:L)))
     view(ref_sample, 1:D, :) .= view(sample, :, :)
 
     spatial_corr_lis = zeros(L ÷ 2 - 1)

@@ -208,7 +208,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
 
     t = div(D, 2)   
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
-    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
     statelis, Flis = pre_mo.states, pre_mo.free_energys
     
     rng = MersenneTwister(index)
