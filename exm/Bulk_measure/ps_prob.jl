@@ -98,28 +98,6 @@ function process_data()
     end
 end
 
-function plot_ps_Lp(ind)
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
-    τlis = atanh.(γlis)
-    τlis[end] = 1000.0  # Last value is for γ=1
-    τlis[findfirst(γlis .== 0.707)] = log(1 + √2) 
-    Llis = collect(8:2:18)  
-    τ = τlis[ind]
-    file_path = "./exm/data/Bulk_measure/ps_probability/ps/centlis_L$(Llis[1])$(Llis[end])_τ$(τ).jld"
-    
-    problis = collect(0.1:0.1:0.9)
-    cent_Lplis, cent_stderrlis= load(file_path, "cent_Lplis",  "cent_stderrlis")
-    fig = plot(xlabel = L"p", ylabel = L"c_{\mathrm{ent}}", legend=:topright, xticks=vcat(0.0,problis, 1.0),
-    title = "Post-selection central charge at γ=$(round(γlis[ind], digits=3))", )
-
-    plot!(fig, problis, cent_Lplis', yerror = cent_stderrlis', label = Llis', marker=:circle, marker_z = Llis', lw=2, line_z = Llis', colorbar = false, c=:blues, legend_background_color=nothing,legend_foreground_color=nothing, legend_title = L"N")
-
-    scatter!(fig, [0.0, 1.0], [0.8, 0.7],
-         marker = :circle, color  = :blues, label=false)
-    return fig
-end
-
-
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
 τlis[end] = 1000.0  # Last value is for γ=1
