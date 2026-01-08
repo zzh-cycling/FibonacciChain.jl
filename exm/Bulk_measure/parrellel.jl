@@ -144,27 +144,24 @@ end
     statelis, Flis = pre_mo.states, pre_mo.free_energys
 
     t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
-    ref_sample = zeros(Int, 2*(t+δt+t1), length(2:2:L))
+    ref_sample = BitMatrix(zeros(Int, 2*(t+δt+t1), length(2:2:L)))
     view(ref_sample, 1:D, :) .= view(sample, :, :)
 
     if δt == 0
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1)
-        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
-        view(sample_free_energy, 1:D) .= view(Flis, :)
-        view(sample_layer, 1:D, :) .= view(sample, :, :)
     else
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
-        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
-        view(sample_free_energy, 1:D) .= view(Flis, :)
-        view(sample_layer, 1:D, :) .= view(sample, :, :)
     end
 
+    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+    ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+    view(sample_free_energy, 1:D) .= view(Flis, :)
+    view(sample_layer, 1:D, :) .= view(sample, :, :)
+    
     spatial_corr, temporal_corr = ref_correlation(model, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
@@ -174,6 +171,47 @@ end
          "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
     
     return temporal_corr, spatial_corr, S, sample_layer, sample_free_energy
+end
+
+@everywhere function spatial_corrlis(L::Int64, τ::Float64, index::Int64, D::Int64=16L)
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    t = div(D, 2) # D is true circuits depth, t is evolution time before adding ref qubits
+    sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
+
+    initial_state = zeros(length(anyon_basis(model)))
+    initial_state[1] = 1.0 # initial state is all zero state
+
+    rng = MersenneTwister(index)
+
+    pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    statelis, Flis = pre_mo.states, pre_mo.free_energys
+
+    t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
+    ref_sample = BitMatrix(zeros(Int, 2*(t+δt+t1), length(2:2:L)))
+    view(ref_sample, 1:D, :) .= view(sample, :, :)
+
+    spatial_corr_lis = zeros(L ÷ 2 - 1)
+    Slis = zeros(L ÷ 2 - 1)
+    for site in collect(1:L ÷ 2 - 1)
+        ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=1+site)
+        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+        spatial = true
+        temporal = false
+        ref_st = ref2stlis[end]
+        spatial_corr, _ = ref_correlation(model, ref_st, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(model, collect(1:div(L,2)), ref_st, traceref = false)
+        S = ee(sysrdm)
+        spatial_corr_lis[site] = spatial_corr
+        Slis[site] = S
+    end
+
+    
+    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", 
+        "spatial_corr_lis", spatial_corr_lis, "Slis", Slis)
+
+    return spatial_corr_lis, Slis
 end
 
 # wrapper function

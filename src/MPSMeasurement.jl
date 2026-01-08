@@ -339,7 +339,7 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
         ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], τ, sign; cutoff=cutoff, maxdim=maxdim)
         F_layer += -log(prob)
     end
-    return Measurement_outcome_mps_boundary(ψ, layer_sample, F_layer)
+    return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
 
 function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector{<:Index}, ψ::MPS,
@@ -375,7 +375,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector
             verbose && @show -log(p1)
         end
     end
-    return Measurement_outcome_mps_boundary(ψ, sample_layer, F_layer)
+    return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
 end
 
 """
@@ -808,7 +808,7 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
 
     # 1. Initialize sample matrix
     samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
-    sample_free_energy = zeros(D)
+    sample_free_energy = zeros(Float32, D)
     states = Vector{MPS}(undef, Δt)
 
     for period in 1:Δt
@@ -867,7 +867,7 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
     Δt >= 0 || error("t₂ must be >= t₁")
     D = Δt * 2 # number of layers to evolve
 
-    sample_free_energy = zeros(D)
+    sample_free_energy = zeros(Float32, D)
     states = Vector{MPS}(undef, Δt)
     
     # Validate sample matrix
@@ -896,13 +896,13 @@ end
 struct Measurement_outcome_mps_bulk
     states::Vector{MPS}
     samples::BitMatrix
-    free_energys::Vector{Float64}
+    free_energys::Vector{Float32}
 end
 
 struct Measurement_outcome_mps_boundary
     state::MPS
     sample::BitVector
-    free_energy::Float64
+    free_energy::Float32
 end
 
 """

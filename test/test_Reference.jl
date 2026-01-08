@@ -277,7 +277,7 @@ end
     boundary_evo = reference_boundary_evolution(model, add_st, config, sample)
     output1, free_energy = boundary_evo.state, boundary_evo.free_energy
     @test length(output1) == 2*length(anyon_basis(model))
-    @test free_energy ≈ 1.9248473002384139 atol = 1e-10
+    @test free_energy ≈ 1.9248473002384139 atol = 1e-7
 
     model_Ising = AnyonModel(IsingAnyon(), 4, pbc=true, measure_operator=:X)
     st = zeros(length(anyon_basis(model_Ising))); st[1] = 1
@@ -287,7 +287,7 @@ end
     boundary_evo_Ising = reference_boundary_evolution(model_Ising, add_st, config, sample)
     output1, free_energy = boundary_evo_Ising.state, boundary_evo_Ising.free_energy
     @test output1[1:16] == 1/4 .* ones(16) # |0++++⟩
-    @test free_energy ≈  2.7725887222397816 atol = 1e-10 # log(16) = 4log(2)
+    @test free_energy ≈  2.7725887222397816 atol = 1e-7 # log(16) = 4log(2)
 
     model_Ising = AnyonModel(IsingAnyon(), 2, pbc=true, measure_operator=:ZZ)
     st = zeros(length(anyon_basis(model_Ising))); st[1] = 1
@@ -656,14 +656,13 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::I
 
     if δt == 0
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, mode=:sample, x₂=L÷2+1) # It doesn't need config set here, it will be overwrite in reference_evolution  # seems need to
-        mo = reference_evolution(model, statelis, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
     else
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, mode=:sample, x₂=L÷2+1, x₁ = L÷2+1)
-        mo = reference_evolution(model, statelis, ref_config, ref_sample) 
     end
+    
+    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
 
-
-    return mo.states[end]
+    return ref_mo.states[end]
 end
 
 function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign::Bool=false)
@@ -681,15 +680,13 @@ function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign
     
     if δt == 0
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1)
-        mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     else
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
-        mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     end
-
-
+    
+    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+    ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+    
     return ref2stlis[end], sample_layer, sample_free_energy
 end
 

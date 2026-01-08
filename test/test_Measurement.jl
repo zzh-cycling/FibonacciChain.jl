@@ -417,7 +417,7 @@ end
     sample = BitVector(zeros(div(N,2)))
     measure_outcome = boundary_evolution(model, antiGS, measure_config, sample) # layer_idx default to 1
 
-    @test measure_outcome.free_energy /5 ≈ 1.1136495433981064 
+    @test measure_outcome.free_energy /5 ≈ 1.1136495433981064 atol = 1e-7
 end
 
 @testset "bulk_Born" begin

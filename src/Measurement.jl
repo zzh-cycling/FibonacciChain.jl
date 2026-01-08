@@ -515,13 +515,13 @@ end
 struct Measurement_outcome_bulk{ET}
     states::Vector{ET}
     samples::BitMatrix
-    free_energys::Vector{Float64}
+    free_energys::Vector{Float32}
 end
 
 struct Measurement_outcome_boundary{T}
     state::Vector{T}
     sample::BitVector
-    free_energy::Float64
+    free_energy::Float32
 end
 
 """
@@ -644,7 +644,7 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
         state = state ./ sqrt(prob)
     end
 
-    return Measurement_outcome_boundary(state, layer_sample, total_free_energy)
+    return Measurement_outcome_boundary(state, layer_sample, Float32(total_free_energy))
 end
 
 """
@@ -698,7 +698,7 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ_eff::Float64, state::Vect
             verbose && @show -log(p1)
         end
     end
-    return Measurement_outcome_boundary(state, sample, F_layer)
+    return Measurement_outcome_boundary(state, sample, Float32(F_layer))
 end
 
 """
@@ -770,21 +770,22 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
 
     n_measure = measurement_num(model.anyon_type)*(model.N÷2)
     Δt = measure_config.t₂ - measure_config.t₁ + 1
+    τ = measure_config.τ
+    enable_τ_eff = measure_config.enable_τ_eff
+    rng = measure_config.rng
+    verbose = measure_config.verbose
     Δt >= 0 || error("t₂ must be >= t₁")
     D = Δt * 2 # number of layers to evolve
 
     # 1. Initialize sample matrix
     samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
-    sample_free_energy = zeros(D)
+    sample_free_energy = zeros(Float32, D)
     states = Vector{Vector{ET}}(undef, Δt)
+
 
     for period in 1:Δt
     
         # Random sampling for this period
-        τ = measure_config.τ
-        enable_τ_eff = measure_config.enable_τ_eff
-        rng = measure_config.rng
-        verbose = measure_config.verbose
         τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
         
         outcome1 = _sample_layer(model, τ, current_state, layer_idx=2*period-1, rng=rng, verbose=verbose)
@@ -807,11 +808,13 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
 
         n_measure = measurement_num(model.anyon_type)*model.N÷2
         Δt = measure_config.t₂ - measure_config.t₁ + 1
+        τ = measure_config.τ
+        enable_τ_eff = measure_config.enable_τ_eff
         Δt >= 0 || error("t₂ must be >= t₁")
         D = Δt * 2 # number of layers to evolve
 
 
-        sample_free_energy = zeros(D)
+        sample_free_energy = zeros(Float32, D)
         states = Vector{Vector{ET}}(undef, Δt)
         
         # 2. Validate sample matrix
@@ -839,13 +842,12 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         #  |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |
         #  -------   -------   -------   -------   -------   -------   -------   ------
         #  γ₁   γ₂   γ₃   γ₄   γ₅   γ₆   γ₇   γ₈   γ₉  γ₁₀  γ₁₁  γ₁₂  γ₁₃  γ₁₄  γ₁₅  γ₁₆
-    
+  
+
         for period in 1:Δt
             # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
             # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer doesn't matter.
             # Or √ZZ X √ZZ √ZZ X √ZZ ⋯ X √ZZ X √ZZ→ X ZZ X ZZ ⋯ X √ZZ, also works
-            τ = measure_config.τ
-            enable_τ_eff = measure_config.enable_τ_eff
             τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
             outcome1 = _apply_measurement_layer(

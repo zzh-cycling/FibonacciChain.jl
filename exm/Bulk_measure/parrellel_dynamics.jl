@@ -91,6 +91,17 @@ println("total procs:       ", nprocs())
     return  δtlis
 end
 
+@everywhere function get_correlation_dynamics_D(τ, L)
+    cfg = Dict(
+        atanh(0.3)  => 25L,
+        atanh(0.4)  => 20L,
+        atanh(0.5)  => 15L,
+        atanh(0.6)  => 10L
+    )
+    t = get(cfg, τ, 0)
+    return t
+end
+
 @everywhere function get_system_params(τ, L)
     cfg = Dict(
         atanh(0.1)  => (2500L, 1000, 1500L),
@@ -134,7 +145,7 @@ end
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    t1 = (τ ∈ τlis[[3,4,5,6]]) ? t + 10L : t 
+    t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
     tlis = collect(1:t1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
@@ -145,7 +156,7 @@ end
     
     for (idx, Δt) in enumerate(tlis)
         println("calculation time t: $t")
-        ref_sample = zeros(Int, 2*(t + δt + Δt), length(2:2:L)) 
+        ref_sample = BitMatrix(zeros(Int, 2*(t + δt + Δt), length(2:2:L)))
         if δt == 0
             ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1)
             ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
