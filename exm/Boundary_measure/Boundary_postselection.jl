@@ -1,10 +1,8 @@
 using Arpack
 using FibonacciChain
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[end] = 1000.0 
-
+γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
+τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
 
 function myprint(io::IO, xs...)
     println(io, xs..., '\n')
