@@ -11,10 +11,9 @@ using FibonacciChain, LinearAlgebra, Plots
 
 # System parameters
 N = 8  # Chain length
-pbc = true  # Periodic boundary conditions
 
-# Generate basis and Hamiltonian
-model = AnyonModel(FibonacciChain(), N, pbc = pbc)
+# Create model and generate basis/Hamiltonian
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
 basis = anyon_basis(model)
 H = anyon_ham(model)
 
@@ -43,44 +42,34 @@ plot(1:N-1, ee_profile,
 This example demonstrates a quantum measurement protocol with post-selection.
 
 ```julia
-using FibonacciChain, Random
+using FibonacciChain, Random, LinearAlgebra
 
 N = 6
 τ = 1.0
-num_samples = 1000
 
-# Initialize random state  
+# Create model and get ground state as initial state
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+basis = anyon_basis(model)
+H = anyon_ham(model)
+eigenvals, eigenvecs = eigen(H)
+initial_state = eigenvecs[:, 1]
+
+# Configure measurement
 Random.seed!(42)
-initial_state = normalize!(rand(ComplexF64, length(anyon_basis(N))))
+measure_config = MeasureConfig(τ=τ, t₁=1, t₂=3, mode=:Born, rng=MersenneTwister(42))
 
-# Define measurement sites (even sites for Fibonacci anyons)
-measurement_sites = [2, 4, 6]
-
-# Perform boundary measurements
-println("Performing $num_samples measurement samples...")
-measured_states, sequences, free_energies = boundary_measure(
-    N, τ, initial_state, measurement_sites, num_samples
-)
+# Perform bulk evolution with Born-rule sampling
+println("Performing bulk evolution...")
+outcome = bulk_evolution(model, initial_state, measure_config)
 
 # Analyze results
-using Statistics
-mean_energy = mean(free_energies)
-std_energy = std(free_energies)
+println("Evolution layers: $(size(outcome.samples, 1))")
+println("Total free energy: $(sum(outcome.free_energys))")
 
-println("Average free energy: $(round(mean_energy, digits=4)) ± $(round(std_energy, digits=4))")
-
-# Post-select specific measurement outcome (all +1)
-target_sequence = [0, 0, 0]  # All +1 measurements
-selected_states = [state for (state, seq) in zip(measured_states, sequences) if seq == target_sequence]
-
-if !isempty(selected_states)
-    println("Found $(length(selected_states)) trajectories with target sequence")
-    avg_selected_state = mean(selected_states)
-    
-    # Calculate entanglement of post-selected state
-    ee_selected = anyon_eelis(N, avg_selected_state)
-    println("Post-selected EE at center: $(round(ee_selected[N÷2], digits=3))")
-end
+# Calculate entanglement of final state
+final_state = outcome.states[end]
+ee_final = anyon_eelis(model, final_state)
+println("Final state EE at center: $(round(ee_final[N÷2], digits=3))")
 ```
 
 ## Example 3: Braiding Operations and Topological Properties
@@ -88,13 +77,19 @@ end
 Explore the effects of braiding operations on anyon states.
 
 ```julia
-using FibonacciChain
+using FibonacciChain, LinearAlgebra
 
 N = 6
-initial_state = normalize!(ones(ComplexF64, length(anyon_basis(N))))
+
+# Create model and get ground state
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+basis = anyon_basis(model)
+H = anyon_ham(model)
+eigenvals, eigenvecs = eigen(H)
+initial_state = ComplexF64.(eigenvecs[:, 1])
 
 # Apply braiding operation at site 3
-braided_state = braidingsqmap(N, initial_state, 3)
+braided_state = braidingsqmap(model, initial_state, 3)
 
 # Calculate overlap between original and braided states
 overlap = abs(dot(initial_state, braided_state))
@@ -105,7 +100,7 @@ state = copy(initial_state)
 overlaps = Float64[]
 
 for i in 1:10
-    state = braidingsqmap(N, state, 3)
+    state = braidingsqmap(model, state, 3)
     push!(overlaps, abs(dot(initial_state, state))^2)
 end
 
@@ -122,37 +117,42 @@ plot(1:10, overlaps,
 Simulate a larger system using Matrix Product State methods.
 
 ```julia
-using FibonacciChain, ITensors
+using FibonacciChain, ITensors, ITensorMPS
 
-N = 40
+N = 20
 maxdim = 100
 cutoff = 1e-10
 
 println("Finding ground state for N=$N system...")
 
+# Create model
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+
 # Find MPS ground state
-ψ_gs, E0 = anyon_mps_gst(N, 
-                        pbc=true,
-                        sweep_times=20,
-                        maxdim=maxdim, 
-                        cutoff=cutoff)
+ψ_gs, E0 = anyon_mps_gst(model; 
+                         sweep_times=20,
+                         maxdim=maxdim, 
+                         cutoff=cutoff)
 
 println("Ground state energy density: $(E0/N)")
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis(N, ψ_gs)
-
-# Analyze scaling behavior
-L_values = 1:N÷2
-ee_values = ee_profile[L_values]
+ee_profile = anyon_eelis(model, ψ_gs)
 
 # Fit to logarithmic scaling (CFT prediction)
 using LsqFit
-@. log_model(x, p) = p[1] * log(x) + p[2]
-fit_result = curve_fit(log_model, Float64.(L_values), ee_values, [1.0, 0.0])
-c_eff = 6 * fit_result.param[1]  # Effective central charge
+logChord(l, L) = @. log(sin(π * l /L))/6
+    
+L = length(ee_profile) + 1
 
-println("Effective central charge: $(round(c_eff, digits=3))")
+mincut = 2
+lm(x,p) = @. p[1] * x + p[2]
+xdata = logChord([1:L-1;],L); #log.(sin.(π .* [1:L-1;] ./L))./6
+fit = curve_fit(lm, xdata[mincut:L-mincut], ee_profile[mincut:L-mincut], [0.5, 0.0])
+fitparam = fit.param
+cent = fitparam[1]
+
+println("Effective central charge: $(round(cent, digits=3))")
 
 # Plot with fit
 plot(L_values, ee_values, label="MPS Data", marker=:circle)
@@ -169,65 +169,89 @@ title!("Entanglement Scaling for N=$N")
 Demonstrate the reference qubit method for measuring correlations.
 
 ```julia
-using FibonacciChain
+using FibonacciChain, LinearAlgebra, Random
 
 N = 8
-site = 4  # Site to probe
+site1 = 1  # First site for reference qubit
+site2 = N ÷ 2  # Second site for reference qubit
 
-# Initialize ground state
-H = anyon_ham(N, true)
+# Create model and get ground state
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+H = anyon_ham(model)
 eigenvals, eigenvecs = eigen(H)
 ground_state = eigenvecs[:, 1]
 
-# Add reference qubit at site 4
-println("Adding reference qubit at site $site...")
-model = AnyonModel(FibonacciAnyon(), N; pbc=true)
-state_with_ref = add_reference_qubits(model, ground_state, site)
+# Add first reference qubit at site1
+println("Adding reference qubit at site $site1...")
+state_with_ref1 = add_reference_qubits(model, ground_state, site1)
 
-# Perform measurement protocol to create temporal correlation
+# Add second reference qubit at site2
+println("Adding reference qubit at site $site2...")
+state_with_ref2 = add_reference_qubits(model, state_with_ref1, site2)
+
+# Configure measurement protocol
 τ = 0.5
-sample_sequence = rand([0, 1], 5, N÷2)  # 5 time steps, N/2 measurement sites per step
+Random.seed!(42)
+measure_config = MeasureConfig(τ=τ, t₁=1, t₂=4, x₁=site1, x₂=site2, mode=:Born, rng=MersenneTwister(42))
 
-# Generate forward evolution
-forward_states = reference_generate_state(N, τ, state_with_ref, sample_sequence, temp=true)
+# Perform bulk evolution without reference tracking first
+outcome = bulk_evolution(model, ground_state, measure_config)
+println("Bulk evolution completed with $(size(outcome.samples, 1)) layers")
 
-# Generate how temporal correlation between time slices 1 and 4
-outcome = reference_evolution(model, forward_states,
-    MeasureConfig(τ=τ, t₁=1, t₂=4, x₁=site, x₂=site, mode=:sample),
-    sample_sequence)
+# Perform reference evolution for correlation measurement
+ref_outcome = reference_evolution(model, outcome.states, measure_config, outcome.samples)
+println("Reference evolution layers: $(size(ref_outcome.samples, 1))")
 
-println("Temporal evolution layers: $(size(outcome.samples, 1))")
+# Calculate temporal correlation
+corr_temporal = temporal_correlation(model, ref_outcome.states[end])
+println("Temporal correlation: $(round(corr_temporal, digits=4))")
 
-# Compare with spatial correlation in ground state
-spatial_corr = spatial_correlation(N, ground_state, 1, 5)
-println("Spatial correlation (sites 1-5): $(round(spatial_corr, digits=4))")
+# Calculate spatial correlation in ground state for comparison
+spatial_corr = spatial_correlation(model, ground_state, site1, site2)
+println("Spatial correlation (sites $site1-$site2): $(round(spatial_corr, digits=4))")
 ```
 
-## Example 6: Phase Transition Study
+# Calculate spatial correlation in ground state for comparison
+```julia
+spatial_corr = spatial_correlation(model, ground_state, site1, site2)
+println("Spatial correlation (sites $site1-$site2): $(round(spatial_corr, digits=4))")
+```
 
-Investigate phase transitions by varying Hamiltonian parameters.
+## Example 6: Ising Anyon Chain
+
+Study an Ising anyon chain with transverse field.
 
 ```julia
-using FibonacciChain
+using FibonacciChain, LinearAlgebra
 
 N = 10
-h_values = 0.0:0.1:2.0  # Magnetic field strength
+
+# Create Ising model
+model = AnyonModel(IsingAnyon(), N; pbc=true)
+basis = anyon_basis(model)
+println("Ising chain Hilbert space dimension: $(length(basis))")
+
+# Build Hamiltonian with different field strengths
+h_values = 0.0:0.2:2.0
 gap_values = Float64[]
 
 for h in h_values
-    # Construct Hamiltonian with external field
-    H = anyon_ham(N, true, h_field=h)  # Assuming h_field parameter exists
-    
+    H = anyon_ham(model; J=1.0, h=h)
     eigenvals = eigvals(H)
     gap = eigenvals[2] - eigenvals[1]  # Energy gap
     push!(gap_values, gap)
 end
 
+# Find critical point (minimum gap)
+min_gap, min_idx = findmin(gap_values)
+h_critical = h_values[min_idx]
+println("Minimum gap at h ≈ $(round(h_critical, digits=2))")
+
 # Plot phase diagram
 plot(h_values, gap_values,
-     xlabel="Field Strength h", 
+     xlabel="Transverse Field h", 
      ylabel="Energy Gap Δ",
-     title="Phase Diagram for N=$N",
+     title="Phase Diagram for N=$N Ising Chain",
      marker=:circle)
 ```
 

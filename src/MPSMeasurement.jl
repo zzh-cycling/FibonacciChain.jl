@@ -74,13 +74,13 @@ function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e
 end
 
 """
-    anyon_ham(model::AnyonModel, sites; kwargs...)
+    anyon_ham(model::AnyonModel, sites::Vector{<:Index}; kwargs...)
 
 Construct anyon chain Hamiltonian as Matrix Product Operator (MPO).
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
-- `sites`: ITensor site indices
+- `sites::Vector{<:Index}`: ITensor site indices
 - `kwargs...`: Additional parameters (e.g., `J`, `h` for Ising model)
 
 # Returns
@@ -93,33 +93,65 @@ function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) whe
     os = OpSum()
     pbc = model.pbc
     
+    measure_operator = model.measure_operator # Default measurement operator for Fibonacci anyons
     # Golden ratio
     ϕ = (1 + √5) / 2
-    coef = 1/2
-    # Three-body interactions for Fibonacci chain
-    for i in 2:(N-1)
-        # Add three-body terms based on Fibonacci fusion rules
-        os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
-        os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
-        os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
-    end
-    
-    # Periodic boundary conditions
-    if pbc && N > 2
-        # H1 term
-        os += coef, "Proj0", N, "Z", 1, "Proj1", 2
-        os += coef, "Proj1", N, "Z", 1, "Proj0", 2
-        os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
-        # HN term (wrap around)
-        os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
-        os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
-        os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
-        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
-        os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+
+    if measure_operator == :Antiferro # Default measurement 
+        coef = 1/2
+        # Three-body interactions for Fibonacci chain
+        for i in 2:(N-1)
+            # Add three-body terms based on Fibonacci fusion rules
+            os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+            os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+            os += -coef, "Proj1", i-1, "Z", i, "Proj1", i+1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
+        end
+        
+        # Periodic boundary conditions
+        if pbc && N > 2
+            # H1 term
+            os += coef, "Proj0", N, "Z", 1, "Proj1", 2
+            os += coef, "Proj1", N, "Z", 1, "Proj0", 2
+            os += -coef, "Proj1", N, "Z", 1, "Proj1", 2
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N, "Z", 1, "Proj0", 2
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
+            # HN term (wrap around)
+            os += coef, "Proj0", N-1, "Z", N, "Proj1", 1
+            os += coef, "Proj1", N-1, "Z", N, "Proj0", 1
+            os += -coef, "Proj1", N-1, "Z", N, "Proj1", 1
+            os += coef * (1 - 2 * ϕ^(-1)), "Proj0", N-1, "Z", N, "Proj0", 1
+            os += coef * (-2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+        end
+    elseif measure_operator == :Ferro # Easily found that Ferro GS basically is the most excited state of Antiferro, so H_{Ferro}= -H\_{Antiferro}
+        coef = 1/2
+        # Three-body interactions for Fibonacci chain (Ferro version)
+        # Ferro differs from Antiferro in sign conventions
+        for i in 2:(N-1)
+            # Add three-body terms based on Fibonacci fusion rules (Ferro)
+            os += -coef, "Proj0", i-1, "Z", i, "Proj1", i+1
+            os += -coef, "Proj1", i-1, "Z", i, "Proj0", i+1
+            os += coef, "Proj1", i-1, "Z", i, "Proj1", i+1  # +coef instead of -coef
+            os += coef * (2 * ϕ^(-1) - 1), "Proj0", i-1, "Z", i, "Proj0", i+1  # different coefficient
+            os += coef * (2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1  # positive instead of negative
+        end
+        
+        # Periodic boundary conditions
+        if pbc && N > 2
+            # H1 term
+            os += -coef, "Proj0", N, "Z", 1, "Proj1", 2
+            os += -coef, "Proj1", N, "Z", 1, "Proj0", 2
+            os += coef, "Proj1", N, "Z", 1, "Proj1", 2
+            os += coef * (2 * ϕ^(-1) - 1), "Proj0", N, "Z", 1, "Proj0", 2
+            os += coef * (2 * ϕ^(-3/2)), "Proj0", N, "X", 1, "Proj0", 2
+            # HN term (wrap around)
+            os += -coef, "Proj0", N-1, "Z", N, "Proj1", 1
+            os += -coef, "Proj1", N-1, "Z", N, "Proj0", 1
+            os += coef, "Proj1", N-1, "Z", N, "Proj1", 1
+            os += coef * (2 * ϕ^(-1) - 1), "Proj0", N-1, "Z", N, "Proj0", 1
+            os += coef * (2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
+        end
     end
     
     return MPO(os, sites)
@@ -147,13 +179,13 @@ function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) whe
 end
 
 """
-    measurement_operator_mps(model::AnyonModel, sites, i::Int, τ::Float64, sign::Bool)
+    measurement_operator_mps(model::AnyonModel, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool)
 
 Create local measurement operator at site i as ITensor.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
-- `sites`: ITensor site indices
+- `sites::Vector{<:Index}`: ITensor site indices
 - `i::Int`: Measurement site
 - `τ::Float64`: Measurement strength parameter
 - `sign::Bool`: Measurement outcome (false for +, true for -)
@@ -161,7 +193,7 @@ Create local measurement operator at site i as ITensor.
 # Returns
 - `ITensor`: Local measurement operator incorporating neighboring site correlations
 """
-function measurement_operator_mps(model::AnyonModel{AT}, sites, i::Int, τ::Float64, sign::Bool;) where AT <: FibonacciAnyon
+function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;) where AT <: FibonacciAnyon
     @assert model.measure_operator ∈ [:Ferro, :Antiferro] "measure_operator must be :Ferro or :Antiferro"
     N = length(sites)
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
@@ -203,16 +235,24 @@ function measurement_operator_mps(model::AnyonModel{AT}, sites, i::Int, τ::Floa
     X_i = op("X", s_i)
 
     # Local measurement terms based on neighboring configurations
-    M_local += coef * (P0_im1 * Z_i * P1_ip1)
-    M_local += coef * (P1_im1 * Z_i * P0_ip1)
-    M_local += -coef * (P1_im1 * Z_i * P1_ip1)
-    M_local += coef * (1 - 2 * ϕ^(-1)) * (P0_im1 * Z_i * P0_ip1)
-    M_local += coef * (-2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)
+    if model.measure_operator == :Antiferro
+        M_local += coef * (P0_im1 * Z_i * P1_ip1)
+        M_local += coef * (P1_im1 * Z_i * P0_ip1)
+        M_local += -coef * (P1_im1 * Z_i * P1_ip1)
+        M_local += coef * (1 - 2 * ϕ^(-1)) * (P0_im1 * Z_i * P0_ip1)
+        M_local += coef * (-2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)
+    elseif model.measure_operator == :Ferro
+        M_local += -coef * (P0_im1 * Z_i * P1_ip1)
+        M_local += -coef * (P1_im1 * Z_i * P0_ip1)
+        M_local += coef * (P1_im1 * Z_i * P1_ip1)  # +coef instead of -coef
+        M_local += coef * (2 * ϕ^(-1) - 1) * (P0_im1 * Z_i * P0_ip1)  # different coefficient
+        M_local += coef * (2 * ϕ^(-3/2)) * (P0_im1 * X_i * P0_ip1)  # positive instead of negative
+    end
 
     return M_local
 end
 
-function measurement_operator_mps(model::AnyonModel{AT}, sites, i::Int, τ::Float64, sign::Bool;) where AT <: IsingAnyon
+function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;) where AT <: IsingAnyon
     @assert model.measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
     pbc = model.pbc
     N = length(sites)
@@ -261,7 +301,7 @@ end
 
 """
     measuremap(model::AnyonModel, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool)
-    measuremap(model::AnyonModel, ψ::MPS, sites, i::Int, τ::Float64, sign::Bool; 
+    measuremap(model::AnyonModel, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; 
                cutoff::Float64=1e-10, maxdim::Int=100)
 
 Apply measurement operator to quantum state and return post-measurement state.
@@ -298,7 +338,7 @@ Apply measurement to an MPS state.
 - `MPS`: Post-measurement quantum state (normalized)
 - `Float64`: Measurement probability
 """
-function measuremap(model::AnyonModel{AT}, ψ::MPS, sites, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
     # Create measurement operator
     M = measurement_operator_mps(model, sites, i, τ, sign)
 
@@ -382,7 +422,7 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
     return Measurement_outcome_mps_boundary(ψ, layer_sample, F_layer)
 end
 
-function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites, ψ::MPS,
+function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector{<:Index}, ψ::MPS,
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64=1;
     cutoff::Float64=1e-10, maxdim::Int=100,
@@ -419,7 +459,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites, ψ::MP
 end
 
 """
-    mps_measurement_enumeration(model::AnyonModel, ψ::MPS, sites, measurement_sites::Vector{Int}, 
+    mps_measurement_enumeration(model::AnyonModel, ψ::MPS, sites::Vector{<:Index}, measurement_sites::Vector{Int}, 
                                 τ::Float64; cutoff::Float64=1e-10, maxdim::Int=100)
 
 Enumerate all possible measurement trajectories on MPS state.
@@ -438,7 +478,7 @@ Enumerate all possible measurement trajectories on MPS state.
 - `Vector{Vector{Bool}}`: Measurement trajectories
 - `Vector{Float64}`: Probabilities for each trajectory
 """
-function mps_measurement_enumeration(model::AnyonModel{AT}, ψ::MPS, sites, measurement_sites::Vector{Int}, τ::Float64; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function mps_measurement_enumeration(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, measurement_sites::Vector{Int}, τ::Float64; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
     # Initialize with single initial state
     current_level_trajectories = [Bool[]]
     current_level_probabilities = [1.0]
@@ -484,89 +524,293 @@ function mps_measurement_enumeration(model::AnyonModel{AT}, ψ::MPS, sites, meas
 end
 
 """
-    add_reference_qubits!(model::AnyonModel, ψ::MPS, sites, site_idx::Int=1;
-                          k_new::Int=1, verbose::Bool=false, entangle_way::Symbol=:copy)
+    add_reference_qubits(model::AnyonModel, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1;
+                         k_new::Int=1, verbose::Bool=false) -> Tuple{MPS, Vector{<:Index}}
 
-Add reference qubit(s) to MPS at specified site index.
+Add reference qubits to an MPS state at specified site using copy method for correlation measurements.
+
+# Principle
+
+Reference qubits are ancillary qubits used to probe spatial and temporal correlations in 
+monitored quantum systems. The key idea is to create a maximally entangled state between 
+the reference qubit and a system qubit at a specific site, enabling measurement of 
+correlations through the reference qubit's reduced density matrix.
+
+## Copy Method
+
+Creates a controlled-copy (CNOT-like) entanglement:
+- If the system qubit at `site_idx` is in state |0⟩, the reference qubit becomes |0⟩
+- If the system qubit at `site_idx` is in state |1⟩, the reference qubit becomes |1⟩
+
+Mathematically, for a state |ψ⟩ = α|0⟩ + β|1⟩ at `site_idx`:
+```
+    |ψ⟩ → α|00⟩ + β|11⟩  (reference ⊗ system)
+```
+
+This preserves the original state's structure while creating classical correlation.
+
+For reset method (measure system qubit first, then create Bell pair), use 
+[`add_reference_qubits_reset`](@ref) instead.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
-- `ψ::MPS`: Input quantum state
+- `ψ::MPS`: Input MPS quantum state
 - `sites`: ITensor site indices
-- `site_idx::Int=1`: Site index to entangle with reference qubit
-- `k_new::Int=1`: Number of reference qubits to add (0 or 1)
-- `verbose::Bool=false`: Verbosity flag
-- `entangle_way::Symbol=:copy`: Method to entangle reference qubit (`:copy` or `:reset`)
+- `site_idx::Int=1`: Site index to entangle with reference qubit (1 ≤ site_idx ≤ N)
+- `k_new::Int=1`: Number of reference qubits to add (must be 0 or 1)
+- `verbose::Bool=false`: Enable verbose output for debugging
 
 # Returns
-For `:copy` mode:
-- `MPS`: New MPS with reference qubit added
-- `Int`: Index of added reference qubit
+- `MPS`: New MPS with reference qubit added at the leftmost position
+- `Vector{Index}`: Updated site indices including the new reference qubit
 
-For `:reset` mode:
-- `MPS`: New MPS with reference qubit added
-- `Int`: Index of added reference qubit  
-- `Float64`: Measurement probability
+# Notes
+- Each system qubit can only be entangled with one reference qubit
+- To add multiple reference qubits at different sites, call this function multiple times
+- The reference qubit is inserted at position 1 (leftmost) of the MPS
+- Original MPS is not modified (returns a new copy)
+
+# Example
+```julia
+model = AnyonModel(FibonacciAnyon(), 6)
+ψ, sites = anyon_mps_gst(model)
+ψ_ref, sites_ref = add_reference_qubits(model, ψ, sites, 3)  # Add ref qubit at site 3
+```
+
+See also: [`add_reference_qubits_reset`](@ref), [`anyon_mps_gst`](@ref)
 """
-function add_reference_qubits!(model::AnyonModel{AT}, ψ::MPS, sites, site_idx::Int=1;
-                               k_new::Int=1, 
-                               verbose::Bool=false,
-                               entangle_way::Symbol=:copy) where AT <: AbstractAnyonType
-    1 ≤ site_idx ≤ length(ψ) || error("site_idx out of range")
+function add_reference_qubits(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1; k_new::Int=1, verbose::Bool=false) where AT <: AbstractAnyonType
+    1 ≤ site_idx ≤ length(ψ) || error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
+    0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
+    
+    k_new == 0 && return copy(ψ), copy(sites)  # No-op if k_new == 0
 
-    N = length(sites)         
-    d = dim(sites[site_idx])          # local physical dimension
-
-    to_add_block = copy(ψ[site_idx])
-    to_add_block = replaceind!(to_add_block, siteind(ψ, site_idx), Index(d, "Qubit, Site, n=$(N+1)"))
-
-    ψ_new = typeof(ψ)(undef, length(ψ)+1)
-    ψ_new[1] = to_add_block
-    ψ_new[2:end] = ψ[1:end]
-
-    # ---------- 2. 根据 entangle_way 做 Bell 对 ----------
-    if entangle_way == :copy
-        # 把原 site_idx 的态拷贝到参考比特，然后做 |0⟩+|1⟩  Bell 对
-        # 步骤：先逐位做 CNOT（Ref→site_idx），再把 Ref 转到 |+⟩
-        for n in 1:(site_idx)            # 把参考比特“搬”到 target 旁边
-            n < site_idx+1 && move_site!(ψ_new, n, n+1)   # 右移 1 格
+    N = length(sites)
+    
+    # Create new reference qubit site index
+    ref_site = Index(2, "Qubit,Site,n=ref")
+    new_sites = vcat([ref_site], sites)
+    
+    # Build new MPS with reference qubit at position 1
+    ψ_new = MPS(N + 1)
+    
+    # Create reference qubit tensor initialized to |+⟩ = (|0⟩ + |1⟩)/√2
+    # with a link index connecting to the rest of MPS
+    link_idx = Index(1, "Link,l=0")
+    ref_tensor = ITensor(ref_site, link_idx)
+    ref_tensor[ref_site => 1, link_idx => 1] = 1.0  # Start with |0⟩
+    ψ_new[1] = ref_tensor
+    
+    # Copy rest of MPS, adjusting first tensor to have the link
+    first_tensor = ψ[1]
+    first_inds = inds(first_tensor)
+    new_first_tensor = first_tensor * ITensor([1.0], link_idx)
+    ψ_new[2] = new_first_tensor
+    
+    for i in 2:N
+        ψ_new[i+1] = ψ[i]
+    end
+    
+    # Move reference qubit next to target site for applying copy gate
+    target_pos = site_idx + 1  # +1 because we added reference at position 1
+    
+    # Swap reference qubit (at pos 1) towards target position
+    for i in 1:(target_pos - 2)
+        # Swap sites i and i+1
+        orthogonalize!(ψ_new, i)
+        s_i = new_sites[i]
+        s_ip1 = new_sites[i+1]
+        
+        SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
+        for a in 1:dim(s_i), b in 1:dim(s_ip1)
+            SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
         end
-        r = 1                            # 参考比特现在与 site_idx 相邻
-        t = r + 1                        # target 物理比特
-
-        # |+⟩_Ref
-        apply!(ψ_new, r, op("H", sRef))
-        # CNOT_{Ref,target}
-        apply!(ψ_new, [r, t], op("CNOT", sRef, s[t]))
-
-    elseif entangle_way == :reset
-        # 先对原比特做 Z 测量，再根据结果把参考比特设为 |0⟩ 或 |1⟩
-        # 这里用 ITensors 的“测量+坍缩”接口
-        result = sample!(ψ_new, site_idx+1, "Z")  # +1 因为插了 Ref
-        verbose && @info "measurement result = $result"
-
-        # 把参考比特设成 |result⟩
-        apply!(ψ_new, 1, op(result==1 ? "X" : "I", sRef))
-
-        # 再做 H 和 CNOT 形成 Bell 对
-        apply!(ψ_new, 1, op("H", sRef))
-        apply!(ψ_new, [1, 2], op("CNOT", sRef, s[2]))
-
-        # 返回测量概率（简化：假设本征值 ±1 各占 50%，可再精确算）
-        prob = 0.5
-        verbose && @show prob
-        return ψ_new, 1, prob   # 多返回一个概率
-    else
-        error("unknown entangle_way = $entangle_way")
+        ψ_new = apply(SWAP, ψ_new; cutoff=1e-15)
+        new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
-
-    # ---------- 3. 可选：把参考比特移回最左端 ----------
-    for n in site_idx:-1:2
-        move_site!(ψ_new, n, n-1)
+    
+    # Now reference is adjacent to target (at position target_pos - 1)
+    ref_pos = target_pos - 1
+    s_ref = new_sites[ref_pos]
+    s_tgt = new_sites[target_pos]
+    
+    # Create copy gate: target controls reference
+    # |t=0,r=0⟩ → |t=0,r=0⟩
+    # |t=1,r=0⟩ → |t=1,r=1⟩  (copy 1 to reference)
+    # |t=0,r=1⟩ → |t=0,r=1⟩
+    # |t=1,r=1⟩ → |t=1,r=0⟩  (XOR)
+    CopyGate = ITensor(s_tgt, s_tgt', s_ref, s_ref')
+    CopyGate[s_tgt=>1, s_tgt'=>1, s_ref=>1, s_ref'=>1] = 1.0  # |0,0⟩ → |0,0⟩
+    CopyGate[s_tgt=>2, s_tgt'=>2, s_ref=>1, s_ref'=>2] = 1.0  # |1,0⟩ → |1,1⟩
+    CopyGate[s_tgt=>1, s_tgt'=>1, s_ref=>2, s_ref'=>2] = 1.0  # |0,1⟩ → |0,1⟩
+    CopyGate[s_tgt=>2, s_tgt'=>2, s_ref=>2, s_ref'=>1] = 1.0  # |1,1⟩ → |1,0⟩
+    
+    orthogonalize!(ψ_new, ref_pos)
+    ψ_new = apply(CopyGate, ψ_new; cutoff=1e-15)
+    
+    # Swap reference back to position 1
+    for i in (ref_pos - 1):-1:1
+        orthogonalize!(ψ_new, i+1)
+        s_i = new_sites[i]
+        s_ip1 = new_sites[i+1]
+        
+        SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
+        for a in 1:dim(s_i), b in 1:dim(s_ip1)
+            SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
+        end
+        ψ_new = apply(SWAP, ψ_new; cutoff=1e-15)
+        new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
-
+    
+    verbose && @info "Added reference qubit at position 1, entangled with site $site_idx"
     verbose && @show maxlinkdim(ψ_new)
-    return ψ_new, 1
+    
+    return ψ_new, new_sites
+end
+
+"""
+    add_reference_qubits_reset(model::AnyonModel, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1;
+                               k_new::Int=1, verbose::Bool=false) -> Tuple{Float64, Float64, MPS, MPS, Vector{Index}}
+
+Add reference qubits using reset method: first measures/resets the system qubit, then creates a Bell pair.
+
+# Principle
+
+1. Project the system qubit onto |0⟩ or |1⟩ basis (strong measurement)
+2. Create a Bell pair between the reset qubit and reference qubit
+3. Returns both branches with their probabilities
+
+This method is useful when you want to prepare a known initial state before 
+adding the reference qubit.
+
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `ψ::MPS`: Input MPS quantum state
+- `sites`: ITensor site indices
+- `site_idx::Int=1`: Site index for reference qubit insertion (1 ≤ site_idx ≤ N)
+- `k_new::Int=1`: Number of new reference qubits to add (must be 0 or 1)
+- `verbose::Bool=false`: Enable verbose output for debugging
+
+# Returns
+- `Float64`: Probability of measuring |0⟩ at site_idx
+- `Float64`: Probability of measuring |1⟩ at site_idx
+- `MPS`: State after measuring |0⟩ and adding Bell pair
+- `MPS`: State after measuring |1⟩ and adding Bell pair
+- `Vector{Index}`: Updated site indices including the new reference qubit
+
+# Notes
+- Unlike `add_reference_qubits`, this method returns both measurement branches
+- The probabilities satisfy prob₀ + prob₁ = 1
+- Each returned MPS is normalized
+
+# Example
+```julia
+model = AnyonModel(FibonacciAnyon(), 6)
+ψ, sites = anyon_mps_gst(model)
+prob0, prob1, ψ0, ψ1, sites_ref = add_reference_qubits_reset(model, ψ, sites, 3)
+# Use ψ0 with probability prob0, or ψ1 with probability prob1
+```
+
+See also: [`add_reference_qubits`](@ref), [`anyon_mps_gst`](@ref)
+"""
+function add_reference_qubits_reset(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1; k_new::Int=1, verbose::Bool=false) where AT <: AbstractAnyonType
+    1 ≤ site_idx ≤ length(ψ) || error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
+    0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
+    
+    if k_new == 0
+        # No reference qubit to add, just return identity
+        return 1.0, 0.0, copy(ψ), copy(ψ), copy(sites)
+    end
+
+    N = length(sites)
+    
+    # Step 1: Measure the system qubit at site_idx in Z basis
+    # Calculate probabilities for |0⟩ and |1⟩ outcomes
+    ψ_orth = orthogonalize(ψ, site_idx)
+    site_tensor = ψ_orth[site_idx]
+    s = sites[site_idx]
+    
+    # Project onto |0⟩
+    proj0 = ITensor(s)
+    proj0[s => 1] = 1.0
+    
+    # Project onto |1⟩  
+    proj1 = ITensor(s)
+    proj1[s => 2] = 1.0
+    
+    # Calculate probabilities using tensor contraction
+    ψ0_proj = copy(ψ_orth)
+    ψ1_proj = copy(ψ_orth)
+    
+    # Apply projectors
+    ψ0_proj[site_idx] = noprime(site_tensor * proj0 * dag(prime(proj0, s)))
+    ψ1_proj[site_idx] = noprime(site_tensor * proj1 * dag(prime(proj1, s)))
+    
+    prob0 = real(inner(ψ0_proj, ψ0_proj))
+    prob1 = real(inner(ψ1_proj, ψ1_proj))
+    
+    # Normalize probabilities (should sum to 1)
+    total_prob = prob0 + prob1
+    prob0 /= total_prob
+    prob1 /= total_prob
+    
+    verbose && @info "Measurement probabilities: P(0) = $prob0, P(1) = $prob1"
+    
+    # Normalize the projected states
+    normalize!(ψ0_proj)
+    normalize!(ψ1_proj)
+    
+    # Step 2: Add reference qubit and create Bell pair for each branch
+    # Create reference site
+    ref_site = Index(2, "Qubit,Site,n=ref")
+    new_sites = vcat([ref_site], sites)
+    
+    # Helper function to add ref and create Bell pair
+    function create_bell_pair_state(ψ_collapsed::MPS, measured_val::Int)
+        ψ_bell = MPS(N + 1)
+        
+        # Create Bell pair: (|00⟩ + |11⟩)/√2 for measured 0
+        #                   (|01⟩ + |10⟩)/√2 for measured 1
+        link_idx = Index(2, "Link,l=0")
+        
+        ref_tensor = ITensor(ref_site, link_idx)
+        if measured_val == 0
+            # |Φ+⟩ = (|0⟩|0⟩ + |1⟩|1⟩)/√2
+            ref_tensor[ref_site => 1, link_idx => 1] = 1/sqrt(2)  # |0⟩ paired with sys |0⟩
+            ref_tensor[ref_site => 2, link_idx => 2] = 1/sqrt(2)  # |1⟩ paired with sys |1⟩
+        else
+            # |Ψ+⟩ = (|0⟩|1⟩ + |1⟩|0⟩)/√2
+            ref_tensor[ref_site => 1, link_idx => 2] = 1/sqrt(2)  # |0⟩ paired with sys |1⟩
+            ref_tensor[ref_site => 2, link_idx => 1] = 1/sqrt(2)  # |1⟩ paired with sys |0⟩
+        end
+        ψ_bell[1] = ref_tensor
+        
+        # Connect to rest of MPS
+        first_tensor = ψ_collapsed[1]
+        # Add link index to first tensor
+        entangle_tensor = ITensor(link_idx, sites[1], sites[1]')
+        # link=1 -> |0⟩, link=2 -> |1⟩
+        entangle_tensor[link_idx => 1, sites[1] => 1, sites[1]' => 1] = 1.0
+        entangle_tensor[link_idx => 2, sites[1] => 2, sites[1]' => 2] = 1.0
+        
+        new_first = noprime(first_tensor * entangle_tensor)
+        ψ_bell[2] = new_first
+        
+        for i in 2:N
+            ψ_bell[i+1] = ψ_collapsed[i]
+        end
+        
+        normalize!(ψ_bell)
+        return ψ_bell
+    end
+    
+    ψ0_bell = create_bell_pair_state(ψ0_proj, 0)
+    ψ1_bell = create_bell_pair_state(ψ1_proj, 1)
+    
+    verbose && @info "Created Bell pairs for both measurement branches"
+    verbose && @show maxlinkdim(ψ0_bell), maxlinkdim(ψ1_bell)
+    
+    return prob0, prob1, ψ0_bell, ψ1_bell, new_sites
 end
 
 """
@@ -580,7 +824,7 @@ function move_site!(ψ::MPS, i::Int, j::Int)
     cur = i
     while cur != j
         nxt = cur + step
-        # 做 SWAP 门
+        # SWAP gate
         apply!(ψ, [min(cur,nxt), max(cur,nxt)], op("SWAP", site_type(ψ,cur), site_type(ψ,nxt)))
         cur = nxt
     end
@@ -717,7 +961,7 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
 end
 
 """
-    _sample_measure_mps(model, sites, current_state, samples, measure_config; ...)
+    _sample_measure_mps(model, sites::Vector{<:Index}, current_state, samples, measure_config; ...)
 
 Evolve an MPS state using a predefined measurement trajectory.
 
@@ -725,7 +969,7 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:sam
 
 # Arguments
 - `model::AnyonModel`: The anyon model.
-- `sites`: ITensor site indices.
+- `sites::Vector{<:Index}`: ITensor site indices.
 - `current_state::MPS`: The initial MPS state.
 - `samples::BitMatrix`: The predefined measurement outcomes.
 - `measure_config::MeasureConfig`: Configuration containing `τ`, `t₁`, `t₂`, etc.
@@ -842,14 +1086,17 @@ Compute correlation using MPS states.
 - `BitMatrix`: The measurement samples used for the evolution.
 - `Vector{Float64}`: The free energy calculated for each layer.
 """
-function reference_evolution(model::AnyonModel{AT}, sites, forward::Vector{MPS}, sample::Matrix{Bool}, 
-    x₂::Int, t₁, t₂, measure_config::MeasureConfig; x₁::Int=1, verbose::Bool=false) where AT <: AbstractAnyonType
+function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forward::Vector{MPS}, measure_config::MeasureConfig, sample::BitMatrix) where AT <: AbstractAnyonType
     
     N = model.N
     τ = measure_config.τ
+    t₁ = measure_config.t₁
+    t₂ = measure_config.t₂
+    x₁ = measure_config.x₁
+    x₂ = measure_config.x₂
     rng = measure_config.rng
+    verbose = measure_config.verbose
     mode = measure_config.mode
-    
     n_measure = measurement_num(model.anyon_type)*(N÷2)
     Δt = size(sample, 1) ÷ 2
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
