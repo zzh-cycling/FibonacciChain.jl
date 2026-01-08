@@ -1,6 +1,6 @@
 name = "FibonacciChain"
 uuid = "1d4145e4-32a1-4f27-ab5f-4bf470d9d7e4"
-version = "1.0.5"
+version = "1.1.0"
 authors = ["Zhaohui Zhi"]
 
 [deps]
