@@ -126,10 +126,10 @@ else
     end
     
     # statistics on results
-    success = filter(r -> r[2] == :success, results)
+    succeeded = filter(r -> r[2] == :success, results)
     failed = filter(r -> r[2] == :failed, results)
     println("\n=== Statistics ===")
-    println("Success: $(length(success)) / $(length(seeds))")
+    println("Success: $(length(succeeded)) / $(length(seeds))")
     println("Failed: $(length(failed)) / $(length(seeds))")
     
     if !isempty(failed)
