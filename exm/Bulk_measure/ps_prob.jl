@@ -29,7 +29,9 @@ println("total procs:       ", nprocs())
         return D, collect(1:step:D), start:D-5
     end
 
-    function ps_prob_evolution(L::Int64, τ::Float64, D::Int; seed::Int=100)
+    function ps_prob_evolution(params)
+        L, τ, seed = params
+        D, _, _ = get_system_params(τ, L)
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
         problis = collect(0.1:0.1:0.9)
         ee_plis = Vector{Vector{Float64}}(undef, length(problis))
@@ -106,22 +108,28 @@ seed_interval_lis = collect(1:100:2000)
 
 if length(ARGS) == 0
     println("No arguments provided.")
+    println("Usage: julia -p N ps_prob.jl L_start L_end τ_idx seed_start seed_end")
 else
-    L = parse(Int64, ARGS[1])
-    inds = parse(Int64, ARGS[2])
-    seed_start = parse(Int64, ARGS[3])
-    seed_end = parse(Int64, ARGS[4])
-    τ = τlis[inds]
-    D, _, _ = get_system_params(τ, L)
-    seeds = collect(seed_start:seed_end)
-    println("Running L=$L, τ=$τ, seeds=$seed_start:$seed_end on $(nprocs()) workers")
+    L_start = parse(Int64, ARGS[1])
+    L_end = parse(Int64, ARGS[2])
+    inds = parse(Int64, ARGS[3])
+    seed_start = parse(Int64, ARGS[4])
+    seed_end = parse(Int64, ARGS[5])
     
-    results = @time pmap(seeds) do seed
+    τ = τlis[inds]
+    Llis = collect(L_start:2:L_end)
+    seeds = collect(seed_start:seed_end)
+    
+    # 生成所有 (L, τ, seed) 组合
+    tasks = [(L, τ, seed) for L in Llis for seed in seeds]
+    println("Running $(length(tasks)) tasks: L=$Llis, τ=$τ, seeds=$seed_start:$seed_end on $(nprocs()) workers")
+    
+    results = @time pmap(tasks) do params
         try
-            ps_prob_evolution(L, τ, D; seed=seed)
-            return (seed, :success, nothing)
+            ps_prob_evolution(params)
+            return (params, :success, nothing)
         catch e
-            return (seed, :failed, e)
+            return (params, :failed, e)
         end
     end
     
@@ -129,15 +137,12 @@ else
     succeeded = filter(r -> r[2] == :success, results)
     failed = filter(r -> r[2] == :failed, results)
     println("\n=== Statistics ===")
-    println("Success: $(length(succeeded)) / $(length(seeds))")
-    println("Failed: $(length(failed)) / $(length(seeds))")
+    println("Success: $(length(succeeded)) / $(length(tasks))")
+    println("Failed: $(length(failed)) / $(length(tasks))")
     
     if !isempty(failed)
-        failed_seeds = [r[1] for r in failed]
-        println("Failed seeds: $failed_seeds")
-        # save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/failed_seeds.jld", 
-        #      "failed_seeds", failed_seeds, "errors", [string(r[3]) for r in failed])
-        # println("Failed information saved to failed_seeds.jld")
+        failed_params = [r[1] for r in failed]
+        println("Failed params: $failed_params")
     end
 end
 
