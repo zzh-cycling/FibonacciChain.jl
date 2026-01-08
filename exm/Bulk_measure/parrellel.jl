@@ -209,7 +209,7 @@ end
     end
 
     
-    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", 
+    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
         "spatial_corr_lis", spatial_corr_lis, "Slis", Slis)
 
     return spatial_corr_lis, Slis
