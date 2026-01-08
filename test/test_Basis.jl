@@ -22,27 +22,27 @@ end
 
 @testset "actingHamobc" begin
     ϕ = (1+√5)/2
+    T = BitStr{3}
     model = AnyonModel(FibonacciAnyon(), 3, pbc=false)
-    output1 = FibonacciChain.actingHam(model, bit"000") 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-1), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(model, bit"010") 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(model, bit"001") 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== BitStr{3}.([bit"001"])
-    @test [weights...] ≈ [0.0]
-    output4 = FibonacciChain.actingHam(model, bit"100") 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== BitStr{3}.([bit"100"])
-    @test [weights...] ≈ [0.0]
+    output1 = FibonacciChain.actingHam(model, bit"000")
+    expected1 = Dict(T(bit"000") => -ϕ^(-1), T(bit"010") => -ϕ^(-3/2))
+    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
+
+    output2 = FibonacciChain.actingHam(model, bit"010")
+    expected2 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-2))
+    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
+
+    output3 = FibonacciChain.actingHam(model, bit"001")
+    expected3 = Dict(T(bit"001") => 0.0)
+    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
+
+    output4 = FibonacciChain.actingHam(model, bit"100")
+    expected4 = Dict(T(bit"100") => 0.0)
+    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
+
     output = FibonacciChain.actingHam(model, bit"101")
-    states, weights = keys(output), values(output)
-    @test [states...]== BitStr{3}.([bit"101"])
-    @test [weights...] ≈ [-1.0]
+    expected = Dict(T(bit"101") => -1.0)
+    @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "Fsymmetry_coef" begin
@@ -83,27 +83,36 @@ end
 
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
+    T = BitStr{3}
     model = AnyonModel(FibonacciAnyon(), 3, pbc=true)
-    output1 = FibonacciChain.actingHam(model, bit"000") 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== BitStr{3}.([bit"000",bit"100", bit"010", bit"001"])
-    @test [weights...] ≈ [-3ϕ^(-1), -ϕ^(-3/2), -ϕ^(-3/2), -ϕ^(-3/2)]
-    output2 = FibonacciChain.actingHam(model, bit"010") 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== BitStr{3}.([bit"000", bit"010"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output3 = FibonacciChain.actingHam(model, bit"001") 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== BitStr{3}.([bit"000", bit"001"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
-    output4 = FibonacciChain.actingHam(model, bit"100") 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== BitStr{3}.([bit"000",bit"100"])
-    @test [weights...] ≈ [-ϕ^(-3/2), -ϕ^(-2)]
+    output1 = FibonacciChain.actingHam(model, bit"000")
+    expected1 = Dict(T(bit"000") => -3ϕ^(-1), T(bit"100") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-3/2), T(bit"001") => -ϕ^(-3/2))
+    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
+
+    output2 = FibonacciChain.actingHam(model, bit"010")
+    expected2 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-2))
+    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
+
+    output3 = FibonacciChain.actingHam(model, bit"001")
+    expected3 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"001") => -ϕ^(-2))
+    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
+
+    output4 = FibonacciChain.actingHam(model, bit"100")
+    expected4 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"100") => -ϕ^(-2))
+    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
+
+    T10 = BitStr{10}
     output = FibonacciChain.actingHam(AnyonModel(FibonacciAnyon(), 10), bit"1000010000")
-    states, weights = keys(output), values(output)
-    @test [states...] == BitStr{10}.([bit"1000010000", bit"0000010000",bit"1010010000", bit"1000010010", bit"1000010100", bit"1000000000", bit"1001010000"])
-    @test [weights...] ≈ vcat([-(4ϕ^(-1)+2ϕ^(-2))],fill(-ϕ^(-3/2),6))
+    expected = Dict(
+        T10(bit"1000010000") => -(4ϕ^(-1)+2ϕ^(-2)),
+        T10(bit"0000010000") => -ϕ^(-3/2),
+        T10(bit"1010010000") => -ϕ^(-3/2),
+        T10(bit"1000010010") => -ϕ^(-3/2),
+        T10(bit"1000010100") => -ϕ^(-3/2),
+        T10(bit"1000000000") => -ϕ^(-3/2),
+        T10(bit"1001010000") => -ϕ^(-3/2)
+    )
+    @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "basis.jl" begin

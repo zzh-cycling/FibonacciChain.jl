@@ -45,6 +45,7 @@ end
     
     idx=2
     # Test measurement operator creation
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     M_p = measurement_operator_mps(model, sites, idx, τ, false)
     M_m = measurement_operator_mps(model, sites, idx, τ, true)
 

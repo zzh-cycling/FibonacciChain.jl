@@ -41,60 +41,57 @@ end
     N = 3
     model = AnyonModel(IsingAnyon(), N, pbc=false)
     T = BitStr{N, Int}
-    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0) 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== T.([bit"000", bit"100", bit"010", bit"001"])
-    @test [weights...] ≈ [-4.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(model, bit"010") 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
-    @test [weights...] ≈ [-1.0, -1.0, 2.0, -1.0]
+    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0)
+    expected1 = Dict(T(bit"000") => -4.0, T(bit"100") => -1.0, T(bit"010") => -1.0, T(bit"001") => -1.0)
+    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
 
-    output3 = FibonacciChain.actingHam(model, bit"001") 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
-    @test [weights...] ≈ [-1.0, -1.0, -1.0, 0.0]
+    output2 = FibonacciChain.actingHam(model, bit"010")
+    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 2.0, T(bit"011") => -1.0)
+    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
 
-    output4 = FibonacciChain.actingHam(model, bit"100") 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== T.([bit"000", bit"100", bit"110", bit"101"])
-    @test [weights...] ≈ [-1.0, 0.0, -1.0, -1.0]
+    output3 = FibonacciChain.actingHam(model, bit"001")
+    expected3 = Dict(T(bit"101") => -1.0, T(bit"000") => -1.0, T(bit"011") => -1.0, T(bit"001") => 0.0)
+    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
+
+    output4 = FibonacciChain.actingHam(model, bit"100")
+    expected4 = Dict(T(bit"000") => -1.0, T(bit"100") => 0.0, T(bit"110") => -1.0, T(bit"101") => -1.0)
+    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
 
     output = FibonacciChain.actingHam(model, bit"101")
-    states, weights = keys(output), values(output)
-    @test [states...]== T.([bit"101", bit"100", bit"111", bit"001"])
-    @test [weights...] ≈ [2.0, -1.0, -1.0, -1.0]
+    expected = Dict(T(bit"101") => 2.0, T(bit"100") => -1.0, T(bit"111") => -1.0, T(bit"001") => -1.0)
+    @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "actingHampbc" begin
     N = 3
     T = BitStr{N, Int}
     model = AnyonModel(IsingAnyon(), N, pbc=true)
-    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0) 
-    states, weights = keys(output1), values(output1)
-    @test [states...]== T.([bit"000",bit"100", bit"010", bit"001"])
-    @test [weights...] ≈ [-6.0, -1.0, -1.0, -1.0]
 
-    output2 = FibonacciChain.actingHam(model, bit"010") 
-    states, weights = keys(output2), values(output2)
-    @test [states...]== T.([bit"000", bit"110", bit"010", bit"011"])
-    @test [weights...] ≈ [-1.0, -1.0, 1.0, -1.0]
+    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0)
+    expected1 = Dict(T(bit"000") => -6.0, T(bit"100") => -1.0, T(bit"010") => -1.0, T(bit"001") => -1.0)
+    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
 
-    output3 = FibonacciChain.actingHam(model, bit"001") 
-    states, weights = keys(output3), values(output3)
-    @test [states...]== T.([bit"101", bit"000", bit"011", bit"001"])
-    @test [weights...] ≈ [-1.0, -1.0, -1.0, 1.0]
+    output2 = FibonacciChain.actingHam(model, bit"010")
+    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 1.0, T(bit"011") => -1.0)
+    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
 
-    output4 = FibonacciChain.actingHam(model, bit"100") 
-    states, weights = keys(output4), values(output4)
-    @test [states...]== T.([bit"000",bit"100", bit"110", bit"101"])
-    @test [weights...] ≈ [-1.0, 1.0, -1.0, -1.0]
+    output3 = FibonacciChain.actingHam(model, bit"001")
+    expected3 = Dict(T(bit"101") => -1.0, T(bit"000") => -1.0, T(bit"011") => -1.0, T(bit"001") => 1.0)
+    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
 
+    output4 = FibonacciChain.actingHam(model, bit"100")
+    expected4 = Dict(T(bit"000") => -1.0, T(bit"100") => 1.0, T(bit"110") => -1.0, T(bit"101") => -1.0)
+    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
+
+    T10 = BitStr{10}
     output = FibonacciChain.actingHam(AnyonModel(IsingAnyon(), 10, pbc=true), bit"1000010000")
-    states, weights = keys(output), values(output)
-    @test [states...] == BitStr{10}.([16, 560, 656, 532, 529, 784, 512, 536, 528, 530, 592])
-    @test [weights...] ≈ vcat(-ones(8),[-2.0, -1.0, -1.0])
+    expected = Dict(
+        T10(16) => -1.0, T10(560) => -1.0, T10(656) => -1.0, T10(532) => -1.0,
+        T10(529) => -1.0, T10(784) => -1.0, T10(512) => -1.0, T10(536) => -1.0,
+        T10(528) => -2.0, T10(530) => -1.0, T10(592) => -1.0
+    )
+    @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "basis.jl" begin
