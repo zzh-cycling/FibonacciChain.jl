@@ -39,7 +39,7 @@ println("total procs:       ", nprocs())
 
         for (idx, prob) in enumerate(problis)
             rng = MersenneTwister(seed)
-            sample = reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2))
+            sample = BitMatrix(reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2)))
             config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
             mo = bulk_evolution(model, initial_state, config, sample)
             ee_plis[idx] = anyon_eelis(model, mo.states[end])
