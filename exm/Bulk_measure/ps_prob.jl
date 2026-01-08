@@ -135,9 +135,32 @@ else
     seed_end = parse(Int64, ARGS[4])
     τ = τlis[inds]
     D, _, _ = get_system_params(τ, L)
+    seeds = collect(seed_start:seed_end)
     println("Running L=$L, τ=$τ, seeds=$seed_start:$seed_end on $(nprocs()) workers")
-    @time pmap(seed -> ps_prob_evolution(L, τ, D; seed=seed), seed_start:seed_end)
-
+    
+    results = @time pmap(seeds) do seed
+        try
+            ps_prob_evolution(L, τ, D; seed=seed)
+            return (seed, :success, nothing)
+        catch e
+            return (seed, :failed, e)
+        end
+    end
+    
+    # statistics on results
+    success = filter(r -> r[2] == :success, results)
+    failed = filter(r -> r[2] == :failed, results)
+    println("\n=== Statistics ===")
+    println("Success: $(length(success)) / $(length(seeds))")
+    println("Failed: $(length(failed)) / $(length(seeds))")
+    
+    if !isempty(failed)
+        failed_seeds = [r[1] for r in failed]
+        println("Failed seeds: $failed_seeds")
+        # save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/failed_seeds.jld", 
+        #      "failed_seeds", failed_seeds, "errors", [string(r[3]) for r in failed])
+        # println("Failed information saved to failed_seeds.jld")
+    end
 end
 
 
