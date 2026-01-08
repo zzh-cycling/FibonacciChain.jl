@@ -29,4 +29,5 @@ makedocs(;
 deploydocs(;
     repo="github.com/zzh-cycling/FibonacciChain.jl",
     devbranch="main",
+    forcepush=true,
 )
