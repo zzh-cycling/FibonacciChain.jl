@@ -79,7 +79,7 @@ end
 
 @testset "Single Measurement Application" begin
     N = 4
-    moedl = AnyonModel(FibonacciAnyon(), N; pbc=true)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
     τ = 1.0
     
     sites = siteinds("Qubit", N)
