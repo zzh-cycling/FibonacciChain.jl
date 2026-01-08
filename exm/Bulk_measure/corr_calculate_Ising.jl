@@ -13,17 +13,19 @@ function compute_total(L::Int64, τ::Float64, index::Int64, D::Int64=35L)
 end
 
 function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=20L, start_point::Int64=5L)
-    pbc = true
-    anyon_type = :IsingX
+    model = AnyonModel(IsingAnyon(), L; pbc=true, measure_operator=:X)
     sample = load("exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
 
-    initial_state = zeros(length(anyon_basis(BitStr{L, Int}, pbc, anyon_type=anyon_type)))
+    initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis = generate_state(τ, initial_state, sample, temp= true)
+    t= div(D, 2) # evolution time before adding ref qubits
+    config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
+    mo = bulk_evolution(model, initial_state, config, sample)
+    statelis = mo.states
 
-    final_st= statelis[end-3L]
-    spatial_corr = spatial_correlation(L, final_st, 1, div(L,2), pbc)
+    final_st= statelis[end]
+    spatial_corr = spatial_correlation(model, final_st, 1, div(L,2)+1)
     
     timeslice1 = L*start_point
     temporal_corr_lis = [temporal_correlation(τ, initial_state, sample, div(L,2), timeslice1, j) for j in timeslice1+L:D-3L]

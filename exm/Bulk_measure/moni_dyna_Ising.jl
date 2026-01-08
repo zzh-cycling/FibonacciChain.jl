@@ -12,15 +12,18 @@ end
 
 function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=20L)
     rng = MersenneTwister(seed)
-    
-    st = zeros(length(anyon_basis(L, anyon_type=:IsingX)))
+
+    model = AnyonModel(IsingAnyon(), L; pbc=true, anyon_type=:X)
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     
-    @time sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, rng, true, anyon_type=:IsingX) 
+    config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
+    mo = bulk_evolution(model, st, config)
+    @time sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
 
-    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j, anyon_type = :IsingX)) for j in sample_measured_states]
+    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state, anyon_type = :IsingX)
+    final_EElis = anyon_eelis(model, final_state)
 
     
     save("./exm/data/Bulk_measure/Ising/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
@@ -33,11 +36,19 @@ function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::In
     rng = MersenneTwister(seed)
     
     sample, sample_free_energy, seed= load("exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", "sample_free_energy","seed")
-    st = generate_state(τ, st, sample, true, temp= true)
-    sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st[end-1],additional_layers, rng)
-    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j, anyon_type = :IsingX)) for j in sample_measured_states]
+    model = AnyonModel(IsingAnyon(), L; pbc=true, anyon_type=:X)
+
+    st = zeros(length(anyon_basis(model))); st[1] = 1.0
+    pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
+    pre_mo = bulk_evolution(model, st, pre_config, sample)
+    final_st = pre_mo.states[end]
+
+    re_config = MeasureConfig(τ=τ, mode=:Born, t₂=div(additional_layers,2), rng=rng)
+    after_mo = bulk_evolution(model, final_st, re_config)
+    sample_measured_states, sample, sample_free_energy = after_mo.states, after_mo.samples, after_mo.free_energys
+    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state, anyon_type = :IsingX)
+    final_EElis = anyon_eelis(model, final_state)
 
     
     save("./exm/data/Bulk_measure/Ising/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D+additional_layers,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
@@ -89,7 +100,8 @@ function Observable_collect(L::Int64, τ::Float64, D::Int64=20L)
 end
 
 function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5)
-    st=zeros(length(anyon_basis(L, anyon_type=:IsingX)))
+    model = AnyonModel(IsingAnyon(), L; pbc=true, anyon_type=:X)
+    st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
     bulk_meanEElis=zeros(L-1)
     
@@ -104,10 +116,13 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5
     seed_lis = zeros(Int64, samples_num)
     for i in 1:samples_num
         @show i
-        sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D, MersenneTwister(i), anyon_type=:IsingX) 
-        ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(L, collect(1:div(L,2)), j, anyon_type = :IsingX)) for j in sample_measured_states]
+        config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=MersenneTwister(i))
+        @time mo = bulk_evolution(model, st, config)
+        sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
+        #
+        ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
         final_state = sample_measured_states[end]
-        final_EElis[i, :] = anyon_eelis(L, final_state, anyon_type = :IsingX)
+        final_EElis[i, :] = anyon_eelis(model, final_state)
 
         all_FE_tlis[i, :] = sample_free_energy
         final_FElis[i] = sample_free_energy[end]

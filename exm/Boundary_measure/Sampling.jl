@@ -4,6 +4,10 @@ using JLD
 using Arpack
 # include("../FitEntEntScal.jl")
 
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0 
+
 # N= 22
 
 function myprint(io::IO, xs...)
@@ -12,14 +16,13 @@ function myprint(io::IO, xs...)
 end
 
 function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
-    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     mean_EE_tau_lis=Vector{Vector{Float64}}(undef, length(τlis))
     stderr_EE_tau_lis = Vector{Vector{Float64}}(undef, length(τlis))
     mean_FE_tau_lis = Vector{Float64}(undef, length(τlis))
     stderr_FE_tau_lis = Vector{Float64}(undef, length(τlis))
 
-    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+    @time energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
 
     for (idx, τ) in enumerate(τlis)
@@ -31,11 +34,15 @@ function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
         all_FE_values = zeros(num_samples)
         
         @time for i in 1:num_samples
-            sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites, 1)
+            config = MeasureConfig(τ=τ, mode=:Born)
+            outcome = boundary_evolution(model, antiGS, config)
+            sample_measured_states = [outcome.state]
+            samples = outcome.sample
+            sample_weights = [exp(-outcome.free_energy)]
             save("./exm/data/Born_Samples_N$(N)_τ$(τ)_sample$(i).jld", "sample_measured_states", sample_measured_states, "samples", samples, "sample_weights", sample_weights)
             
             # Store EE values for this sample
-            all_EE_values[i, :] = anyon_eelis(N, sample_measured_states[1])
+            all_EE_values[i, :] = anyon_eelis(model, sample_measured_states[1])
             
             # Store FE value for this sample
             all_FE_values[i] = -log(sample_weights[1])

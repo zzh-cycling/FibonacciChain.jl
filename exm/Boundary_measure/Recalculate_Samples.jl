@@ -4,22 +4,34 @@ using JLD
 using Arpack
 using Statistics
 
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0 
+
+
 function myprint(io::IO, xs...)
     println(io, xs..., '\n')
     flush(io)
 end
 
 function Born_Sampling_EE_FE_tau_lis(N, num_samples::Int=1000)
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
-    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
-
-    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+    @time energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
     antiGS= states[:, 1]
     
-    for (idx, τ) in enumerate(τlis[end])
+    for (idx, τ) in enumerate(τlis)
         myprint(stdout, "N = $N, τ = $τ")
-        sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites, num_samples)
+        config = MeasureConfig(τ=τ, mode=:Born)
+        sample_measured_states = Vector{Vector{Float64}}(undef, num_samples)
+        samples = Vector{BitVector}(undef, num_samples)
+        sample_weights = Vector{Float64}(undef, num_samples)
+        for i in 1:num_samples
+            outcome = boundary_evolution(model, antiGS, config)
+            sample_measured_states[i] = outcome.state
+            samples[i] = outcome.sample
+            sample_weights[i] = exp(-outcome.free_energy)
+        end
         save("./exm/data/Born_Samples_N$(N)_τ$(τ).jld", "sample_measured_states", sample_measured_states, "samples", samples, "sample_weights", sample_weights)
         
 
@@ -93,11 +105,12 @@ function Born_eelis(N::Int64, τ::Float64, pbc::Bool=true)
     total_probabilitieslis[1:end-1] = probabilitieslis
     total_trajectorieslis[1:end-1] = trajectorieslis
 
-    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
+    energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     measurement_sites = collect(2:2:N)
     initial_state= states[:, 1]
     @time final_states, trajectories, probabilities = measurement_enumeration(
-        N, τ, initial_state, measurement_sites, pbc)
+        model, τ, initial_state, measurement_sites)
     
     num_final_states = length(final_states)
     myprint(stdout, "N is $(N), Total number of final states: $(num_final_states)")
@@ -109,7 +122,7 @@ function Born_eelis(N::Int64, τ::Float64, pbc::Bool=true)
     
     entropies = Vector{Vector{Float64}}(undef, num_final_states)
     for i in 1:num_final_states
-        entropies[i] = eelis_Fibo_state(N, final_states[i], pbc)
+        entropies[i] = anyon_eelis(model, final_states[i])
     end
     
 

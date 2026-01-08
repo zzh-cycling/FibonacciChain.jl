@@ -32,7 +32,8 @@ function plot_compare(τ::Float64)
     τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
     inds = findall(x -> x == τ, τlis)
     for (i, N) in enumerate(L_list)
-        energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+        model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+        energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
         antiGS = states[:,1]
         measurement_sites = collect(2:2:N)
         @show (τ, i, N)
@@ -90,10 +91,20 @@ end
 
 function plot_sample(N::Int64, τ::Float64)
     # sample_measured_states, samples, sample_weights = load("./exm/data/Born_Samples_N$(N)/Born_Samples_N$(N)_τ$(τ).jld", "sample_measured_states", "samples", "sample_weights")
-    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+    energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
-    sample_measured_states, samples, sample_weights = boundary_measure(N, τ, antiGS, measurement_sites)
+    config = MeasureConfig(τ=τ, mode=:Born)
+    # Note: boundary_measure is now boundary_evolution, need to run multiple times for sampling
+    num_samples = 1000
+    sample_weights = Float64[]
+    samples = []
+    for _ in 1:num_samples
+        outcome = boundary_evolution(model, antiGS, config)
+        push!(sample_weights, exp(-outcome.free_energy))
+        push!(samples, outcome.sample)
+    end
     num_samples=1000
     random_variable = -log.(sample_weights)
     Sc=mean(random_variable)
@@ -107,10 +118,11 @@ function plot_sample(N::Int64, τ::Float64)
 end
 
 function plot_enum(N::Int64, τ::Float64)
-    energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+    energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
-    final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites)
+    final_states, trajectories, probabilities = measurement_enumeration(model, τ, antiGS, measurement_sites)
     Sc= sum(-log.(probabilities).*probabilities)
     binary_digits = map.(symbol -> symbol == :p ? 0 : 1, trajectories)
     decimal_value = [sum(d * 2^(length(j) - i) for (i, d) in enumerate(j)) for j in binary_digits]

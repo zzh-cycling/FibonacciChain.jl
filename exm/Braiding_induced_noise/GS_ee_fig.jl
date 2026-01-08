@@ -5,8 +5,9 @@ using Arpack
 # include("../FitEntEntScal.jl")
 
 function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::Int64=1, pbc::Bool=true) where {ET}
+    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
     splitlis=Vector(1:N-1)
-    EElis=anyon_eelis(N, splitlis, state, pbc)
+    EElis=anyon_eelis(model, state)
 
     if fit=="CC" 
         cent, fig=fitCCEntEntScal(EElis; mincut=mincut, pbc)
@@ -23,9 +24,10 @@ function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::In
 end
 
 N=34
-energy, states =  eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+energy, states =  eigs(anyon_ham_sparse(model), nev=1, which=:SR)
 antiGS= states[:, 1]
-EElis=anyon_eelis(N, antiGS)
+EElis=anyon_eelis(model, antiGS)
 save("./exm/Fibo_antiGS_N$(N)_EElis.jld", "antiGS", antiGS, "EElis", EElis)
 # cent, fig = fitCCEntEntScal(EElis; mincut=4,pbc=true)
 # savefig(fig, "./exm/Fibo_ee_scaling_N$(N).pdf")

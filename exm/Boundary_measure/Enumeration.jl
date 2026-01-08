@@ -4,11 +4,14 @@ using JLD
 using Arpack
 include("../FitEntEntScal.jl")
 
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0 
 
 function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true) where {ET}
-
+    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
     final_states, trajectories, probabilities = measurement_enumeration(
-        N, τ, initial_state, measurement_sites, pbc)
+        model, τ, initial_state, measurement_sites)
     
     num_final_states = length(final_states)
     println("Total number of final states: $(num_final_states)")
@@ -20,7 +23,7 @@ function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measuremen
     
     entropies = Vector{Vector{Float64}}(undef, num_final_states)
     for i in 1:num_final_states
-        entropies[i] = anyon_eelis(N, final_states[i], pbc)
+        entropies[i] = anyon_eelis(model, final_states[i])
     end
     
     # avg_eelis = sum(probabilities .* entropies)
@@ -39,17 +42,14 @@ function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measuremen
 end
 
 function Born_FENlis(N, pbc::Bool=true)
-
-    γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
-    τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
-    
-    @time energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
+    @time energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
     antiGS = states[:,1]
     measurement_sites = collect(2:2:N)
 
     FE_lis = Vector{Float64}(undef, length(τlis))
     for (idx, τ) in enumerate(τlis)
-        final_states, trajectories, probabilities = measurement_enumeration(N, τ, antiGS, measurement_sites, pbc)
+        final_states, trajectories, probabilities = measurement_enumeration(model, τ, antiGS, measurement_sites)
 
         num_final_states = length(final_states)
         println("Total number of final states: $(num_final_states)")

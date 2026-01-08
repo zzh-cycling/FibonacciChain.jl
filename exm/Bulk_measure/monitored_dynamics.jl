@@ -6,14 +6,19 @@ using Random
 function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=120L)
     rng = MersenneTwister(seed)
     
-    st = zeros(length(anyon_basis(L)))
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     
-    @time sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, div(D,2), rng, true) 
+    config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
+    @time outcome = bulk_evolution(model, st, config)
+    sample_measured_states = outcome.states
+    sample = outcome.samples
+    sample_free_energy = outcome.free_energy
     
-    halfchain_EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
+    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
     final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(L, final_state)
+    final_EElis = anyon_eelis(model, final_state)
 
     
     save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
@@ -69,7 +74,8 @@ function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
 end
 
 function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
-    st=zeros(length(anyon_basis(L)))
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
     bulk_meanEElis=zeros(L-1)
     
@@ -83,10 +89,13 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=120L)
     final_FElis = zeros(samples_num)
     for i in 1:samples_num
         @show i
-        sample_measured_states, sample, sample_free_energy = bulk_measure(L, τ, st, D) 
-        ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(L, collect(1:div(L,2)), j)) for j in sample_measured_states]
+        config = MeasureConfig(τ=τ, mode=:Born, t₁=1, t₂=D)
+        outcome = bulk_evolution(model, st, config)
+        sample_measured_states = outcome.states
+        sample_free_energy = outcome.free_energy
+        ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
         final_state = sample_measured_states[end]
-        final_EElis[i, :] = anyon_eelis(L, final_state)
+        final_EElis[i, :] = anyon_eelis(model, final_state)
 
         all_FE_tlis[i, :] = sample_free_energy
         final_FElis[i] = sample_free_energy[end]

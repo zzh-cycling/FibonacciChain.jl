@@ -38,15 +38,16 @@ using Arpack
 # one Noisy chain##
 
 N=34
-energy, states = eigs(anyon_ham_sparse(N), nev=1, which=:SR)
+model = AnyonModel(FibonacciAnyon(), N; pbc=true)
+energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
 global antiGS= states[:, 1]
 
 for i in 2:2:N
-    global antiGS= braidingsqmap(N, antiGS, i)
+    global antiGS= braidingsqmap(model, antiGS, i)
     antiGS/= norm(antiGS)
 end
 
-EE_lis=anyon_eelis(N, antiGS)
+EE_lis=anyon_eelis(model, antiGS)
 save("./exm/data/single_Fibo_EElis_$(N).jld", "EE_lis", EE_lis)
 # cent, fig = fitCCEntEntScal(EE_lis; mincut=2,pbc=true)
 # savefig(fig, "./exm/fig/single_Fibo_ee_scaling_$(N).pdf")

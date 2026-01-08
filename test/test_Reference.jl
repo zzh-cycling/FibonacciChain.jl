@@ -640,25 +640,25 @@ end
     @test I_rand ≈ 0.001089674525010187 atol=1e-2
 end
 
-function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Bool=false)
+function compute_post_selection_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign::Bool=false)
     model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator=:X)
-    sample = sign ? BitMatrix(ones(Int, 2D, L)) : BitMatrix(zeros(Int, 2D, L))
+    sample = sign ? BitMatrix(ones(Int, 2t, L)) : BitMatrix(zeros(Int, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
     initial_state /= norm(initial_state) # initial state is all |++++⟩ state
 
     # Here should use τ to evolve at time slice inserting reference qubit, instead of τ_eff
-    config = MeasureConfig(τ = τ, t₂ = D, mode=:sample, enable_τ_eff=false)
+    config = MeasureConfig(τ = τ, t₂ = t, mode=:sample, enable_τ_eff=false)
     mo = bulk_evolution(model, initial_state, config, sample)
     statelis = mo.states
 
-    ref_sample = sign ? BitMatrix(ones(Int, 2*(D+δt+D), L)) : BitMatrix(zeros(Int, 2*(D+δt+D), L))
+    ref_sample = sign ? BitMatrix(ones(Int, 2*(t+δt+t), L)) : BitMatrix(zeros(Int, 2*(t+δt+t), L))
 
     if δt == 0
-        ref_config = MeasureConfig(τ = τ, t₂ = D, t₁ = D, mode=:sample, x₂=L÷2+1) # It doesn't need config set here, it will be overwrite in reference_evolution  # seems need to
+        ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, mode=:sample, x₂=L÷2+1) # It doesn't need config set here, it will be overwrite in reference_evolution  # seems need to
         mo = reference_evolution(model, statelis, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
     else
-        ref_config = MeasureConfig(τ = τ, t₂ = D+δt, t₁ = D, mode=:sample, x₂=L÷2+1, x₁ = L÷2+1)
+        ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, mode=:sample, x₂=L÷2+1, x₁ = L÷2+1)
         mo = reference_evolution(model, statelis, ref_config, ref_sample) 
     end
 
@@ -666,25 +666,25 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::I
     return mo.states[end]
 end
 
-function compute_Born_Ising(L::Int64, τ::Float64, D::Int64=5L, δt::Int=2; sign::Bool=false)
+function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign::Bool=false)
     model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator=:X)
-    sample = sign ?  BitMatrix(ones(Int, 2D, L)) : BitMatrix(zeros(Int, 2D, L))
+    sample = sign ?  BitMatrix(ones(Int, 2t, L)) : BitMatrix(zeros(Int, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
-    initial_state /= norm(initial_state) # initial state is all zero state
+    initial_state /= norm(initial_state) # initial state is all |++++⟩ state
 
-    config = MeasureConfig(τ = τ, t₂ = D, mode=:sample, enable_τ_eff=false)
+    config = MeasureConfig(τ = τ, t₂ = t, mode=:sample, enable_τ_eff=false)
     mo = bulk_evolution(model, initial_state, config, sample)
     statelis = mo.states
 
-    ref_sample = sign ? BitMatrix(ones(Int, 2*(D+δt+D), L)) : BitMatrix(zeros(Int, 2*(D+δt+D), L))
+    ref_sample = sign ? BitMatrix(ones(Int, 2*(t+δt+t), L)) : BitMatrix(zeros(Int, 2*(t+δt+t), L))
     
     if δt == 0
-        ref_config = MeasureConfig(τ = τ, t₂ = D, t₁ = D, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1)
+        ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1)
         mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     else
-        ref_config = MeasureConfig(τ = τ, t₂ = D+δt, t₁ = D, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
+        ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
         mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = mo.states, mo.samples, mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     end
@@ -695,22 +695,23 @@ end
 
 @testset "reference_evolution" begin
     L = 8
-    τ = log(1+√5)/2
-    D = 10L
-    t = log(1+√2)/π
+    γ = 1/√2
+    τ = atanh(γ)
+    t = 5L
+    t_star = log(1+√2)/π
     model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator=:X)
-    ref2st = compute_post_selection_Ising(L, τ, D, 0, sign=true)
+    ref2st = compute_post_selection_Ising(L, τ, t, 0, sign=true)
     spatial_corr, _ = ref_correlation(model, ref2st, spatial = true)
-    ref2st = compute_post_selection_Ising(L, τ, D, round(Int, t*L), sign=true)
+    ref2st = compute_post_selection_Ising(L, τ, t, round(Int, t_star*L), sign=true)
     _, temporal_corr1 = ref_correlation(model, ref2st, temporal = true)
-    ref2st = compute_post_selection_Ising(L, τ, D, round(Int, t*L)+1, sign=true)
+    ref2st = compute_post_selection_Ising(L, τ, t, round(Int, t_star*L)+1, sign=true)
     _, temporal_corr2 = ref_correlation(model, ref2st, temporal = true)
-    @test temporal_corr1/spatial_corr ≈ 1.1397709251465786
-    @test temporal_corr2/spatial_corr ≈ 1.050524715257348
+    @test temporal_corr1/spatial_corr ≈ 1.0264131502558 atol = 1e-10
+    @test temporal_corr2/spatial_corr ≈ 0.9204522939558988 atol = 1e-10 # such value must lies between 1 and 0.9, because this is the theoretical spacetime symmetric point.
 
-    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 0, sign=true)
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, t, 0, sign=true)
     spatial_corr, _ = ref_correlation(model, ref2st, spatial = true)
-    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, D, 4, sign=true)
+    ref2st, sample_layer, sample_free_energy = compute_Born_Ising(L, τ, t, 4, sign=true)
     _, temporal_corr = ref_correlation(model, ref2st, temporal = true)
-    @test temporal_corr/spatial_corr ≈ 9.31373572272615
+    @test temporal_corr/spatial_corr ≈ 0.032083643572095644 atol = 1e-10
 end

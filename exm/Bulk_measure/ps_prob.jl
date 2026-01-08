@@ -10,9 +10,10 @@ function ps_prob_evolution(L::Int64, τ::Float64, D::Int; seed::Int=100)
     # Generate a state based on the given sample and initial state
     # τ is the temperature parameter, initial_state is the initial state vector
     # sample is a matrix of binary values representing the state configuration
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
     problis = collect(0.1:0.1:0.9)
     ee_plis = Vector{Vector{Float64}}(undef, length(problis))
-    initial_state = zeros(length(anyon_basis(L)))
+    initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0  # Set the first state as the initial state
     gate_num = div(D*L, 2)
 
@@ -21,29 +22,13 @@ function ps_prob_evolution(L::Int64, τ::Float64, D::Int; seed::Int=100)
 
         rng = MersenneTwister(seed)
         sample = reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2))
-        stlis, sample_return = generate_state(τ, initial_state, sample)
-        ee_plis[idx] = anyon_eelis(L, stlis[end])
+        config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
+        mo = bulk_evolution(model, initial_state, config, sample)
+        stlis, sample_return = mo.states, mo.samples
+        ee_plis[idx] = anyon_eelis(model, stlis[end])
     end
     save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_sample$(seed).jld", "seed", seed, "ee_plis", ee_plis, "problis", problis)
     return ee_plis
-end
-
-function average_Born_sample_p(L::Int64, τ::Float64)
-    indexlis = collect(1:2000)
-    plis = zeros(length(indexlis))
-    seedlis = zeros(length(indexlis))
-    for (idx, index) in enumerate(indexlis)
-        @show idx
-        D, _, _ = get_system_params(τ, L)
-        sample,seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", "seed")
-        p =  mean(reshape(sample, size(sample,1)*size(sample,2)))
-        plis[idx] = p
-        seedlis[idx] = seed
-    end
-    average_p = mean(plis)
-    stderr = std(plis) / sqrt(length(indexlis))
-    save("exm/data/Bulk_measure/ps_prob/L$(L)_τ$(τ)_Born_average.jld", "average_p", average_p, "stderr", stderr, "seedlis", seedlis)
-    return average_p, stderr
 end
 
 function get_system_params(τ, L)

@@ -2,16 +2,20 @@ using FibonacciChain
 using JLD
 using Statistics
 
-function post_selection(L::Int64, τ::Float64, D::Int64, sign::Int64=1)
+function post_selection(L::Int64, τ::Float64, D::Int64, sign::Bool=true)
     pbc = true
-    st=zeros(length(anyon_basis(L)))
+    model = AnyonModel(FibonacciAnyon(), L; pbc=pbc)
+    st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
 
-    @time sample_measured_states, sample, sample_free_energy = bulk_post_selection(L, τ, st, div(D,2), sign, pbc)
-    EE_tlis = [ee(anyon_rdm(L, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
+    sample = sign ? BitMatrix(ones(Bool, D, length(2:2:L))) : BitMatrix(zeros(Bool, D, length(2:2:L)))
+    config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
+    mo = bulk_evolution(model, st, config, sample)
+    @time sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
+    EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
     final_state = sample_measured_states[end]
-    average_EElis = anyon_eelis(L, final_state)
+    average_EElis = anyon_eelis(model, final_state)
 
     
     return average_EElis, EE_tlis, sample_free_energy
@@ -50,7 +54,7 @@ else
     for L in [6, 24]
         D = get_system_params(τ, L)[1]
         @show L
-        sign = 0
+        sign = false
         average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, sign)
         save("exm/data/post_selection$(sign)/τ$(τ)/L$(L)_D$(div(D,L)).jld", "average_EElis", average_EElis, "EE_tlis", EE_tlis, "sample_free_energy", sample_free_energy)
     end

@@ -143,40 +143,47 @@ function compute_total(L::Int64, τ::Float64, index::Int64, D::Int64=35L, δt::I
 end
 
 function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=16L, δt::Int64=2)
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
     sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
-
-    initial_state = zeros(length(anyon_basis(L, pbc)))
+    # Here sample is of size D x (L/2), representing measurement outcomes at each layer for the monitored dynamics
+    initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    rng = MersenneTwister(index)
+    t = div(D, 2)
 
-    statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
-    D = div(D, 2)
-    D1 = (τ ∈ τlis[[3,4,5,6]]) ? D + 20L : D 
-    ref_sample = zeros(Bool, 2*(D+δt+D1), length(2:2:L))
-    view(ref_sample, 1:2D, :) .= Bool.(view(sample, :, :))
+    rng = MersenneTwister(index)
+    config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
+    mo = bulk_evolution(model, initial_state, config, BitMatrix(sample))
+    statelis, Flis = mo.states, mo.free_energys
+
+    t1 = (τ ∈ τlis[[3,4,5,6]]) ? t + 20L : t 
+    ref_sample = BitMatrix(zeros(Bool, 2*(t+δt+t1), length(2:2:L)))
+    view(ref_sample, 1:D, :) .= Bool.(view(sample, :, :))
 
     if δt == 0
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref_config = MeasureConfig(τ=τ, mode=:Born, rng = rng, x₂ = L÷2+1, t₂=t, t₁ = t)
+        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
-        view(sample_free_energy, 1:2D) .= view(Flis, :)
-        view(sample_layer, 1:2D, :) .= view(sample, :, :)
+        view(sample_free_energy, 1:D) .= view(Flis, :)
+        view(sample_layer, 1:D, :) .= view(sample, :, :)
     else
-        ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+        ref_config = MeasureConfig(τ=τ, mode=:Born, rng = rng, x₂ = L÷2+1, t₂=t+δt, t₁ = t, x₁ = L÷2+1)
+        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
-        view(sample_free_energy, 1:2D) .= view(Flis, :)
-        view(sample_layer, 1:2D, :) .= view(sample, :, :)
+        view(sample_free_energy, 1:D) .= view(Flis, :)
+        view(sample_layer, 1:D, :) .= view(sample, :, :)
     end
 
-    spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
-    sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
+    spatial_corr, temporal_corr = ref_correlation(model, ref2stlis[end], spatial = spatial, temporal = temporal)
+    sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
     
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
+    # save("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(index).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S, "sample_layer", sample_layer, "sample_free_energy", sample_free_energy)
     return temporal_corr, spatial_corr, S, sample_layer, sample_free_energy
 end
 
@@ -184,20 +191,22 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
-    pbc = true
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
  
     # 1). First evolve to steady state with D time steps
     sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
-    initial_state = zeros(length(anyon_basis(L, pbc)))
+    initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    statelis, Flis = generate_state(τ, initial_state, sample, enable_τ_eff=false)
-    D = div(D, 2)
+    t = div(D, 2)   
+    pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    statelis, Flis = pre_mo.states, pre_mo.free_energys
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
-    D1 = (τ ∈ τlis[[3,4,5,6]]) ? D + 20L : D  # to adjust for longer evolution time for certain τ
-    tlis = collect(1:D1)
+    t1 = (τ ∈ τlis[[3,4,5,6]]) ? t + 10L : t  # to adjust for longer evolution time for certain τ
+    tlis = collect(1:2t1)
     spatial_corr_lis = zeros(Float64, length(tlis))
     temporal_corr_lis = zeros(Float64, length(tlis))
     eelis = zeros(Float64, length(tlis))
@@ -205,21 +214,21 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, index::Int64, D::
     # 2). Then add two ref qubits at different time slices and evolve for δt time, and to final δt + t time.
     
     
-    for (idx, t) in enumerate(tlis)
+    for (idx, Δt) in enumerate(tlis)
         @show "calculation time t:" t
-        ref_sample = zeros(Int, 2*(D + δt + t), length(2:2:L)) 
+        ref_sample = zeros(Int, 2*(t + δt + Δt), length(2:2:L)) 
         if δt == 0
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, t, t, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
-            view(sample_free_energy, 1:2D) .= view(Flis, :)
-            view(sample_layer, 1:2D, :) .= view(sample, :, :)
+            view(sample_free_energy, 1:D) .= view(Flis, :)
+            view(sample_layer, 1:D, :) .= view(sample, :, :)
         else
-            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, D, D+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = reference_evolution(L, τ, statelis, ref_sample, L÷2+1, t, t+δt, x₁ = L÷2+1, verbose=false, rng = rng, mode=:Born) # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
-            view(sample_free_energy, 1:2D) .= view(Flis, :)
-            view(sample_layer, 1:2D, :) .= view(sample, :, :)
+            view(sample_free_energy, 1:D) .= view(Flis, :)
+            view(sample_layer, 1:D, :) .= view(sample, :, :)
         end
         sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
         eelis[idx] = ee(sysrdm)

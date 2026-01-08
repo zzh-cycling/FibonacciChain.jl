@@ -363,8 +363,7 @@ function reference_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vect
     else
         ref_model = AnyonModel(IsingAnyon(), k_old, pbc=false)
         totalsubBpbc = (length(subsystems) == model.N) ? true : false
-        model = AnyonModel(model.anyon_type, model.N, pbc=totalsubBpbc)
-        return disjoint_rdm(ref_model, model, Int[], subsystems, state;)
+        return disjoint_rdm(ref_model, model, Int[], subsystems, state; pbcB = totalsubBpbc)
     end
    
   
