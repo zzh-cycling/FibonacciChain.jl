@@ -14,19 +14,15 @@ Construct the anyon chain Hamiltonian as a sparse matrix.
 ```jldoctest
 julia> using FibonacciChain, BitBasis, SparseArrays, LinearAlgebra
 
-julia> N = 6;
-julia> model = AnyonModel(FibonacciAnyon(), N, pbc=true);
-julia> H_sparse = anyon_ham_sparse(model);
+julia> N = 6; model = AnyonModel(FibonacciAnyon(), N; pbc=true); H_sparse = anyon_ham_sparse(model);
 
-julia> H_sparse isa SparseMatrixCSC # Check it's a sparse matrix
+julia> H_sparse isa SparseMatrixCSC
 true
 
-julia> ishermitian(H_sparse) # Should be Hermitian
+julia> ishermitian(H_sparse)
 true
 
-julia> H_dense = anyon_ham(model); # Compare with dense version for small system
-
-julia> norm(Matrix(H_sparse) - H_dense) < 1e-10
+julia> H_dense = anyon_ham(model); norm(Matrix(H_sparse) - H_dense) < 1e-10
 true
 ```
 """

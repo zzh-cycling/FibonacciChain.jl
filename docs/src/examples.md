@@ -14,8 +14,9 @@ N = 8  # Chain length
 pbc = true  # Periodic boundary conditions
 
 # Generate basis and Hamiltonian
-basis = anyon_basis(N, pbc)
-H = anyon_ham(N, pbc)
+model = AnyonModel(FibonacciChain(), N, pbc = pbc)
+basis = anyon_basis(model)
+H = anyon_ham(model)
 
 println("Hilbert space dimension: $(length(basis))")
 
@@ -27,7 +28,7 @@ E0 = eigenvals[1]
 println("Ground state energy: $E0")
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis(N, ψ_gs, pbc)
+ee_profile = anyon_eelis(model, ψ_gs)
 
 # Plot entanglement entropy
 plot(1:N-1, ee_profile, 

@@ -65,20 +65,13 @@ This function provides two interfaces: a high-level one that takes an `AnyonMode
 ```jldoctest
 julia> using FibonacciChain, BitBasis
 
-julia> # High-level interface
-julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true);
-julia> basis = anyon_basis(model);
-julia> length(basis)
+julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true); basis = anyon_basis(model); length(basis)
 7
 
-julia> # Low-level interface
-julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true);
-julia> length(basis_fibo)
+julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true); length(basis_fibo)
 7
 
-julia> model_ising = AnyonModel(IsingAnyon(), 4; pbc=true);
-julia> basis_ising = anyon_basis(model_ising);
-julia> length(basis_ising)
+julia> model_ising = AnyonModel(IsingAnyon(), 4; pbc=true); basis_ising = anyon_basis(model_ising); length(basis_ising)
 16
 ```
 """
@@ -577,18 +570,12 @@ While not a direct low-level function, you can construct the model on the fly:
 ```jldoctest
 julia> using FibonacciChain, BitBasis
 
-julia> N = 4;
+julia> N = 4; model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
 
-julia> # Fibonacci model
-julia> model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
-julia> H_fibo = anyon_ham(model_fibo);
-julia> size(H_fibo)       # Hamiltonian dimension matches basis size
+julia> H_fibo = anyon_ham(model_fibo); size(H_fibo)
 (7, 7)
 
-julia> # Ising model
-julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true);
-julia> H_ising = anyon_ham(model_ising; J=1.0, h=1.0);
-julia> size(H_ising)      # Full Hilbert space for Ising model
+julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true); H_ising = anyon_ham(model_ising; J=1.0, h=1.0); size(H_ising)
 (16, 16)
 ```
 """
@@ -781,23 +768,19 @@ The subsystem indices are 1-based and refer to the site positions in the chain. 
 
 # Examples
 ```jldoctest
-julia> using FibonacciChain, BitBasis, LinearAlgebra
+julia> using FibonacciChain, BitBasis, LinearAlgebra, Random
 
-julia> N = 4;
-julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
-julia> basis = anyon_basis(model);
-julia> state = randn(ComplexF64, length(basis)); state ./= norm(state);
+julia> Random.seed!(42); N = 4; model = AnyonModel(FibonacciAnyon(), N; pbc=true);
 
-julia> # Compute RDM for sites 1 and 2
-julia> rdm = anyon_rdm(model, [1, 2], state);
+julia> basis = anyon_basis(model); state = randn(ComplexF64, length(basis)); state ./= norm(state);
 
-julia> size(rdm)  # Dimension of the reduced density matrix
+julia> rdm = anyon_rdm(model, [1, 2], state); size(rdm)
 (3, 3)
 
-julia> ishermitian(rdm)  # RDM must be Hermitian
+julia> ishermitian(rdm)
 true
 
-julia> isapprox(tr(rdm), 1.0; atol=1e-10)  # Trace must be 1
+julia> isapprox(tr(rdm), 1.0; atol=1e-10)
 true
 ```
 """
@@ -942,14 +925,11 @@ Map state in momentum sector to total Hilbert space.
 ```jldoctest
 julia> using FibonacciChain, LinearAlgebra
 
-julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
-julia> H_k0 = anyon_ham(model, 0);
-julia> eigvecs_k0 = eigvecs(H_k0);
-julia> kstate = eigvecs_k0[:, 1];
+julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true); H_k0 = anyon_ham(model, 0);
 
-julia> total_state = mapst_sec2tot(model, kstate, 0);
+julia> eigvecs_k0 = eigvecs(H_k0); kstate = eigvecs_k0[:, 1];
 
-julia> length(total_state) == length(anyon_basis(model))
+julia> total_state = mapst_sec2tot(model, kstate, 0); length(total_state) == length(anyon_basis(model))
 true
 ```
 """

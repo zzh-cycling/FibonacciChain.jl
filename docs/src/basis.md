@@ -7,7 +7,7 @@ This section covers the fundamental basis generation and manipulation functions 
 The `anyon_basis` function generates the computational basis states for various anyon models in different symmetry sector:
 
 ### Fibonacci Anyons
-For Fibonacci anyons, where quantum dimension is $\phi = \frac{1+\sqrt{5}}{2}$, the basis consists of configurations that satisfy the fusion constraints. Each site can be in state `0` (vacuum) or `1` ($\tau$ particle), with the constraint that no two adjacent $\tau$ particles can fuse to vacuum (forbidden configurations `11`are excluded). If you are familiar with PXP model, you will quickly get it.
+For Fibonacci anyons, where quantum dimension is $\phi = \frac{1+\sqrt{5}}{2}$, the basis consists of configurations that satisfy the fusion constraints. Each site can be in state `0` ($\tau$ particle) or `1` (vacuum), with the constraint that no two adjacent $1$ particles can fuse (forbidden configurations `11`are excluded). If you are familiar with PXP model, you will quickly get it.
 
 ### Ising Anyons  
 For Ising anyons (Majorana fermions), where quantum dimension $d=\sqrt{2}$, the basis includes all possible $\sigma$ and 1 configurations, representing the two types of Ising anyons.

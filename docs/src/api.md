@@ -8,6 +8,7 @@ This page provides a complete reference for all exported functions in FibonacciC
 anyon_basis
 anyon_ham
 anyon_ham_sparse
+mapst_sec2tot
 ```
 
 ## Reduced Density Matrices
@@ -16,7 +17,6 @@ anyon_ham_sparse
 anyon_rdm
 anyon_rdm_sec
 disjoint_rdm
-mapst_sec2tot
 ```
 
 ## Entanglement and Observables
@@ -27,7 +27,7 @@ ee_mps
 anyon_eelis
 ```
 
-## Symmetry Operations
+## Symmetry and Topological Operations
 
 ```@docs
 translation_matrix

@@ -5,7 +5,7 @@ DocMeta.setdocmeta!(FibonacciChain, :DocTestSetup, :(using FibonacciChain, Rando
 
 makedocs(;
     modules=[FibonacciChain],
-    doctest=false,
+    doctest=true,
     authors="Zhaohui Zhi",
     sitename="FibonacciChain.jl",
     format=Documenter.HTML(;

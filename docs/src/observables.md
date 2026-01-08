@@ -19,12 +19,13 @@ S(\rho) = -\text{Tr}(\rho \log \rho)
 using FibonacciChain
 
 N = 8
-H = anyon_ham(N, true)
+model = AnyonModel(FibonacciAnyon(), N, pbc=true)
+H = anyon_ham(model)
 eigenvals, eigenvecs = eigen(H)
 ground_state = eigenvecs[:, 1]
 
 # Calculate entanglement entropy profile
-ee_profile = anyon_eelis(N, ground_state)
+ee_profile = anyon_eelis(model, ground_state)
 
 # Plot the profile
 using Plots
@@ -66,10 +67,11 @@ The correlation functions measure quantum correlations between different regions
 
 ```julia
 # Spatial correlation between sites 1 and 4
-corr_spatial = spatial_correlation(N, ground_state, 1, 4)
+corr_spatial = spatial_correlation(model, ground_state, 1, 4)
 
 # Temporal correlation using reference qubits
-model = AnyonModel(FibonacciAnyon(), N; pbc=true)
-state_with_ref = add_reference_qubits(model, ground_state, 3)
-corr_temporal = temporal_correlation(N, state_with_ref)
+sample = BitMatrix(zeros(Int, 2N, div(N, 2)))
+ref_config = MeasureConfig(τ=τ, x₂ = div(N,2), mode=:sample, t₁ = 1, t₂ = 4)
+ref_mo = reference_evolution(model, [ground_state], ref_config, sample)
+corr_temporal = temporal_correlation(model, ref_mo.states[end])
 ```
