@@ -194,6 +194,7 @@ end
     spatial_corr_lis = zeros(L ÷ 2 - 1)
     Slis = zeros(L ÷ 2 - 1)
     for site in collect(1:L ÷ 2 - 1)
+        @info "Processing site $site"
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=1+site)
         ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
@@ -216,9 +217,11 @@ end
 
 # wrapper function
 @everywhere function compute_single_task(task_params)
-    L, τ, index, D, δt = task_params
+    # L, τ, index, D, δt = task_params
+    L, τ, index, D = task_params
     try
-        result = compute_ratio(L, τ, index, D, δt)
+        # result = compute_ratio(L, τ, index, D, δt)
+        result = spatial_corrlis(L, τ, index, D)
         return (index, :success, result)
     catch e
         return (index, :error, string(e))
@@ -290,8 +293,9 @@ function compute_parallel_batch(L::Int64, τ::Float64, seed_range::UnitRange{Int
     println("Computing seeds: $(first(seed_range)) to $(last(seed_range))")
     
     # create parameter tuples for each task
-    tasks = [(L, τ, index, D, δt) for index in seed_range]
-    
+    # tasks = [(L, τ, index, D, δt) for index in seed_range]
+    tasks = [(L, τ, index, D) for index in seed_range]
+
     # using pmap run
     println("Submitting $(length(tasks)) tasks to worker processes...")
     results = pmap(compute_single_task, tasks, batch_size=1)
