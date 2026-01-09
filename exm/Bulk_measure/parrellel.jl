@@ -191,10 +191,11 @@ end
     ref_sample = BitMatrix(zeros(Int, 2*(t+t1), length(2:2:L)))
     view(ref_sample, 1:D, :) .= view(sample, :, :)
 
-    spatial_corr_lis = zeros(L ÷ 2 - 1)
-    Slis = zeros(L ÷ 2 - 1)
-    for site in collect(1:L ÷ 2 - 1)
-        @info "Processing site $site"
+    dlis = collect(1:L ÷ 2-1) # Still need to compute, L/2+1 already have
+    spatial_corr_lis = zeros(length(dlis))
+    Slis = zeros(length(dlis))
+    for site in dlis[1:end-1]
+        @info "Processing site $(site+1)"
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=1+site)
         ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
         ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
@@ -208,11 +209,41 @@ end
         Slis[site] = S
     end
 
-    
     save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
         "spatial_corr_lis", spatial_corr_lis, "Slis", Slis)
 
     return spatial_corr_lis, Slis
+end
+
+function spatial_corrlis_collect(L, τ)
+    # Collect spatial correlation results from all tasks
+    D = get_system_params(τ, L)[1]
+    sample_num = 10000
+    spatial_corr_ensemble = zeros(L÷2, sample_num)
+    Slis_ensemble = zeros(L÷2, sample_num)
+    indexlis = collect(1:sample_num)
+
+    for (index) in indexlis
+        spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
+        spatial_corr_ensemble[1:end-1, index] .= spatial_corr
+        Slis_ensemble[1:end-1, index] .= Slis
+    end
+
+    old_spatial_corr_ensemble, old_S_ensemble = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/compressed_dt0_data.jld", "spatial_corr_ensemble", "S_ensemble")
+
+    spatial_corr_ensemble[end, :] = old_spatial_corr_ensemble
+    Slis_ensemble[end, :] = old_S_ensemble
+
+    spatial_corr_avg = mean(spatial_corr_ensemble, dims=2)
+    Slis_avg = mean(Slis_ensemble, dims=2)
+    spatial_corr_std = std(spatial_corr_ensemble, dims=2)/sqrt(sample_num)
+    Slis_std = std(Slis_ensemble, dims=2)/sqrt(sample_num)
+
+    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)_D$(div(D,L))_spatial_corr.jld",
+        "spatial_corr_avg", spatial_corr_avg, "Slis_avg", Slis_avg,
+        "spatial_corr_std", spatial_corr_std, "Slis_std", Slis_std)
+
+    return spatial_corr_avg, Slis_avg, spatial_corr_std, Slis_std
 end
 
 # wrapper function

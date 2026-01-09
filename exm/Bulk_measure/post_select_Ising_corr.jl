@@ -92,7 +92,7 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, t::Int64=5L, δt:
         if mp == :Z
             savesign = sign ? 1 : 0
         elseif mp == :X
-            savesign = sign ? :p : :m
+            savesign = sign ? :m : :p
         end
     
         for (idx, t) in enumerate(Dlis)
