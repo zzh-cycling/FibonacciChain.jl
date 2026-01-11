@@ -118,55 +118,61 @@ end
 
 function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
     measure_operator = model.measure_operator
-    @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset"
+    @assert measure_operator in [:X, :ZZ, :Z, :reset, :XZZ, :ZZX] "measure_operator must be either :X, :ZZ, :Z, :reset, :XZZ, :ZZX"
 
     N = model.N
-    fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
+    fl = bmask(T, N)
+    X(state, i) = flip(state, fl >> (i-1))
+
+    # Common coefficients for all operators except :reset/:Z
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? -0.5 : 0.5
+    else
+        cstτ = cosh(τ/2) / √(2cosh(τ))
+        coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
+    end
+
+    # Helper: get ZZ eigenvalue for sites (j1, j2)
+    zz_eigen(j1, j2) = ((state >> (N - j1)) & 1) == ((state >> (N - j2)) & 1) ? 1 : -1
 
     if measure_operator == :X
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign ? -0.5 : 0.5 
-        else
-            cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ)) 
-        end
-
-        return state, X(state,i), cstτ, coef
+        return state, X(state, i), cstτ, coef
 
     elseif measure_operator == :ZZ
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign ? -0.5 : 0.5
-        else
-            cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
-        end
-
-        if 1<= i <= N-1
-            if ((state >> (N - i)) & 1) == ((state >> (N - i -1)) & 1)
-                return state, state, cstτ+coef, 0.0
-            else
-                return state, state, cstτ-coef, 0.0
-            end
+        if 1 <= i <= N-1
+            eigenvalue = zz_eigen(i, i+1)
         elseif model.pbc && i == N
-            if (state & 1) == (state >> (N-1) & 1)
-                return state, state, cstτ+coef, 0.0
-            else
-                return state, state, cstτ-coef, 0.0
-            end
+            eigenvalue = (state & 1) == (state >> (N-1) & 1) ? 1 : -1
         end
-    elseif measure_operator ∈ [:reset,:Z] 
+        return state, state, cstτ + coef * eigenvalue, 0.0
+
+    elseif measure_operator ∈ [:reset, :Z]
+        # :reset/:Z has flipped sign convention for coef
+        coef_z = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
         if τ >= 1e2
-            cstτ = 0.5
-            coef = sign ? -0.5 : 0.5
-        else
-            cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+            coef_z = sign ? -0.5 : 0.5
         end
-        
-        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0.0
+        eigenvalue = (state[N - i + 1] == 0) ? 1 : -1
+        return state, state, cstτ + coef_z * eigenvalue, 0.0
+
+    elseif measure_operator == :XZZ  # X_i Z_{i+1} Z_{i+2}, O'Brien-Fendley model
+        if model.pbc
+            i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
+        else
+            @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (XZZ)"
+            i1, i2 = i + 1, i + 2
+        end
+        return state, X(state, i), cstτ, coef * zz_eigen(i1, i2)
+
+    elseif measure_operator == :ZZX  # Z_i Z_{i+1} X_{i+2}
+        if model.pbc
+            i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
+        else
+            @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (ZZX)"
+            i1, i2 = i + 1, i + 2
+        end
+        return state, X(state, i2), cstτ, coef * zz_eigen(i, i1)
     end
 end
 
@@ -178,6 +184,8 @@ function measure_matrix(model::AnyonModel{AT}, τ::Float64, idx::Int, sign::Bool
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
+    elseif model.measure_operator ∈ (:XZZ, :ZZX)
+        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (XZZ/ZZX)"
     else
         error("Unknown measure class: $(model.anyon_type)")
     end
@@ -248,6 +256,8 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
+    elseif model.measure_operator ∈ (:XZZ, :ZZX)
+        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (XZZ/ZZX)"
     else
         error("Unknown measure class: $(model.anyon_type)")
     end
