@@ -4,6 +4,7 @@ using Distributed
 @everywhere using JLD
 @everywhere using Random
 @everywhere using LinearAlgebra
+@everywhere using Statistics
 
 println("requested workers: ", nworkers())
 println("total procs:       ", nprocs())
@@ -194,7 +195,7 @@ end
     dlis = collect(1:L ÷ 2-1) # Still need to compute, L/2+1 already have
     spatial_corr_lis = zeros(length(dlis))
     Slis = zeros(length(dlis))
-    for site in dlis[1:end-1]
+    for site in dlis
         @info "Processing site $(site+1)"
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=1+site)
         ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
@@ -215,7 +216,7 @@ end
     return spatial_corr_lis, Slis
 end
 
-function spatial_corrlis_collect(L, τ)
+function spatial_corrlis_collect(L, τ, mode::Int=1)
     # Collect spatial correlation results from all tasks
     D = get_system_params(τ, L)[1]
     sample_num = 10000
@@ -223,16 +224,31 @@ function spatial_corrlis_collect(L, τ)
     Slis_ensemble = zeros(L÷2, sample_num)
     indexlis = collect(1:sample_num)
 
-    for (index) in indexlis
-        spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
-        spatial_corr_ensemble[1:end-1, index] .= spatial_corr
-        Slis_ensemble[1:end-1, index] .= Slis
+    if mode==1
+        for (index) in indexlis
+            spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
+            spatial_corr_ensemble[1:end-1, index] .= spatial_corr
+            Slis_ensemble[1:end-1, index] .= Slis
+        end
+    
+        old_spatial_corr_ensemble, old_S_ensemble = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/compressed_dt0_data.jld", "spatial_corr_ensemble", "S_ensemble")
+    
+        spatial_corr_ensemble[end, :] = old_spatial_corr_ensemble
+        Slis_ensemble[end, :] = old_S_ensemble
+    else
+        for (index) in indexlis
+            spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
+            spatial_corr_ensemble[1:end-1, index] .= spatial_corr
+            Slis_ensemble[1:end-1, index] .= Slis
+
+            data = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0/D$(div(D,2L))_Samples$(index).jld")
+            scorr  = data["spatial_corr"]
+            S = data["S"]
+            spatial_corr_ensemble[end, index] = scorr
+            Slis_ensemble[end, index] = S
+        end
     end
 
-    old_spatial_corr_ensemble, old_S_ensemble = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/compressed_dt0_data.jld", "spatial_corr_ensemble", "S_ensemble")
-
-    spatial_corr_ensemble[end, :] = old_spatial_corr_ensemble
-    Slis_ensemble[end, :] = old_S_ensemble
 
     spatial_corr_avg = mean(spatial_corr_ensemble, dims=2)
     Slis_avg = mean(Slis_ensemble, dims=2)
@@ -491,5 +507,15 @@ else
         
         filename = ARGS[2]
         compute_missing_tasks_parallel(filename)
+    elseif mode == 4
+        # collect spatial correlation results
+        L = parse(Int64, ARGS[2])
+        τ_idx = parse(Int64, ARGS[3])
+        τ = τlis[τ_idx]
+        
+        println("Collecting spatial correlation results for L=$L, τ=$τ")
+        spatial_corrlis_collect(L, τ)
+    else
+        error("Unknown mode: $mode")
     end
 end
