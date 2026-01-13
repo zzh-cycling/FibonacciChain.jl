@@ -24,8 +24,8 @@ end
 
 @testset "anyon_ham_sparse_J" begin
     N = 8
-    model = AnyonModel(IsingAnyon(), N, pbc=true)
-    H = anyon_ham_sparse(model, J=1.0, h=1.0)
+    model = AnyonModel(IsingAnyon(), N, pbc=true, J=1.0, h=1.0)
+    H = anyon_ham_sparse(model)
     energy = Arpack.eigs(H, nev=1, which=:SR)[1][1]
     @test energy ≈ -1/(2*sin(π/2N))*4
 end

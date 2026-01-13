@@ -29,7 +29,7 @@ using LsqFit
 
     state = T(bit"111111")
     output = FibonacciChain.Isingmap(state, 6, false)
-    @test output == (T(bit"111110"), -1.0)
+    @test output == (T(bit"111110"), -1.0)  # OBC: only X term at last site
 
     # Test with periodic boundary conditions
     pbc = true
@@ -39,15 +39,15 @@ end
 
 @testset "actingHamobc" begin
     N = 3
-    model = AnyonModel(IsingAnyon(), N, pbc=false)
+    model = AnyonModel(IsingAnyon(), N, pbc=false, J=2.0, h=1.0)
     T = BitStr{N, Int}
 
-    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0)
+    output1 = FibonacciChain.actingHam(model, bit"000")
     expected1 = Dict(T(bit"000") => -4.0, T(bit"100") => -1.0, T(bit"010") => -1.0, T(bit"001") => -1.0)
     @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
 
     output2 = FibonacciChain.actingHam(model, bit"010")
-    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 2.0, T(bit"011") => -1.0)
+    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 4.0, T(bit"011") => -1.0)
     @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
 
     output3 = FibonacciChain.actingHam(model, bit"001")
@@ -59,29 +59,29 @@ end
     @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
 
     output = FibonacciChain.actingHam(model, bit"101")
-    expected = Dict(T(bit"101") => 2.0, T(bit"100") => -1.0, T(bit"111") => -1.0, T(bit"001") => -1.0)
+    expected = Dict(T(bit"101") => 4.0, T(bit"100") => -1.0, T(bit"111") => -1.0, T(bit"001") => -1.0)
     @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "actingHampbc" begin
     N = 3
     T = BitStr{N, Int}
-    model = AnyonModel(IsingAnyon(), N, pbc=true)
+    model = AnyonModel(IsingAnyon(), N, pbc=true, J=2.0, h=1.0)
 
-    output1 = FibonacciChain.actingHam(model, bit"000", J=2.0, h=1.0)
+    output1 = FibonacciChain.actingHam(model, bit"000")
     expected1 = Dict(T(bit"000") => -6.0, T(bit"100") => -1.0, T(bit"010") => -1.0, T(bit"001") => -1.0)
     @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
 
     output2 = FibonacciChain.actingHam(model, bit"010")
-    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 1.0, T(bit"011") => -1.0)
+    expected2 = Dict(T(bit"000") => -1.0, T(bit"110") => -1.0, T(bit"010") => 2.0, T(bit"011") => -1.0)
     @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
 
     output3 = FibonacciChain.actingHam(model, bit"001")
-    expected3 = Dict(T(bit"101") => -1.0, T(bit"000") => -1.0, T(bit"011") => -1.0, T(bit"001") => 1.0)
+    expected3 = Dict(T(bit"101") => -1.0, T(bit"000") => -1.0, T(bit"011") => -1.0, T(bit"001") => 2.0)
     @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
 
     output4 = FibonacciChain.actingHam(model, bit"100")
-    expected4 = Dict(T(bit"000") => -1.0, T(bit"100") => 1.0, T(bit"110") => -1.0, T(bit"101") => -1.0)
+    expected4 = Dict(T(bit"000") => -1.0, T(bit"100") => 2.0, T(bit"110") => -1.0, T(bit"101") => -1.0)
     @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
 
     T10 = BitStr{10}
@@ -323,7 +323,7 @@ end
     τ = 1.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-    model_XZZ = AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:XZZ)
+    model_XZZ = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:XZZ)
     # At idx=1: X_1 Z_2 Z_3
     expected_matrix = cstτ * I(8) + coef * σx ⊗ σz ⊗ σz
     Mpobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, false)
@@ -337,7 +337,7 @@ end
 
     # measuring ZZX (Z_i Z_{i+1} X_{i+2})
     coef = sinh(τ/2) / √(2cosh(τ))
-    model_ZZX = AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:ZZX)
+    model_ZZX = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:ZZX)
     # At idx=1: Z_1 Z_2 X_3
     expected_matrix = cstτ * I(8) + coef * σz ⊗ σz ⊗ σx
     Mpobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, false)
@@ -351,8 +351,8 @@ end
 
     # Test XZZ/ZZX with larger system and different index
     N4 = 4
-    model_XZZ4 = AnyonModel(IsingAnyon(), N4, pbc=true, measure_operator=:XZZ)
-    model_ZZX4 = AnyonModel(IsingAnyon(), N4, pbc=true, measure_operator=:ZZX)
+    model_XZZ4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:XZZ)
+    model_ZZX4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:ZZX)
     # At idx=2: X_2 Z_3 Z_4
     expected_XZZ = cstτ * I(16) + sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σx ⊗ σz ⊗ σz
     @test FibonacciChain.measure_matrix(model_XZZ4, τ, 2, false) ≈ expected_XZZ

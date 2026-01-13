@@ -418,26 +418,27 @@ antimap(state::T, i::Int) where {N, T <: BitStr{N}} = Fibomap(state, i; ferro=fa
 ferromap(state::T, i::Int) where {N, T <: BitStr{N}} = Fibomap(state, i; ferro=true)
 
 function Isingmap(state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
+    # H = - J ∑ Z_i Z_{i+1} - h ∑ X_i
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
     
-    fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
+    fl = bmask(T, N)
+    X(state, i) = flip(state, fl >> (i-1))
     J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
 
-    # Get site indices with PBC wrapping
-    if pbc
-        i1 = mod1(i + 1, N)
-    else
-        @assert 1 <= i <= N - 1 "For OBC, i must be in [1, N-1], got $i"
-        i1 = i + 1
+    # OBC special case: last site has no ZZ term
+    if !pbc && i == N
+        return X(state, i), -h
     end
 
+    # Get site indices with PBC wrapping
+    i1 = pbc ? mod1(i + 1, N) : i + 1
+    
     bit_i = readbit(state, N - i + 1)
     bit_i1 = readbit(state, N - i1 + 1)
 
     zz_i1i2 = (bit_i == bit_i1) ? -J : J
 
-    return state, X(state,i), zz_i1i2, -h
+    return state, X(state, i), zz_i1i2, -h
 end
 
 """
