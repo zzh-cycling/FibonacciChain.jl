@@ -118,7 +118,7 @@ end
 
 function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
     measure_operator = model.measure_operator
-    @assert measure_operator in [:X, :ZZ, :Z, :reset, :XZZ, :ZZX] "measure_operator must be either :X, :ZZ, :Z, :reset, :XZZ, :ZZX"
+    @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset"
 
     N = model.N
     fl = bmask(T, N)
@@ -156,24 +156,44 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
         eigenvalue = (state[N - i + 1] == 0) ? 1 : -1
         return state, state, cstτ + coef_z * eigenvalue, 0.0
 
-    elseif measure_operator == :XZZ  # X_i Z_{i+1} Z_{i+2}, O'Brien-Fendley model
+    elseif measure_operator == :OBF  # X_{i-1} Z_{i} Z_{i+1} + Z_i Z_{i+1} X_{i+2} + Z_i Z_{i+1}, O'Brien-Fendley model
         if model.pbc
             i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
         else
-            @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (XZZ)"
+            @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (OBF)"
             i1, i2 = i + 1, i + 2
         end
         return state, X(state, i), cstτ, coef * zz_eigen(i1, i2)
-
-    elseif measure_operator == :ZZX  # Z_i Z_{i+1} X_{i+2}
-        if model.pbc
-            i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
-        else
-            @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (ZZX)"
-            i1, i2 = i + 1, i + 2
-        end
-        return state, X(state, i2), cstτ, coef * zz_eigen(i, i1)
     end
+end
+
+function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+    measure_operator = model.measure_operator
+    @assert measure_operator == :OBF "measure_operator must be :OBF for OBFAnyonModel"
+
+    N = model.N
+    fl = bmask(T, N)
+    X(state, i) = flip(state, fl >> (i-1))
+
+    # Common coefficients
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? -0.5 : 0.5
+    else
+        cstτ = cosh(τ/2) / √(2cosh(τ))
+        coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
+    end
+
+    # Helper: get ZZ eigenvalue for sites (j1, j2)
+    zz_eigen(j1, j2) = ((state >> (N - j1)) & 1) == ((state >> (N - j2)) & 1) ? 1 : -1
+
+    if model.pbc
+        i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
+    else
+        @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (OBF)"
+        i1, i2 = i + 1, i + 2
+    end
+    return state, X(state, i), cstτ, coef * zz_eigen(i1, i2)
 end
 
 function measure_matrix(model::AnyonModel{AT}, τ::Float64, idx::Int, sign::Bool) where {AT<:AbstractAnyonType}
@@ -184,8 +204,8 @@ function measure_matrix(model::AnyonModel{AT}, τ::Float64, idx::Int, sign::Bool
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (IsingZZ)"
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
-    elseif model.measure_operator ∈ (:XZZ, :ZZX)
-        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (XZZ/ZZX)"
+    elseif model.measure_operator ∈ (:OBF)
+        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
     else
         error("Unknown measure class: $(model.anyon_type)")
     end
@@ -256,8 +276,8 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
-    elseif model.measure_operator ∈ (:XZZ, :ZZX)
-        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (XZZ/ZZX)"
+    elseif model.measure_operator ∈ (:OBF)
+        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
     else
         error("Unknown measure class: $(model.anyon_type)")
     end
@@ -507,20 +527,66 @@ function transfer_matrix(model::AnyonModel{AT}, τ::Float64; sign::Bool=true) wh
     return TM
 end
 
-function _obtain_measurement_config(model::AnyonModel{FibonacciAnyon}, layer_idx::Int)
+function _obtain_measurement_config(model::AnyonModel{FibonacciAnyon}, layer_idx::Int, τ::Float64=1.0)
         measurement_sites = iseven(layer_idx) ? collect(1:2:model.N) : collect(2:2:model.N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites,
         measure_operator = :Antiferro
         measure_anyon_model = AnyonModel(FibonacciAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
-    return measurement_sites, measure_anyon_model
+        measure_strength = τ
+    return measurement_sites, measure_anyon_model, measure_strength
 end
 
-function _obtain_measurement_config(model::AnyonModel{IsingAnyon}, layer_idx::Int)
+function _obtain_measurement_config(model::AnyonModel{IsingAnyon}, layer_idx::Int, τ::Float64=1.0)
     # measure at all sites!!!
     measurement_sites = collect(1:model.N)
-    measure_operator = iseven(layer_idx) ? :ZZ : :X # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ
+    measure_operator = iseven(layer_idx) ? :ZZ : :X # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ, but actual Trotterization pattern is √ZZ X √ZZ X.
     measure_anyon_model = AnyonModel(IsingAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
-    return measurement_sites, measure_anyon_model
+    measure_strength = τ
+    return measurement_sites, measure_anyon_model, measure_strength
 end
+
+function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int, τ::Float64=1.0)
+    # OBF 8-layer period structure:
+    # Layer 1: X (all sites)
+    # Layer 2: √ZZ (all sites)  
+    # Layer 3,4,5: √OBF on 3 groups (sites 1,4,7...), (sites 2,5,8...), (sites 3,6,9...)
+    # Layer 6,7: √OBF reverse order
+    # Layer 8: √ZZ (all sites)
+    # Final: √X
+    # √X, √OBF₁, √OBF₂, OBF₃, √OBF₂, √OBF₁, √X, ZZ
+
+    phase = mod1(layer_idx, 8)
+    λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
+    if phase == 1 || phase == 7
+        # X measurement at all bonds
+        measurement_sites = collect(1:model.N)
+        measure_operator = :X
+        measure_strength = τ/2
+    elseif phase == 2 || phase == 6
+        # √OBF₁: group index = (1, 4, 7)
+        measurement_sites = collect(1:3:model.N)
+        measure_operator = :OBF
+        measure_strength = λ*τ/2
+    elseif phase == 3 || phase == 5
+        # √OBF₂: group index = (2, 5, 8)
+        measurement_sites = collect(2:3:model.N)
+        measure_operator = :OBF
+        measure_strength = λ*τ/2
+    elseif phase == 4
+        # OBF₃: group index = (3, 6, 9)
+        measurement_sites = collect(3:3:model.N)
+        measure_operator = :OBF
+        measure_strength = λ*τ
+    elseif phase == 8
+        # ZZ measurement at all sites
+        measurement_sites = collect(1:model.N)
+        measure_operator = :ZZ
+        measure_strength = τ
+    end
+    
+    measure_anyon_model = AnyonModel(OBFAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+    return measurement_sites, measure_anyon_model, measure_strength
+end
+
 
 struct Measurement_outcome_bulk{ET}
     states::Vector{ET}
@@ -545,6 +611,7 @@ Configuration struct for measurement evolution parameters.
 - `t₁::Int`: Starting layer index for evolution (default: 1)
 - `verbose::Bool`: Verbosity flag for detailed output (default: false)
 - `enable_τ_eff::Bool`: Whether to enable half-strength measurement for the last layer (default: true)
+- `λ::Float64`: O'Brien-Fendley coupling strength (default: 0.0, pure Ising when λ=0)
 """
 Base.@kwdef struct MeasureConfig
     τ::Float64
@@ -562,6 +629,19 @@ end
 
 measurement_num(::FibonacciAnyon) = 1
 measurement_num(::IsingAnyon) = 2
+measurement_num(::OBFAnyon) = 2
+
+"""
+    layers_per_period(anyon_type) -> Int
+
+Return the number of measurement layers per evolution period.
+- Fibonacci: 2 layers
+- Ising: 2 layers (X, ZZ)
+- OBF: 8 layers (√X, √OBF₁, √OBF₂, OBF₃, √OBF₂, √OBF₁, √X, ZZ), here OBF represents XZZ + ZZX. At the end plus a final √ZZ layer.
+"""
+layers_per_period(::FibonacciAnyon) = 2
+layers_per_period(::IsingAnyon) = 2
+layers_per_period(::OBFAnyon) = 8
 
 """
     boundary_evolution(model::AnyonModel, state::Vector{T}, measure_config::MeasureConfig, 
@@ -644,11 +724,11 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
 
     total_free_energy = zero(real(T))
 
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(anyon_model, layer_idx)  
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(anyon_model, layer_idx, τ)  
 
     for (idx, sign) in enumerate(layer_sample)
         # Apply measurement at site measurement_sites[idx] with outcome sign
-        state = measuremap(measure_anyon_model, τ, state, measurement_sites[idx], sign)
+        state = measuremap(measure_anyon_model, measurement_strength, state, measurement_sites[idx], sign)
         prob = real(dot(state, state))
         total_free_energy += -log(prob)
         state = state ./ sqrt(prob)
@@ -658,7 +738,7 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
 end
 
 """
-    _sample_layer(model::AnyonModel, τ_eff::Float64, state::Vector{T};
+    _sample_layer(model::AnyonModel, τ::Float64, state::Vector{T};
                    layer_idx::Int=1, rng::MersenneTwister=MersenneTwister(), 
                    verbose::Bool=false) where {T}
 
@@ -666,7 +746,7 @@ Perform random measurement on a layer using Born rule sampling.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters
-- `τ_eff::Float64`: Effective measurement strength parameter
+- `τ::Float64`: Measurement strength parameter
 - `state::Vector{T}`: Quantum state vector
 - `layer_idx::Int=1`: Layer index (1-based) to determine measurement pattern
 - `rng::MersenneTwister`: Random number generator
@@ -675,12 +755,12 @@ Perform random measurement on a layer using Born rule sampling.
 # Returns
 - `Measurement_outcome_boundary`: A struct containing the post-measurement state, sample outcomes, and free energy.
 """
-function _sample_layer(anyon_model::AnyonModel{AT}, τ_eff::Float64, state::Vector{T};
+function _sample_layer(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T};
     layer_idx::Int64=1,
     rng::MersenneTwister = MersenneTwister(),
     verbose::Bool=false) where {T, AT<:AbstractAnyonType}
 
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(anyon_model, layer_idx)  
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(anyon_model, layer_idx, τ)  
     n = length(measurement_sites)
     sample = BitVector(zeros(Bool, n))
     F_layer = 0.0
@@ -688,7 +768,7 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ_eff::Float64, state::Vect
 
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
-        ψ0 = measuremap(measure_anyon_model, τ_eff, state, site, false)
+        ψ0 = measuremap(measure_anyon_model, measurement_strength, state, site, false)
         p0 = real(dot(ψ0, ψ0))
         p1 = 1 - p0
 
@@ -701,7 +781,7 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ_eff::Float64, state::Vect
             verbose && @show -log(p0)
         else
             # else 1 branch
-            ψ1 = measuremap(measure_anyon_model, τ_eff, state, site, true)
+            ψ1 = measuremap(measure_anyon_model, measurement_strength, state, site, true)
             sample[i] = 1
             state = ψ1 ./ sqrt(p1)
             F_layer += -log(p1)
@@ -785,29 +865,28 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
     rng = measure_config.rng
     verbose = measure_config.verbose
     Δt >= 0 || error("t₂ must be >= t₁")
-    D = Δt * 2 # number of layers to evolve
+    
+    n_layers = layers_per_period(model.anyon_type)
+    D = Δt * n_layers  # total number of layers
 
     # 1. Initialize sample matrix
-    samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+    samples = BitMatrix(undef, (D, n_measure))
     sample_free_energy = zeros(Float32, D)
     states = Vector{Vector{ET}}(undef, Δt)
 
-
     for period in 1:Δt
-    
-        # Random sampling for this period
-        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
-        
-        outcome1 = _sample_layer(model, τ, current_state, layer_idx=2*period-1, rng=rng, verbose=verbose)
-        current_state = outcome1.state
-        samples[2*period-1, :] = outcome1.sample
-        sample_free_energy[2*period-1] = outcome1.free_energy
-
-        outcome2 = _sample_layer(model, τ_eff, current_state, layer_idx=2*period, rng=rng, verbose=verbose)
-        current_state = outcome2.state
-        samples[2*period, :] = outcome2.sample
-        sample_free_energy[2*period] = outcome2.free_energy
-
+        # Apply all layers in this period
+        for layer in 1:n_layers
+            global_layer_idx = (period - 1) * n_layers + layer
+            # Apply τ_eff only on the last layer of the last period
+            τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+            
+            outcome = _sample_layer(model, τ_current, current_state; 
+                                    layer_idx=global_layer_idx, rng=rng, verbose=verbose)
+            current_state = outcome.state
+            samples[global_layer_idx, :] = outcome.sample
+            sample_free_energy[global_layer_idx] = outcome.free_energy
+        end
         states[period] = current_state
     end
 
@@ -821,8 +900,9 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         τ = measure_config.τ
         enable_τ_eff = measure_config.enable_τ_eff
         Δt >= 0 || error("t₂ must be >= t₁")
-        D = Δt * 2 # number of layers to evolve
-
+        
+        n_layers = layers_per_period(model.anyon_type)
+        D = Δt * n_layers  # total number of layers
 
         sample_free_energy = zeros(Float32, D)
         states = Vector{Vector{ET}}(undef, Δt)
@@ -830,15 +910,18 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         # 2. Validate sample matrix
         size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
 
-        # 3. Deterministic trajectory for modes :sample, directly deterministic trajectory
-    
-        #  If anyon_type is :Fibo, the measurement sites are half of N, circuits belike:
+        # 3. Deterministic trajectory for modes :sample
+        #  Fibonacci: 2-layer period (even sites, odd sites)
+        #  Ising (λ=0): 2-layer period (ZZ, X)
+        #  OBF (λ≠0):   8-layer period (ZZ, X, OBF, X)
+
+         #  If measure_operator is :Fibo, the measurement sites are half of N, circuits belike:
         #   1   1   1   1   1   1   1   1   1
         #     1   1   1   1   1   1   1   1    
         #   1   1   1   1   1   1   1   1   1
         #   -τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ-τ- (head tail concatenation)
 
-        # If anyon_type is :IsingX or :IsingZZ, the measurement sites are N, circuits belike:
+        # If measure_operator is :X or :ZZ, the measurement sites are N, circuits belike:
         #   Z₁Z₂ Z₂Z₃ Z₃Z₄ Z₄Z₅ Z₅Z₆ Z₆Z₇ Z₇Z₈ Z₈Z₁ (head tail concatenation)
         #  X    X    X    X    X    X    X    X
         #   Z₁Z₂ Z₂Z₃ Z₃Z₄ Z₄Z₅ Z₅Z₆ Z₆Z₇ Z₇Z₈ Z₈Z₁
@@ -852,26 +935,22 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         #  |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |   |  X  |
         #  -------   -------   -------   -------   -------   -------   -------   ------
         #  γ₁   γ₂   γ₃   γ₄   γ₅   γ₆   γ₇   γ₈   γ₉  γ₁₀  γ₁₁  γ₁₂  γ₁₃  γ₁₄  γ₁₅  γ₁₆
-  
-
+    
         for period in 1:Δt
-            # √M₁ᵉ √M₁ᵒ √M₁ᵉ √M₁ᵉ √M₁ᵒ √M₁ᵉ ⋯ √M₁ᵉ √M₁ᵒ √M₁ᵉ→ √M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ M₁ᵒ √M₁ᵉ. 
-            # √X √ZZ √X √X √ZZ √X ⋯ √X √ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer doesn't matter.
-            # Or √ZZ X √ZZ √ZZ X √ZZ ⋯ X √ZZ X √ZZ→ X ZZ X ZZ ⋯ X √ZZ, also works
-            τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
-
-            outcome1 = _apply_measurement_layer(
-                            model, τ, current_state,
-                            samples[2*period-1, :], layer_idx=2*period-1)
-            current_state = outcome1.state
-            sample_free_energy[2*period-1] = outcome1.free_energy
-            
-            outcome2 = _apply_measurement_layer(
-                            model, τ_eff, current_state,
-                            samples[2*period, :], layer_idx=2*period)
-            current_state = outcome2.state
-            sample_free_energy[2*period] = outcome2.free_energy
-
+            # √M₁ᵒ M₁ᵉ √M₁ᵒ √M₁ᵒ M₁ᵉ √M₁ᵒ ⋯ √M₁ᵒ M₁ᵉ √M₁ᵒ→ M₁ᵉ M₁ᵒ M₁ᵉ M₁ᵒ ⋯ M₁ᵉ √M₁ᵒ. 
+            # √X ZZ √X √X ZZ √X ⋯ √X ZZ √X→ √X ZZ X ZZ ⋯ X ZZ √X. To ensure each layer is hermitian, first layer doesn't matter.
+            # Or √ZZ X √ZZ √ZZ X √ZZ ⋯ X √ZZ X √ZZ→ X ZZ X ZZ ⋯ X √ZZ, also works (we choose this one here).
+            for layer in 1:n_layers
+                global_layer_idx = (period - 1) * n_layers + layer
+                # Apply τ_eff only on the last layer of the last period
+                τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+                
+                outcome = _apply_measurement_layer(
+                                model, τ_current, current_state,
+                                samples[global_layer_idx, :]; layer_idx=global_layer_idx)
+                current_state = outcome.state
+                sample_free_energy[global_layer_idx] = outcome.free_energy
+            end
             states[period] = current_state
         end
     return Measurement_outcome_bulk(states, samples, sample_free_energy)

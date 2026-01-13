@@ -1,34 +1,71 @@
+using Distributed
 using FibonacciChain
 using JLD
 using Statistics
 using Random
-using Distributed
 
-function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
-    D, _, _ = get_system_params(τ, L)
-    rng = MersenneTwister(seed)
-    
-    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
-    st = zeros(length(anyon_basis(model)))
-    st[1] = 1.0
-    
-    config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
-    @time outcome = bulk_evolution(model, st, config)
-    sample_measured_states = outcome.states
-    sample = outcome.samples
-    sample_free_energy = outcome.free_energy
-    
-    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
-    final_EElis = anyon_eelis(model, final_state)
+@everywhere using FibonacciChain
+@everywhere using JLD
+@everywhere using Statistics
+@everywhere using Random
 
-    
-    save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+@everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+@everywhere τlis = atanh.(γlis)
+@everywhere τlis[end] = 1000.0
+@everywhere τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 
-    save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
-    # return sample_measured_states, samples, sample_free_energy
+@everywhere function get_system_params(τ, L)
+    cfg = Dict(
+        atanh(0.1)  => (2500L, 1000, 750L),
+        atanh(0.2)  => (500L,  100, 120L),
+        atanh(0.3)  => (120L,  48, 50L),
+        atanh(0.4)  => (100L,  40, 40L),
+        atanh(0.5)  => (80L,   32, 20L),
+        atanh(0.6)  => (45L,   20, 15L),
+        log(1 + √2) => (35L,   14, 10L),
+        atanh(0.8)  => (25L,   10, 5L),
+        atanh(0.9)  => (8L,    4, 2L),
+        atanh(0.95) => (8L,    4, 2L),
+        atanh(0.999)=> (5L,    2, 1L),
+    )
+    D, step, start = get(cfg, τ, (5L, 2, L))
+    inds = collect(1:step:div(D,2))
+    avg_range = start:div(D,2)-5
+    return D, inds, avg_range
 end
 
+@everywhere function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
+        try
+            rng = MersenneTwister(seed)
+            D, _, _ = get_system_params(τ, L)
+            model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+            st = zeros(length(anyon_basis(model)))
+            st[1] = 1.0
+            
+            config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
+            outcome = bulk_evolution(model, st, config)
+            sample_measured_states = outcome.states
+            sample = outcome.samples
+            sample_free_energy = outcome.free_energys
+            
+            halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
+            final_state = sample_measured_states[end]
+            final_EElis = anyon_eelis(model, final_state)
+            
+            save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
+            save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
+            
+            return (L, τ, index, seed, :success, nothing)
+        catch e
+            return (L, τ, index, seed, :failed, e)
+        end
+    end
+
+# define a wrapper function for pmap
+@everywhere function process_task(task)
+    L, τ, index, seed = task
+    return samples_generate(L, τ, index, seed)
+end
 
 function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
     samples_num = 10000
@@ -154,80 +191,12 @@ function process_data(L::Int64, τ::Float64=log(1+ √2))
         "ensemble_seed", ensemble_seed)
 end
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
-
 
 if length(ARGS) == 0
     println("No arguments provided.")
     println("Usage: julia -p N monitored_dynamics.jl L τ_idx index_start index_end")
     println("Example: julia -p 16 monitored_dynamics.jl 10 7 1 1000")
 else
-    # load distributed modules and define functions on all workers
-    @everywhere using FibonacciChain
-    @everywhere using JLD
-    @everywhere using Statistics
-    @everywhere using Random
-    
-    @everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-    @everywhere τlis = atanh.(γlis)
-    @everywhere τlis[end] = 1000.0
-    @everywhere τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
-    
-    @everywhere function get_system_params(τ, L)
-        cfg = Dict(
-            atanh(0.1)  => (2500L, 1000, 750L),
-            atanh(0.2)  => (500L,  100, 120L),
-            atanh(0.3)  => (120L,  48, 50L),
-            atanh(0.4)  => (100L,  40, 40L),
-            atanh(0.5)  => (80L,   32, 20L),
-            atanh(0.6)  => (45L,   20, 15L),
-            log(1 + √2) => (35L,   14, 10L),
-            atanh(0.8)  => (25L,   10, 5L),
-            atanh(0.9)  => (8L,    4, 2L),
-            atanh(0.95) => (8L,    4, 2L),
-            atanh(0.999)=> (5L,    2, 1L),
-        )
-        D, step, start = get(cfg, τ, (5L, 2, L))
-        inds = collect(1:step:div(D,2))
-        avg_range = start:div(D,2)-5
-        return D, inds, avg_range
-    end
-    
-    @everywhere function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
-        try
-            rng = MersenneTwister(seed)
-            D, _, _ = get_system_params(τ, L)
-            model = AnyonModel(FibonacciAnyon(), L; pbc=true)
-            st = zeros(length(anyon_basis(model)))
-            st[1] = 1.0
-            
-            config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
-            outcome = bulk_evolution(model, st, config)
-            sample_measured_states = outcome.states
-            sample = outcome.samples
-            sample_free_energy = outcome.free_energy
-            
-            halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-            final_state = sample_measured_states[end]
-            final_EElis = anyon_eelis(model, final_state)
-            
-            save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
-            save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
-            
-            return (L, τ, index, seed, :success, nothing)
-        catch e
-            return (L, τ, index, seed, :failed, e)
-        end
-    end
-    
-    # define a wrapper function for pmap
-    @everywhere function process_task(task)
-        L, τ, index, seed = task
-        return samples_generate(L, τ, index, seed)
-    end
-    
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     τ = τlis[inds]
@@ -251,19 +220,12 @@ else
     results = pmap(process_task, taskslis; batch_size=100)
     
     # count successes and failures
-    success_count = 0
-    failed_count = 0
-    failed_tasks = []
+    failed_tasks = [(L_res, τ_res, idx_res, seed_res, error) 
+                    for (L_res, τ_res, idx_res, seed_res, status, error) in results 
+                    if status != :success]
     
-    for result in results
-        L_res, τ_res, idx_res, seed_res, status, error = result
-        if status == :success
-            success_count += 1
-        else
-            failed_count += 1
-            push!(failed_tasks, (L_res, τ_res, idx_res, seed_res, error))
-        end
-    end
+    success_count = count(r -> r[5] == :success, results)
+    failed_count = length(failed_tasks)
     
     # summary report
     println("\n=== Processing Complete ===")
