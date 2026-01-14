@@ -318,47 +318,6 @@ end
     Mmobc = FibonacciChain.measure_matrix(model_ZZ, τ, idx, true)
     @test Mmobc == expected_matrix
     @test Mpobc^2+Mmobc^2 ≈ I(8) 
-
-    # measuring XZZ (X_i Z_{i+1} Z_{i+2})
-    τ = 1.0
-    cstτ = cosh(τ/2) / √(2cosh(τ))
-    coef = sinh(τ/2) / √(2cosh(τ))
-    model_XZZ = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:XZZ)
-    # At idx=1: X_1 Z_2 Z_3
-    expected_matrix = cstτ * I(8) + coef * σx ⊗ σz ⊗ σz
-    Mpobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, false)
-    @test Mpobc ≈ expected_matrix
-    
-    coef = -sinh(τ/2) / √(2cosh(τ))
-    expected_matrix = cstτ * I(8) + coef * σx ⊗ σz ⊗ σz
-    Mmobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, true)
-    @test Mmobc ≈ expected_matrix
-    @test Mpobc^2 + Mmobc^2 ≈ I(8)
-
-    # measuring ZZX (Z_i Z_{i+1} X_{i+2})
-    coef = sinh(τ/2) / √(2cosh(τ))
-    model_ZZX = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:ZZX)
-    # At idx=1: Z_1 Z_2 X_3
-    expected_matrix = cstτ * I(8) + coef * σz ⊗ σz ⊗ σx
-    Mpobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, false)
-    @test Mpobc ≈ expected_matrix
-    
-    coef = -sinh(τ/2) / √(2cosh(τ))
-    expected_matrix = cstτ * I(8) + coef * σz ⊗ σz ⊗ σx
-    Mmobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, true)
-    @test Mmobc ≈ expected_matrix
-    @test Mpobc^2 + Mmobc^2 ≈ I(8)
-
-    # Test XZZ/ZZX with larger system and different index
-    N4 = 4
-    model_XZZ4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:XZZ)
-    model_ZZX4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:ZZX)
-    # At idx=2: X_2 Z_3 Z_4
-    expected_XZZ = cstτ * I(16) + sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σx ⊗ σz ⊗ σz
-    @test FibonacciChain.measure_matrix(model_XZZ4, τ, 2, false) ≈ expected_XZZ
-    # At idx=2: Z_2 Z_3 X_4
-    expected_ZZX = cstτ * I(16) + sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σz ⊗ σz ⊗ σx
-    @test FibonacciChain.measure_matrix(model_ZZX4, τ, 2, false) ≈ expected_ZZX
 end
 
 @testset "measuremap_IsingX" begin

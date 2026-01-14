@@ -270,7 +270,38 @@ Apply measurement to an MPS state.
 - `Float64`: Measurement probability
 """
 function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
-    # input a superposition state, and output the measured state (tedancy fusion to 0 or 1 in Fibonacci measure class, or X ZZ in Ising measure class)
+    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
+    @assert length(state) == length(anyon_basis(model)) "state length is expected to be $(length(anyon_basis(model))), but got $(length(state))"
+    return _measuremap_generic(model, τ, state, idx, sign)
+end
+
+"""
+    measuremap(model::AnyonModel{OBFAnyon}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool)
+
+Specialized measuremap for OBFAnyon that handles `:OBF` operator (XZZ + ZZX combined).
+
+When `measure_operator == :OBF`, this applies both XZZ and ZZX measurements sequentially
+at site `idx`, which is more efficient than two separate layer applications.
+"""
+function measuremap(model::AnyonModel{OBFAnyon}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET}
+    if model.measure_operator == :OBF
+        # OBF = XZZ followed by ZZX at the same site
+        # This combines two measurements into one layer for efficiency, because e^(-i τ OBF) = e^(-i τ XZZ) e^(-i τ ZZX) when [XZZ, ZZX] = 0
+        model_xzz = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:XZZ, model.params...)
+        model_zzx = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:ZZX, model.params...)
+        
+        # Apply XZZ first, then ZZX
+        state = measuremap(model_xzz, τ, state, idx, sign)
+        state = measuremap(model_zzx, τ, state, idx, sign)
+        return state
+    else
+        # For :XZZ, :ZZX, :X, :ZZ, use the generic implementation
+        return _measuremap_generic(model, τ, state, idx, sign)
+    end
+end
+
+# Generic implementation extracted for reuse
+function _measuremap_generic(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
     if model.measure_operator ∈ [:Ferro, :Antiferro]
         @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
     elseif model.measure_operator == :ZZ
@@ -280,23 +311,24 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
     elseif model.measure_operator ∈ (:XZZ, :ZZX)
         @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
     else
-        error("Unknown measure class: $(model.anyon_type)")
+        error("Unknown measure operator: $(model.measure_operator)")
     end
-    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-
-    basis=anyon_basis(model)
-    l=length(basis)
-    @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
-    mapped_state = zeros(ET, length(state))
+    
+    basis = anyon_basis(model)
+    l = length(basis)
+    mapped_state = zeros(ET, l)
+    
     for i in 1:l
         outputstate1, outputstate2, output1, output2 = measure_basismap(model, τ, basis[i], idx, sign)
         
         if output2 == 0
-            mapped_state[i]+=output1*state[i] # outputstate is the same as basis[i]
+            mapped_state[i] += output1 * state[i]
+            # outputstate1 is the same as basis[i]
         else
-            j2=searchsortedfirst(basis, outputstate2)
-            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-            mapped_state[j2]+=output2*state[i]
+            j2 = searchsortedfirst(basis, outputstate2)
+            mapped_state[i] += output1 * state[i]
+            # outputstate1 is the same as basis[i]
+            mapped_state[j2] += output2 * state[i]
         end
     end
     
@@ -531,7 +563,7 @@ end
 function _obtain_measurement_config(model::AnyonModel{FibonacciAnyon}, layer_idx::Int, τ::Float64=1.0)
         measurement_sites = iseven(layer_idx) ? collect(1:2:model.N) : collect(2:2:model.N) # measurement sites for Fibonacci different layer, even layers measure at odd sites, odd layers measure at even sites,
         measure_operator = :Antiferro
-        measure_anyon_model = AnyonModel(FibonacciAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+        measure_anyon_model = AnyonModel(FibonacciAnyon(), model.N; pbc = model.pbc, measure_operator = measure_operator, model.params...)
         measure_strength = τ
     return measurement_sites, measure_anyon_model, measure_strength
 end
@@ -540,7 +572,7 @@ function _obtain_measurement_config(model::AnyonModel{IsingAnyon}, layer_idx::In
     # measure at all sites!!!
     measurement_sites = collect(1:model.N)
     measure_operator = iseven(layer_idx) ? :ZZ : :X # measurement sites for Ising each layer, odd layers: measure X, even layers: measure ZZ, but actual Trotterization pattern is √ZZ X √ZZ X.
-    measure_anyon_model = AnyonModel(IsingAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+    measure_anyon_model = AnyonModel(IsingAnyon(), model.N; pbc = model.pbc, measure_operator = measure_operator, model.params...)
     measure_strength = τ
     return measurement_sites, measure_anyon_model, measure_strength
 end
@@ -584,9 +616,64 @@ function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int,
         measure_strength = τ
     end
     
-    measure_anyon_model = AnyonModel(OBFAnyon(), model.N, pbc = model.pbc, measure_operator = measure_operator)
+    measure_anyon_model = AnyonModel(OBFAnyon(), model.N; pbc = model.pbc, measure_operator = measure_operator, model.params...)
     return measurement_sites, measure_anyon_model, measure_strength
 end
+
+"""
+    _get_sample_column_indices(model::AnyonModel, layer_idx::Int) -> Vector{Int}
+
+Get the column indices in the samples BitMatrix for a given layer.
+
+For models where different layers have different numbers of measurement sites,
+this maps the measurement sites to fixed column positions in the samples matrix.
+
+# Returns
+- Vector of column indices where this layer's samples should be stored/read
+"""
+function _get_sample_column_indices(model::AnyonModel{FibonacciAnyon}, layer_idx::Int)
+    # Fibonacci: alternating even/odd sites, always N÷2 measurements
+    # Columns 1:(N÷2) are used for all layers
+    return collect(1:(model.N ÷ 2))
+end
+
+function _get_sample_column_indices(model::AnyonModel{IsingAnyon}, layer_idx::Int)
+    # Ising: all N sites measured each layer
+    return collect(1:model.N)
+end
+
+function _get_sample_column_indices(model::AnyonModel{OBFAnyon}, layer_idx::Int)
+    # OBF: different layers measure different sites, but all map to columns 1:N
+    # The column index equals the site index being measured
+    phase = mod1(layer_idx, 8)
+    N = model.N
+    
+    if phase == 1 || phase == 7
+        # X: all sites 1:N → columns 1:N
+        return collect(1:N)
+    elseif phase == 2 || phase == 6
+        # OBF group 1: sites 1,4,7,... → columns 1,4,7,...
+        return collect(1:3:N)
+    elseif phase == 3 || phase == 5
+        # OBF group 2: sites 2,5,8,... → columns 2,5,8,...
+        return collect(2:3:N)
+    elseif phase == 4
+        # OBF group 3: sites 3,6,9,... → columns 3,6,9,...
+        return collect(3:3:N)
+    elseif phase == 8
+        # ZZ: all sites 1:N → columns 1:N
+        return collect(1:N)
+    end
+end
+
+"""
+    _samples_per_layer(model::AnyonModel) -> Int
+
+Return the number of sample columns needed per layer (maximum across all layer types).
+"""
+_samples_per_layer(model::AnyonModel{FibonacciAnyon}) = model.N ÷ 2
+_samples_per_layer(model::AnyonModel{IsingAnyon}) = model.N
+_samples_per_layer(model::AnyonModel{OBFAnyon}) = model.N  # Max of all layer types
 
 
 struct Measurement_outcome_bulk{ET}
@@ -859,7 +946,7 @@ end
 
 function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure_config::MeasureConfig) where {AT, ET}
 
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_cols = _samples_per_layer(model)  # Use max samples per layer
     Δt = measure_config.t₂ - measure_config.t₁ + 1
     τ = measure_config.τ
     enable_τ_eff = measure_config.enable_τ_eff
@@ -870,8 +957,8 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
     n_layers = layers_per_period(model.anyon_type)
     D = Δt * n_layers  # total number of layers
 
-    # 1. Initialize sample matrix
-    samples = BitMatrix(undef, (D, n_measure))
+    # 1. Initialize sample matrix with max columns per layer
+    samples = BitMatrix(zeros(Bool, D, n_cols))
     sample_free_energy = zeros(Float32, D)
     states = Vector{Vector{ET}}(undef, Δt)
 
@@ -885,7 +972,10 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
             outcome = _sample_layer(model, τ_current, current_state; 
                                     layer_idx=global_layer_idx, rng=rng, verbose=verbose)
             current_state = outcome.state
-            samples[global_layer_idx, :] = outcome.sample
+            
+            # Write samples to correct column indices for this layer
+            col_indices = _get_sample_column_indices(model, global_layer_idx)
+            samples[global_layer_idx, col_indices] = outcome.sample
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
         states[period] = current_state
@@ -896,7 +986,7 @@ end
 
 function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig) where {AT, ET}
 
-        n_measure = measurement_num(model.anyon_type)*model.N÷2
+        n_cols = _samples_per_layer(model)  # Use max samples per layer
         Δt = measure_config.t₂ - measure_config.t₁ + 1
         τ = measure_config.τ
         enable_τ_eff = measure_config.enable_τ_eff
@@ -908,8 +998,8 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         sample_free_energy = zeros(Float32, D)
         states = Vector{Vector{ET}}(undef, Δt)
         
-        # 2. Validate sample matrix
-        size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
+        # 2. Validate sample matrix dimensions
+        size(samples) == (D, n_cols) || error("sample size should be ($D, $n_cols), got $(size(samples))")
 
         # 3. Deterministic trajectory for modes :sample
         #  Fibonacci: 2-layer period (even sites, odd sites)
@@ -946,9 +1036,13 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
                 # Apply τ_eff only on the last layer of the last period
                 τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
                 
+                # Read samples from correct column indices for this layer
+                col_indices = _get_sample_column_indices(model, global_layer_idx)
+                layer_sample = BitVector(samples[global_layer_idx, col_indices])
+                
                 outcome = _apply_measurement_layer(
                                 model, τ_current, current_state,
-                                samples[global_layer_idx, :]; layer_idx=global_layer_idx)
+                                layer_sample; layer_idx=global_layer_idx)
                 current_state = outcome.state
                 sample_free_energy[global_layer_idx] = outcome.free_energy
             end
