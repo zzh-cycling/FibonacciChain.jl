@@ -166,13 +166,13 @@ function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::In
     fl = bmask(T, N)
     X(state, i) = flip(state, fl >> (i-1))
     
-    # Common coefficients
+    # Common coefficients for all operators, here in constrast to Ising case the sign convention is inverse.
     if τ >= 1e2
         cstτ = 0.5
-        coef = sign ? -0.5 : 0.5
+        coef = sign ? 0.5 : -0.5
     else
         cstτ = cosh(τ/2) / √(2cosh(τ))
-        coef = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
+        coef = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
     end
 
     # Helper: get ZZ eigenvalue for sites (j1, j2)

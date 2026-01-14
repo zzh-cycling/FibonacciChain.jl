@@ -25,8 +25,25 @@ end
     H_Ising = anyon_ham(model_Ising)
     @test H ≈ H_Ising
 
-    # Test ground state energy and central charge at critical point λ=0.856
-    N = 8
+    N = 12
+    λ = 0.1
+    model_small = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
+    H = anyon_ham(model_small)
+    energy, states = eigen(H)
+    GS = states[:, 1]
+    eelis = anyon_eelis(model_small, GS)
+    c = fitCCEntEntScal(eelis, mincut=2, pbc=true)[1][1]
+    # model_Fibo = AnyonModel(FibonacciAnyon(), N, pbc=true)
+    # H_Fibo = anyon_ham(model_Fibo)
+    # energy, states_Fibo = eigen(H_Fibo)
+    # GS = states_Fibo[:, 1]
+    # eelis_Fibo = anyon_eelis(model_Fibo, GS)
+    # c = fitCCEntEntScal(eelis_Fibo, mincut=2, pbc=true)[1][1]
+end
+
+@testset "OBFAnyon critical" begin
+     # Test ground state energy and central charge at critical point λ=0.856
+    N = 12
     λ_crit = 0.856
     model_crit = AnyonModel(OBFAnyon(), N, λ=λ_crit, pbc=true)
     H_crit = anyon_ham(model_crit)
@@ -35,12 +52,6 @@ end
     eelis = anyon_eelis(model_crit, GS)
     c = fitCCEntEntScal(eelis, mincut=2, pbc=true)[1][1]
     @test isapprox(c, 0.8; atol=0.1)
-    # model_Fibo = AnyonModel(FibonacciAnyon(), N, pbc=true)
-    # H_Fibo = anyon_ham(model_Fibo)
-    # energy, states_Fibo = eigen(H_Fibo)
-    # GS = states_Fibo[:, 1]
-    # eelis_Fibo = anyon_eelis(model_Fibo, GS)
-    # c = fitCCEntEntScal(eelis_Fibo, mincut=2, pbc=true)[1][1]
 end
 
 @testset "measure_matrix" begin
@@ -199,33 +210,62 @@ end
     
 end
 
-@testset "bulk_evolution" begin
+@testset "bulk_evolution small λ" begin
     # Compare post-selection with Ising, when small λ
     N = 10
     τ = atanh(1/√2) # critical point for IsingX
+    
     model = AnyonModel(OBFAnyon(), N, λ = 0.001, pbc=true)
-
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
-    t = 2N
+    t = 4N
+    
     samples = BitMatrix(zeros(Int8, 8t, N))
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
-
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
+    statelis, F = measure_outcome.states, measure_outcome.free_energys
+    final_st = statelis[end]
+    Slis = anyon_eelis(model, final_st)
+    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
 
     model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
     measure_config_Ising = MeasureConfig(τ=τ, t₂=4t, mode=:sample)
     samples_Ising = BitMatrix(zeros(Int8, 8t, N))
     measure_outcome_Ising = bulk_evolution(model_Ising, st, measure_config_Ising, samples_Ising)
-
-    statelis, F = measure_outcome.states, measure_outcome.free_energys
     statelis_Ising, F_Ising = measure_outcome_Ising.states, measure_outcome_Ising.free_energys
-    final_st = statelis[end]
     final_st_Ising = statelis_Ising[end]
-    Slis = anyon_eelis(model, final_st)
     Slis_Ising = anyon_eelis(model_Ising, final_st_Ising)
-    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
     c_Ising = fitCCEntEntScal(Slis_Ising, mincut=2, pbc=true)[1][1]
+end
+
+@testset "bulk_evolution critical λ" begin
+    # Compare post-selection with Fibonacci, when critical λ
+    N = 12
+    τ = atanh(1/√2)
+    
+    model = AnyonModel(OBFAnyon(), N, λ = 0.856, pbc=true)
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    t = 10N
+    
+    samples = BitMatrix(zeros(Int8, 8t, N))
+    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+    measure_outcome = bulk_evolution(model, st, measure_config, samples)
+    statelis, F = measure_outcome.states, measure_outcome.free_energys
+    final_st = statelis[end]
+    Slis = anyon_eelis(model, final_st)
+    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
+
+    model = AnyonModel(OBFAnyon(), N, λ = 0.5, pbc=true)
+    t = 10N
+    
+    samples = BitMatrix(zeros(Int8, 8t, N))
+    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+    measure_outcome = bulk_evolution(model, st, measure_config, samples)
+    statelis, F = measure_outcome.states, measure_outcome.free_energys
+    final_st = statelis[end]
+    Slis = anyon_eelis(model, final_st)
+    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
 end
 
 @testset "central_charge" begin
