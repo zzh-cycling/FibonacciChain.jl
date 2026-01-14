@@ -49,7 +49,7 @@ function initial_mps(N::Int)
     return ψ0, sites
 end
 
-function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1, kwargs...) where AT <: AbstractAnyonType
+function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1) where AT <: AbstractAnyonType
     # Create sites for anyons (using S=1/2 fermions to approximate)
     N = model.N
     sites = siteinds("Qubit", N)
@@ -61,7 +61,7 @@ function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e
     ψ0 = random_mps(sites, state)
     
     # Create anyon Hamiltonian
-    H = anyon_ham(model, sites, kwargs...)
+    H = anyon_ham(model, sites)
 
     # Find ground state using DMRG
     sweeps = Sweeps(sweep_times)
@@ -88,7 +88,7 @@ Construct anyon chain Hamiltonian as Matrix Product Operator (MPO).
   - Fibonacci: three-body interactions based on Fibonacci fusion rules
   - Ising: transverse field Ising model with ZZ and X terms
 """
-function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) where AT <: FibonacciAnyon
+function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kwargs...)
     N = length(sites)
     os = OpSum()
     pbc = model.pbc
@@ -158,8 +158,9 @@ function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) whe
 
 end
 
-function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) where AT <: IsingAnyon
-    J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
+function anyon_ham(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index})
+    J = get_interaction_param(model, :J, 1.0)
+    h = get_interaction_param(model, :h, 1.0)
     N = length(sites)
     os = OpSum()
     pbc = model.pbc
@@ -173,6 +174,39 @@ function anyon_ham(model::AnyonModel{AT}, sites::Vector{<:Index}; kwargs...) whe
     end
     if pbc && N > 2
         os += -J, "Z", N, "Z", 1
+    end
+    
+    return MPO(os, sites)
+end
+
+function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
+    λ = get_interaction_param(model, :λ, 1.0)
+    N = length(sites)
+    os = OpSum()
+    pbc = model.pbc
+
+    for i in 1:N
+        os -= "X", i
+    end
+
+    for i in 1:N-1
+        os -= "Z", i, "Z", i+1
+    end
+    if pbc && N > 2
+        os -= "Z", N, "Z", 1
+    end
+
+    for i in 1:N-2
+        os += λ, "X", i, "Z", i+1, "Z", i+2
+        os += λ, "Z", i, "Z", i+1, "X", i+2
+    end
+
+    if pbc && N > 2
+        # Wrap around terms
+        os += λ, "X", N-1, "Z", N, "Z", 1
+        os += λ, "Z", N-1, "Z", N, "X", 1
+        os += λ, "X", N, "Z", 1, "Z", 2
+        os += λ, "Z", N, "Z", 1, "X", 2
     end
     
     return MPO(os, sites)

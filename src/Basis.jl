@@ -474,12 +474,12 @@ function OBFmap(state::T, i::Int, pbc::Bool=true; λ::Float64=1.0) where {N, T <
     # Z_{i+1} Z_{i+2} eigenvalue: +1 if same, -1 if different
     zz_i1i2 = (bit_i1 == bit_i2) ? 1 : -1
     xzz_state = X(state, i)
-    xzz_weight = -λ * zz_i1i2  # -λ for Hamiltonian (energy lowering)
+    xzz_weight = λ * zz_i1i2  # λ for Hamiltonian (energy lowering)
     
     # ZZX term: Z_i Z_{i+1} X_{i+2}
     zz_ii1 = (bit_i == bit_i1) ? 1 : -1
     zzx_state = X(state, i2)
-    zzx_weight = -λ * zz_ii1
+    zzx_weight = λ * zz_ii1
     
     return xzz_state, zzx_state, xzz_weight, zzx_weight
 end
@@ -602,15 +602,18 @@ function actingHam(model::AnyonModel{IsingAnyon}, state::T) where {N, T <: BitSt
     return output
 end
 
-function actingHam(model::AnyonModel{AT}, state::T) where {N, T <: BitStr{N}, AT<:OBFAnyon}
+function actingHam(model::AnyonModel{OBFAnyon}, state::T) where {N, T <: BitStr{N}}
     @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
     
     pbc = model.pbc
     λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
 
-    # Generate OBF model Hamiltonian: H = - λ ∑ (X_i Z_{i+1} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) - X - ZZ
+    # Generate OBF model Hamiltonian: H = λ ∑ (X_i Z_{i+1} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) - X - ZZ
     output = Dict{T, Float64}()
     for i in 1:N
+        s1, s2, w1, w2 = Isingmap(state, i, pbc)
+        output[s1] = get(output, s1, 0.0) + w1
+        output[s2] = get(output, s2, 0.0) + w2
         state1, state2, weight1, weight2 = OBFmap(state, i, pbc; λ=λ)
         output[state1] = get(output, state1, 0.0) + weight1
         output[state2] = get(output, state2, 0.0) + weight2

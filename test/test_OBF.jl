@@ -6,6 +6,43 @@ using Arpack
 using Random 
 using LsqFit
 
+@testset "OBFAnyon basis" begin
+    N = 4
+    model = AnyonModel(OBFAnyon(), N, pbc=false)
+    basis = anyon_basis(model)
+    @test length(basis) == 2^(N)
+    @test basis[1] == BitStr{N}(0b0000)
+    @test basis[end] == BitStr{N}(0b1111)
+end
+
+@testset "OBFAnyon Hamiltonian" begin
+    N = 4
+    λ = 0.0
+    model = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
+    H = anyon_ham(model)
+    # Test equivalence to Ising model at λ=0
+    model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
+    H_Ising = anyon_ham(model_Ising)
+    @test H ≈ H_Ising
+
+    # Test ground state energy and central charge at critical point λ=0.856
+    N = 8
+    λ_crit = 0.856
+    model_crit = AnyonModel(OBFAnyon(), N, λ=λ_crit, pbc=true)
+    H_crit = anyon_ham(model_crit)
+    energy, states = eigen(H_crit)
+    GS = states[:, 1]
+    eelis = anyon_eelis(model_crit, GS)
+    c = fitCCEntEntScal(eelis, mincut=2, pbc=true)[1][1]
+    @test isapprox(c, 0.8; atol=0.1)
+    # model_Fibo = AnyonModel(FibonacciAnyon(), N, pbc=true)
+    # H_Fibo = anyon_ham(model_Fibo)
+    # energy, states_Fibo = eigen(H_Fibo)
+    # GS = states_Fibo[:, 1]
+    # eelis_Fibo = anyon_eelis(model_Fibo, GS)
+    # c = fitCCEntEntScal(eelis_Fibo, mincut=2, pbc=true)[1][1]
+end
+
 @testset "measure_matrix" begin
     
     # measuring XZZ (X_i Z_{i+1} Z_{i+2})
@@ -163,13 +200,38 @@ end
 end
 
 @testset "bulk_evolution" begin
-    
+    # Compare post-selection with Ising, when small λ
+    N = 10
+    τ = atanh(1/√2) # critical point for IsingX
+    model = AnyonModel(OBFAnyon(), N, λ = 0.001, pbc=true)
+
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    t = 2N
+    samples = BitMatrix(zeros(Int8, 8t, N))
+    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+
+    measure_outcome = bulk_evolution(model, st, measure_config, samples)
+
+    model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
+    measure_config_Ising = MeasureConfig(τ=τ, t₂=4t, mode=:sample)
+    samples_Ising = BitMatrix(zeros(Int8, 8t, N))
+    measure_outcome_Ising = bulk_evolution(model_Ising, st, measure_config_Ising, samples_Ising)
+
+    statelis, F = measure_outcome.states, measure_outcome.free_energys
+    statelis_Ising, F_Ising = measure_outcome_Ising.states, measure_outcome_Ising.free_energys
+    final_st = statelis[end]
+    final_st_Ising = statelis_Ising[end]
+    Slis = anyon_eelis(model, final_st)
+    Slis_Ising = anyon_eelis(model_Ising, final_st_Ising)
+    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
+    c_Ising = fitCCEntEntScal(Slis_Ising, mincut=2, pbc=true)[1][1]
 end
 
 @testset "central_charge" begin
     N = 12
     τ = atanh(1/√2) # critical point for IsingX
-    model = AnyonModel(OBFAnyon(), N, λ = 0.856, pbc=true)
+    model = AnyonModel(OBFAnyon(), N, λ = 0.01, pbc=true)
 
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
