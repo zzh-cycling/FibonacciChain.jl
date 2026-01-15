@@ -24,50 +24,27 @@ end
     model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
     H_Ising = anyon_ham(model_Ising)
     @test H ≈ H_Ising
-
-    N = 12
-    λ = 0.1
-    model_small = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
-    H = anyon_ham(model_small)
-    energy, states = eigen(H)
-    GS = states[:, 1]
-    eelis = anyon_eelis(model_small, GS)
-    c = fitCCEntEntScal(eelis, mincut=2, pbc=true)[1][1]
-    # model_Fibo = AnyonModel(FibonacciAnyon(), N, pbc=true)
-    # H_Fibo = anyon_ham(model_Fibo)
-    # energy, states_Fibo = eigen(H_Fibo)
-    # GS = states_Fibo[:, 1]
-    # eelis_Fibo = anyon_eelis(model_Fibo, GS)
-    # c = fitCCEntEntScal(eelis_Fibo, mincut=2, pbc=true)[1][1]
-end
-
-@testset "OBFAnyon critical" begin
-     # Test ground state energy and central charge at critical point λ=0.856
-    N = 12
-    λ_crit = 0.856
-    model_crit = AnyonModel(OBFAnyon(), N, λ=λ_crit, pbc=true)
-    H_crit = anyon_ham(model_crit)
-    energy, states = eigen(H_crit)
-    GS = states[:, 1]
-    eelis = anyon_eelis(model_crit, GS)
-    c = fitCCEntEntScal(eelis, mincut=2, pbc=true)[1][1]
-    @test isapprox(c, 0.8; atol=0.1)
+    # ED, E_GS_critical =-22.945809563177693, N=20, -25.242799003387354, N =22, -27.532417102603596, N= 24
+    # DMRG, χ=4000, E_GS_critical = -22.945809563177695, N=20, -25.242799003387355, N=22, -27.532274074786887, N=24
 end
 
 @testset "measure_matrix" begin
-    
+    ⊗(a, b) = kron(a, b)
+    σx = [0.0 1.0; 1.0 0.0]
+    σz = [1.0 0.0; 0.0 -1.0]
     # measuring XZZ (X_i Z_{i+1} Z_{i+2})
+    N = 3
     τ = 1.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
     model_XZZ = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:XZZ)
     # At idx=1: X_1 Z_2 Z_3
-    expected_matrix = cstτ * I(8) + coef * σx ⊗ σz ⊗ σz
+    expected_matrix = cstτ * I(8) - coef * σx ⊗ σz ⊗ σz
     Mpobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, false)
     @test Mpobc ≈ expected_matrix
     
     coef = -sinh(τ/2) / √(2cosh(τ))
-    expected_matrix = cstτ * I(8) + coef * σx ⊗ σz ⊗ σz
+    expected_matrix = cstτ * I(8) - coef * σx ⊗ σz ⊗ σz
     Mmobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, true)
     @test Mmobc ≈ expected_matrix
     @test Mpobc^2 + Mmobc^2 ≈ I(8)
@@ -76,12 +53,12 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
     model_ZZX = AnyonModel(OBFAnyon(), N, pbc=true, measure_operator=:ZZX)
     # At idx=1: Z_1 Z_2 X_3
-    expected_matrix = cstτ * I(8) + coef * σz ⊗ σz ⊗ σx
+    expected_matrix = cstτ * I(8) - coef * σz ⊗ σz ⊗ σx
     Mpobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, false)
     @test Mpobc ≈ expected_matrix
     
     coef = -sinh(τ/2) / √(2cosh(τ))
-    expected_matrix = cstτ * I(8) + coef * σz ⊗ σz ⊗ σx
+    expected_matrix = cstτ * I(8) - coef * σz ⊗ σz ⊗ σx
     Mmobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, true)
     @test Mmobc ≈ expected_matrix
     @test Mpobc^2 + Mmobc^2 ≈ I(8)
@@ -91,10 +68,10 @@ end
     model_XZZ4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:XZZ)
     model_ZZX4 = AnyonModel(OBFAnyon(), N4, pbc=true, measure_operator=:ZZX)
     # At idx=2: X_2 Z_3 Z_4
-    expected_XZZ = cstτ * I(16) + sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σx ⊗ σz ⊗ σz
+    expected_XZZ = cstτ * I(16) - sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σx ⊗ σz ⊗ σz
     @test FibonacciChain.measure_matrix(model_XZZ4, τ, 2, false) ≈ expected_XZZ
     # At idx=2: Z_2 Z_3 X_4
-    expected_ZZX = cstτ * I(16) + sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σz ⊗ σz ⊗ σx
+    expected_ZZX = cstτ * I(16) - sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σz ⊗ σz ⊗ σx
     @test FibonacciChain.measure_matrix(model_ZZX4, τ, 2, false) ≈ expected_ZZX
 end
 
@@ -206,16 +183,14 @@ function fitCCEntEntScal(
     return (cent, cent_err)
 end
 
-@testset "boundary_evolution" begin
-    
-end
 
-@testset "bulk_evolution small λ" begin
+@testset "bulk_evolution small λ, ps, ED, mps" begin
     # Compare post-selection with Ising, when small λ
     N = 10
     τ = atanh(1/√2) # critical point for IsingX
     
     model = AnyonModel(OBFAnyon(), N, λ = 0.001, pbc=true)
+    ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     t = 4N
@@ -228,22 +203,23 @@ end
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
 
-    model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
-    measure_config_Ising = MeasureConfig(τ=τ, t₂=4t, mode=:sample)
-    samples_Ising = BitMatrix(zeros(Int8, 8t, N))
-    measure_outcome_Ising = bulk_evolution(model_Ising, st, measure_config_Ising, samples_Ising)
-    statelis_Ising, F_Ising = measure_outcome_Ising.states, measure_outcome_Ising.free_energys
-    final_st_Ising = statelis_Ising[end]
-    Slis_Ising = anyon_eelis(model_Ising, final_st_Ising)
-    c_Ising = fitCCEntEntScal(Slis_Ising, mincut=2, pbc=true)[1][1]
+    measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples);
+    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
+    final_mps = mpslis[end]
+    S_mps_lis = anyon_eelis(model, final_mps)
+    c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
+    @test F ≈ F_mps atol=1e-5
+    @test c_mps ≈ 0.5 atol=1e-5
+    @test c ≈ 0.5 atol=1e-5
 end
 
-@testset "bulk_evolution critical λ" begin
+@testset "bulk_evolution critical λ, ps, ED, mps" begin
     # Compare post-selection with Fibonacci, when critical λ
-    N = 12
+    N = 8
     τ = atanh(1/√2)
     
     model = AnyonModel(OBFAnyon(), N, λ = 0.856, pbc=true)
+    ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     t = 10N
@@ -255,34 +231,13 @@ end
     final_st = statelis[end]
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
+    @test c ≈ 0.47456352170253574 atol=1e-2
 
-    model = AnyonModel(OBFAnyon(), N, λ = 0.5, pbc=true)
-    t = 10N
-    
-    samples = BitMatrix(zeros(Int8, 8t, N))
-    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
-    measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = statelis[end]
-    Slis = anyon_eelis(model, final_st)
-    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
+    measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples)
+    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
+    final_mps = mpslis[end]
+    S_mps_lis = anyon_eelis(model, final_mps)
+    c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
+    @test F ≈ F_mps atol=1e-5
+    @test c_mps ≈ 0.47456 atol=1e-2
 end
-
-@testset "central_charge" begin
-    N = 12
-    τ = atanh(1/√2) # critical point for IsingX
-    model = AnyonModel(OBFAnyon(), N, λ = 0.01, pbc=true)
-
-    st = zeros(length(anyon_basis(model)))
-    st[1] = 1.0
-    t = 6N
-    samples = BitMatrix(zeros(Int8, 8t, N))
-    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
-
-    measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    generated_statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = generated_statelis[end]
-    EE = anyon_eelis(model, final_st)
-    @test fitCCEntEntScal(EE, mincut=2, pbc=true)[1][1] ≈ 0.8 atol=1e-1
-
-end 

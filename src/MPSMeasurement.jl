@@ -227,7 +227,7 @@ Create local measurement operator at site i as ITensor.
 # Returns
 - `ITensor`: Local measurement operator incorporating neighboring site correlations
 """
-function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;) where AT <: FibonacciAnyon
+function measurement_operator_mps(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
     @assert model.measure_operator ∈ [:Ferro, :Antiferro] "measure_operator must be :Ferro or :Antiferro"
     N = length(sites)
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
@@ -240,10 +240,10 @@ function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index},
     # Calculate coefficients based on τ
     if τ >= 1e2
         cstτ = 0.5
-        coef = sign == 0 ? 0.5 : -0.5
+        coef = sign ? -0.5 : 0.5
     else
         cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-        coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
+        coef = sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) : (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
     end
 
     
@@ -286,33 +286,26 @@ function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index},
     return M_local
 end
 
-function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;) where AT <: IsingAnyon
+function measurement_operator_mps(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
     @assert model.measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
     pbc = model.pbc
     N = length(sites)
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert sign in (true, false) "sign must be either true or false"
 
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? -0.5 : 0.5
+    else
+        cstτ = cosh(τ/2) / √(2cosh(τ))
+        coef = sign ? - sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
+    end
+
     if model.measure_operator == :X
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
-        else
-            cstτ = cosh(τ/2) / √(2cosh(τ))
-            coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
-        end
         
         M_local = cstτ * op("I", sites[i]) + coef * op("X", sites[i])
 
-    elseif model.measure_operator == :ZZ
-        if τ >= 1e2
-            cstτ = 0.5
-            coef = sign == 0 ? 0.5 : -0.5
-        else
-            cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-            coef = sign == 0 ? (exp(τ) - 1) / (2 * √(exp(2τ) + 1)) : (1 - exp(τ)) / (2 * √(exp(2τ) + 1))
-        end
-        
+    elseif model.measure_operator == :ZZ    
         idx_p1 = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
         Z_i = op("Z", sites[i])
         Z_ip1 = op("Z", sites[idx_p1])
@@ -320,33 +313,91 @@ function measurement_operator_mps(model::AnyonModel{AT}, sites::Vector{<:Index},
         M_local = cstτ * (op("I", sites[i]) * op("I", sites[idx_p1])) + coef * (Z_i * Z_ip1)
 
     end
+
+    return M_local
 end
 
-#   elseif (anyon_type ∈ (:reset, :resetFibo) && τ >= 1e2)|| anyon_type == :IsingZ
-#         if τ >= 1e2
-#             cstτ = 0.5
-#             coef = sign == 0 ? 0.5 : -0.5
-#         else
-#             cstτ = cosh(τ/2) / √(2cosh(τ))
-#             coef = sign == 0 ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
-#         end
-        
-#         M_local = cstτ * op("I", sites[i]) + coef * op("Z", sites[i])
+function measurement_operator_mps(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
+    @assert model.measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X"
+    pbc = model.pbc
+    N = length(sites)
+    @assert 1 <= i <= N "Index i must be in the range [1, N]"
+    @assert sign in (true, false) "sign must be either true or false"
+
+    # Common coefficients for all operators, here in contrast to Ising case the sign convention is inverse.
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? 0.5 : -0.5
+    else
+        cstτ = cosh(τ/2) / √(2cosh(τ))
+        coef = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
+    end
+
+    # Calculate indices for neighboring sites
+    if pbc
+        i1, i2 = mod1(i + 1, N), mod1(i + 2, N)
+    else
+        @assert 1 <= i <= N - 2 "Index i must be in [1, N-2] for OBC (OBF)"
+        i1, i2 = i + 1, i + 2
+    end
+
+    if model.measure_operator ∈ [:ZZ, :X]
+        # Delegate to IsingAnyon implementation
+        new_model = AnyonModel(IsingAnyon(), N; pbc=pbc, measure_operator=model.measure_operator)
+        return measurement_operator_mps(new_model, sites, i, τ, sign)
+    elseif model.measure_operator == :XZZ
+        # XZZ: X on site i, ZZ on sites i+1 and i+2
+        X_i = op("X", sites[i])
+        I_i = op("I", sites[i])
+        Z_i1 = op("Z", sites[i1])
+        Z_i2 = op("Z", sites[i2])
+        I_i1 = op("I", sites[i1])
+        I_i2 = op("I", sites[i2])
+
+        M_local = cstτ * (I_i * I_i1 * I_i2) + coef * (X_i * Z_i1 * Z_i2)
+    elseif model.measure_operator == :ZZX
+        # ZZX: ZZ on sites i and i+1, X on site i+2
+        Z_i = op("Z", sites[i])
+        Z_i1 = op("Z", sites[i1])
+        X_i2 = op("X", sites[i2])
+        I_i = op("I", sites[i])
+        I_i1 = op("I", sites[i1])
+        I_i2 = op("I", sites[i2])
+
+        M_local = cstτ * (I_i * I_i1 * I_i2) + coef * (Z_i * Z_i1 * X_i2)
+    end
+
+    return M_local
+end
+
 
 function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
-    # Create measurement operator
-    M = measurement_operator_mps(model, sites, i, τ, sign)
+    if model.measure_operator == :OBF
+        # OBF = XZZ followed by ZZX at the same site
+        # This combines two measurements into one layer for efficiency, because e^(-i τ OBF) = e^(-i τ XZZ) e^(-i τ ZZX) when [XZZ, ZZX] = 0
+        model_xzz = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:XZZ, model.params...)
+        model_zzx = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:ZZX, model.params...)
+        
+        # Apply XZZ first, then ZZX
+        ψ, prob1 = measuremap(model_xzz, ψ, sites, i, τ, sign; cutoff=cutoff, maxdim=maxdim)
+        ψ, prob2 = measuremap(model_zzx, ψ, sites, i, τ, sign; cutoff=cutoff, maxdim=maxdim)
 
-    # Apply measurement operator, initial state \psi should be normalized
-    ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
+        return ψ, prob1 * prob2
+    else
+        # Create measurement operator
+        M = measurement_operator_mps(model, sites, i, τ, sign)
     
-    # Calculate probability (norm squared)
-    prob = real(inner(ψ_measured, ψ_measured))
-    
-    # Normalize the state
-    ψ_normalized = normalize(ψ_measured)
-    
-    return ψ_normalized, prob
+        # Apply measurement operator, initial state \psi should be normalized
+        ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
+        
+        # Calculate probability (norm squared)
+        prob = real(inner(ψ_measured, ψ_measured))
+        
+        # Normalize the state
+        ψ_normalized = normalize(ψ_measured)
+        
+        return ψ_normalized, prob
+    end
 end
 
 function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; layer_idx::Int=1) where AT <: AbstractAnyonType
@@ -366,23 +417,23 @@ end
 
 function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS, layer_sample::BitVector, layer_idx::Int64; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
     # Helper function to apply measurements to a layer
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
     F_layer = 0.0
 
     for (idx, sign) in enumerate(layer_sample)
-        ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], τ, sign; cutoff=cutoff, maxdim=maxdim)
+        ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], measurement_strength, sign; cutoff=cutoff, maxdim=maxdim)
         F_layer += -log(prob)
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
 
-function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector{<:Index}, ψ::MPS,
+function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS,
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64=1;
     cutoff::Float64=1e-10, maxdim::Int=100,
     verbose::Bool=false) where AT <: AbstractAnyonType
 
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)  
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
     n = length(measurement_sites)
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
@@ -390,7 +441,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector
     final_state = copy(ψ)
     for (i, site) in enumerate(measurement_sites)
         # first 0 branch
-        ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, τ_eff, false; cutoff=cutoff, maxdim=maxdim)
+        ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, false; cutoff=cutoff, maxdim=maxdim)
         p1 = 1 - p0
 
         randomNumber = rand(rng)
@@ -402,7 +453,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ_eff::Float64, sites::Vector
             verbose && @show -log(p0)
         else
             # else 1 branch
-            ψ1, p1_re = measuremap(measure_anyon_model, ψ, sites, site, τ_eff, true; cutoff=cutoff, maxdim=maxdim)
+            ψ1, p1_re = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
             sample_layer[i] = 1
             ψ = ψ1
             F_layer += -log(p1)
@@ -828,7 +879,7 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:Bor
 """
 function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
 
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -838,29 +889,31 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
 
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
-    D = Δt * 2 # number of layers to evolve
+    
+    n_layers = layers_per_period(model.anyon_type)
+    D = Δt * n_layers  # total number of layers
 
-    # 1. Initialize sample matrix
-    samples = BitMatrix(undef, (D, n_measure))   # to be filled during sampling
+    # 1. Initialize sample matrix with max columns per layer
+    samples = BitMatrix(zeros(Bool, D, n_cols))
     sample_free_energy = zeros(Float32, D)
     states = Vector{MPS}(undef, Δt)
 
     for period in 1:Δt
-        # Random sampling for this period
-        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
-
-        outcome1 = _sample_layer_mps(
-            model, τ, sites, current_state, rng, 2*period-1; cutoff=cutoff, maxdim=maxdim, verbose=verbose)
-        current_state = outcome1.state
-        samples[2*period-1, :] = outcome1.sample
-        sample_free_energy[2*period-1] = outcome1.free_energy
-
-        outcome2 = _sample_layer_mps(
-            model, τ_eff, sites, current_state, rng, 2*period; cutoff=cutoff, maxdim=maxdim, verbose=verbose)
-        current_state = outcome2.state
-        samples[2*period, :] = outcome2.sample
-        sample_free_energy[2*period] = outcome2.free_energy
-
+        # Apply all layers in this period
+        for layer in 1:n_layers
+            global_layer_idx = (period - 1) * n_layers + layer
+            # Apply τ_eff only on the last layer of the last period
+            τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+            
+            outcome = _sample_layer_mps(model, τ_current, sites, current_state, rng, global_layer_idx;
+                                        cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+            current_state = outcome.state
+            
+            # Write samples to correct column indices for this layer
+            col_indices = _get_sample_column_indices(model, global_layer_idx)
+            samples[global_layer_idx, col_indices] = outcome.sample
+            sample_free_energy[global_layer_idx] = outcome.free_energy
+        end
         states[period] = current_state
     end
 
@@ -891,7 +944,7 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:sam
 """
 function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, samples::BitMatrix, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
 
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -899,28 +952,34 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
 
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
-    D = Δt * 2 # number of layers to evolve
+    
+    n_layers = layers_per_period(model.anyon_type)
+    D = Δt * n_layers  # total number of layers
 
     sample_free_energy = zeros(Float32, D)
     states = Vector{MPS}(undef, Δt)
     
-    # Validate sample matrix
+    # Validate sample matrix dimensions
     isnothing(samples) && error("When mode=:sample samples must be ::BitMatrix")
-    size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
+    size(samples) == (D, n_cols) || error("sample size should be ($D, $n_cols), got $(size(samples))")
 
     for period in 1:Δt
-        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
-
-        outcome1 = _apply_measurement_layer_mps(
-            model, τ, sites, current_state, samples[2*period-1, :], 2*period-1; cutoff=cutoff, maxdim=maxdim)
-        current_state = outcome1.state
-        sample_free_energy[2*period-1] = outcome1.free_energy
-
-        outcome2 = _apply_measurement_layer_mps(
-            model, τ_eff, sites, current_state, samples[2*period, :], 2*period; cutoff=cutoff, maxdim=maxdim)
-        current_state = outcome2.state
-        sample_free_energy[2*period] = outcome2.free_energy
-
+        # Apply all layers in this period
+        for layer in 1:n_layers
+            global_layer_idx = (period - 1) * n_layers + layer
+            # Apply τ_eff only on the last layer of the last period
+            τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+            
+            # Read samples from correct column indices for this layer
+            col_indices = _get_sample_column_indices(model, global_layer_idx)
+            layer_sample = BitVector(samples[global_layer_idx, col_indices])
+            
+            outcome = _apply_measurement_layer_mps(
+                            model, τ_current, sites, current_state,
+                            layer_sample, global_layer_idx; cutoff=cutoff, maxdim=maxdim)
+            current_state = outcome.state
+            sample_free_energy[global_layer_idx] = outcome.free_energy
+        end
         states[period] = current_state
     end
 
