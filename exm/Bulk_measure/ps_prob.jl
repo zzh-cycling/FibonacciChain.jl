@@ -53,6 +53,39 @@ println("total procs:       ", nprocs())
              
         return ee_plis
     end
+    function ps_prob_evolution_Ising(params)
+        # Reproduce the outcome of `Entanglement Transition in the Projective Transverse Field Ising Model`
+        L, _, seed = params
+        
+        τ = 1000.0
+        D, _, _ = get_system_params(τ, L)
+        
+        ee_plis = Vector{Vector{Float64}}(undef, length(problis))
+        I_plis = zeros(length(problis))
+        
+        model = AnyonModel(IsingAnyon(), L; pbc=true)
+        problis = collect(0.0:0.1:1.0)
+        initial_state = ones(length(anyon_basis(model)))
+        initial_state ./= norm(initial_state)
+        
+        gate_num = div(D*L, 2)
+
+        for (idx, prob) in enumerate(problis)
+            rng = MersenneTwister(seed)
+            sample = BitMatrix(reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2)))
+            config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
+            mo = bulk_evolution(model, initial_state, config, sample)
+            final_st = mo.states[end]
+            Ilis[idx] = spatial_correlation(model, final_st, 1, L÷2+1)
+            ee_plis[idx] = anyon_eelis(model, final_st)
+        end
+        
+        mkpath("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)")
+        save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_sample$(seed).jld", 
+             "seed", seed, "ee_plis", ee_plis, "problis", problis)
+             
+        return ee_plis
+    end
 end
     
   
