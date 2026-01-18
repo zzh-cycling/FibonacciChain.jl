@@ -13,8 +13,8 @@ end
     using FibonacciChain
     using Plots
     include("exm/FitEntEntScal.jl")
-    Llis = collect(12:2:18)
-    λlis = unique!(sort(vcat(collect(0.0:0.1:3), collect(0.4:0.02:0.6))))
+    Llis = collect(12:4:20)
+    λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[5.0])))
     tasks = [(λ, N) for λ in λlis, N in Llis]
     tasks = vec(tasks)  
     function run_task_mps(task)
@@ -39,7 +39,23 @@ end
             return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
         end
     end
-
+    function run_task_GS_ed(task)
+        try
+            λ, N = task
+            model = AnyonModel(OBFAnyon(), N, λ = λ, pbc=true)
+            H = anyon_ham(model)
+            energy, states = Arpack.eigs(H, nev=1, which=:SR)
+            GS = states[:, 1]
+            Slis = anyon_eelis(model, GS)
+            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
+            path = "exm/figs/GS/OBF_λ=$(round(λ, digits=3))_N=$(N).pdf"
+            mkpath(dirname(path))
+            savefig(fig, path)
+            return (λ=λ, N=N, c=cent, c_err=cent_err, status=:success, error=nothing)
+        catch e
+            return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
+        end
+    end
     function run_task_ed(task)
         try
             λ, N = task
@@ -65,8 +81,8 @@ end
     end
 end
 
-results = pmap(run_task_ed, tasks)
-
+# results = pmap(run_task_ed, tasks)
+results = pmap(run_task_GS_ed, tasks)
 
 clis       = [r.c      for r in results]
 cerrorlis  = [r.c_err  for r in results]
@@ -83,4 +99,4 @@ println("number of successful tasks: $success_count")
 println("number of failed tasks: $failed_count")
 println("failed tasks: $failed_tasks")
 
-save("exm/data/cc_ensemble.jld2", "λlis", λlis, "Llis", Llis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble)
+save("exm/data/GS_cc_ensemble.jld2", "λlis", λlis, "Llis", Llis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble)
