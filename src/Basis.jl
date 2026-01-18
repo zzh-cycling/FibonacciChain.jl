@@ -474,12 +474,12 @@ function OBFmap(state::T, i::Int, pbc::Bool=true; λ::Float64=1.0) where {N, T <
     # Z_{i+1} Z_{i+2} eigenvalue: +1 if same, -1 if different
     zz_i1i2 = (bit_i1 == bit_i2) ? 1 : -1
     xzz_state = X(state, i)
-    xzz_weight = λ * zz_i1i2  # λ for Hamiltonian (energy lowering)
+    xzz_weight = λ/2 * zz_i1i2  # λ for Hamiltonian (energy lowering)
     
     # ZZX term: Z_i Z_{i+1} X_{i+2}
     zz_ii1 = (bit_i == bit_i1) ? 1 : -1
     zzx_state = X(state, i2)
-    zzx_weight = λ * zz_ii1
+    zzx_weight = λ/2 * zz_ii1
     
     return xzz_state, zzx_state, xzz_weight, zzx_weight
 end
