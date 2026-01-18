@@ -16,6 +16,7 @@ tasks  = [(λ, N) for λ in λlis, N in Llis] |> vec
 @everywhere begin
     using FibonacciChain
     using Plots
+    using Arpack
     include("../FitEntEntScal.jl")
     # Llis = collect(12:4:20)
     # λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[5.0])))
@@ -46,7 +47,7 @@ tasks  = [(λ, N) for λ in λlis, N in Llis] |> vec
     function run_task_GS_ed((λ, N))
         try
             model = AnyonModel(OBFAnyon(), N, λ = λ, pbc=true)
-            H = anyon_ham(model)
+            H = anyon_ham_sparse(model)
             energy, states = Arpack.eigs(H, nev=1, which=:SR)
             GS = states[:, 1]
             Slis = anyon_eelis(model, GS)
