@@ -2,21 +2,25 @@ using Distributed
 using FibonacciChain
 using JLD2
 using Plots
-include("exm/FitEntEntScal.jl")
+include("../FitEntEntScal.jl")
 
 # 启动多进程（可根据实际情况调整进程数）
 if nprocs() == 1
     addprocs()
 end
 
+Llis = collect(12:4:20)
+λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[5.0])))
+tasks  = [(λ, N) for λ in λlis, N in Llis] |> vec
+
 @everywhere begin
     using FibonacciChain
     using Plots
-    include("exm/FitEntEntScal.jl")
-    Llis = collect(12:4:20)
-    λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[5.0])))
-    tasks = [(λ, N) for λ in λlis, N in Llis]
-    tasks = vec(tasks)  
+    include("../FitEntEntScal.jl")
+    # Llis = collect(12:4:20)
+    # λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[5.0])))
+    # tasks = [(λ, N) for λ in λlis, N in Llis]
+    # tasks = vec(tasks)  
     function run_task_mps(task)
         try
             λ, N = task
@@ -39,9 +43,8 @@ end
             return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
         end
     end
-    function run_task_GS_ed(task)
+    function run_task_GS_ed((λ, N))
         try
-            λ, N = task
             model = AnyonModel(OBFAnyon(), N, λ = λ, pbc=true)
             H = anyon_ham(model)
             energy, states = Arpack.eigs(H, nev=1, which=:SR)
