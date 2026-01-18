@@ -197,16 +197,16 @@ function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
     end
 
     for i in 1:N-2
-        os += λ, "X", i, "Z", i+1, "Z", i+2
-        os += λ, "Z", i, "Z", i+1, "X", i+2
+        os += λ/2, "X", i, "Z", i+1, "Z", i+2
+        os += λ/2, "Z", i, "Z", i+1, "X", i+2
     end
 
     if pbc && N > 2
         # Wrap around terms
-        os += λ, "X", N-1, "Z", N, "Z", 1
-        os += λ, "Z", N-1, "Z", N, "X", 1
-        os += λ, "X", N, "Z", 1, "Z", 2
-        os += λ, "Z", N, "Z", 1, "X", 2
+        os += λ/2, "X", N-1, "Z", N, "Z", 1
+        os += λ/2, "Z", N-1, "Z", N, "X", 1
+        os += λ/2, "X", N, "Z", 1, "Z", 2
+        os += λ/2, "Z", N, "Z", 1, "X", 2
     end
     
     return MPO(os, sites)

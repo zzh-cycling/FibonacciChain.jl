@@ -598,17 +598,17 @@ function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int,
         # √OBF₁: group index = (1, 4, 7)
         measurement_sites = collect(1:3:model.N)
         measure_operator = :OBF
-        measure_strength = λ*τ/2
+        measure_strength = λ*τ/4
     elseif phase == 3 || phase == 5
         # √OBF₂: group index = (2, 5, 8)
         measurement_sites = collect(2:3:model.N)
         measure_operator = :OBF
-        measure_strength = λ*τ/2
+        measure_strength = λ*τ/4
     elseif phase == 4
         # OBF₃: group index = (3, 6, 9)
         measurement_sites = collect(3:3:model.N)
         measure_operator = :OBF
-        measure_strength = λ*τ
+        measure_strength = λ*τ/2
     elseif phase == 8
         # ZZ measurement at all sites
         measurement_sites = collect(1:model.N)
