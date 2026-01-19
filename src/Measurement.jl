@@ -271,37 +271,6 @@ Apply measurement to an MPS state.
 """
 function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    @assert length(state) == length(anyon_basis(model)) "state length is expected to be $(length(anyon_basis(model))), but got $(length(state))"
-    return _measuremap_generic(model, τ, state, idx, sign)
-end
-
-"""
-    measuremap(model::AnyonModel{OBFAnyon}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool)
-
-Specialized measuremap for OBFAnyon that handles `:OBF` operator (XZZ + ZZX combined).
-
-When `measure_operator == :OBF`, this applies both XZZ and ZZX measurements sequentially
-at site `idx`, which is more efficient than two separate layer applications.
-"""
-function measuremap(model::AnyonModel{OBFAnyon}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET}
-    if model.measure_operator == :OBF
-        # OBF = XZZ followed by ZZX at the same site
-        # This combines two measurements into one layer for efficiency, because e^(-i τ OBF) = e^(-i τ XZZ) e^(-i τ ZZX) when [XZZ, ZZX] = 0
-        model_xzz = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:XZZ, model.params...)
-        model_zzx = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:ZZX, model.params...)
-        
-        # Apply XZZ first, then ZZX
-        state = measuremap(model_xzz, τ, state, idx, sign)
-        state = measuremap(model_zzx, τ, state, idx, sign)
-        return state
-    else
-        # For :XZZ, :ZZX, :X, :ZZ, use the generic implementation
-        return _measuremap_generic(model, τ, state, idx, sign)
-    end
-end
-
-# Generic implementation extracted for reuse
-function _measuremap_generic(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
     if model.measure_operator ∈ [:Ferro, :Antiferro]
         @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
     elseif model.measure_operator == :ZZ
@@ -316,6 +285,7 @@ function _measuremap_generic(model::AnyonModel{AT}, τ::Float64, state::Vector{E
     
     basis = anyon_basis(model)
     l = length(basis)
+    @assert length(state) == length(anyon_basis(model)) "state length is expected to be $(length(anyon_basis(model))), but got $(length(state))"
     mapped_state = zeros(ET, l)
     
     for i in 1:l
@@ -579,44 +549,64 @@ end
 
 function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int, τ::Float64=1.0)
     # OBF 8-layer period structure:
-    # Layer 1: X (all sites)
-    # Layer 2: √ZZ (all sites)  
-    # Layer 3,4,5: √OBF on 3 groups (sites 1,4,7...), (sites 2,5,8...), (sites 3,6,9...)
-    # Layer 6,7: √OBF reverse order
-    # Layer 8: √ZZ (all sites)
-    # Final: √X
-    # √X, √OBF₁, √OBF₂, OBF₃, √OBF₂, √OBF₁, √X, ZZ
+    # Layer 1, 13: √XZZ (sites 1,4,7...)
+    # Layer 2, 12: √ZZX (sites 1,4,7...)
+    # Layer 3, 11: √XZZ (sites 2,5,8...)
+    # Layer 4, 10: √ZZX (sites 2,5,8...)
+    # Layer 5, 9:  √XZZ (sites 3,6,9...)
+    # Layer 6, 8:  √ZZX (sites 3,6,9...)
+    # Layer 7:     X (all sites)
+    # Final 14: ZZ
+    # theoretically we use √ZZ, √XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, √ZZ, it can be
+    # √XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, ZZ
+    # 1        2      3      4      5      6    7    8      9     10      11    12     13    14 
 
-    phase = mod1(layer_idx, 8)
+    phase = mod1(layer_idx, 14)
     λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
-    if phase == 1 || phase == 7
-        # X measurement at all bonds
-        measurement_sites = collect(1:model.N)
+    N = model.N
+    if phase == 1 || phase == 13
+        # √XZZ measurement at (1, 4, 7)
+        measurement_sites = collect(1:3:N)
+        measure_operator = :XZZ
+        measure_strength = λ*τ/4
+    elseif phase == 2 || phase == 12
+        # √ZZX measurement at (1, 4, 7)
+        measurement_sites = collect(1:3:N)
+        measure_operator = :ZZX
+        measure_strength = λ*τ/4
+    elseif phase == 3 || phase == 11
+        # √XZZ measurement at (2, 5, 8)
+        measurement_sites = collect(2:3:N)
+        measure_operator = :XZZ
+        measure_strength = λ*τ/4
+    elseif phase == 4 || phase == 10
+        # √ZZX measurement at (2, 5, 8)
+        measurement_sites = collect(2:3:N)
+        measure_operator = :ZZX
+        measure_strength = λ*τ/4
+    elseif phase == 5 || phase == 9
+        # √XZZ measurement at (3, 6, 9)
+        measurement_sites = collect(3:3:N)
+        measure_operator = :XZZ
+        measure_strength = λ*τ/4
+    elseif phase == 6 || phase == 8
+        # √ZZX measurement at (3, 6, 9)
+        measurement_sites = collect(3:3:N)
+        measure_operator = :ZZX
+        measure_strength = λ*τ/4
+    elseif phase == 7
+        # X measurement at all sites
+        measurement_sites = collect(1:N)
         measure_operator = :X
-        measure_strength = τ/2
-    elseif phase == 2 || phase == 6
-        # √OBF₁: group index = (1, 4, 7)
-        measurement_sites = collect(1:3:model.N)
-        measure_operator = :OBF
-        measure_strength = λ*τ/4
-    elseif phase == 3 || phase == 5
-        # √OBF₂: group index = (2, 5, 8)
-        measurement_sites = collect(2:3:model.N)
-        measure_operator = :OBF
-        measure_strength = λ*τ/4
-    elseif phase == 4
-        # OBF₃: group index = (3, 6, 9)
-        measurement_sites = collect(3:3:model.N)
-        measure_operator = :OBF
-        measure_strength = λ*τ/2
-    elseif phase == 8
+        measure_strength = τ
+    elseif phase == 14
         # ZZ measurement at all sites
-        measurement_sites = collect(1:model.N)
+        measurement_sites = collect(1:N)
         measure_operator = :ZZ
         measure_strength = τ
     end
     
-    measure_anyon_model = AnyonModel(OBFAnyon(), model.N; pbc = model.pbc, measure_operator = measure_operator, model.params...)
+    measure_anyon_model = AnyonModel(OBFAnyon(), N; pbc = model.pbc, measure_operator = measure_operator, model.params...)
     return measurement_sites, measure_anyon_model, measure_strength
 end
 
@@ -645,22 +635,31 @@ end
 function _get_sample_column_indices(model::AnyonModel{OBFAnyon}, layer_idx::Int)
     # OBF: different layers measure different sites, but all map to columns 1:N
     # The column index equals the site index being measured
-    phase = mod1(layer_idx, 8)
+    phase = mod1(layer_idx, 14)
     N = model.N
     
-    if phase == 1 || phase == 7
+    if phase == 1 || phase == 13
+        # XZZ: sites 1,4,7,... → columns 1,4,7,...
+        return collect(1:3:N)
+    elseif phase == 2 || phase == 12
+        # ZZX: sites 1,4,7,... → columns 1,4,7,...
+        return collect(1:3:N)
+    elseif phase == 3 || phase == 11
+        # XZZ: sites 2,5,8,... → columns 2,5,8,...
+        return collect(2:3:N)
+    elseif phase == 4 || phase == 10
+        # ZZX: sites 2,5,8,... → columns 2,5,8,...
+        return collect(2:3:N)
+    elseif phase == 5 || phase == 9
+        # XZZ: sites 3,6,9,... → columns 3,6,9,...
+        return collect(3:3:N)
+    elseif phase == 6 || phase == 8
+        # ZZX: sites 3,6,9,... → columns 3,6,9,...
+        return collect(3:3:N)
+    elseif phase == 7
         # X: all sites 1:N → columns 1:N
         return collect(1:N)
-    elseif phase == 2 || phase == 6
-        # OBF group 1: sites 1,4,7,... → columns 1,4,7,...
-        return collect(1:3:N)
-    elseif phase == 3 || phase == 5
-        # OBF group 2: sites 2,5,8,... → columns 2,5,8,...
-        return collect(2:3:N)
-    elseif phase == 4
-        # OBF group 3: sites 3,6,9,... → columns 3,6,9,...
-        return collect(3:3:N)
-    elseif phase == 8
+    elseif phase == 14
         # ZZ: all sites 1:N → columns 1:N
         return collect(1:N)
     end
@@ -715,21 +714,17 @@ Base.@kwdef struct MeasureConfig
     maxdim::Int = 1000
 end
 
-measurement_num(::FibonacciAnyon) = 1
-measurement_num(::IsingAnyon) = 2
-measurement_num(::OBFAnyon) = 2
-
 """
     layers_per_period(anyon_type) -> Int
 
 Return the number of measurement layers per evolution period.
 - Fibonacci: 2 layers
 - Ising: 2 layers (X, ZZ)
-- OBF: 8 layers (√X, √OBF₁, √OBF₂, OBF₃, √OBF₂, √OBF₁, √X, ZZ), here OBF represents XZZ + ZZX. At the end plus a final √ZZ layer.
+- OBF: 14 layers (√XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, ZZ), here OBF represents XZZ + ZZX. At the end plus a final √ZZ layer.
 """
 layers_per_period(::FibonacciAnyon) = 2
 layers_per_period(::IsingAnyon) = 2
-layers_per_period(::OBFAnyon) = 8
+layers_per_period(::OBFAnyon) = 14
 
 """
     boundary_evolution(model::AnyonModel, state::Vector{T}, measure_config::MeasureConfig, 
@@ -783,7 +778,7 @@ function boundary_evolution(anyon_model::AnyonModel{AT}, state::Vector{T}, measu
     τ_eff = measure_config.enable_τ_eff ? measure_config.τ / 2 : measure_config.τ
     if measure_config.mode == :sample
         N = anyon_model.N
-        size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
+        size(sample, 1) == _samples_per_layer(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
         return _apply_measurement_layer(anyon_model, τ_eff, state, sample; layer_idx=layer_idx)
     elseif measure_config.mode == :Born
         return _sample_layer(anyon_model, τ_eff, state; layer_idx=layer_idx, rng=measure_config.rng, verbose=measure_config.verbose)

@@ -372,32 +372,19 @@ end
 
 
 function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
-    if model.measure_operator == :OBF
-        # OBF = XZZ followed by ZZX at the same site
-        # This combines two measurements into one layer for efficiency, because e^(-i τ OBF) = e^(-i τ XZZ) e^(-i τ ZZX) when [XZZ, ZZX] = 0
-        model_xzz = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:XZZ, model.params...)
-        model_zzx = AnyonModel(OBFAnyon(), model.N; pbc=model.pbc, measure_operator=:ZZX, model.params...)
-        
-        # Apply XZZ first, then ZZX
-        ψ, prob1 = measuremap(model_xzz, ψ, sites, i, τ, sign; cutoff=cutoff, maxdim=maxdim)
-        ψ, prob2 = measuremap(model_zzx, ψ, sites, i, τ, sign; cutoff=cutoff, maxdim=maxdim)
-
-        return ψ, prob1 * prob2
-    else
-        # Create measurement operator
-        M = measurement_operator_mps(model, sites, i, τ, sign)
+    # Create measurement operator
+    M = measurement_operator_mps(model, sites, i, τ, sign)
     
-        # Apply measurement operator, initial state \psi should be normalized
-        ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
-        
-        # Calculate probability (norm squared)
-        prob = real(inner(ψ_measured, ψ_measured))
-        
-        # Normalize the state
-        ψ_normalized = normalize(ψ_measured)
-        
-        return ψ_normalized, prob
-    end
+    # Apply measurement operator, initial state \psi should be normalized
+    ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
+    
+    # Calculate probability (norm squared)
+    prob = real(inner(ψ_measured, ψ_measured))
+    
+    # Normalize the state
+    ψ_normalized = normalize(ψ_measured)
+    
+    return ψ_normalized, prob
 end
 
 function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; layer_idx::Int=1) where AT <: AbstractAnyonType
