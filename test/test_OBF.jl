@@ -24,6 +24,34 @@ end
     model_Ising = AnyonModel(IsingAnyon(), N, pbc=true)
     H_Ising = anyon_ham(model_Ising)
     @test H ≈ H_Ising
+
+    N = 8
+    λ = 0.1
+    model = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
+    H = anyon_ham_sparse(model)
+    # Test ground state energy against known results
+    energy, states = Arpack.eigs(H, nev=1, which=:SR)
+    GS = states[:, 1]
+    eelis = anyon_eelis(model, GS)
+    (cent, cent_err), fig = fitCCEntEntScal(eelis, mincut=2, pbc=true)
+    @test isapprox(cent, 0.5; atol=1e-2)
+
+    N = 10
+    λ = 0.856
+    model = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
+    H = anyon_ham_sparse(model)
+    energy, states = Arpack.eigs(H, nev=1, which=:SR)
+    GS = states[:, 1]
+    eelis = anyon_eelis(model, GS)
+    (cent, cent_err), fig = fitCCEntEntScal(eelis, mincut=2, pbc=true)
+    @test isapprox(cent, 0.73; atol=1e-2)
+
+    λ = 1.0
+    model = AnyonModel(OBFAnyon(), N, λ=λ, pbc=true)
+    H = anyon_ham_sparse(model)
+    energy, states = Arpack.eigs(H, nev=1, which=:SR)
+    @test isapprox(energy[1], -N; atol=1e-7)
+    # λ = 1.712
     # ED, E_GS_critical =-22.945809563177693, N=20, -25.242799003387354, N =22, -27.532417102603596, N= 24
     # DMRG, χ=4000, E_GS_critical = -22.945809563177695, N=20, -25.242799003387355, N=22, -27.532274074786887, N=24
 end
@@ -216,14 +244,16 @@ end
 @testset "bulk_evolution critical λ, ps, ED, mps" begin
     # Compare post-selection with Fibonacci, when critical λ
     N = 8
-    τ = atanh(1/√2)
+    # τ = atanh(1/√2)
+    τ = 0.1 # small τ have more accurate c
     
     model = AnyonModel(OBFAnyon(), N, λ = 0.856, pbc=true)
     ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
-    t = 10N
+    t = 100N
     
+    idxs = collect(1:8:8t)
     samples = BitMatrix(zeros(Int8, 8t, N))
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
@@ -231,7 +261,7 @@ end
     final_st = statelis[end]
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
-    @test c ≈ 0.47456352170253574 atol=1e-2
+    @test c ≈ 0.72 atol=1e-2
 
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples)
     mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
@@ -239,5 +269,35 @@ end
     S_mps_lis = anyon_eelis(model, final_mps)
     c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
     @test F ≈ F_mps atol=1e-5
-    @test c_mps ≈ 0.47456 atol=1e-2
+    @test c_mps ≈ c atol=1e-2
+end
+
+@testset "bulk_evolution critical λ, ps, ED, mps" begin
+    # Compare post-selection with Fibonacci, when critical λ
+    N = 8
+    τ = atanh(1/√2)
+    
+    model = AnyonModel(OBFAnyon(), N, λ = 0.5, pbc=true)
+    ψ, sites = initial_mps(N)
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    t = 5N
+    
+    idxs = collect(1:8:8t)
+    samples = BitMatrix(zeros(Int8, 8t, N))
+    measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+    measure_outcome = bulk_evolution(model, st, measure_config, samples)
+    statelis, F = measure_outcome.states, measure_outcome.free_energys
+    final_st = statelis[end]
+    Slis = anyon_eelis(model, final_st)
+    c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
+    @test c ≈ 0.41 atol=1e-2
+
+    measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples)
+    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
+    final_mps = mpslis[end]
+    S_mps_lis = anyon_eelis(model, final_mps)
+    c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
+    @test F ≈ F_mps atol=1e-5
+    @test c_mps ≈ c atol=1e-2
 end
