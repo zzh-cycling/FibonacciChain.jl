@@ -35,18 +35,14 @@ true
 """
 function measure_basismap(model::AnyonModel{AT}, τ::Float64, state::T, i::Int, sign::Bool) where {T, AT<:AbstractAnyonType}
     # default for PBC system, map basis (not state!!!), and index count from the left.
-    @assert 1 <= i <= model.N "Index i must be in the range [1, N]"
-    @assert sign in (0, 1) "sign must be either 0 the plus, 1 the minus"
-
+    @assert num_digits(T) == model.N "State length mismatch: expected $(model.N), got $(num_digits(T))"
     return _apply_result(model, τ, state, i, sign)
 end
 
-function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
-    @assert measure_operator ∈ [:Ferro, :Antiferro, :reset] "measure_operator must be :Ferro, :Antiferro, :reset"
+    
     N = model.N
-    @assert num_digits(T) == N "State length mismatch: expected $(N), got $(num_digits(T))"
-
     fl=bmask(T, N)
     X(state,i) = flip(state, fl >> (i-1))
     ϕ = (1+√5)/2
@@ -116,9 +112,8 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
     end
 end
 
-function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
-    @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset"
 
     N = model.N
     fl = bmask(T, N)
@@ -158,9 +153,8 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
     end
 end
 
-function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::Int, sign::Bool) where {T}
+function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
-    @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X"
 
     N = model.N
     fl = bmask(T, N)
@@ -279,8 +273,6 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
     elseif model.measure_operator ∈ (:XZZ, :ZZX)
         @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
-    else
-        error("Unknown measure operator: $(model.measure_operator)")
     end
     
     basis = anyon_basis(model)
@@ -288,7 +280,7 @@ function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::
     @assert length(state) == length(anyon_basis(model)) "state length is expected to be $(length(anyon_basis(model))), but got $(length(state))"
     mapped_state = zeros(ET, l)
     
-    for i in 1:l
+    @inbounds for i in 1:l
         outputstate1, outputstate2, output1, output2 = measure_basismap(model, τ, basis[i], idx, sign)
         
         if output2 == 0
@@ -314,8 +306,8 @@ function laddermeasuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET},
     l=length(basis)
     @assert l^2 == length(state) "state length is expected to be $(l^2), but got $(length(state))"
     mapped_state = zeros(ET, length(state))
-    for i in 1:l
-        for j in 1:l
+    @inbounds for i in 1:l
+        @inbounds for j in 1:l
             output1 = measure_basismap(model, τ, basis[i], idx, sign)
             output2 = measure_basismap(model, τ, basis[j], idx, sign)
             if length(output1) == 4 && length(output2) == 4

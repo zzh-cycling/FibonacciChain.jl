@@ -47,12 +47,24 @@ struct AnyonModel{AT<:AbstractAnyonType}
     N::Int
     pbc::Bool
     measure_operator::Symbol
-    params::Dict{Symbol, Any}
-    
-    function AnyonModel(anyon_type::AT, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...) where {AT<:AbstractAnyonType}
+    params::Dict{Symbol, Float64}    
+    function AnyonModel(anyon_type::FibonacciAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
         @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator ∈ [:Ferro, :Antiferro, :reset] "measure_operator must be :Ferro, :Antiferro, :reset for Fibonacci anyons"
         params = Dict{Symbol, Any}(kwargs...)
-        return new{AT}(anyon_type, N, pbc, measure_operator, params)
+        return new{FibonacciAnyon}(anyon_type, N, pbc, measure_operator, params)
+    end
+    function AnyonModel(anyon_type::IsingAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
+        params = Dict{Symbol, Any}(kwargs...)
+        return new{IsingAnyon}(anyon_type, N, pbc, measure_operator, params)
+    end
+    function AnyonModel(anyon_type::OBFAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
+        params = Dict{Symbol, Any}(kwargs...)
+        return new{OBFAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
 end
 
