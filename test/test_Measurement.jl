@@ -21,11 +21,11 @@ using LsqFit
 
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ, w2 = 0.0)
 
     sign = false
     output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
@@ -37,21 +37,21 @@ using LsqFit
     coef = (exp(τ)-1)/2√(exp(2τ)+1)
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ-coef, w2 = 0.0)
 
     sign = true
     coef = (1-exp(τ))/2√(exp(2τ)+1)
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=1
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ-coef, w2 = 0.0)
 
     τ = 1e3
     sign = false
@@ -59,39 +59,37 @@ using LsqFit
     coef = 1/2
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # s=0
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2))
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ-coef, w2 = 0.0)
 
     idx = 1
     model = AnyonModel(FibonacciAnyon(), N) # pbc is true by default
-    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # pbc is true by default, s=0
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"100"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ+coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
-    @test output[5] === nothing
+    output = measure_basismap.(Ref(model), τ, basis0[1:4], idx, sign) # pbc is true by default, s=0
+    @test length(output) == length(basis0[1:4])
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"100"), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"000"), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
 
     idx = 3
-    output = measure_basismap.(Ref(model), τ, basis0, idx, sign) # pbc is true by default, s=0
-    @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"001"), cstτ+coef*(1-2ϕ^(-1)),-2*coef*ϕ^(-3/2))
-    @test output[2] == (T(bit"001"), T(bit"000"), cstτ+coef*(2ϕ^(-1)-1),-2*coef*ϕ^(-3/2))
-    @test output[3] == (T(bit"010"), T(bit"010"), cstτ+coef, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] === nothing
+    output = measure_basismap.(Ref(model), τ, basis0[1:4], idx, sign) # pbc is true by default, s=0
+    @test length(output) == length(basis0[1:4])
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"001"), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"000"), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
 
     model = AnyonModel(FibonacciAnyon(), N, pbc = true, measure_operator=:reset)
     output = measure_basismap.(Ref(model), 1000.0, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0) # Noting such basis didn't show in Fibonacci basis
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = 1.0, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = 0.0, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = 1.0, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = 1.0, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = 0.0, w2 = 0.0) # Noting such basis didn't show in Fibonacci basis
 end
 
 @testset "measure_matrix" begin

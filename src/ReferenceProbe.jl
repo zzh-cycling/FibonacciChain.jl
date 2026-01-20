@@ -412,7 +412,7 @@ function reference_boundary_evolution(model::AnyonModel, state::Vector{T}, measu
     verbose = measure_config.verbose
     if mode == :sample
         N = model.N
-        size(sample, 1) == measurement_num(model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
+        size(sample, 1) == _samples_per_layer(model) || error("sample size mismatch with anyon_model $(N)")
         verbose && @info "Using given sample evolution mode"
         _reference_apply_measurement_layer(model, τ_eff, state, sample, layer_idx; extended_basis=extended_basis, k_old=k_old)
     elseif mode == :Born
@@ -585,7 +585,7 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
   - `free_energys::Vector{Float64}`: The free energy for each measurement layer.
 """
 function _reference_born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {AT, ET, newT}
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_measure = _samples_per_layer(model)
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -647,7 +647,7 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
   - `free_energys::Vector{Float64}`: The free energy for each measurement layer.
 """
 function _reference_sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {AT, ET, newT}
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_measure = _samples_per_layer(model)
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -767,7 +767,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     rng = measure_config.rng
     verbose = measure_config.verbose
     mode = measure_config.mode
-    n_measure = measurement_num(model.anyon_type)*(N÷2)
+    n_measure = _samples_per_layer(model)
     Δt = size(sample, 1) ÷ 2
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period), each time slice have two layers.
 

@@ -758,7 +758,7 @@ function boundary_evolution(anyon_model::AnyonModel{AT}, state::Vector{T}, measu
     τ_eff = measure_config.enable_τ_eff ? measure_config.τ / 2 : measure_config.τ
     if measure_config.mode == :sample
         N = anyon_model.N
-        size(sample, 1) == _samples_per_layer(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
+        size(sample, 1) == _samples_per_layer(anyon_model) || error("sample size mismatch with anyon_model $(N)")
         return _apply_measurement_layer(anyon_model, τ_eff, state, sample; layer_idx=layer_idx)
     elseif measure_config.mode == :Born
         return _sample_layer(anyon_model, τ_eff, state; layer_idx=layer_idx, rng=measure_config.rng, verbose=measure_config.verbose)
