@@ -39,7 +39,7 @@ function measure_basismap(model::AnyonModel{AT}, τ::Float64, state::T, i::Int, 
     return _apply_result(model, τ, state, i, sign)
 end
 
-function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
+function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{s1::T, s2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
     
     N = model.N
@@ -50,8 +50,8 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
     if measure_operator == :reset && τ >= 1e2
         cstτ = 0.5
         coef = sign ? -0.5 : 0.5
-        
-        return state, state, (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef, 0.0
+        value = (state[N - i + 1] == 0) ? cstτ + coef : cstτ - coef
+        return (s1 = state, s2 = state, w1 = value, w2 = 0.0)
     else
         if τ >= 1e2
             # true is 1, false is 0
@@ -66,15 +66,15 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
             mask=bmask(T,1,2,3) << (N-i-1)
             str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
             if state & mask == str000
-                return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+                return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
             elseif state & mask == str010
-                return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+                return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
             elseif state & mask == str001
-                return state, state, cstτ+coef, 0.0
+                return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
             elseif state & mask == str100
-                return state, state, cstτ+coef, 0.0
+                return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
             elseif state & mask == str101
-                return state, state, cstτ-coef, 0.0
+                return (s1 = state, s2 = state, w1 = cstτ-coef, w2 = 0.0)
             end
         end
 
@@ -83,36 +83,36 @@ function _apply_result(model::AnyonModel{FibonacciAnyon}, τ::Float64, state::T,
             mask=bmask(T, N, N-1,1)
             str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
                 if state & mask == str000
-                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+                    return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
                 elseif state & mask == str010
-                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+                    return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
                 elseif state & mask == str001
-                    return state, state, cstτ+coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
                 elseif state & mask == str100
-                    return state, state, cstτ+coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
                 elseif state & mask == str101
-                    return state, state, cstτ-coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ-coef, w2 = 0.0)
                 end
             elseif i == N #count from the left
             mask=bmask(T, N, 2, 1)
             str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
                 if state & mask == str000
-                    return state, X(state,i), cstτ+coef*(1-2ϕ^(-1)), -2*coef*ϕ^(-3/2)
+                    return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(1-2ϕ^(-1)), w2 = -2*coef*ϕ^(-3/2))
                 elseif state & mask == str010
-                    return state, X(state,i), cstτ+coef*(2ϕ^(-1)-1), -2*coef*ϕ^(-3/2)
+                    return (s1 = state, s2 = X(state,i), w1 = cstτ+coef*(2ϕ^(-1)-1), w2 = -2*coef*ϕ^(-3/2))
                 elseif state & mask == str001
-                    return state, state, cstτ+coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
                 elseif state & mask == str100
-                    return state, state, cstτ+coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ+coef, w2 = 0.0)
                 elseif state & mask == str101
-                    return state, state, cstτ-coef, 0.0
+                    return (s1 = state, s2 = state, w1 = cstτ-coef, w2 = 0.0)
                 end
             end
         end
     end
 end
 
-function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
+function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{s1::T, s2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
 
     N = model.N
@@ -132,7 +132,7 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
     zz_eigen(j1, j2) = ((state >> (N - j1)) & 1) == ((state >> (N - j2)) & 1) ? 1 : -1
 
     if measure_operator == :X
-        return state, X(state, i), cstτ, coef
+        return (s1 = state, s2 = X(state, i), w1 = cstτ, w2 = coef)
 
     elseif measure_operator == :ZZ
         if 1 <= i <= N-1
@@ -140,8 +140,7 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
         elseif model.pbc && i == N
             eigenvalue = (state & 1) == (state >> (N-1) & 1) ? 1 : -1
         end
-        return state, state, cstτ + coef * eigenvalue, 0.0
-
+        return (s1 = state, s2 = state, w1 = cstτ + coef * eigenvalue, w2 = 0.0)
     elseif measure_operator ∈ [:reset, :Z]
         # :reset/:Z has flipped sign convention for coef
         coef_z = sign ? sinh(τ/2) / √(2cosh(τ)) : -sinh(τ/2) / √(2cosh(τ))
@@ -149,11 +148,11 @@ function _apply_result(model::AnyonModel{IsingAnyon}, τ::Float64, state::T, i::
             coef_z = sign ? -0.5 : 0.5
         end
         eigenvalue = (state[N - i + 1] == 0) ? 1 : -1
-        return state, state, cstτ + coef_z * eigenvalue, 0.0
+        return (s1 = state, s2 = state, w1 = cstτ + coef_z * eigenvalue, w2 = 0.0)
     end
 end
 
-function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{state1::T, state2::T, w1::Float64, w2::Float64} where {T}
+function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::Int, sign::Bool) ::@NamedTuple{s1::T, s2::T, w1::Float64, w2::Float64} where {T}
     measure_operator = model.measure_operator
 
     N = model.N
@@ -184,10 +183,10 @@ function _apply_result(model::AnyonModel{OBFAnyon}, τ::Float64, state::T, i::In
         return _apply_result(new_model, τ, state, i, sign)
     elseif measure_operator == :XZZ
         # return XZZ components, and coefficients
-        return state, X(state, i), cstτ, coef * zz_eigen(i1, i2)
+        return (s1 = state, s2 = X(state, i), w1 = cstτ, w2 = coef * zz_eigen(i1, i2))
     elseif measure_operator == :ZZX
         # return ZZX components, and coefficients
-        return state, X(state, i2), cstτ, coef * zz_eigen(i, i1)
+        return (s1 = state, s2 = X(state, i2), w1 = cstτ, w2 = coef * zz_eigen(i, i1))
     end
 end
 
@@ -264,17 +263,6 @@ Apply measurement to an MPS state.
 - `Float64`: Measurement probability
 """
 function measuremap(model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, AT<:AbstractAnyonType}
-    @assert ET != Int "The state should be a Float or Complex list, not an integer list"
-    if model.measure_operator ∈ [:Ferro, :Antiferro]
-        @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
-    elseif model.measure_operator == :ZZ
-        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
-    elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
-        @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
-    elseif model.measure_operator ∈ (:XZZ, :ZZX)
-        @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
-    end
-    
     basis = anyon_basis(model)
     l = length(basis)
     @assert length(state) == length(anyon_basis(model)) "state length is expected to be $(length(anyon_basis(model))), but got $(length(state))"
@@ -801,6 +789,19 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
 
     measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(anyon_model, layer_idx, τ)  
 
+    mop = anyon_model.measure_operator
+    N = anyon_model.N
+    pbc = anyon_model.pbc
+    if mop ∈ [:Ferro, :Antiferro]
+        @assert pbc || 2 <= measurement_sites[1] || measurement_sites[end] <= N-1 "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif mop == :ZZ
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N-1 "Index idx must be in [1, N-1] for open BC (ZZ)"
+    elseif mop ∈ (:X, :Z, :reset, :resetFibo)
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N "Index idx must be in [1, N] for open BC (X)"
+    elseif mop ∈ (:XZZ, :ZZX)
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N-2 "Index idx must be in [1, N-2] for open BC (OBF)"
+    end
+    
     for (idx, sign) in enumerate(layer_sample)
         # Apply measurement at site measurement_sites[idx] with outcome sign
         state = measuremap(measure_anyon_model, measurement_strength, state, measurement_sites[idx], sign)
@@ -836,6 +837,20 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T
     verbose::Bool=false) where {T, AT<:AbstractAnyonType}
 
     measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(anyon_model, layer_idx, τ)  
+
+    mop = anyon_model.measure_operator
+    N = anyon_model.N
+    pbc = anyon_model.pbc
+    if mop ∈ [:Ferro, :Antiferro]
+        @assert pbc || 2 <= measurement_sites[1] || measurement_sites[end] <= N-1 "Index idx must be in [2, N-1] for open BC (Fibonacci)"
+    elseif mop == :ZZ
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N-1 "Index idx must be in [1, N-1] for open BC (ZZ)"
+    elseif mop ∈ (:X, :Z, :reset, :resetFibo)
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N "Index idx must be in [1, N] for open BC (X)"
+    elseif mop ∈ (:XZZ, :ZZX)
+        @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N-2 "Index idx must be in [1, N-2] for open BC (OBF)"
+    end
+
     n = length(measurement_sites)
     sample = BitVector(zeros(Bool, n))
     F_layer = 0.0
