@@ -37,15 +37,16 @@ end
             samples = BitMatrix(zeros(Int8, 14t, N))
             measure_outcome = bulk_evolution(model, sites, ψ, measure_config, samples)
             statelis, F = measure_outcome.states, measure_outcome.free_energys
+            S_tlis = [ee_mps(st, div(N, 2)) for st in statelis]
             final_st = statelis[end]
             Slis = anyon_eelis(model, final_st)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
             path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
-            return (λ=λ, N=N, c=cent, c_err=cent_err, status=:success, error=nothing)
+            return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
         catch e
-            return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
+            return (λ=λ, N=N, status=:failed, error=e)
         end
     end
     function run_task_GS_ed((λ, N))
@@ -59,9 +60,9 @@ end
             path = "exm/data/OBF/GS/eescaling_figs/OBF_λ=$(round(λ, digits=3))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
-            return (λ=λ, N=N, c=cent, c_err=cent_err, status=:success, error=nothing)
+            return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, status=:success, error=nothing)
         catch e
-            return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
+            return (λ=λ, N=N, status=:failed, error=e)
         end
     end
     function run_task_exact((λ, N), ind)
@@ -75,15 +76,16 @@ end
             samples = BitMatrix(zeros(Int8, 14t, N))
             measure_outcome = bulk_evolution(model, st, measure_config, samples)
             statelis, F = measure_outcome.states, measure_outcome.free_energys
+            S_tlis = [ee(anyon_rdm(model, collect(1:div(N, 2)), st)) for st in statelis]
             final_st = statelis[end]
             Slis = anyon_eelis(model, final_st)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
             path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
-            return (λ=λ, N=N, c=cent, c_err=cent_err, status=:success, error=nothing)
+            return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
         catch e
-            return (λ=λ, N=N, c=NaN, c_err=NaN, status=:failed, error=e)
+            return (λ=λ, N=N, status=:failed, error=e)
         end
     end
 end
@@ -103,8 +105,10 @@ else
 
     cc_ensemble = collect([r.c  for r in results])
     cc_err_ensemble  = collect([r.c_err for r in results])
+    Slis_ensemble = collect([r.Slis for r in results])
+    S_t_ensemble = collect([r.S_t for r in results])
 
-    failed_tasks = [(r.λ, r.N, r.c, r.c_err, r.error)
+    failed_tasks = [(r.λ, r.N, r.error)
                     for r in results if r.status != :success]
 
     success_count = count(r -> r.status == :success, results)
@@ -114,5 +118,5 @@ else
     println("number of failed tasks: $failed_count")
     println("failed tasks: $failed_tasks")
     mkpath("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)")
-    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble)
+    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
 end
