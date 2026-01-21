@@ -181,19 +181,21 @@ end
 
 function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
     λ = get_interaction_param(model, :λ, 1.0)
+    λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
+
     N = length(sites)
     os = OpSum()
     pbc = model.pbc
 
     for i in 1:N
-        os -= "X", i
+        os -= λI, "X", i
     end
 
     for i in 1:N-1
-        os -= "Z", i, "Z", i+1
+        os -= λI, "Z", i, "Z", i+1
     end
     if pbc && N > 2
-        os -= "Z", N, "Z", 1
+        os -= λI, "Z", N, "Z", 1
     end
 
     for i in 1:N-2

@@ -543,6 +543,8 @@ function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int,
 
     phase = mod1(layer_idx, 14)
     λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
+    λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
+
     N = model.N
     if phase == 1 || phase == 13
         # √XZZ measurement at (1, 4, 7)
@@ -578,12 +580,12 @@ function _obtain_measurement_config(model::AnyonModel{OBFAnyon}, layer_idx::Int,
         # X measurement at all sites
         measurement_sites = collect(1:N)
         measure_operator = :X
-        measure_strength = τ
+        measure_strength = λI * τ
     elseif phase == 14
         # ZZ measurement at all sites
         measurement_sites = collect(1:N)
         measure_operator = :ZZ
-        measure_strength = τ
+        measure_strength = λI * τ
     end
     
     measure_anyon_model = AnyonModel(OBFAnyon(), N; pbc = model.pbc, measure_operator = measure_operator, model.params...)

@@ -454,7 +454,7 @@ function Isingmap(state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: Bi
 end
 
 """
-    OBFmap(state::T, i::Int, pbc::Bool=true; λ=1.0) where {N, T <: BitStr{N}}
+    OBFmap(state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
 
 Apply O'Brien-Fendley terms (X_i Z_{i} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) at site i.
 
@@ -462,7 +462,7 @@ Returns (output_states, weights) for the XZZ + ZZX terms in the OBF Hamiltonian.
 For OBC, valid range is 1 ≤ i ≤ N-2.
 For PBC, valid range is 1 ≤ i ≤ N with periodic wrapping.
 """
-function OBFmap(state::T, i::Int, pbc::Bool=true; λ::Float64=1.0) where {N, T <: BitStr{N}}
+function OBFmap(state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
     fl = bmask(T, N)
     X(state, j) = flip(state, fl >> (j-1))
     
@@ -486,12 +486,12 @@ function OBFmap(state::T, i::Int, pbc::Bool=true; λ::Float64=1.0) where {N, T <
     # Z_{i+1} Z_{i+2} eigenvalue: +1 if same, -1 if different
     zz_i1i2 = (bit_i1 == bit_i2) ? 1 : -1
     xzz_state = X(state, i)
-    xzz_weight = λ/2 * zz_i1i2  # λ for Hamiltonian (energy lowering)
+    xzz_weight = zz_i1i2  # λ for Hamiltonian (energy lowering)
     
     # ZZX term: Z_i Z_{i+1} X_{i+2}
     zz_ii1 = (bit_i == bit_i1) ? 1 : -1
     zzx_state = X(state, i2)
-    zzx_weight = λ/2 * zz_ii1
+    zzx_weight = zz_ii1
     
     return xzz_state, zzx_state, xzz_weight, zzx_weight
 end
@@ -619,16 +619,17 @@ function actingHam(model::AnyonModel{OBFAnyon}, state::T) where {N, T <: BitStr{
     
     pbc = model.pbc
     λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
+    λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
 
     # Generate OBF model Hamiltonian: H = λ ∑ (X_i Z_{i+1} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) - X - ZZ
     output = Dict{T, Float64}()
     for i in 1:N
         s1, s2, w1, w2 = Isingmap(state, i, pbc)
-        output[s1] = get(output, s1, 0.0) + w1
-        output[s2] = get(output, s2, 0.0) + w2
-        state1, state2, weight1, weight2 = OBFmap(state, i, pbc; λ=λ)
-        output[state1] = get(output, state1, 0.0) + weight1
-        output[state2] = get(output, state2, 0.0) + weight2
+        output[s1] = get(output, s1, 0.0) + λI * w1
+        output[s2] = get(output, s2, 0.0) + λI * w2
+        state1, state2, weight1, weight2 = OBFmap(state, i, pbc)
+        output[state1] = get(output, state1, 0.0) + λ/2 * weight1
+        output[state2] = get(output, state2, 0.0) + λ/2 * weight2
     end
 
     return output
