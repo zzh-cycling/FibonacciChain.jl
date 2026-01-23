@@ -17,31 +17,31 @@ using Random
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
 
-function get_system_params(τ, L)
+function get_dynamics_params(τ)
     total_layers = 14
     cfg = Dict(
-        atanh(0.1)  => (1000L, total_layers*80, 750L),
-        atanh(0.2)  => (200L,  total_layers*5, 120L),
-        atanh(0.3)  => (60L,  total_layers*3, 50L),
-        atanh(0.4)  => (50L,  total_layers*3, 40L),
-        atanh(0.5)  => (40L,   total_layers*2, 20L),
-        atanh(0.6)  => (25L,   total_layers*2, 15L),
-        log(1 + √2) => (18L,   total_layers, 10L),
-        atanh(0.8)  => (12L,   total_layers, 5L),
-        atanh(0.9)  => (5L,    total_layers, 2L),
-        atanh(0.95) => (5L,    total_layers, 2L),
-        atanh(0.999)=> (2L,    total_layers, 1L),
+        atanh(0.1)  => (1000, 10, 750),
+        atanh(0.2)  => (200, 2, 120),
+        atanh(0.3)  => (60, 3, 50),
+        atanh(0.4)  => (50, 3, 40),
+        atanh(0.5)  => (40, 2, 20),
+        atanh(0.6)  => (25, 2, 15),
+        log(1 + √2) => (18, 1, 10),
+        atanh(0.8)  => (12, 1, 5),
+        atanh(0.9)  => (5, 1, 2),
+        atanh(0.95) => (5, 1, 2),
+        atanh(0.999)=> (2, 1, 1),
     )
-    t, step, start = get(cfg, τ, (2L, total_layers, L))
+    t, step, start = get(cfg, τ, (2, 1, 1))
     inds = collect(1:step:t)
     avg_range = start:t-2
     return t, inds, avg_range
 end
 
-function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
+function born_dynamics_samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
         try
             rng = MersenneTwister(index)
-            t, _, _ = get_system_params(τ, L)
+            t, _, _ = get_dynamics_params(τ)
             if λ >= 10.0
                 model = AnyonModel(OBFAnyon(), L; λI=0.0, pbc=true)
             else
@@ -51,7 +51,7 @@ function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
             st = ones(length(anyon_basis(model)))
             st ./= norm(st)
             
-            config = MeasureConfig(τ=τ, mode=:Born, t₂=t, rng=rng)
+            config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng)
             outcome = bulk_evolution(model, st, config)
             sample_measured_states = outcome.states
             sample = outcome.samples
@@ -62,7 +62,7 @@ function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
             final_EElis = anyon_eelis(model, final_state)
             
             # Assume seed is the index
-            save("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_samples$(index).jld2", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis, "sample_free_energy", sample_free_energy, "sample", sample, "sample_free_energy", sample_free_energy)
+            save("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(index).jld2", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis, "sample_free_energy", sample_free_energy, "sample", sample)
             
             return (L, λ, τ, index, :success, nothing)
         catch e
@@ -73,20 +73,21 @@ end
 # define a wrapper function for pmap
 function process_task(task)
     L, λ, τ, index = task
-    return samples_generate(L, λ, τ, index)
+    return born_dynamics_samples_generate(L, λ, τ, index)
 end
 
-function samples_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
-    samples_num = 10000
-    ensemble = Vector{Matrix{Int}}(undef, samples_num)
-    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-    ensemble_seed = Vector{Int64}(undef, samples_num)
-    ensemble_EE_dynamics= zeros(samples_num, t) 
+function samples_collect(L::Int64, λ::Float64, τ::Float64)
+    t = get_dynamics_params(τ)[1]
+    samples_num = 2
+    measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
+    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+    ensemble_seed = zeros(samples_num)
+    ensemble_EE_dynamics= zeros(samples_num, t*L) 
     ensemble_final_EElis = zeros(samples_num, L-1)
      for i in 1:samples_num
         @show i
-        @time sample, sample_free_energy = load("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_samples$(i).jld2", "sample", "sample_free_energy", "halfchain_EE_tlis", "final_EElis")
-        ensemble[i] = sample
+        @time sample, sample_free_energy, halfchain_EE_tlis, final_EElis = load("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(i).jld2", "sample", "sample_free_energy", "halfchain_EE_tlis", "final_EElis")
+        measure_records_ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
         ensemble_final_EElis[i, :] = final_EElis
@@ -98,21 +99,21 @@ function samples_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    save("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+    save("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", "measure_records_ensemble", measure_records_ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
 function save_data_filename(L, τ, t)
-    return "new_ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2"
+    return "new_ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2"
 end
 
 function get_data_filename(L, τ, t)
-    return "ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2"
+    return "ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2"
 end
 
 ## == Process the data for entanglement entropy and free energy dynamics == ##
 function process_data(L::Int64, τ::Float64=log(1+ √2))
     # timewindow = 8L:35L-10
-    D, _, timewindow = get_system_params(τ, L)  # Adjusted time window for averaging
+    D, _, timewindow = get_dynamics_params(τ)
     DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/OBF/Born_dynamics_records/"
     load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
     data = load(load_data_path)
@@ -120,6 +121,7 @@ function process_data(L::Int64, τ::Float64=log(1+ √2))
     average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"] # S vs time
     bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"] # S(l) at final time slice
     ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"] # collection of free energy vs time for each sample and the corresponding seeds
+    measure_records_ensemble = data["measure_records_ensemble"]
     
     function check_duplicates(seeds)
         if length(seeds) != length(unique(seeds))
