@@ -51,19 +51,19 @@ struct AnyonModel{AT<:AbstractAnyonType}
     function AnyonModel(anyon_type::FibonacciAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
         @assert N > 0 "N is expected to be greater than 0, but got $N"
         @assert measure_operator ∈ [:Ferro, :Antiferro, :reset] "measure_operator must be :Ferro, :Antiferro, :reset for Fibonacci anyons"
-        params = Dict{Symbol, Any}(kwargs...)
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
         return new{FibonacciAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
     function AnyonModel(anyon_type::IsingAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
         @assert N > 0 "N is expected to be greater than 0, but got $N"
         @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
-        params = Dict{Symbol, Any}(kwargs...)
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
         return new{IsingAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
     function AnyonModel(anyon_type::OBFAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
         @assert N > 0 "N is expected to be greater than 0, but got $N"
         @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
-        params = Dict{Symbol, Any}(kwargs...)
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
         return new{OBFAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
 end
