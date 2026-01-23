@@ -4,7 +4,7 @@ using BitBasis, LinearAlgebra, SparseArrays, Arpack, Random
 using ITensorMPS, ITensors
 
 #  Exported types and structs
-export FibonacciAnyon, IsingAnyon, AnyonModel, MeasureConfig, Measurement_outcome_bulk, Measurement_outcome_boundary, Measurement_outcome_mps
+export FibonacciAnyon, IsingAnyon, OBFAnyon, AnyonModel, MeasureConfig, Measurement_outcome_bulk, Measurement_outcome_boundary, Measurement_outcome_mps
 #  Basis and observable functions
 export anyon_basis, anyon_ham, anyon_rdm, disjoint_rdm, topological_symmetry_basismap, mapst_sec2tot, anyon_rdm_sec, Fsymmetry_coef, topological_charge_operator
 export ee, anyon_eelis, anyonladder_eelis, translation_matrix, inversion_matrix, braidingsqmap, spatial_correlation, temporal_correlation, ref_correlation, mutual_information, tri_mutual_information, trace_distance, fidelity

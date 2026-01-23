@@ -412,7 +412,7 @@ function reference_boundary_evolution(model::AnyonModel, state::Vector{T}, measu
     verbose = measure_config.verbose
     if mode == :sample
         N = model.N
-        size(sample, 1) == measurement_num(model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
+        size(sample, 1) == _samples_per_layer(model) || error("sample size mismatch with anyon_model $(N)")
         verbose && @info "Using given sample evolution mode"
         _reference_apply_measurement_layer(model, τ_eff, state, sample, layer_idx; extended_basis=extended_basis, k_old=k_old)
     elseif mode == :Born
@@ -456,7 +456,7 @@ function _reference_apply_measurement_layer(model::AnyonModel, τ::Float64, stat
         state ./= sqrt(prob)
     end
 
-    return Measurement_outcome_boundary(state, layer_sample, total_free_energy)
+    return Measurement_outcome_boundary(state, layer_sample, Float32(total_free_energy))
 end
 
 
@@ -514,7 +514,7 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
             verbose && @show -log(p1)
         end
     end
-    return Measurement_outcome_boundary(state, sample, F_layer)
+    return Measurement_outcome_boundary(state, sample, Float32(F_layer))
 end
 
 
@@ -585,7 +585,7 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
   - `free_energys::Vector{Float64}`: The free energy for each measurement layer.
 """
 function _reference_born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {AT, ET, newT}
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_measure = _samples_per_layer(model)
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -599,7 +599,7 @@ function _reference_born_measure(model::AnyonModel{AT}, current_state::Vector{ET
 
     # Initialize sample matrix
     samples = BitMatrix(undef, (D, n_measure))
-    sample_free_energy = zeros(D)
+    sample_free_energy = zeros(Float32, D)
     states = Vector{Vector{ET}}(undef, Δt)
 
     for period in 1:Δt
@@ -647,7 +647,7 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
   - `free_energys::Vector{Float64}`: The free energy for each measurement layer.
 """
 function _reference_sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig; extended_basis::Vector{newT}, k_old::Int64=1) where {AT, ET, newT}
-    n_measure = measurement_num(model.anyon_type)*(model.N÷2)
+    n_measure = _samples_per_layer(model)
     τ = measure_config.τ
     t₁ = measure_config.t₁
     t₂ = measure_config.t₂
@@ -662,7 +662,7 @@ function _reference_sample_measure(model::AnyonModel{AT}, current_state::Vector{
     isnothing(samples) && error("When mode=:sample, samples must be provided as BitMatrix")
     size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
 
-    sample_free_energy = zeros(D)
+    sample_free_energy = zeros(Float32, D)
     states = Vector{Vector{ET}}(undef, Δt)
 
     for period in 1:Δt
@@ -767,7 +767,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     rng = measure_config.rng
     verbose = measure_config.verbose
     mode = measure_config.mode
-    n_measure = measurement_num(model.anyon_type)*(N÷2)
+    n_measure = _samples_per_layer(model)
     Δt = size(sample, 1) ÷ 2
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period), each time slice have two layers.
 
@@ -784,9 +784,9 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     state = forward[t₁]
     statelis = Vector{ET}(undef, Δt) 
     view(statelis, 1:t₁) .= view(forward, 1:t₁)
-    sample_layer = BitMatrix(undef, (size(sample, 1), n_measure))
-    view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
-    sample_free_energy = zeros(Float64, D)
+    sample_layer = BitMatrix(undef, (D, n_measure))
+    view(sample_layer, 1:2t₁, :) .= view(sample, 1:2t₁, :)
+    sample_free_energy = zeros(Float32, D)
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
@@ -833,14 +833,14 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
 
-        # 2) add reference qubit 1 at x₁
+        # 2) add reference qubit 1 at x₂ at time slice t₁
         state1 = add_reference_qubits(model, state, x₂; verbose=verbose)
 
         # 3) t₁ → t₂ evolution, or δt
         config1 = MeasureConfig(τ=τ, t₂= t₁ +δt, rng=rng, mode=mode, t₁=t₁+1, verbose=verbose, enable_τ_eff=false)
         outcome1 = reference_bulk_evolution(model, state1, config1, sample[2*t₁+1:2*t₂, :])
 
-        # 4) add reference qubit 2 at x₂
+        # 4) add reference qubit 2 at x₂ at time slice t₂
         state2 = add_reference_qubits(model, outcome1.states[end], x₂; verbose=verbose)
         
         # 5) t₂ → D evolution

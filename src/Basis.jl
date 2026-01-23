@@ -16,9 +16,10 @@ end
 abstract type AbstractAnyonType end
 struct FibonacciAnyon <: AbstractAnyonType end
 struct IsingAnyon <: AbstractAnyonType end
+struct OBFAnyon <: AbstractAnyonType end
 
 """
-    AnyonModel(anyon_type::AbstractAnyonType, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro)
+    AnyonModel(anyon_type::AbstractAnyonType, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
 
 Represents a 1D anyon chain model.
 
@@ -27,17 +28,48 @@ Represents a 1D anyon chain model.
 - `N::Int`: The number of sites in the chain.
 - `pbc::Bool`: A boolean indicating whether periodic boundary conditions are applied (`true`) or not (`false`).
 - `measure_operator::Symbol`: The operator type used for defining the Hamiltonian, e.g., `:Antiferro` or `:Ferro` for Fibonacci anyons.
+- `params::Dict{Symbol, Any}`: Additional model parameters (e.g., `J`, `h` for Ising model).
+
+# Examples
+```julia
+# Fibonacci anyon model
+model_fibo = AnyonModel(FibonacciAnyon(), 6; pbc=true, measure_operator=:Antiferro)
+
+# Ising model with custom couplings
+model_ising = AnyonModel(IsingAnyon(), 10; pbc=true, measure_operator=:X, J=1.0, h=0.5)
+
+# Access parameters
+model_ising.params[:J]  # returns 1.0
+```
 """
 struct AnyonModel{AT<:AbstractAnyonType}
-    anyon_type::AT # anyon type
-    N::Int   # system size
-    pbc::Bool # periodic boundary conditions
-    measure_operator::Symbol # measure operator, e.g., :Antiferro, :Ferro for Fibonacci anyon, :X, :ZZ for Ising anyon. We can use such operator to define Hamiltonian.(Trotterization)
-    function AnyonModel(anyon_type::AT, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro) where {AT<:AbstractAnyonType}
+    anyon_type::AT
+    N::Int
+    pbc::Bool
+    measure_operator::Symbol
+    params::Dict{Symbol, Float64}    
+    function AnyonModel(anyon_type::FibonacciAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
         @assert N > 0 "N is expected to be greater than 0, but got $N"
-        return new{AT}(anyon_type, N, pbc, measure_operator)
+        @assert measure_operator ∈ [:Ferro, :Antiferro, :reset] "measure_operator must be :Ferro, :Antiferro, :reset for Fibonacci anyons"
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
+        return new{FibonacciAnyon}(anyon_type, N, pbc, measure_operator, params)
+    end
+    function AnyonModel(anyon_type::IsingAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
+        return new{IsingAnyon}(anyon_type, N, pbc, measure_operator, params)
+    end
+    function AnyonModel(anyon_type::OBFAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
+        params = Dict{Symbol, Float64}(k => Float64(v) for (k, v) in kwargs)
+        return new{OBFAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
 end
+
+# Helper function to get parameter with default value
+get_interaction_param(model::AnyonModel, key::Symbol, default) = get(model.params, key, default)
 
 """
     anyon_basis(model::AnyonModel; symmetry_block=nothing)
@@ -101,6 +133,10 @@ function anyon_basis(::FibonacciAnyon, ::Type{T}; pbc::Bool=true, symmetry_block
 end
 
 function anyon_basis(::IsingAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
+    return [T(i) for i in 0:(2^N - 1)]
+end
+
+function anyon_basis(::OBFAnyon, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
     return [T(i) for i in 0:(2^N - 1)]
 end
 
@@ -345,58 +381,119 @@ function anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=no
 end
 anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N, Int}, k; symmetry_block=symmetry_block)
 
-function antimap(state::T, i::Int) where {N, T <: BitStr{N}}
-    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
-    # Acting Hamiltonian on a given state in bitstr and return the output (states, weight) in bitstr
-    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
-    ϕ = (1+√5)/2
-    fl=bmask(T, N)
+"""
+    Fibomap(state::T, i::Int; ferro::Bool=false) where {N, T <: BitStr{N}}
 
-    X(state,i) = flip(state, fl >> (i-1))
+Apply Fibonacci anyon projection term at site i (Temperley-Lieb generator).
 
-    if readbit(state, N +1 -i) == 0
-        return state, X(state,i), -ϕ^(-1), -ϕ^(-3/2)
-    else
-        return state, X(state,i), -ϕ^(-2), -ϕ^(-3/2)
+# Fibonacci Hamiltonian structure:
+The Hamiltonian H = ∑_i π_i acts on the fusion tree with local terms.
+Each term π_i depends on the local fusion outcomes at sites i-1, i, i+1.
+
+# Fusion rules for Fibonacci anyons:
+- τ × τ = 1 + τ  (two τ's can fuse to vacuum 1 or τ)
+- τ × 1 = τ     (τ with vacuum gives τ)
+- 1 × 1 = 1     (two vacuums give vacuum)
+
+# Returns
+- `(state, X_state, diag_weight, off_diag_weight)`:
+  - `state`: original state (diagonal contribution)
+  - `X_state`: flipped state at site i (off-diagonal)
+  - `diag_weight`, `off_diag_weight`: matrix element weights
+"""
+function Fibomap(state::T, i::Int; ferro::Bool=false) where {N, T <: BitStr{N}}
+    ϕ = (1 + √5) / 2  # Golden ratio
+    fl = bmask(T, N)
+    X_state = flip(state, fl >> (i-1))
+    
+    # Read bit at site i: 0 = vacuum (1), 1 = τ anyon
+    # BitStr indexing: bit at site i is at position N - i + 1
+    bit_i = readbit(state, N - i + 1)
+    
+    # Weights depend on local fusion outcome
+    # Antiferro (ground state favors alternating): negative weights
+    # Ferro (ground state favors aligned): positive weights
+    sign = ferro ? 1 : -1
+    
+    if bit_i == 0  # site i is vacuum
+        diag_weight = sign * ϕ^(-1)
+    else           # site i is τ
+        diag_weight = sign * ϕ^(-2)
     end
+    off_diag_weight = sign * ϕ^(-3/2)
+    
+    return state, X_state, diag_weight, off_diag_weight
 end
 
-function ferromap(state::T, i::Int) where {N, T <: BitStr{N}}
-    ϕ = (1+√5)/2
-    fl=bmask(T, N)
-
-    X(state,i) = flip(state, fl >> (i-1))
-
-    if readbit(state, N +1 -i) == 0
-        return state, X(state,i), ϕ^(-1), ϕ^(-3/2)
-    else
-        return state, X(state,i), ϕ^(-2), ϕ^(-3/2)
-    end
-end
+# Legacy aliases for backward compatibility
+antimap(state::T, i::Int) where {N, T <: BitStr{N}} = Fibomap(state, i; ferro=false)
+ferromap(state::T, i::Int) where {N, T <: BitStr{N}} = Fibomap(state, i; ferro=true)
 
 function Isingmap(state::T, i::Int, pbc::Bool=true; kwargs...) where {N, T <: BitStr{N}}
+    # H = - J ∑ Z_i Z_{i+1} - h ∑ X_i
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
     
-    fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
+    fl = bmask(T, N)
+    X(state, i) = flip(state, fl >> (i-1))
     J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
-    if i == N
-        if pbc
-            if readbit(state, 1) == readbit(state, N)
-                return state, X(state,i), -J, -h # If same, return -zz and -x
-            else
-                return state, X(state,i), J, -h
-            end
-        else
-            return X(state,i), -h # If OBC, only return -x_N
-        end
-    else
-        if readbit(state, N - i + 1) == readbit(state, N - i)
-            return state, X(state,i), -J, -h # If same, return -zz and -x
-        else
-            return state, X(state,i), J, -h
-        end
+
+    # OBC special case: last site has no ZZ term
+    if !pbc && i == N
+        return X(state, i), -h
     end
+
+    # Get site indices with PBC wrapping
+    i1 = pbc ? mod1(i + 1, N) : i + 1
+    
+    bit_i = readbit(state, N - i + 1)
+    bit_i1 = readbit(state, N - i1 + 1)
+
+    zz_i1i2 = (bit_i == bit_i1) ? -J : J
+
+    return state, X(state, i), zz_i1i2, -h
+end
+
+"""
+    OBFmap(state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+
+Apply O'Brien-Fendley terms (X_i Z_{i} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) at site i.
+
+Returns (output_states, weights) for the XZZ + ZZX terms in the OBF Hamiltonian.
+For OBC, valid range is 1 ≤ i ≤ N-2.
+For PBC, valid range is 1 ≤ i ≤ N with periodic wrapping.
+"""
+function OBFmap(state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
+    fl = bmask(T, N)
+    X(state, j) = flip(state, fl >> (j-1))
+    
+    # Get site indices with PBC wrapping
+    if pbc
+        i1 = mod1(i + 1, N)
+        i2 = mod1(i + 2, N)
+    else
+        @assert 1 <= i <= N - 2 "For OBC, i must be in [1, N-2], got $i"
+        i1 = i + 1
+        i2 = i + 2
+    end
+    
+    # Read bits: note BitStr is 1-indexed from right, but we count from left
+    # bit at site j is at position N - j + 1 in BitStr indexing
+    bit_i = readbit(state, N - i + 1)
+    bit_i1 = readbit(state, N - i1 + 1)
+    bit_i2 = readbit(state, N - i2 + 1)
+    
+    # XZZ term: X_i Z_{i+1} Z_{i+2}
+    # Z_{i+1} Z_{i+2} eigenvalue: +1 if same, -1 if different
+    zz_i1i2 = (bit_i1 == bit_i2) ? 1 : -1
+    xzz_state = X(state, i)
+    xzz_weight = zz_i1i2  # λ for Hamiltonian (energy lowering)
+    
+    # ZZX term: Z_i Z_{i+1} X_{i+2}
+    zz_ii1 = (bit_i == bit_i1) ? 1 : -1
+    zzx_state = X(state, i2)
+    zzx_weight = zz_ii1
+    
+    return xzz_state, zzx_state, xzz_weight, zzx_weight
 end
 
 function count_subBitStr(state::T) where {N, T <: BitStr{N}}
@@ -418,153 +515,142 @@ function count_subBitStr(state::T) where {N, T <: BitStr{N}}
     return num
 end
 
-function actingHam(model::AnyonModel{AT}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:FibonacciAnyon}
-    # The type of n is DitStr{D, N, Int}, which is a binary string with length N in D-ary form.
-    # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
-    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
+"""
+    actingHam(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
+
+Act the Fibonacci anyon Hamiltonian on a given state.
+
+# Physics
+The Fibonacci anyon chain Hamiltonian consists of Temperley-Lieb generators e_i:
+- H = -∑_i e_i (ferromagnetic) or H = +∑_i e_i (antiferromagnetic)
+- Each e_i acts on the fusion space at site i with constraints from neighbors
+
+# Fusion Rules
+For Fibonacci anyons: τ × τ = 1 + τ
+- Configuration 0x0 (neighbors are trivial): allows Fibomap operation
+- Configuration 101, 100, 001: contributes diagonal energy from fusion constraints
+- Configuration 111 (three consecutive τ): additional fusion contribution (PBC only)
+
+# Returns
+Dict{T, Float64}: mapping from output states to their coefficients
+"""
+function actingHam(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
     @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
-    fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
-    ϕ = (1+√5)/2
+    
     pbc = model.pbc
+    ferro = (model.measure_operator == :Ferro)
+    sign = ferro ? 1 : -1
     
-    if model.measure_operator == :Antiferro
-        mask=bmask(T, N, N-2)
-        output = Dict{T, Float64}()
-    
-        # count 101, 100, 001
-        output[state] = get(output, state, 0.0) - count_subBitStr(state)
-    
-        # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
-        for i in 2:N-1 
-            if state & (mask >> (i-2)) == 0
-                state1, state2, weight1, weight2 = antimap(state, i)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-        end
-    
-        if pbc
-            # 1 site antimap
-            if state[1]==0 && state[N-1]==0
-                state1, state2, weight1, weight2 = antimap(state, 1)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-            # N site antimap
-            if state[2]==0 && state[N]==0
-                state1, state2, weight1, weight2 = antimap(state, N)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-            mask1= bmask(T, N, 2)
-            mask2= bmask(T, N-1, 1)
-            # 1 site 111 fusion, check if is 1xxxx01
-            if state & mask1 == mask1
-                output[state] = get(output, state, 0.0) - 1
-            end
-            # N site 111 fusion, check if is 01xxxx1
-            if state & mask2 == mask2
-                output[state] = get(output, state, 0.0) - 1
-            end
-        end
-
-    elseif model.measure_operator == :Ferro
-        mask=bmask(T, N, N-2)
-        
-        output = Dict{T, Float64}()
-        
-        # count 101, 100, 001
-        output[state] = get(output, state, 0.0) + count_subBitStr(state)
-
-        # start from 2 site to N-1 site to count 0x0, because the first and last bits are not considered
-        for i in 2:N-1 
-            if state & (mask >> (i-2)) == 0
-                state1, state2, weight1, weight2 = ferromap(state, i)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-        end
-        
-        if pbc
-            # 1 site ferromap
-            if state[1]==0 && state[N-1]==0
-                state1, state2, weight1, weight2 = ferromap(state, 1)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-            # N site ferromap
-            if state[2]==0 && state[N]==0
-                state1, state2, weight1, weight2 = ferromap(state, N)
-                output[state1] = get(output, state1, 0.0) + weight1
-                output[state2] = get(output, state2, 0.0) + weight2
-            end
-            mask1= bmask(T, N, 2)
-            mask2= bmask(T, N-1, 1)
-            # 1 site 111 fusion
-            if state & mask1 == mask1
-                output[state] = get(output, state, 0.0) + 1
-            end
-            # N site 111 fusion
-            if state & mask2 == mask2
-                output[state] = get(output, state, 0.0) + 1
-            end
-        end
+    # Helper to apply Fibomap and accumulate results
+    function apply_fibomap!(output::Dict{T, Float64}, i::Int)
+        state1, state2, weight1, weight2 = Fibomap(state, i; ferro=ferro)
+        output[state1] = get(output, state1, 0.0) + weight1
+        output[state2] = get(output, state2, 0.0) + weight2
     end
-
-    return output
-end
-
-function actingHam(model::AnyonModel{AT}, state::T; kwargs...) where {N, T <: BitStr{N}, AT<:IsingAnyon}
-    # The type of state is BitStr{D, N, Int}, which is a binary string with length N in D-ary form.
-    # Acting Hamiltonian on a given state in bitstr and return the output states in bitstr
-    # Here need to note that the order of the bitstr is from right to left, which is different from our counting order.
-    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
-    pbc = model.pbc
-
-    # Generate Ising model Hamiltonian
+    
     output = Dict{T, Float64}()
-    for i in 1:N-1
-        state1, state2, weight1, weight2 = Isingmap(state, i, pbc; kwargs...)
-        output[state1] = get(output, state1, 0.0) + weight1
-        output[state2] = get(output, state2, 0.0) + weight2
-    end
-
-    if pbc
-        state1, state2, weight1, weight2 = Isingmap(state, N, pbc; kwargs...)
-        output[state1] = get(output, state1, 0.0) + weight1
-        output[state2] = get(output, state2, 0.0) + weight2
-    else
-        state1, weight1 = Isingmap(state, N, pbc; kwargs...)
-        output[state1] = get(output, state1, 0.0) + weight1
-    end
-
     
+    # Diagonal contribution from 101, 100, 001 patterns
+    # Sign depends on ferro/antiferro: H = sign * ∑ (fusion constraints)
+    output[state] = get(output, state, 0.0) + sign * count_subBitStr(state)
+    
+    # Bulk terms: sites 2 to N-1, apply Fibomap where 0x0 pattern exists
+    mask = bmask(T, N, N-2)  # Mask to check neighbors
+    for i in 2:N-1 
+        if state & (mask >> (i-2)) == 0  # Check 0x0 pattern
+            apply_fibomap!(output, i)
+        end
+    end
+    
+    # Periodic boundary condition terms
+    if pbc
+        # Site 1: check if neighbors (site N-1 and site 2) form 0x0
+        if state[1] == 0 && state[N-1] == 0
+            apply_fibomap!(output, 1)
+        end
+        # Site N: check if neighbors (site 2 and site N) form 0x0
+        if state[2] == 0 && state[N] == 0
+            apply_fibomap!(output, N)
+        end
+        
+        # 111 fusion contributions at boundaries
+        mask1 = bmask(T, N, 2)      # Check pattern 1xxxx01
+        mask2 = bmask(T, N-1, 1)    # Check pattern 01xxxx1
+        if state & mask1 == mask1
+            output[state] = get(output, state, 0.0) + sign
+        end
+        if state & mask2 == mask2
+            output[state] = get(output, state, 0.0) + sign
+        end
+    end
+
     return output
 end
 
+function actingHam(model::AnyonModel{IsingAnyon}, state::T) where {N, T <: BitStr{N}}
+    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
+    
+    pbc = model.pbc
+    J = get_interaction_param(model, :J, 1.0)
+    h = get_interaction_param(model, :h, 1.0)
+    fl = bmask(T, N)
+    X(st, j) = flip(st, fl >> (j-1))
+    
+    output = Dict{T, Float64}()
+    
+    # ZZ terms: -J ∑ Z_i Z_{i+1}
+    n_bonds = pbc ? N : N - 1
+    for i in 1:n_bonds
+        i1 = mod1(i + 1, N)
+        zz_val = (readbit(state, N-i+1) == readbit(state, N-i1+1)) ? -J : J
+        output[state] = get(output, state, 0.0) + zz_val
+    end
+    
+    # X terms: -h ∑ X_i
+    for i in 1:N
+        output[X(state, i)] = get(output, X(state, i), 0.0) - h
+    end
+
+    return output
+end
+
+function actingHam(model::AnyonModel{OBFAnyon}, state::T) where {N, T <: BitStr{N}}
+    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
+    
+    pbc = model.pbc
+    λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
+    λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
+
+    # Generate OBF model Hamiltonian: H = λ ∑ (X_i Z_{i+1} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) - X - ZZ
+    output = Dict{T, Float64}()
+    for i in 1:N
+        s1, s2, w1, w2 = Isingmap(state, i, pbc)
+        output[s1] = get(output, s1, 0.0) + λI * w1
+        output[s2] = get(output, s2, 0.0) + λI * w2
+        state1, state2, weight1, weight2 = OBFmap(state, i, pbc)
+        output[state1] = get(output, state1, 0.0) + λ/2 * weight1
+        output[state2] = get(output, state2, 0.0) + λ/2 * weight2
+    end
+
+    return output
+end
 
 """
-    anyon_ham(model::AnyonModel; kwargs...)
-    anyon_ham(model::AnyonModel, ::Type{T}; kwargs...) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel)
 
 Construct the Hamiltonian matrix for a 1D anyon chain.
 
 # Arguments
-## High-level interface
-- `model::AnyonModel`: An `AnyonModel` object specifying the anyon type, system size, boundary conditions, and interaction type.
-- `kwargs...`: Additional model-specific parameters, such as `J` and `h` for the Ising model.
-
-## Low-level usage (discouraged)
-While not a direct low-level function, you can construct the model on the fly:
-`anyon_ham(AnyonModel(IsingAnyon(), N), ...)`
+- `model::AnyonModel`: An `AnyonModel` object specifying the anyon type, system size, 
+  boundary conditions, interaction type, and model parameters (J, h, λ, etc.).
 
 # Returns
 - `Matrix{Float64}`: The Hamiltonian matrix constructed in the chosen basis.
 
 # Supported Models
 - **Fibonacci Anyons**: Supports `:Antiferro` and `:Ferro` interaction terms.
-- **Ising Anyons**: Transverse field Ising model.
+- **Ising Anyons**: Transverse field Ising model with parameters `J` and `h`.
+- **OBF Anyons**: O'Brien-Fendley model with parameter `λ`.
 
 # Examples
 ```jldoctest
@@ -575,22 +661,20 @@ julia> N = 4; model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_ope
 julia> H_fibo = anyon_ham(model_fibo); size(H_fibo)
 (7, 7)
 
-julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true); H_ising = anyon_ham(model_ising; J=1.0, h=1.0); size(H_ising)
+julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true, J=1.0, h=1.0); H_ising = anyon_ham(model_ising); size(H_ising)
 (16, 16)
 ```
 """
-function anyon_ham(model::AnyonModel{AT}; kwargs...) where {AT<:AbstractAnyonType}
-    # Generate Hamiltonian for Fibonacci model, automotically contain pbc or obc
-    basis=anyon_basis(model)
-
-    l=length(basis)
-    H=zeros(Float64,(l,l))
+function anyon_ham(model::AnyonModel{AT}) where {AT<:AbstractAnyonType}
+    basis = anyon_basis(model)
+    l = length(basis)
+    H = zeros(Float64, (l, l))
+    
     for i in 1:l
-        output=actingHam(model, basis[i];kwargs...) 
-        states, weights = keys(output), values(output)
-        for m in states
-            j=searchsortedfirst(basis, m)
-            H[i, j] += output[m]
+        output = actingHam(model, basis[i])
+        for (m, weight) in output
+            j = searchsortedfirst(basis, m)
+            H[i, j] += weight
         end
     end
 
@@ -626,17 +710,16 @@ function get_representative(state::T) where {N, T <: BitStr{N}}
 end
 
 """
-    anyon_ham(model::AnyonModel, ::Type{T}, k::Int; symmetry_block=nothing, kwargs...) where {N, T <: BitStr{N}}
-    anyon_ham(model::AnyonModel, k::Int; symmetry_block=nothing, kwargs...)
+    anyon_ham(model::AnyonModel, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_ham(model::AnyonModel, k::Int; symmetry_block=nothing)
 
 Construct Hamiltonian matrix in specific momentum sector for 1D anyon chain.
     
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters
+- `model::AnyonModel`: Anyon model containing system parameters (including J, h, λ, etc.)
 - `T::Type`: BitStr type specifying chain length N (optional)
 - `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
 - `symmetry_block`: Topological charge sector (optional)
-- `kwargs...`: Additional model parameters, e.g., `J`, `h` for Ising model
 
 # Returns
 - `Matrix`: Hamiltonian matrix in chosen momentum sector (ComplexF64, or real if k=0 or k=N/2)
@@ -653,39 +736,38 @@ julia> size(H_k0)[1] > 0
 true
 ```
 """
-function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=nothing, kwargs...) where {N, T <: BitStr{N}, AT <: AbstractAnyonType}
-#params: a int of lattice number, momentum of system and topological_charge of system
-#return: the Hamiltonian matrix in given symmetric sector Hilbert space
-
+function anyon_ham(model::AnyonModel{AT}, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}, AT <: AbstractAnyonType}
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
-    basisK, basis_dic =anyon_basis(model, k, symmetry_block=symmetry_block)
+    basisK, basis_dic = anyon_basis(model, k, symmetry_block=symmetry_block)
     l = length(basisK)
     omegak = exp(2im * π * k / N)
     H = zeros(ComplexF64, (l, l))
 
     for i in 1:l
-        n=basisK[i]
-        output = actingHam(model, n; kwargs...)
-        states, weights = keys(output), values(output)
-        for m in states
+        n = basisK[i]
+        output = actingHam(model, n)
+        for (m, weight) in output
             mbar, d = get_representative(m)
             if mbar ∈ basisK
-                j=searchsortedfirst(basisK, mbar)
-                Yn= sqrt(length(basis_dic[n])) / N
-                Ym= sqrt(length(basis_dic[mbar])) / N
-                H[i, j] += Yn/Ym * omegak^d*output[m]
+                j = searchsortedfirst(basisK, mbar)
+                Yn = sqrt(length(basis_dic[n])) / N
+                Ym = sqrt(length(basis_dic[mbar])) / N
+                H[i, j] += Yn/Ym * omegak^d * weight
             end
         end
     end
-    if k==0 || k==div(N,2)
-        H=real(H)
+    
+    if k == 0 || k == div(N, 2)
+        H = real(H)
     end
-    H=(H+H')/2
+    H = (H + H') / 2
     return H
 end
-anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing, kwargs...) where {AT <: AbstractAnyonType}= anyon_ham(model, BitStr{model.N, Int}, k, symmetry_block=symmetry_block, kwargs...)
+
+anyon_ham(model::AnyonModel{AT}, k::Int; symmetry_block=nothing) where {AT <: AbstractAnyonType} = 
+    anyon_ham(model, BitStr{model.N, Int}, k; symmetry_block=symmetry_block)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)

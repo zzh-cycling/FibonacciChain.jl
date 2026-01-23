@@ -4,6 +4,7 @@ using Distributed
 @everywhere using JLD
 @everywhere using Random
 @everywhere using LinearAlgebra
+@everywhere using Statistics
 
 println("requested workers: ", nworkers())
 println("total procs:       ", nprocs())
@@ -140,31 +141,28 @@ end
     rng = MersenneTwister(index)
 
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t)
-    pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
     statelis, Flis = pre_mo.states, pre_mo.free_energys
 
     t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
-    ref_sample = zeros(Int, 2*(t+δt+t1), length(2:2:L))
+    ref_sample = BitMatrix(zeros(Int, 2*(t+δt+t1), length(2:2:L)))
     view(ref_sample, 1:D, :) .= view(sample, :, :)
 
     if δt == 0
         ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1)
-        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
         spatial = true
         temporal = false
-        view(sample_free_energy, 1:D) .= view(Flis, :)
-        view(sample_layer, 1:D, :) .= view(sample, :, :)
     else
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
-        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
         temporal = true
         spatial = false
-        view(sample_free_energy, 1:D) .= view(Flis, :)
-        view(sample_layer, 1:D, :) .= view(sample, :, :)
     end
 
+    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+    ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+    view(sample_free_energy, 1:D) .= view(Flis, :)
+    view(sample_layer, 1:D, :) .= view(sample, :, :)
+    
     spatial_corr, temporal_corr = ref_correlation(model, ref2stlis[end], spatial = spatial, temporal = temporal)
     sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2stlis[end], traceref = false)
     S = ee(sysrdm)
@@ -176,11 +174,101 @@ end
     return temporal_corr, spatial_corr, S, sample_layer, sample_free_energy
 end
 
+@everywhere function spatial_corrlis(L::Int64, τ::Float64, index::Int64, D::Int64=16L)
+    model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+    t = div(D, 2) # D is true circuits depth, t is evolution time before adding ref qubits
+    sample = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample")
+
+    initial_state = zeros(length(anyon_basis(model)))
+    initial_state[1] = 1.0 # initial state is all zero state
+
+    rng = MersenneTwister(index)
+
+    pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=t)
+    pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
+    statelis, Flis = pre_mo.states, pre_mo.free_energys
+
+    t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
+    ref_sample = BitMatrix(zeros(Int, 2*(t+t1), length(2:2:L)))
+    view(ref_sample, 1:D, :) .= view(sample, :, :)
+
+    dlis = collect(1:L ÷ 2-1) # Still need to compute, L/2+1 already have
+    spatial_corr_lis = zeros(length(dlis))
+    Slis = zeros(length(dlis))
+    for site in dlis
+        @info "Processing site $(site+1)"
+        ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=1+site)
+        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+        spatial = true
+        temporal = false
+        ref_st = ref2stlis[end]
+        spatial_corr, _ = ref_correlation(model, ref_st, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(model, collect(1:div(L,2)), ref_st, traceref = false)
+        S = ee(sysrdm)
+        spatial_corr_lis[site] = spatial_corr
+        Slis[site] = S
+    end
+
+    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
+        "spatial_corr_lis", spatial_corr_lis, "Slis", Slis)
+
+    return spatial_corr_lis, Slis
+end
+
+function spatial_corrlis_collect(L, τ, mode::Int=1)
+    # Collect spatial correlation results from all tasks
+    D = get_system_params(τ, L)[1]
+    sample_num = 10000
+    spatial_corr_ensemble = zeros(L÷2, sample_num)
+    Slis_ensemble = zeros(L÷2, sample_num)
+    indexlis = collect(1:sample_num)
+
+    if mode==1
+        for (index) in indexlis
+            spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
+            spatial_corr_ensemble[1:end-1, index] .= spatial_corr
+            Slis_ensemble[1:end-1, index] .= Slis
+        end
+    
+        old_spatial_corr_ensemble, old_S_ensemble = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/compressed_dt0_data.jld", "spatial_corr_ensemble", "S_ensemble")
+    
+        spatial_corr_ensemble[end, :] = old_spatial_corr_ensemble
+        Slis_ensemble[end, :] = old_S_ensemble
+    else
+        for (index) in indexlis
+            spatial_corr, Slis = load("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "spatial_corr_lis", "Slis")
+            spatial_corr_ensemble[1:end-1, index] .= spatial_corr
+            Slis_ensemble[1:end-1, index] .= Slis
+
+            data = load("exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt0/D$(div(D,2L))_Samples$(index).jld")
+            scorr  = data["spatial_corr"]
+            S = data["S"]
+            spatial_corr_ensemble[end, index] = scorr
+            Slis_ensemble[end, index] = S
+        end
+    end
+
+
+    spatial_corr_avg = mean(spatial_corr_ensemble, dims=2)
+    Slis_avg = mean(Slis_ensemble, dims=2)
+    spatial_corr_std = std(spatial_corr_ensemble, dims=2)/sqrt(sample_num)
+    Slis_std = std(Slis_ensemble, dims=2)/sqrt(sample_num)
+
+    save("exm/data/Bulk_measure/spatial_corr_Born/L$(L)/τ$(τ)_D$(div(D,L))_spatial_corr.jld",
+        "spatial_corr_avg", spatial_corr_avg, "Slis_avg", Slis_avg,
+        "spatial_corr_std", spatial_corr_std, "Slis_std", Slis_std)
+
+    return spatial_corr_avg, Slis_avg, spatial_corr_std, Slis_std
+end
+
 # wrapper function
 @everywhere function compute_single_task(task_params)
-    L, τ, index, D, δt = task_params
+    # L, τ, index, D, δt = task_params
+    L, τ, index, D = task_params
     try
-        result = compute_ratio(L, τ, index, D, δt)
+        # result = compute_ratio(L, τ, index, D, δt)
+        result = spatial_corrlis(L, τ, index, D)
         return (index, :success, result)
     catch e
         return (index, :error, string(e))
@@ -252,8 +340,9 @@ function compute_parallel_batch(L::Int64, τ::Float64, seed_range::UnitRange{Int
     println("Computing seeds: $(first(seed_range)) to $(last(seed_range))")
     
     # create parameter tuples for each task
-    tasks = [(L, τ, index, D, δt) for index in seed_range]
-    
+    # tasks = [(L, τ, index, D, δt) for index in seed_range]
+    tasks = [(L, τ, index, D) for index in seed_range]
+
     # using pmap run
     println("Submitting $(length(tasks)) tasks to worker processes...")
     results = pmap(compute_single_task, tasks, batch_size=1)
@@ -418,5 +507,15 @@ else
         
         filename = ARGS[2]
         compute_missing_tasks_parallel(filename)
+    elseif mode == 4
+        # collect spatial correlation results
+        L = parse(Int64, ARGS[2])
+        τ_idx = parse(Int64, ARGS[3])
+        τ = τlis[τ_idx]
+        
+        println("Collecting spatial correlation results for L=$L, τ=$τ")
+        spatial_corrlis_collect(L, τ)
+    else
+        error("Unknown mode: $mode")
     end
 end

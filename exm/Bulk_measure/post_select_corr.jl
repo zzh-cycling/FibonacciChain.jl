@@ -78,17 +78,17 @@ function compute_post_selection(L::Int64, τ::Float64, t::Int64=5L, δt::Int64=2
     if entangle_way == :copy
         if δt == 0
             ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, mode=:sample, x₂=L÷2+1, verbose = true)
-            ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-            ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site L/2+1
             spatial = true
             temporal = false
         else
             ref_config = MeasureConfig(τ = τ, t₂ = t + δt, t₁ = t, mode=:sample, x₂=L÷2+1, x₁ = L÷2+1, verbose = true)
-            ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-            ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
         end
+
+        ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
+        ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site L/2+1
+
         spatial_corr, temporal_corr = ref_correlation(L, ref2stlis[end], spatial = spatial, temporal = temporal)
         sysrdm = reference_rdm(L, collect(1:div(L,2)), ref2stlis[end], traceref = false)
         S = ee(sysrdm)
@@ -128,17 +128,16 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, t::Int64=5L, δt:
             ref_sample = sign ? BitMatrix(ones(Int, 2*(t+δt + Δt), L)) : BitMatrix(zeros(Int, 2*(Δt+δt + t), L))
             if δt == 0
                 ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t, t₁ = t, verbose=true)
-                ref_mo = reference_evolution(model, statelis,ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
-                ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
                 spatial = true
                 temporal = false
             else
                 ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t + δt, t₁ = t, verbose=true, x₁ = L÷2+1)
-                ref_mo = reference_evolution(model, statelis,ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
-                ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1    
                 temporal = true
                 spatial = false
             end
+            
+            ref_mo = reference_evolution(model, statelis,ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
+            ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
 
             sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2stlis[end], traceref = false)
             eelis[idx] = ee(sysrdm)

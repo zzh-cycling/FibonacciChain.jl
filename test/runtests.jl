@@ -32,3 +32,7 @@ end
 @testset "test_Reference.jl" begin
     include("./test_Reference.jl")
 end
+
+@testset "OBFAnyon" begin
+    include("./test_OBF.jl")
+end
