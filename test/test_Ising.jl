@@ -140,12 +140,11 @@ end
 
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, 0.0)
-
+    @test output[1] == (s1 = T(bit"000"),s2 =  T(bit"010"), w1 = cstτ, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"011"), w1 = cstτ, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"110"), w1 = cstτ, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"111"), w1 = cstτ, w2 = 0.0)
     sign = true
     output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test output2 == output
@@ -156,21 +155,21 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
-    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
-    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
-    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ, w2 = coef)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"011"), w1 = cstτ, w2 = coef)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ, w2 = coef)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"110"), w1 = cstτ, w2 = coef)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"111"), w1 = cstτ, w2 = coef)
 
     sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
-    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
-    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
-    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ, w2 = coef)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"011"), w1 = cstτ, w2 = coef)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ, w2 = coef)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"110"), w1 = cstτ, w2 = coef)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"111"), w1 = cstτ, w2 = coef)
 
     τ = 1e3
     sign = false
@@ -178,21 +177,21 @@ end
     coef = 1/2
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"010"), cstτ, coef)
-    @test output[2] == (T(bit"001"), T(bit"011"), cstτ, coef)
-    @test output[3] == (T(bit"010"), T(bit"000"), cstτ, coef)
-    @test output[4] == (T(bit"100"), T(bit"110"), cstτ, coef)
-    @test output[5] == (T(bit"101"), T(bit"111"), cstτ, coef)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"010"), w1 = cstτ, w2 = coef)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"011"), w1 = cstτ, w2 = coef)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"000"), w1 = cstτ, w2 = coef)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"110"), w1 = cstτ, w2 = coef)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"111"), w1 = cstτ, w2 = coef)
 
 
     idx = 3
     output = measure_basismap.(Ref(AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:X)), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"001"), cstτ, coef)
-    @test output[2] == (T(bit"001"), T(bit"000"), cstτ, coef)
-    @test output[3] == (T(bit"010"), T(bit"011"), cstτ, coef)
-    @test output[4] == (T(bit"100"), T(bit"101"), cstτ, coef)
-    @test output[5] == (T(bit"101"), T(bit"100"), cstτ, coef)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"001"), w1 = cstτ, w2 = coef)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"000"), w1 = cstτ, w2 = coef)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"011"), w1 = cstτ, w2 = coef)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"101"), w1 = cstτ, w2 = coef)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"100"), w1 = cstτ, w2 = coef)
 
 end
 
@@ -209,11 +208,11 @@ end
 
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), cstτ, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), cstτ, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = cstτ, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = cstτ, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ, w2 = 0.0)
 
     sign = true
     output2 = measure_basismap.(Ref(model), τ, basis0, idx, sign)
@@ -225,21 +224,21 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ-coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = cstτ-coef, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ-coef, w2 = 0.0)
 
     sign = true
     coef = -sinh(τ/2) / √(2cosh(τ))
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), cstτ+coef, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), cstτ-coef, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), cstτ-coef, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), cstτ+coef, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), cstτ-coef, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = cstτ-coef, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = cstτ-coef, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = cstτ+coef, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = cstτ-coef, w2 = 0.0)
 
     idx=3
     τ = 1e3
@@ -249,21 +248,20 @@ end
     model = AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:ZZ)
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), 1.0, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), 0.0, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), 1.0, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), 0.0, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), 1.0, 0.0)
-
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = 1.0, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = 0.0, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = 1.0, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = 0.0, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = 1.0, w2 = 0.0)
 
     sign = true
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
-    @test output[1] == (T(bit"000"), T(bit"000"), 0.0, 0.0)
-    @test output[2] == (T(bit"001"), T(bit"001"), 1.0, 0.0)
-    @test output[3] == (T(bit"010"), T(bit"010"), 0.0, 0.0)
-    @test output[4] == (T(bit"100"), T(bit"100"), 1.0, 0.0)
-    @test output[5] == (T(bit"101"), T(bit"101"), 0.0, 0.0)
+    @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = 0.0, w2 = 0.0)
+    @test output[2] == (s1 = T(bit"001"), s2 = T(bit"001"), w1 = 1.0, w2 = 0.0)
+    @test output[3] == (s1 = T(bit"010"), s2 = T(bit"010"), w1 = 0.0, w2 = 0.0)
+    @test output[4] == (s1 = T(bit"100"), s2 = T(bit"100"), w1 = 1.0, w2 = 0.0)
+    @test output[5] == (s1 = T(bit"101"), s2 = T(bit"101"), w1 = 0.0, w2 = 0.0)
 end
 
 

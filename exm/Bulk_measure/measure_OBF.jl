@@ -88,6 +88,31 @@ end
             return (λ=λ, N=N, status=:failed, error=e)
         end
     end
+    function run_λI0((λ, N), ind)
+        try
+            τ = τlis[ind]
+            model = AnyonModel(OBFAnyon(), N, λI = 0.0, pbc=true)
+            st = zeros(length(anyon_basis(model)))
+            st[1] = 1.0
+            t = get_dynamics_params(ind, N)[1]
+            measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
+            samples = BitMatrix(zeros(Int8, 14t, N))
+            idxs = collect(1:14:14t)
+            measure_outcome = bulk_evolution(model, st, measure_config, samples)
+            statelis, F = measure_outcome.states, measure_outcome.free_energys
+            S_tlis = [ee(anyon_rdm(model, collect(1:div(N, 2)), st)) for st in statelis]
+            final_st = statelis[end]
+            Slis = anyon_eelis(model, final_st)
+            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
+            path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
+            mkpath(dirname(path))
+            savefig(fig, path)
+            return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)            
+        catch e
+            return (λ=λ, N=N, status=:failed, error=e)
+        end
+   
+    end
 end
 
 if length(ARGS) == 0

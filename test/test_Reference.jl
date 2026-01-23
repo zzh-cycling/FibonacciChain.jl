@@ -56,27 +56,27 @@ end
     output22 = FibonacciChain.measure_basismap.(Ref(model), τ, basislis, 2, sign)
     output31 = FibonacciChain.reference_measure_basismap.(Ref(model), T, T, τ, basislis, 3, sign, k_old=0)
     output32 = FibonacciChain.measure_basismap.(Ref(model), τ, basislis, 3, sign)
-    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
-    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
-    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+    @test all([all(output11[i] == output12[i]) for i in 1:l])
+    @test all([all(output21[i] == output22[i]) for i in 1:l])
+    @test all([all(output31[i] == output32[i]) for i in 1:l])
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
     output13 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1, Int}, τ, extended_basis, 1, sign, k_old=1)
     output23 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1, Int}, τ, extended_basis, 2, sign, k_old=1)
     output33 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1, Int}, τ, extended_basis, 3, sign, k_old=1)
 
-    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output13[i+j*l] == output12[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23[i+j*l] == output22[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33[i+j*l] == output32[i]) for i in 1:l]) for j in 0:1])
 
     extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
     output14 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, k_old=2)
     output24 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, k_old=2)
     output34 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, k_old=2)
 
-    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output14[i+j*l] == output12[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output24[i+j*l] == output22[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output34[i+j*l] == output32[i]) for i in 1:l]) for j in 0:3])
 end
 
 @testset "reference_measure_basismap_Ising" begin
@@ -96,27 +96,27 @@ end
     output22 = FibonacciChain.measure_basismap.(Ref(model), τ, basislis, 2, sign)
     output31 = FibonacciChain.reference_measure_basismap.(Ref(model), T, T, τ, basislis, 3, sign, k_old=0)
     output32 = FibonacciChain.measure_basismap.(Ref(model), τ, basislis, 3, sign)
-    @test all([all(output11[i] .≈ output12[i]) for i in 1:l])
-    @test all([all(output21[i] .≈ output22[i]) for i in 1:l])
-    @test all([all(output31[i] .≈ output32[i]) for i in 1:l])
+    @test all([all(output11[i] == output12[i]) for i in 1:l])
+    @test all([all(output21[i] == output22[i]) for i in 1:l])
+    @test all([all(output31[i] == output32[i]) for i in 1:l])
 
     extended_basis = FibonacciChain.build_extended_basis(1, basislis)
     output13 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1}, τ, extended_basis, 1, sign, k_old=1)
     output23 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1}, τ, extended_basis, 2, sign, k_old=1)
     output33 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+1}, τ, extended_basis, 3, sign, k_old=1)
 
-    @test all([all([all(output13[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output13[i+j*l] == output12[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23[i+j*l] == output22[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33[i+j*l] == output32[i]) for i in 1:l]) for j in 0:1])
 
     extended_basis2 = FibonacciChain.build_extended_basis(2, basislis)
     output14 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 1, sign, k_old=2)
     output24 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 2, sign, k_old=2)
     output34 = FibonacciChain.reference_measure_basismap.(Ref(model), T, BitStr{N+2, Int}, τ, extended_basis2, 3, sign, k_old=2)
 
-    @test all([all([all(output14[i+j*l] .≈ output12[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output24[i+j*l] .≈ output22[i]) for i in 1:l]) for j in 0:3])
-    @test all([all([all(output34[i+j*l] .≈ output32[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output14[i+j*l] == output12[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output24[i+j*l] == output22[i]) for i in 1:l]) for j in 0:3])
+    @test all([all([all(output34[i+j*l] == output32[i]) for i in 1:l]) for j in 0:3])
 
     # Test the IsingZZ
     model_ZZ = AnyonModel(IsingAnyon(), N, pbc=true, measure_operator=:ZZ)
@@ -129,9 +129,9 @@ end
     output23zz = FibonacciChain.reference_measure_basismap.(Ref(model_ZZ), T, BitStr{N+1}, τ, extended_basis, 2, sign, k_old=1)
     output33zz = FibonacciChain.reference_measure_basismap.(Ref(model_ZZ), T, BitStr{N+1}, τ, extended_basis, 3, sign, k_old=1)
 
-    @test all([all([all(output13zz[i+j*l] .≈ output12zz[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output23zz[i+j*l] .≈ output22zz[i]) for i in 1:l]) for j in 0:1])
-    @test all([all([all(output33zz[i+j*l] .≈ output32zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output13zz[i+j*l] == output12zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output23zz[i+j*l] == output22zz[i]) for i in 1:l]) for j in 0:1])
+    @test all([all([all(output33zz[i+j*l] == output32zz[i]) for i in 1:l]) for j in 0:1])
 end
 
 @testset "reference_measuremap" begin
