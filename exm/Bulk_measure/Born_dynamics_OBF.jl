@@ -38,9 +38,9 @@ function get_system_params(τ, L)
     return t, inds, avg_range
 end
 
-function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64, seed::Int64)
+function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
         try
-            rng = MersenneTwister(seed)
+            rng = MersenneTwister(index)
             t, _, _ = get_system_params(τ, L)
             if λ >= 10.0
                 model = AnyonModel(OBFAnyon(), L; λI=0.0, pbc=true)
@@ -61,19 +61,19 @@ function samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64, seed
             final_state = sample_measured_states[end]
             final_EElis = anyon_eelis(model, final_state)
             
-            save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_Samples$(index).jld2", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
-            save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_Samples$(index).jld2", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
+            # Assume seed is the index
+            save("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_samples$(index).jld2", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis, "sample_free_energy", sample_free_energy, "sample", sample, "sample_free_energy", sample_free_energy)
             
-            return (L, λ, τ, index, seed, :success, nothing)
+            return (L, λ, τ, index, :success, nothing)
         catch e
-            return (L, λ, τ, index, seed, :failed, e)
+            return (L, λ, τ, index, :failed, e)
         end
 end
 
 # define a wrapper function for pmap
 function process_task(task)
-    L, λ, τ, index, seed = task
-    return samples_generate(L, λ, τ, index, seed)
+    L, λ, τ, index = task
+    return samples_generate(L, λ, τ, index)
 end
 
 function samples_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
@@ -81,35 +81,16 @@ function samples_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
     ensemble = Vector{Matrix{Int}}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
     ensemble_seed = Vector{Int64}(undef, samples_num)
-     for i in 1:samples_num
-        @show i
-        @time sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed")
-        ensemble[i] = sample
-        ensemble_free_energy[i] = sample_free_energy
-        ensemble_seed[i] = seed
-    end
-
-    save("exm/data/Bulk_measure/Samples_monitored_dynamics/monitored_dynamics_ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
-end
-
-
-function Observable_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
-    samples_num = 10000
-    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-    ensemble_seed = Vector{Int64}(undef, samples_num)
     ensemble_EE_dynamics= zeros(samples_num, t) 
     ensemble_final_EElis = zeros(samples_num, L-1)
-
-    for i in 1:samples_num
+     for i in 1:samples_num
         @show i
-        halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
-        if length(halfchain_EE_tlis) == t
-            halfchain_EE_tlis = halfchain_EE_tlis[2:2:end]
-        end
+        @time sample, sample_free_energy = load("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(div(t,L))_samples$(i).jld2", "sample", "sample_free_energy", "halfchain_EE_tlis", "final_EElis")
+        ensemble[i] = sample
+        ensemble_free_energy[i] = sample_free_energy
         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
         ensemble_final_EElis[i, :] = final_EElis
-        ensemble_seed[i] = seed
-        ensemble_free_energy[i] = sample_free_energy
+        ensemble_seed[i] = i
     end
 
     bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
@@ -117,23 +98,22 @@ function Observable_collect(L::Int64, λ::Float64, τ::Float64, t::Int64=120L)
     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    
-    save("exm/data/Bulk_measure/Observable_monitored_dynamics/monitored_EE_FEdynamics_L$(L)_τ$(τ)_t$(div(t,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
+    save("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
 function save_data_filename(L, τ, t)
-    return "monitored_EE_FEdynamics_L$(L)_τ$(τ)_t$(div(t, L)).jld"
+    return "new_ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2"
 end
 
 function get_data_filename(L, τ, t)
-    return "Born_Fibo_EE_FEdynamics_L$(L)_τ$(τ)_t$(div(t, L)).jld"
+    return "ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(div(t,L)).jld2"
 end
 
 ## == Process the data for entanglement entropy and free energy dynamics == ##
 function process_data(L::Int64, τ::Float64=log(1+ √2))
     # timewindow = 8L:35L-10
     D, _, timewindow = get_system_params(τ, L)  # Adjusted time window for averaging
-    DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/Bulk_measure/Observable_monitored_dynamics/"
+    DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/OBF/Born_dynamics_records/"
     load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
     data = load(load_data_path)
     
@@ -195,7 +175,6 @@ else
     index_start = parse(Int64, ARGS[4])
     index_end = parse(Int64, ARGS[5])
     indexlis = collect(index_start:index_end)
-    seedlis = -indexlis
     
     
     println("=== Parallel Sample Generation ===")
@@ -205,18 +184,18 @@ else
     println("Number of workers: $(nworkers())")
     
     # create task list
-    taskslis = [(L, λ, τ, indexlis[i], seedlis[i]) for i in eachindex(indexlis)]
+    taskslis = [(L, λ, τ, indexlis[i]) for i in eachindex(indexlis)]
     
     # use pmap for parallel processing
     println("\nStarting parallel processing...")
     results = pmap(process_task, taskslis; batch_size=100)
     
     # count successes and failures
-    failed_tasks = [(L_res, λ_res, τ_res, idx_res, seed_res, error) 
-                    for (L_res, λ_res, τ_res, idx_res, seed_res, status, error) in results 
+    failed_tasks = [(L_res, λ_res, τ_res, idx_res, error) 
+                    for (L_res, λ_res, τ_res, idx_res, status, error) in results 
                     if status != :success]
     
-    success_count = count(r -> r[6] == :success, results)
+    success_count = count(r -> r[5] == :success, results)
     failed_count = length(failed_tasks)
     
     # summary report
@@ -227,8 +206,8 @@ else
     
     if failed_count > 0
         println("\n=== Failed Task Details ===")
-        for (i, (L_f, τ_f, λ_f, idx_f, seed_f, err)) in enumerate(failed_tasks)
-            println("Failed $i: L=$L_f, τ=$τ_f, λ=$λ_f, index=$idx_f, seed=$seed_f")
+        for (i, (L_f, τ_f, λ_f, idx_f, err)) in enumerate(failed_tasks)
+            println("Failed $i: L=$L_f, τ=$τ_f, λ=$λ_f, index=$idx_f")
             println("  Error: $err")
         end
         
@@ -236,9 +215,9 @@ else
         failed_file = "failed_tasks_L$(L)_τidx$(τinds)_λidx$(λinds)_batch.txt"
         open(failed_file, "w") do io
             println(io, "# Failed Task List")
-            println(io, "# Format: L τ_idx λ_idx sample_index seed")
-            for (L_f, τ_f, λ_f, idx_f, seed_f, err) in failed_tasks
-                println(io, "$L_f $τ_f $λ_f $idx_f $seed_f  # Error: $err")
+            println(io, "# Format: L τ_idx λ_idx sample_index  # Error Message")
+            for (L_f, τ_f, λ_f, idx_f, err) in failed_tasks
+                println(io, "$L_f $τ_f $λ_f $idx_f  # Error: $err")
             end
         end
         println("\nFailed tasks saved to: $failed_file")
