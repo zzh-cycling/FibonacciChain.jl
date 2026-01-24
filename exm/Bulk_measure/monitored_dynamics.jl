@@ -4,17 +4,18 @@ using JLD
 using Statistics
 using Random
 
-@everywhere using FibonacciChain
-@everywhere using JLD
-@everywhere using Statistics
-@everywhere using Random
+@everywhere begin
+using FibonacciChain
+using JLD
+using Statistics
+using Random
 
-@everywhere γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-@everywhere τlis = atanh.(γlis)
-@everywhere τlis[end] = 1000.0
-@everywhere τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
+γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+τlis = atanh.(γlis)
+τlis[end] = 1000.0
+τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 
-@everywhere function get_system_params(τ, L)
+function get_system_params(τ, L)
     cfg = Dict(
         atanh(0.1)  => (2500L, 1000, 750L),
         atanh(0.2)  => (500L,  100, 120L),
@@ -34,7 +35,7 @@ using Random
     return D, inds, avg_range
 end
 
-@everywhere function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
+function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
         try
             rng = MersenneTwister(seed)
             D, _, _ = get_system_params(τ, L)
@@ -59,7 +60,7 @@ end
         catch e
             return (L, τ, index, seed, :failed, e)
         end
-    end
+end
 
 # define a wrapper function for pmap
 @everywhere function process_task(task)
@@ -67,14 +68,14 @@ end
     return samples_generate(L, τ, index, seed)
 end
 
-function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 10000
-    ensemble = Vector{Matrix{Int}}(undef, samples_num)
-    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-    ensemble_seed = Vector{Int64}(undef, samples_num)
+function samples_collect(L::Int64, τ::Float64)
+    D = get_system_params(τ, L)[1]
+    samples_num = 20000
+    ensemble = Vector{BitMatrix}(undef, samples_num)
+    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+    ensemble_seed = zeros(Int64, samples_num)
      for i in 1:samples_num
-        @show i
-        @time sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed")
+        sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_seed[i] = seed
@@ -84,15 +85,15 @@ function samples_collect(L::Int64, τ::Float64, D::Int64=120L)
 end
 
 
-function Observable_collect(L::Int64, τ::Float64, D::Int64=120L)
-    samples_num = 10000
-    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-    ensemble_seed = Vector{Int64}(undef, samples_num)
+function Observable_collect(L::Int64, τ::Float64)
+    D = get_system_params(τ, L)[1]
+    samples_num = 20000
+    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+    ensemble_seed = zeros(Int64, samples_num)
     ensemble_EE_dynamics= zeros(samples_num, div(D,2)) 
     ensemble_final_EElis = zeros(samples_num, L-1)
 
     for i in 1:samples_num
-        @show i
         halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
         if length(halfchain_EE_tlis) == D
             halfchain_EE_tlis = halfchain_EE_tlis[2:2:end]
@@ -190,7 +191,7 @@ function process_data(L::Int64, τ::Float64=log(1+ √2))
         "time_FElis", time_FElis, 
         "ensemble_seed", ensemble_seed)
 end
-
+end
 
 if length(ARGS) == 0
     println("No arguments provided.")

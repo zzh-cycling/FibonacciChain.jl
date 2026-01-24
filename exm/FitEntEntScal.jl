@@ -303,7 +303,7 @@ function fitLpluslnL(SvN_list::Vector{Float64}; err::Vector{Float64}=0.0SvN_list
     # Now suppose such system has L + lnL SvN, like the majorana spin liquid.
     
     pagecurve(l, L) = @. log(2)*min(l,L-l) - 2^(min(l,L-l))/(2^(L-min(l,L-l))*2)
-    logChord(l, L) = @. log(sin(π * l /L))/6
+    logChord(l, L) = @. log(sin(π * l /L))/3
     llis= collect(1:length(SvN_list))
     L = length(SvN_list) + 1
 
@@ -325,8 +325,8 @@ function fitLpluslnL(SvN_list::Vector{Float64}; err::Vector{Float64}=0.0SvN_list
 
     xdata=pagecurve.(llis,L) + params[2]/params[1] .* logChord.(llis,L)
     scatter!(subplot=2, lw=2, xdata, SvN_list,
-        xlabel=L"a(\ln2) l- 2^{2l-L-1} + b\frac{1}{3}\ln\sin(π l/L)", yerror=err, marker=:circle, label=false)
-    plot!(subplot=2, xdata, params[1] * xdata .+ params[3], lw=2,label=((latexstring("a = $(round(params[1], digits=2)), b = $(round(params[2], digits=2))"))), 
+        xlabel=L"v(\ln2) l- 2^{2l-L-1} + c\frac{1}{3}\ln\sin(π l/L)", yerror=err, marker=:circle, label=false)
+    plot!(subplot=2, xdata, params[1] * xdata .+ params[3], lw=2,label=((latexstring("v = $(round(params[1], digits=2)), c = $(round(params[2], digits=2))"))), 
     legend_background_color=nothing,
     legend_foreground_color=nothing,
     legendsize=1)

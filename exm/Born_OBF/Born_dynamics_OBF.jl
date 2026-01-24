@@ -78,15 +78,14 @@ end
 
 function samples_collect(L::Int64, λ::Float64, τ::Float64)
     t = get_dynamics_params(τ)[1]
-    samples_num = 2
+    samples_num = 1000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
     ensemble_EE_dynamics= zeros(samples_num, t*L) 
     ensemble_final_EElis = zeros(samples_num, L-1)
      for i in 1:samples_num
-        @show i
-        @time sample, sample_free_energy, halfchain_EE_tlis, final_EElis = load("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(i).jld2", "sample", "sample_free_energy", "halfchain_EE_tlis", "final_EElis")
+        sample, sample_free_energy, halfchain_EE_tlis, final_EElis = load("./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(i).jld2", "sample", "sample_free_energy", "halfchain_EE_tlis", "final_EElis")
         measure_records_ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
