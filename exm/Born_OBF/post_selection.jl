@@ -67,26 +67,7 @@ end
             return (λ=λ, N=N, status=:failed, error=e)
         end
     end
-    function run_task_GS_ed((λ, N))
-        try
-            if λ >= 10.0
-                model = AnyonModel(OBFAnyon(), N; λI=0.0, pbc=true)
-            else
-                model = AnyonModel(OBFAnyon(), N; λ=λ, pbc=true)
-            end
-            H = anyon_ham_sparse(model)
-            energy, states = Arpack.eigs(H, nev=1, which=:SR)
-            GS = states[:, 1]
-            Slis = anyon_eelis(model, GS)
-            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
-            path = "exm/data/OBF/GS/eescaling_figs/OBF_λ=$(round(λ, digits=3))_N=$(N).pdf"
-            mkpath(dirname(path))
-            savefig(fig, path)
-            return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, status=:success, error=nothing)
-        catch e
-            return (λ=λ, N=N, status=:failed, error=e)
-        end
-    end
+  
     function run_task_exact((λ, N), ind)
         try
             τ = τlis[ind]
