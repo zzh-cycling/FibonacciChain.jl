@@ -13,6 +13,7 @@ end
     using FibonacciChain
     using Plots
     using Arpack
+    using LinearAlgebra
     include("../FitEntEntScal.jl")
     γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
     τlis = atanh.(γlis)
@@ -36,7 +37,7 @@ end
             )
             t, step, start = get(cfg, λ, (10, 14, 6))
         end
-        inds = collect(1:step:14t*N)
+        inds = collect(1:step:14t)
         avg_range = start:14-5
         return t, inds, avg_range
     end
@@ -129,22 +130,24 @@ else
         run_task_exact(params, τ_idx)
     end
 
-    cc_ensemble = collect([r.c  for r in results])
-    cc_err_ensemble  = collect([r.c_err for r in results])
-    Slis_ensemble = collect([r.Slis for r in results])
-    S_t_ensemble = collect([r.S_t for r in results])
-
     failed_tasks = [(r.λ, r.N, r.error)
                     for r in results if r.status != :success]
-
-    success_count = count(r -> r.status == :success, results)
     failed_count  = length(failed_tasks)
-
+    success_tasks = [(r.λ, r.N, r.c, r.c_err, r.Slis, r.S_t)
+                    for r in results if r.status == :success]
+    success_count = length(success_tasks)
     println("number of successful tasks: $success_count")
     println("number of failed tasks: $failed_count")
     println("failed tasks: $failed_tasks")
+    
+
+    cc_ensemble = collect([r[3]  for r in success_tasks])
+    cc_err_ensemble  = collect([r[4] for r in success_tasks])
+    Slis_ensemble = collect([r[5] for r in success_tasks])
+    S_t_ensemble = collect([r[6] for r in success_tasks])
     mkpath("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)")
     save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
+
 end
 
 
