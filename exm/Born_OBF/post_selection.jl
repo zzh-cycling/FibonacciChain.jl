@@ -31,11 +31,17 @@ end
             )
             t, step, start = get(cfg, λ, (100, 14, 60))
         elseif ind == 7
-            cfg = Dict(
-                0.856  => (100, 14, 60),
-                11.0 => (25,   14, 10),
-            )
-            t, step, start = get(cfg, λ, (10, 14, 6))
+            if λ <=0.7
+                t, step, start = (10, 14, 6)
+            elseif 0.7< λ <0.776
+                t, step, start = (50, 14, 30)
+            elseif λ == 0.776
+                t, step, start = (150, 14, 30)
+            elseif 0.776< λ < 0.9
+                t, step, start = (100, 14, 60)
+            elseif λ == 11.0
+                t, step, start = (25, 14, 60)
+            end
         end
         inds = collect(1:step:14t)
         avg_range = start:14-5
@@ -104,7 +110,11 @@ else
     N = parse(Int64, ARGS[1])
     τ_idx = parse(Int64, ARGS[2])
     
-    λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
+     if τ_idx== 1
+        λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
+    elseif τ_idx== 7
+        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
+    end
     tasks  = [(λ, N) for λ in λlis] |> vec
     
     results = pmap(tasks) do params
@@ -133,8 +143,9 @@ end
 
 
 # for λ in unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
-#     if 0.95<λ< 1.2
-#         result2 = run_task_exact((λ, 12), 1)
+# for λ in unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
+#     if 0.6<λ< 0.91
+#         result2 = run_task_exact((λ, 12), 7)
 #         fig = plot(result2.S_t, label="λ=$(round(λ, digits=3))", xlabel="Time step", ylabel="Half-chain EE", title="Time evolution of Half-chain EE for N=12")
 #         display(fig)
 #     end
