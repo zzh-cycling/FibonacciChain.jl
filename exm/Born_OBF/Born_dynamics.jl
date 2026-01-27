@@ -21,20 +21,11 @@ function get_dynamics_params(τ)
     total_layers = 14
     cfg = Dict(
         atanh(0.1)  => (1000, 10, 750),
-        atanh(0.2)  => (200, 2, 120),
-        atanh(0.3)  => (60, 3, 50),
-        atanh(0.4)  => (50, 3, 40),
-        atanh(0.5)  => (40, 2, 20),
-        atanh(0.6)  => (25, 2, 15),
-        log(1 + √2) => (18, 1, 10),
-        atanh(0.8)  => (12, 1, 5),
-        atanh(0.9)  => (5, 1, 2),
-        atanh(0.95) => (5, 1, 2),
-        atanh(0.999)=> (2, 1, 1),
+        log(1 + √2) => (18, 1, 2),
     )
     t, step, start = get(cfg, τ, (2, 1, 1))
     inds = collect(1:step:t)
-    avg_range = start:t-2
+    avg_range = start:t-1
     return t, inds, avg_range
 end
 
@@ -77,7 +68,7 @@ function process_task(task)
 end
 
 function samples_collect(L::Int64, λ::Float64, τ::Float64)
-    t = get_dynamics_params(τ)[1]
+    t, _, timewindow = get_dynamics_params(τ)
     samples_num = 1000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
@@ -99,6 +90,37 @@ function samples_collect(L::Int64, λ::Float64, τ::Float64)
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
     save("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", "measure_records_ensemble", measure_records_ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+end
+
+function data_process(L::Int, τ::Float64, λ::Float64)
+    t, _, timewindow = get_dynamics_params(τ)  # Adjusted time window for averaging
+    data = load("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2")
+    average_EE_tlis = data["average_EE_tlis"]
+    stderr_EE_tlis = data["stderr_EE_tlis"]
+    ensemble_free_energy = data["ensemble_free_energy"]
+    bulk_meanEElis = data["bulk_meanEElis"]
+    measure_records_ensemble = data["measure_records_ensemble"]
+    ensemble_stderr_EElis = data["ensemble_stderr_EElis"]
+
+    temp = hcat(ensemble_free_energy...) # fuse the free energy of each sample into a matrix 
+    #  | -> sample
+    #  | 
+    #  ⬇️ time
+    time_average_free_energy = mean(temp[timewindow*L, :], dims=1)  # each sample's time-averaged free energy
+    bulk_FE = mean(time_average_free_energy) # average over samples
+    bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
+    time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 
+    time_FElis = mean(temp, dims=2)[:] ./2 # average over samples vs time; S/2T
+    
+    save("exm/data/OBF/Born_dynamics_records/Observables_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", 
+        "average_EE_tlis", average_EE_tlis, 
+        "stderr_EE_tlis", stderr_EE_tlis, 
+        "bulk_meanEElis", bulk_meanEElis, 
+        "ensemble_stderr_EElis", ensemble_stderr_EElis, 
+        "bulk_FE", bulk_FE,
+        "bulk_FE_stderr", bulk_FE_stderr, 
+        "time_FEstderr", time_FEstderr, 
+        "time_FElis", time_FElis)
 end
 
 function save_data_filename(L, τ, t)

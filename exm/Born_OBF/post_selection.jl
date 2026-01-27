@@ -23,24 +23,30 @@ end
         if ind == 1
             cfg = Dict(
                 0.936  => (150, 1000, 750),
-                0.976 => (500,   14, 10),
-                1.0   => (1000,   14, 10),
-                1.016 => (800,   14, 10),
+                0.976 => (600,   14, 10),
+                1.0   => (2000,   14, 10),
+                1.016 => (1500,   14, 10),
                 1.1  => (800,   14, 10),
-                1.2 => (150,   14, 10),
+                1.2 => (500,   14, 10),
+                1.3 => (400,   14, 10),
+                1.7 => (1000,   14, 10),
             )
             t, step, start = get(cfg, λ, (100, 14, 60))
         elseif ind == 7
-            if λ <=0.7
-                t, step, start = (10, 14, 6)
-            elseif 0.7< λ <0.776
-                t, step, start = (50, 14, 30)
+            if 0.7< λ <0.776
+                t, step, start = (100, 14, 30)
             elseif λ == 0.776
                 t, step, start = (150, 14, 30)
             elseif 0.776< λ < 0.9
-                t, step, start = (100, 14, 60)
+                t, step, start = (200, 14, 60)
+            elseif 0.9 <=λ < 0.95
+                t, step, start = (50, 14, 60)
+            elseif λ == 1.2
+                t, step, start = (25, 14, 60)
             elseif λ == 11.0
                 t, step, start = (25, 14, 60)
+            else
+                t, step, start = (10, 14, 6)
             end
         end
         inds = collect(1:step:14t)
@@ -111,9 +117,11 @@ else
     τ_idx = parse(Int64, ARGS[2])
     
      if τ_idx== 1
-        λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
+        # λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
+        λlis = [0.976, 1.0, 1.016, 1.2, 1.3, 1.7]
     elseif τ_idx== 7
-        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
+        # λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
+        λlis = [0.756, 0.796, 0.9, 0.916, 0.936, 1.2]
     end
     tasks  = [(λ, N) for λ in λlis] |> vec
     
@@ -137,7 +145,7 @@ else
     Slis_ensemble = collect([r[5] for r in success_tasks])
     S_t_ensemble = collect([r[6] for r in success_tasks])
     mkpath("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)")
-    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
+    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble2.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
 
 end
 
