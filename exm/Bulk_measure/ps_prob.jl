@@ -1,5 +1,9 @@
 using Distributed
-# using Statistics
+using Statistics
+using FibonacciChain
+using JLD
+using Random
+    
 println("requested workers: ", nworkers())
 println("total procs:       ", nprocs())
 @everywhere println("host: ", gethostname(), "  pid: ", getpid())
@@ -8,6 +12,8 @@ println("total procs:       ", nprocs())
     using FibonacciChain
     using JLD
     using Random
+    using Statistics
+    include("../FitEntEntScal.jl")
 
     binary_distribution(p, rng) = rand(rng) < p ? 1 : 0
 
@@ -55,52 +61,52 @@ println("total procs:       ", nprocs())
     end
     # function ps_prob_evolution_Ising(params)
         # Try to reproduce the outcome of `Entanglement Transition in the Projective Transverse Field Ising Model`, but fail, due to it's not measurement at everywhere.
+    function process_ps_prob_evolution(L, τ)
+        # Load the data
+        D = get_system_params(τ, L)[1]
+        samplelis = collect(1:10000)
+        problis = collect(0.1:0.1:0.9)
+        centlis = []
+        seedlis = zeros(Int64, length(samplelis))
+        # Process the data
+        ee_problis = zeros(L-1, length(problis))
+        for (i, sample) in enumerate(samplelis)
+            ee_plis, seed = load("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_sample$(sample).jld", "ee_plis", "seed")
+            ee_problis += hcat(ee_plis...)
+            seedlis[i] = seed
+        end
+    
+        ee_problis ./= length(samplelis)
+        
+    
+        for i in eachindex(problis)
+            push!(centlis, fitCCEntEntScal(vec(ee_problis[:, i]), mincut=2, pbc=true)[1])
+        end
+    
+        save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_cent.jld", "centlis", centlis, "seedlis", seedlis)
+        return centlis, seedlis
+    end
+    
+    function process_data()
+        Llis = collect(8:2:20)
+        problis = collect(0.1:0.1:0.9)
+        ixs = [1, 3, 4, 7, 9, 10, 12]
+        for (inds, τ) in enumerate(τlis[ixs])
+            cent_Lplis = zeros(length(Llis), length(problis))
+            cent_stderrlis = zeros(length(Llis), length(problis))
+            for (id, L) in enumerate(Llis)
+                D, _, _ = get_system_params(τ, L)
+                @show (L, τ)
+                centlis= load("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_cent.jld", "centlis")
+                cent_Lplis[id, :] = [i[1] for i in centlis]
+                cent_stderrlis[id, :] = [i[2] for i in centlis]
+            end
+            save("exm/data/Bulk_measure/ps_prob_evolution/centlis_L$(Llis[1])$(Llis[end])_τ$(τ).jld", "cent_Lplis", cent_Lplis, "cent_stderrlis", cent_stderrlis)
+        end
+    end
 end
     
   
-function process_ps_prob_evolution(L, τ, D)
-    # Load the data
-    samplelis = collect(1:1000)
-    problis = collect(0.1:0.1:0.9)
-    centlis = []
-    seedlis = zeros(Int64, length(samplelis))
-    # Process the data
-    ee_problis = zeros(L-1, length(problis))
-    for (i, sample) in enumerate(samplelis)
-        ee_plis, seed = load("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_sample$(sample).jld", "ee_plis", "seed")
-        ee_problis += hcat(ee_plis...)
-        # cent_problis[i, j] = 
-        seedlis[i] = seed
-    end
-
-    ee_problis ./= length(samplelis)
-    
-
-    for i in eachindex(problis)
-        push!(centlis, fitCCEntEntScal(vec(ee_problis[:, i]), mincut=2, pbc=true)[1])
-    end
-
-    save("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_cent.jld", "centlis", centlis, "seedlis", seedlis)
-    return centlis, seedlis
-end
-
-function process_data()
-    Llis = collect(8:2:18)
-    problis = collect(0.1:0.1:0.9)
-    ixs = [1, 3, 4, 7, 9, 10, 12]
-    for (inds, τ) in enumerate(τlis[ixs])
-        cent_Lplis = zeros(length(Llis), length(problis))
-        cent_stderrlis = zeros(length(Llis), length(problis))
-        for (id, L) in enumerate(Llis)
-            D, _, _ = get_system_params(τ, L)
-            @show (L, τ)
-            centlis= load("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)/L$(L)_D$(div(D,L))_τ$(τ)_cent.jld", "centlis")
-            cent_Lplis[id, :] = [i[1] for i in centlis]
-            cent_stderrlis[id, :] = [i[2] for i in centlis]
-        end
-        save("exm/data/Bulk_measure/ps_prob_evolution/centlis_L$(Llis[1])$(Llis[end])_τ$(τ).jld", "cent_Lplis", cent_Lplis, "cent_stderrlis", cent_stderrlis)
-    end
-end
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
@@ -147,14 +153,3 @@ else
         println("Failed params: $failed_params")
     end
 end
-
-
-# prob_eelis = zeros(L-1, length(problis))
-# for i in 1:num_samples
-#     if i % 100 == 0
-#         println("Sample $i of $num_samples")
-#     end
-#     prob_eelis += hcat(eelis...)    
-# end
-# save("exm/Bulk_measure/data/ps_prob_sample_$(i).jld", "seed", collect(1:1000))
-# prob_eelis ./= num_samples
