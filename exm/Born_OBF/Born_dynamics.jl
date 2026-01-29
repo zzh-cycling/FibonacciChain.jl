@@ -190,59 +190,75 @@ if length(ARGS) == 0
     println("Usage: julia -p N monitored_dynamics.jl L τ_idx λ_idx index_start index_end")
     println("Example: julia -p 16 monitored_dynamics.jl 12 7 11 1 1000")
 else
-    L = parse(Int64, ARGS[1])
-    τinds = parse(Int64, ARGS[2])
-    λinds = parse(Int64, ARGS[3])
-    τ = τlis[τinds]
-    λ = λlis[λinds]
-    index_start = parse(Int64, ARGS[4])
-    index_end = parse(Int64, ARGS[5])
-    indexlis = collect(index_start:index_end)
-    
-    
-    println("=== Parallel Sample Generation ===")
-    println("L = $L, τ_idx = $τinds, τ = $τ, λ_idx = $λinds, λ = $λ")
-    println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
-    println("Total tasks: $(length(indexlis))")
-    println("Number of workers: $(nworkers())")
-    
-    # create task list
-    taskslis = [(L, λ, τ, indexlis[i]) for i in eachindex(indexlis)]
-    
-    # use pmap for parallel processing
-    println("\nStarting parallel processing...")
-    results = pmap(process_task, taskslis; batch_size=100)
-    
-    # count successes and failures
-    failed_tasks = [(L_res, λ_res, τ_res, idx_res, error) 
-                    for (L_res, λ_res, τ_res, idx_res, status, error) in results 
-                    if status != :success]
-    
-    success_count = count(r -> r[5] == :success, results)
-    failed_count = length(failed_tasks)
-    
-    # summary report
-    println("\n=== Processing Complete ===")
-    println("Total tasks: $(length(taskslis))")
-    println("Successes: $success_count")
-    println("Failures: $failed_count")
-    
-    if failed_count > 0
-        println("\n=== Failed Task Details ===")
-        for (i, (L_f, τ_f, λ_f, idx_f, err)) in enumerate(failed_tasks)
-            println("Failed $i: L=$L_f, τ=$τ_f, λ=$λ_f, index=$idx_f")
-            println("  Error: $err")
-        end
+    mode = ARGS[1]
+    if mode == 1
+        L = parse(Int64, ARGS[2])
+        τ_idx = parse(Int64, ARGS[3])
+        τ = τlis[τ_idx]
+        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
         
-        # save failed tasks to file
-        failed_file = "failed_tasks_L$(L)_τidx$(τinds)_λidx$(λinds)_batch.txt"
-        open(failed_file, "w") do io
-            println(io, "# Failed Task List")
-            println(io, "# Format: L τ_idx λ_idx sample_index  # Error Message")
-            for (L_f, τ_f, λ_f, idx_f, err) in failed_tasks
-                println(io, "$L_f $τ_f $λ_f $idx_f  # Error: $err")
+        tasklis = [(L, λ, τ) for λ in λlis]
+        
+        println("Total tasks: $(length(tasklis))")
+        println("Number of workers: $(nworkers())")
+        println("\nStarting parallel processing...")
+        results = pmap(data_process, tasklis; batch_size=1)
+        process_data(L, τ)
+        
+    elseif mode == 2
+        L = parse(Int64, ARGS[2])
+        τinds = parse(Int64, ARGS[3])
+        τ = τlis[τinds]
+        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
+        index_start = parse(Int64, ARGS[4])
+        index_end = parse(Int64, ARGS[5])
+        indexlis = collect(index_start:index_end)
+        
+        # create task list
+        taskslis = [(L, λ, τ, indexlis[i]) for λ in λlis for i in eachindex(indexlis)]
+        
+        println("=== Parallel Sample Generation ===")
+        println("L = $L, τ_idx = $τinds, τ = $τ, λ_idx = $λinds, λ = $λ")
+        println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
+        println("Total tasks: $(length(taskslis))")
+        println("Number of workers: $(nworkers())")
+        
+        
+        # use pmap for parallel processing
+        println("\nStarting parallel processing...")
+        results = pmap(process_task, taskslis; batch_size=100)
+        
+        # count successes and failures
+        failed_tasks = [(L_res, λ_res, τ_res, idx_res, error) 
+                        for (L_res, λ_res, τ_res, idx_res, status, error) in results 
+                        if status != :success]
+        
+        success_count = count(r -> r[5] == :success, results)
+        failed_count = length(failed_tasks)
+        
+        # summary report
+        println("\n=== Processing Complete ===")
+        println("Total tasks: $(length(taskslis))")
+        println("Successes: $success_count")
+        println("Failures: $failed_count")
+        
+        if failed_count > 0
+            println("\n=== Failed Task Details ===")
+            for (i, (L_f, τ_f, λ_f, idx_f, err)) in enumerate(failed_tasks)
+                println("Failed $i: L=$L_f, τ=$τ_f, λ=$λ_f, index=$idx_f")
+                println("  Error: $err")
             end
+            
+            # save failed tasks to file
+            failed_file = "failed_tasks_L$(L)_τidx$(τinds)_λidx$(λinds)_batch.txt"
+            open(failed_file, "w") do io
+                println(io, "# Failed Task List")
+                println(io, "# Format: L τ_idx λ_idx sample_index  # Error Message")
+                for (L_f, τ_f, λ_f, idx_f, err) in failed_tasks
+                    println(io, "$L_f $τ_f $λ_f $idx_f  # Error: $err")
+                end
+            end
+            println("\nFailed tasks saved to: $failed_file")
         end
-        println("\nFailed tasks saved to: $failed_file")
     end
 end
