@@ -17,22 +17,27 @@ using Random
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
 
-function get_dynamics_params(τ)
-    total_layers = 14
-    cfg = Dict(
-        atanh(0.1)  => (1000, 10, 750),
-        log(1 + √2) => (18, 1, 2),
-    )
-    t, step, start = get(cfg, τ, (2, 1, 1))
+function get_dynamics_params(ind)
+    if ind == 1
+            cfg = Dict(
+                11.0 => (4000,   14, 10),
+            )
+            t, step, start = get(cfg, λ, (1000, 10, 750))
+    elseif ind == 7
+            cfg = Dict(
+                11.0 => (40,   14, 10),
+            )
+            t, step, start = get(cfg, λ, (18, 1, 2))
+    end
     inds = collect(1:step:t)
     avg_range = start:t-1
     return t, inds, avg_range
 end
 
-function born_dynamics_samples_generate(L::Int64, λ::Float64, τ::Float64, index::Int64)
+function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index::Int64)
         try
             rng = MersenneTwister(index)
-            t, _, _ = get_dynamics_params(τ)
+            t, _, _ = get_dynamics_params(ind)
             if λ >= 10.0
                 model = AnyonModel(OBFAnyon(), L; λI=0.0, pbc=true)
             else
@@ -42,6 +47,7 @@ function born_dynamics_samples_generate(L::Int64, λ::Float64, τ::Float64, inde
             st = ones(length(anyon_basis(model)))
             st ./= norm(st)
             
+            τ = τlis[ind]
             config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng)
             outcome = bulk_evolution(model, st, config)
             sample_measured_states = outcome.states
@@ -63,12 +69,13 @@ end
 
 # define a wrapper function for pmap
 function process_task(task)
-    L, λ, τ, index = task
-    return born_dynamics_samples_generate(L, λ, τ, index)
+    L, λ, ind, index = task
+    return born_dynamics_samples_generate(L, λ, ind, index)
 end
 
-function samples_collect(L::Int64, λ::Float64, τ::Float64)
-    t, _, timewindow = get_dynamics_params(τ)
+function samples_collect(L::Int64, λ::Float64, ind::Int64)
+    t, _, timewindow = get_dynamics_params(ind)
+    τ = τlis[ind]
     samples_num = 10000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
@@ -92,8 +99,9 @@ function samples_collect(L::Int64, λ::Float64, τ::Float64)
     save("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", "measure_records_ensemble", measure_records_ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
-function data_process(L::Int, τ::Float64, λ::Float64)
-    t, _, timewindow = get_dynamics_params(τ)  # Adjusted time window for averaging
+function data_process(L::Int, ind::Int64, λ::Float64)
+    t, _, timewindow = get_dynamics_params(ind)  # Adjusted time window for averaging
+    τ = τlis[ind]
     data = load("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2")
     average_EE_tlis = data["average_EE_tlis"]
     stderr_EE_tlis = data["stderr_EE_tlis"]
@@ -134,33 +142,32 @@ else
     if mode == 1
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
-        τ = τlis[τ_idx]
+
         λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
         
-        tasklis = [(L, λ, τ) for λ in λlis]
+        tasklis = [(L, λ, τ_idx) for λ in λlis]
         
         println("Total tasks: $(length(tasklis))")
         println("Number of workers: $(nworkers())")
         println("\nStarting parallel processing...")
         results = pmap(samples_collect, tasklis; batch_size=1)
-        for (L, λ, τ) in tasklis
-            data_process(L, τ, λ) 
+        for (L, λ, ind) in tasklis
+            data_process(L, ind, λ) 
         end
 
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τinds = parse(Int64, ARGS[3])
-        τ = τlis[τinds]
         λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
         index_start = parse(Int64, ARGS[4])
         index_end = parse(Int64, ARGS[5])
         indexlis = collect(index_start:index_end)
         
         # create task list
-        taskslis = [(L, λ, τ, indexlis[i]) for λ in λlis for i in eachindex(indexlis)]
+        taskslis = [(L, λ, τinds, indexlis[i]) for λ in λlis for i in eachindex(indexlis)]
         
         println("=== Parallel Sample Generation ===")
-        println("L = $L, τ_idx = $τinds, τ = $τ, λ_idx = $λinds, λ = $λ")
+        println("L = $L, τ_idx = $τinds, λ_idx = $λinds, λ = $λ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(taskslis))")
         println("Number of workers: $(nworkers())")
