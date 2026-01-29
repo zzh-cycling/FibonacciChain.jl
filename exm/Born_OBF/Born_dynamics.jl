@@ -69,7 +69,7 @@ end
 
 function samples_collect(L::Int64, λ::Float64, τ::Float64)
     t, _, timewindow = get_dynamics_params(τ)
-    samples_num = 1000
+    samples_num = 10000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
@@ -89,12 +89,12 @@ function samples_collect(L::Int64, λ::Float64, τ::Float64)
     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    save("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", "measure_records_ensemble", measure_records_ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+    save("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", "measure_records_ensemble", measure_records_ensemble, "ensemble_free_energy", ensemble_free_energy,     "ensemble_seed", ensemble_seed, "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
 function data_process(L::Int, τ::Float64, λ::Float64)
     t, _, timewindow = get_dynamics_params(τ)  # Adjusted time window for averaging
-    data = load("exm/data/OBF/Born_dynamics_records/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2")
+    data = load("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2")
     average_EE_tlis = data["average_EE_tlis"]
     stderr_EE_tlis = data["stderr_EE_tlis"]
     ensemble_free_energy = data["ensemble_free_energy"]
@@ -112,7 +112,7 @@ function data_process(L::Int, τ::Float64, λ::Float64)
     time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 
     time_FElis = mean(temp, dims=2)[:] ./2 # average over samples vs time; S/2T
     
-    save("exm/data/OBF/Born_dynamics_records/Observables_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", 
+    save("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/Observables_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2", 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
@@ -122,66 +122,6 @@ function data_process(L::Int, τ::Float64, λ::Float64)
         "time_FEstderr", time_FEstderr, 
         "time_FElis", time_FElis)
 end
-
-function save_data_filename(L, τ, t)
-    return "new_ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2"
-end
-
-function get_data_filename(L, τ, t)
-    return "ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2"
-end
-
-## == Process the data for entanglement entropy and free energy dynamics == ##
-function process_data(L::Int64, τ::Float64=log(1+ √2))
-    # timewindow = 8L:35L-10
-    D, _, timewindow = get_dynamics_params(τ)
-    DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/OBF/Born_dynamics_records/"
-    load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
-    data = load(load_data_path)
-    
-    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"] # S vs time
-    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"] # S(l) at final time slice
-    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"] # collection of free energy vs time for each sample and the corresponding seeds
-    measure_records_ensemble = data["measure_records_ensemble"]
-    
-    function check_duplicates(seeds)
-        if length(seeds) != length(unique(seeds))
-            duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
-            duplicate_values = unique(seeds)[duplicates]
-            println("WARNING: Found duplicate seeds: $duplicate_values")
-            return true
-        else
-            println("No duplicate seeds found in $(length(seeds)) seeds.")
-            return false
-        end
-    end
-    
-    # Check if there are duplicates in the ensemble_seed
-    has_duplicates = check_duplicates(ensemble_seed)
-    
-    temp = hcat(ensemble_free_energy...) # fuse the free energy of each sample into a matrix 
-    #  | -> sample
-    #  | 
-    #  ⬇️ time
-    time_average_free_energy = mean(temp[timewindow, :], dims=1)  # each sample's time-averaged free energy
-    bulk_FE = mean(time_average_free_energy) # average over samples
-    bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-    time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 
-    time_FElis = mean(temp, dims=2)[:] ./2 # average over samples vs time; S/2T
-
-    save_data_path = joinpath(DATA_DIR, get_data_filename(L, τ, D))
-    save(save_data_path, 
-        "average_EE_tlis", average_EE_tlis, 
-        "stderr_EE_tlis", stderr_EE_tlis, 
-        "bulk_meanEElis", bulk_meanEElis, 
-        "ensemble_stderr_EElis", ensemble_stderr_EElis, 
-        "time_average_free_energy", time_average_free_energy, 
-        "bulk_FE", bulk_FE,
-        "bulk_FE_stderr", bulk_FE_stderr, 
-        "time_FEstderr", time_FEstderr, 
-        "time_FElis", time_FElis, 
-        "ensemble_seed", ensemble_seed)
-end
 end 
 
 
@@ -190,7 +130,7 @@ if length(ARGS) == 0
     println("Usage: julia -p N monitored_dynamics.jl L τ_idx λ_idx index_start index_end")
     println("Example: julia -p 16 monitored_dynamics.jl 12 7 11 1 1000")
 else
-    mode = ARGS[1]
+    mode = parse(Int64, ARGS[1])
     if mode == 1
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
@@ -202,9 +142,11 @@ else
         println("Total tasks: $(length(tasklis))")
         println("Number of workers: $(nworkers())")
         println("\nStarting parallel processing...")
-        results = pmap(data_process, tasklis; batch_size=1)
-        process_data(L, τ)
-        
+        results = pmap(samples_collect, tasklis; batch_size=1)
+        for (L, λ, τ) in tasklis
+            data_process(L, τ, λ) 
+        end
+
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τinds = parse(Int64, ARGS[3])
