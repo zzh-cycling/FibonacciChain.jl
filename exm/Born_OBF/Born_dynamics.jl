@@ -17,16 +17,13 @@ using Random
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
 
-function get_dynamics_params(ind)
+function get_dynamics_params(ind, λ)
     if ind == 1
             cfg = Dict(
                 11.0 => (4000,   14, 10),
             )
             t, step, start = get(cfg, λ, (1000, 10, 750))
     elseif ind == 7
-            cfg = Dict(
-                11.0 => (40,   14, 10),
-            )
             t, step, start = get(cfg, λ, (18, 1, 2))
     end
     inds = collect(1:step:t)
@@ -37,7 +34,7 @@ end
 function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index::Int64)
         try
             rng = MersenneTwister(index)
-            t, _, _ = get_dynamics_params(ind)
+            t, _, _ = get_dynamics_params(ind, λ)
             if λ >= 10.0
                 model = AnyonModel(OBFAnyon(), L; λI=0.0, pbc=true)
             else
@@ -74,7 +71,7 @@ function process_task(task)
 end
 
 function samples_collect(L::Int64, λ::Float64, ind::Int64)
-    t, _, timewindow = get_dynamics_params(ind)
+    t, _, timewindow = get_dynamics_params(ind, λ)
     τ = τlis[ind]
     samples_num = 10000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
@@ -100,7 +97,7 @@ function samples_collect(L::Int64, λ::Float64, ind::Int64)
 end
 
 function data_process(L::Int, ind::Int64, λ::Float64)
-    t, _, timewindow = get_dynamics_params(ind)  # Adjusted time window for averaging
+    t, _, timewindow = get_dynamics_params(ind, λ)  # Adjusted time window for averaging
     τ = τlis[ind]
     data = load("exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2")
     average_EE_tlis = data["average_EE_tlis"]
