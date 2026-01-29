@@ -145,7 +145,7 @@ end
 function process_data(L::Int64, τ::Float64=log(1+ √2))
     # timewindow = 8L:35L-10
     D, _, timewindow = get_system_params(τ, L)  # Adjusted time window for averaging
-    DATA_DIR = "/hpc2hdd/home/zzhi359/FibonacciChain.jl/exm/data/Bulk_measure/Observable_monitored_dynamics/"
+    DATA_DIR = "exm/data/Bulk_measure/Observable_monitored_dynamics/"
     load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
     data = load(load_data_path)
     
