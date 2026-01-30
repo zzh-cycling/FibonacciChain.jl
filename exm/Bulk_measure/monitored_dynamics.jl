@@ -205,6 +205,7 @@ else
         τ = τlis[τ_idx]
         samples_collect(L, τ)
         Observable_collect(L, τ)
+        process_data(L, τ)
         # todoτlis = [τ]
         # taskslis = [(L, τ)]
         # results = pmap(samples_collect, [(L, τ)])

@@ -70,7 +70,8 @@ function process_task(task)
     return born_dynamics_samples_generate(L, λ, ind, index)
 end
 
-function samples_collect(L::Int64, λ::Float64, ind::Int64)
+function samples_collect(task)
+    L, λ, ind = task
     t, _, timewindow = get_dynamics_params(ind, λ)
     τ = τlis[ind]
     samples_num = 10000
