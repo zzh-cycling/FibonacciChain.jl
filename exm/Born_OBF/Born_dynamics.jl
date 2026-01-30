@@ -24,6 +24,9 @@ function get_dynamics_params(ind, λ)
             )
             t, step, start = get(cfg, λ, (1000, 10, 750))
     elseif ind == 7
+            cfg = Dict(
+                12.0 => (100,   14, 10),
+            )
             t, step, start = get(cfg, λ, (18, 1, 2))
     end
     inds = collect(1:step:t)
@@ -72,6 +75,7 @@ end
 
 function samples_collect(task)
     L, λ, ind = task
+
     t, _, timewindow = get_dynamics_params(ind, λ)
     τ = τlis[ind]
     samples_num = 10000
