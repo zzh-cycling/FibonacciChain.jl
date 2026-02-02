@@ -47,7 +47,7 @@ end
                 atanh(0.95) => (8L,    4, 2L),
                 atanh(0.999)=> (5L,    2, 1L),
             )
-            D, step, start = get(cfg, τ, (5L, 2, L))
+            D, step, start = get(table, τ, (5L, 2, L))
             inds = collect(1:step:div(D,2))
             avg_range = start:div(D,2)-5
             return D, inds, avg_range
