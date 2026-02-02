@@ -169,7 +169,7 @@ else
         taskslis = [(L, λ, τinds, indexlis[i]) for λ in λlis for i in eachindex(indexlis)]
         
         println("=== Parallel Sample Generation ===")
-        println("L = $L, τ_idx = $τinds, λ_idx = $λinds, λ = $λ")
+        println("L = $L, τ_idx = $τinds, λ = $λ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(taskslis))")
         println("Number of workers: $(nworkers())")
@@ -201,7 +201,7 @@ else
             end
             
             # save failed tasks to file
-            failed_file = "failed_tasks_L$(L)_τidx$(τinds)_λidx$(λinds)_batch.txt"
+            failed_file = "failed_tasks_L$(L)_τidx$(τinds)_batch.txt"
             open(failed_file, "w") do io
                 println(io, "# Failed Task List")
                 println(io, "# Format: L τ_idx λ_idx sample_index  # Error Message")
