@@ -44,8 +44,7 @@ end
 num_digits(::Type{<:BitStr{N}}) where N = N
 
 # Type-stable inner implementation using function barrier pattern
-# Uses Dict lookup for O(1) index access instead of searchsortedfirst O(log n).
-function _reference_measuremap_impl!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, extended_basis::Vector{newT}; basis_lookup::Union{Nothing, Dict{newT, Int}}=nothing) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+function _reference_measuremap_impl!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     mask = bmask(newT, 1:N...)
     
     @inbounds for (i, ext_basis_i) in enumerate(extended_basis)
@@ -55,7 +54,7 @@ function _reference_measuremap_impl!(mapped_state::Vector{ET}, model::AnyonModel
         mapped_state[i] += result.w1 * state[i]
         if result.w2 != 0
             target_state = join(prefix_i, result.s2)
-            j2 = basis_lookup === nothing ? searchsortedfirst(extended_basis, target_state) : basis_lookup[target_state]
+            j2 = searchsortedfirst(extended_basis, target_state)
             mapped_state[j2] += result.w2 * state[i]
         end
     end
@@ -466,8 +465,7 @@ function _reference_apply_measurement_layer(model::AnyonModel, τ::Float64, stat
     T = BitStr{N, Int}
     pretype = BitStr{k_old, Int}
 
-    # Build lookup Dict and pre-allocate buffer to avoid per-site allocations
-    basis_lookup = build_basis_lookup(extended_basis)
+    # Pre-allocate buffer to avoid per-site allocations
     l = length(extended_basis)
     buf = Vector{ET}(undef, l)
     current_state = copy(state)
@@ -475,7 +473,7 @@ function _reference_apply_measurement_layer(model::AnyonModel, τ::Float64, stat
     for (idx, sign) in enumerate(layer_sample)
         # Apply measurement into pre-allocated buffer
         fill!(buf, zero(ET))
-        _reference_measuremap_impl!(buf, measure_anyon_model, T, pretype, measurement_strength, current_state, measurement_sites[idx], sign, extended_basis; basis_lookup=basis_lookup)
+        _reference_measuremap_impl!(buf, measure_anyon_model, T, pretype, measurement_strength, current_state, measurement_sites[idx], sign, extended_basis)
         prob = sum(abs2, buf)
         total_free_energy += -log(prob)
         buf .*= inv(sqrt(prob))
@@ -521,8 +519,7 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
     TT = BitStr{N, Int}
     pretype = BitStr{k_old, Int}
 
-    # Build lookup Dict and pre-allocate buffers to avoid per-site allocations
-    basis_lookup = build_basis_lookup(extended_basis)
+    # Pre-allocate buffers to avoid per-site allocations
     l = length(extended_basis)
     buf0 = Vector{T}(undef, l)
     buf1 = Vector{T}(undef, l)
@@ -531,7 +528,7 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
     for (i, site) in enumerate(measurement_sites)
         # Compute 0-branch into pre-allocated buffer
         fill!(buf0, zero(T))
-        _reference_measuremap_impl!(buf0, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, false, extended_basis; basis_lookup=basis_lookup)
+        _reference_measuremap_impl!(buf0, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, false, extended_basis)
         p0 = sum(abs2, buf0)
         p1 = 1 - p0
 
@@ -546,7 +543,7 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
         else
             # Compute 1-branch only when needed
             fill!(buf1, zero(T))
-            _reference_measuremap_impl!(buf1, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, true, extended_basis; basis_lookup=basis_lookup)
+            _reference_measuremap_impl!(buf1, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, true, extended_basis)
             sample[i] = true
             buf1 .*= inv(sqrt(p1))
             current_state, buf1 = buf1, current_state  # swap buffers

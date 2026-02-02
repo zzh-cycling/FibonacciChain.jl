@@ -279,8 +279,7 @@ end
 
 # Type-stable inner implementation using function barrier pattern.
 # The concrete type of `basis` is known here, making the loop type-stable.
-# Uses Dict lookup for O(1) index access instead of searchsortedfirst O(log n).
-function _measuremap_impl!(mapped_state::Vector{ET}, basis::Vector{BT}, model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; basis_lookup::Union{Nothing, Dict{BT, Int}}=nothing) where {ET, BT, AT<:AbstractAnyonType}
+function _measuremap_impl!(mapped_state::Vector{ET}, basis::Vector{BT}, model::AnyonModel{AT}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool) where {ET, BT, AT<:AbstractAnyonType}
     l = length(basis)
     @assert length(state) == l "state length is expected to be $l, but got $(length(state))"
 
@@ -288,7 +287,7 @@ function _measuremap_impl!(mapped_state::Vector{ET}, basis::Vector{BT}, model::A
         result = _apply_result(model, τ, basis[i], idx, sign)
         mapped_state[i] += result.w1 * state[i]
         if result.w2 != 0
-            j2 = basis_lookup === nothing ? searchsortedfirst(basis, result.s2) : basis_lookup[result.s2]
+            j2 = searchsortedfirst(basis, result.s2)
             mapped_state[j2] += result.w2 * state[i]
         end
     end
@@ -814,9 +813,8 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
         @assert pbc || 1 <= measurement_sites[1] || measurement_sites[end] <= N-2 "Index idx must be in [1, N-2] for open BC (OBF)"
     end
 
-    # Cache basis, build lookup Dict, and pre-allocate buffer to avoid per-site allocations
+    # Cache basis and pre-allocate buffer to avoid per-site allocations
     basis = anyon_basis(measure_anyon_model)
-    basis_lookup = build_basis_lookup(basis)
     l = length(basis)
     buf = Vector{T}(undef, l)
     current_state = copy(state)
@@ -824,7 +822,7 @@ function _apply_measurement_layer(anyon_model::AnyonModel{AT}, τ::Float64, stat
     for (idx, sign) in enumerate(layer_sample)
         # Apply measurement into pre-allocated buffer
         fill!(buf, zero(T))
-        _measuremap_impl!(buf, basis, measure_anyon_model, measurement_strength, current_state, measurement_sites[idx], sign; basis_lookup=basis_lookup)
+        _measuremap_impl!(buf, basis, measure_anyon_model, measurement_strength, current_state, measurement_sites[idx], sign)
         prob = sum(abs2, buf)
         total_free_energy += -log(prob)
         buf .*= inv(sqrt(prob))
@@ -876,9 +874,8 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T
     sample = BitVector(undef, n)
     F_layer = 0.0
 
-    # Cache basis, build lookup Dict, and pre-allocate buffers
+    # Cache basis and pre-allocate buffers
     basis = anyon_basis(measure_anyon_model)
-    basis_lookup = build_basis_lookup(basis)
     l = length(basis)
     buf0 = Vector{T}(undef, l)
     buf1 = Vector{T}(undef, l)
@@ -887,7 +884,7 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T
     for (i, site) in enumerate(measurement_sites)
         # Compute 0-branch
         fill!(buf0, zero(T))
-        _measuremap_impl!(buf0, basis, measure_anyon_model, measurement_strength, current_state, site, false; basis_lookup=basis_lookup)
+        _measuremap_impl!(buf0, basis, measure_anyon_model, measurement_strength, current_state, site, false)
         p0 = sum(abs2, buf0)
         p1 = 1 - p0
 
@@ -902,7 +899,7 @@ function _sample_layer(anyon_model::AnyonModel{AT}, τ::Float64, state::Vector{T
         else
             # Compute 1-branch only when needed
             fill!(buf1, zero(T))
-            _measuremap_impl!(buf1, basis, measure_anyon_model, measurement_strength, current_state, site, true; basis_lookup=basis_lookup)
+            _measuremap_impl!(buf1, basis, measure_anyon_model, measurement_strength, current_state, site, true)
             sample[i] = true
             buf1 .*= inv(sqrt(p1))
             current_state, buf1 = buf1, current_state

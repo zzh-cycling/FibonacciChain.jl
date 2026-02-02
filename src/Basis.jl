@@ -143,24 +143,6 @@ end
 anyon_basis(model::AnyonModel; symmetry_block=nothing) = anyon_basis(model.anyon_type, BitStr{model.N, Int}; pbc=model.pbc, symmetry_block=symmetry_block)
 
 """
-    build_basis_lookup(basis::Vector{T}) where T
-
-Build a Dict mapping basis states to their indices for O(1) lookup.
-
-# Arguments
-- `basis::Vector{T}`: Sorted basis vector
-
-# Returns
-- `Dict{T, Int}`: Mapping from basis state to its index
-
-# Notes
-This replaces `searchsortedfirst` (O(log n)) with Dict lookup (O(1)).
-"""
-function build_basis_lookup(basis::Vector{T}) where T
-    return Dict{T, Int}(b => i for (i, b) in enumerate(basis))
-end
-
-"""
     Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
     Fsymmetry_coef(model::AnyonModel{FibonacciAnyon}, state::T, base::T)
 
