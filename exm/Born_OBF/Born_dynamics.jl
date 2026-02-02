@@ -169,7 +169,7 @@ else
         taskslis = [(L, λ, τinds, indexlis[i]) for λ in λlis for i in eachindex(indexlis)]
         
         println("=== Parallel Sample Generation ===")
-        println("L = $L, τ_idx = $τinds, λ = $λ")
+        println("L = $L, τ_idx = $τinds, λlis = $λlis")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(taskslis))")
         println("Number of workers: $(nworkers())")
