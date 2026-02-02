@@ -42,6 +42,37 @@ function reference_measure_basismap(model::AnyonModel, ::Type{T}, ::Type{newT}, 
 end
 
 num_digits(::Type{<:BitStr{N}}) where N = N
+
+# Type-stable inner implementation using function barrier pattern
+# Uses Dict lookup for O(1) index access instead of searchsortedfirst O(log n).
+function _reference_measuremap_impl!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, extended_basis::Vector{newT}; basis_lookup::Union{Nothing, Dict{newT, Int}}=nothing) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+    mask = bmask(newT, 1:N...)
+    
+    @inbounds for (i, ext_basis_i) in enumerate(extended_basis)
+        result = reference_measure_basismap(model, T, newT, τ, ext_basis_i, idx, sign, k_old=k_old)
+        prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
+
+        mapped_state[i] += result.w1 * state[i]
+        if result.w2 != 0
+            target_state = join(prefix_i, result.s2)
+            j2 = basis_lookup === nothing ? searchsortedfirst(extended_basis, target_state) : basis_lookup[target_state]
+            mapped_state[j2] += result.w2 * state[i]
+        end
+    end
+
+    return mapped_state
+end
+
+"""
+    reference_measuremap!(mapped_state, model, ::Type{T}, ::Type{pretype}, τ, state, idx, sign; extended_basis)
+
+In-place version of `reference_measuremap` that writes result into pre-allocated `mapped_state` buffer.
+"""
+function reference_measuremap!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+    fill!(mapped_state, zero(ET))
+    return _reference_measuremap_impl!(mapped_state, model, T, pretype, τ, state, idx, sign, extended_basis)
+end
+
 function reference_measuremap(model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if model.measure_operator ∈ [:Ferro, :Antiferro]
@@ -57,24 +88,7 @@ function reference_measuremap(model::AnyonModel, ::Type{T}, ::Type{pretype}, τ:
     @assert num_digits(newT) == N + k_old "The output basis should be with length $(N + k_old), but got $(num_digits(newT))"
 
     mapped_state = zeros(ET, length(state))
-
-    mask = bmask(newT, 1:N...)
-    
-    for (i, ext_basis_i) in enumerate(extended_basis)
-        outputstate1, outputstate2, output1, output2 = reference_measure_basismap(model, T, newT, τ, ext_basis_i, idx, sign, k_old=k_old)
-
-        prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
-
-        if output2 ==0
-            mapped_state[i]+=output1*state[i]
-        else
-            j2=searchsortedfirst(extended_basis, join(prefix_i, outputstate2))
-            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-            mapped_state[j2]+=output2*state[i]
-        end
-    end
-
-    return mapped_state
+    return _reference_measuremap_impl!(mapped_state, model, T, pretype, τ, state, idx, sign, extended_basis)
 end
 
 """
@@ -446,17 +460,29 @@ function _reference_apply_measurement_layer(model::AnyonModel, τ::Float64, stat
     extended_basis::Vector{newT}, k_old::Int64=1) where {ET, newT}
 
     total_free_energy = zero(real(ET))
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)  
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
+
+    N = model.N
+    T = BitStr{N, Int}
+    pretype = BitStr{k_old, Int}
+
+    # Build lookup Dict and pre-allocate buffer to avoid per-site allocations
+    basis_lookup = build_basis_lookup(extended_basis)
+    l = length(extended_basis)
+    buf = Vector{ET}(undef, l)
+    current_state = copy(state)
 
     for (idx, sign) in enumerate(layer_sample)
-        state = reference_measuremap(measure_anyon_model, τ, state, measurement_sites[idx], sign, extended_basis=extended_basis, k_old=k_old)
-
-        prob = real(dot(state, state))
+        # Apply measurement into pre-allocated buffer
+        fill!(buf, zero(ET))
+        _reference_measuremap_impl!(buf, measure_anyon_model, T, pretype, measurement_strength, current_state, measurement_sites[idx], sign, extended_basis; basis_lookup=basis_lookup)
+        prob = sum(abs2, buf)
         total_free_energy += -log(prob)
-        state ./= sqrt(prob)
+        buf .*= inv(sqrt(prob))
+        current_state, buf = buf, current_state  # swap buffers
     end
 
-    return Measurement_outcome_boundary(state, layer_sample, Float32(total_free_energy))
+    return Measurement_outcome_boundary(current_state, layer_sample, Float32(total_free_energy))
 end
 
 
@@ -486,35 +512,49 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
     layer_idx::Int64=1; 
     extended_basis::Vector{newT}, k_old::Int64=1, verbose::Bool=false) where {T, newT}
 
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ_eff)
     n = length(measurement_sites)
-    sample = BitVector(zeros(Bool, n))
+    sample = BitVector(undef, n)
     F_layer = 0.0
 
+    N = model.N
+    TT = BitStr{N, Int}
+    pretype = BitStr{k_old, Int}
+
+    # Build lookup Dict and pre-allocate buffers to avoid per-site allocations
+    basis_lookup = build_basis_lookup(extended_basis)
+    l = length(extended_basis)
+    buf0 = Vector{T}(undef, l)
+    buf1 = Vector{T}(undef, l)
+    current_state = copy(state)
 
     for (i, site) in enumerate(measurement_sites)
-        # first 0 branch
-        ψ0 = reference_measuremap(measure_anyon_model, τ_eff, state, site, false, extended_basis=extended_basis, k_old=k_old)
-        p0 = real(dot(ψ0, ψ0))
+        # Compute 0-branch into pre-allocated buffer
+        fill!(buf0, zero(T))
+        _reference_measuremap_impl!(buf0, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, false, extended_basis; basis_lookup=basis_lookup)
+        p0 = sum(abs2, buf0)
         p1 = 1 - p0
 
         random_number = rand(rng)
         verbose && @show random_number
         if random_number < p0
-            sample[i] = 0
-            state = ψ0 ./ sqrt(p0)
+            sample[i] = false
+            buf0 .*= inv(sqrt(p0))
+            current_state, buf0 = buf0, current_state  # swap buffers
             F_layer += -log(p0)
             verbose && @show -log(p0)
         else
-            # else 1 branch
-            ψ1 = reference_measuremap(measure_anyon_model, τ_eff, state, site, true, extended_basis=extended_basis, k_old=k_old)
-            sample[i] = 1
-            state = ψ1 ./ sqrt(p1)
+            # Compute 1-branch only when needed
+            fill!(buf1, zero(T))
+            _reference_measuremap_impl!(buf1, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, true, extended_basis; basis_lookup=basis_lookup)
+            sample[i] = true
+            buf1 .*= inv(sqrt(p1))
+            current_state, buf1 = buf1, current_state  # swap buffers
             F_layer += -log(p1)
             verbose && @show -log(p1)
         end
     end
-    return Measurement_outcome_boundary(state, sample, Float32(F_layer))
+    return Measurement_outcome_boundary(current_state, sample, Float32(F_layer))
 end
 
 

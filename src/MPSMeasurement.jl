@@ -344,9 +344,24 @@ function measurement_operator_mps(model::AnyonModel{OBFAnyon}, sites::Vector{<:I
     end
 
     if model.measure_operator ∈ [:ZZ, :X]
-        # Delegate to IsingAnyon implementation
-        new_model = AnyonModel(IsingAnyon(), N; pbc=pbc, measure_operator=model.measure_operator)
-        return measurement_operator_mps(new_model, sites, i, τ, sign)
+        # Inline Ising implementation to avoid model allocation
+        if τ >= 1e2
+            cstτ_ising = 0.5
+            coef_ising = sign ? -0.5 : 0.5
+        else
+            cstτ_ising = cosh(τ/2) / √(2cosh(τ))
+            coef_ising = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
+        end
+        
+        if model.measure_operator == :X
+            M_local = cstτ_ising * op("I", sites[i]) + coef_ising * op("X", sites[i])
+        else  # :ZZ
+            idx_p1 = (i == N && pbc) ? 1 : i + 1
+            Z_i = op("Z", sites[i])
+            Z_ip1 = op("Z", sites[idx_p1])
+            M_local = cstτ_ising * (op("I", sites[i]) * op("I", sites[idx_p1])) + coef_ising * (Z_i * Z_ip1)
+        end
+        return M_local
     elseif model.measure_operator == :XZZ
         # XZZ: X on site i, ZZ on sites i+1 and i+2
         X_i = op("X", sites[i])
@@ -1074,16 +1089,16 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
 
-        state1 = add_reference_qubits!(model, state, sites, x₁; verbose=verbose)
-        state2 = add_reference_qubits!(model, state1, sites, x₂; verbose=verbose)
+        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose=verbose)
+        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
     
         config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites, state2, sample[2*t₁+1:2*t₂, :], config1)
+        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites2, state2, sample[2*t₁+1:2*t₂, :], config1)
 
-        state3 = add_reference_qubits!(model, final_stlis1[end], sites, x₂; verbose=verbose)
+        state3, sites3 = add_reference_qubits(model, final_stlis1[end], sites2, x₂; verbose=verbose)
 
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites, state3, sample[2*t₂+1:end, :], config2)
+        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites3, state3, sample[2*t₂+1:end, :], config2)
 
         view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
         view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
@@ -1096,11 +1111,11 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
         verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
     
-        state1 = add_reference_qubits!(model, state, sites, x₁; verbose=verbose)
-        state2 = add_reference_qubits!(model, state1, sites, x₂; verbose=verbose)
+        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose=verbose)
+        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
         
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites, state2, sample[2*t₁+1:end, :], config2)
+        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites2, state2, sample[2*t₁+1:end, :], config2)
 
         view(statelis, t₁+1:Δt) .= view(final_stlis2, :)
         sample_layer[2*t₁+1:end, :] .= samples2
@@ -1109,15 +1124,15 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
 
-        state1 = add_reference_qubits!(model, state, sites, x₂; verbose=verbose)
+        state1, sites1 = add_reference_qubits(model, state, sites, x₂; verbose=verbose)
 
         config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites, state1, sample[2*t₁+1:2*t₂, :], config1)
+        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites1, state1, sample[2*t₁+1:2*t₂, :], config1)
 
-        state2 = add_reference_qubits!(model, final_stlis1[end], sites, x₂; verbose=verbose)
+        state2, sites2 = add_reference_qubits(model, final_stlis1[end], sites1, x₂; verbose=verbose)
     
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites, state2, sample[2*t₂+1:end, :], config2)
+        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites2, state2, sample[2*t₂+1:end, :], config2)
 
         view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
         view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
