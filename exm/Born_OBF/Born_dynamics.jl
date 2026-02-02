@@ -15,7 +15,7 @@ using Random
 τlis = atanh.(γlis)
 τlis[end] = 1000.0
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
-λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
+λlis = vcat(collect(0.0:0.1:1.5), [11.0])
 
 function get_dynamics_params(ind, λ)
     if ind == 1
@@ -145,7 +145,7 @@ else
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
 
-        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
+        λlis = vcat(collect(0.0:0.1:1.5), [11.0])
         
         tasklis = [(L, λ, τ_idx) for λ in λlis]
         
@@ -160,7 +160,7 @@ else
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τinds = parse(Int64, ARGS[3])
-        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
+        λlis = vcat(collect(0.0:0.1:1.5), [11.0])
         index_start = parse(Int64, ARGS[4])
         index_end = parse(Int64, ARGS[5])
         indexlis = collect(index_start:index_end)
