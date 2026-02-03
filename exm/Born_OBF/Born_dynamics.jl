@@ -78,7 +78,7 @@ function samples_collect(task)
 
     t, _, timewindow = get_dynamics_params(ind, λ)
     τ = τlis[ind]
-    samples_num = 10000
+    samples_num = 30000
     measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
