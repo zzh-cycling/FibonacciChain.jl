@@ -20,14 +20,14 @@ using Random
 function get_dynamics_params(ind, λ)
     if ind == 1
             cfg = Dict(
-                11.0 => (4000,   14, 10),
+                11.0 => (400,   14, 10),
             )
-            t, step, start = get(cfg, λ, (1000, 10, 750))
+            t, step, start = get(cfg, λ, (200, 10, 750))
     elseif ind == 7
             cfg = Dict(
-                12.0 => (100,   14, 10),
+                12.0 => (10,   14, 10),
             )
-            t, step, start = get(cfg, λ, (18, 1, 2))
+            t, step, start = get(cfg, λ, (8, 1, 2))
     end
     inds = collect(1:step:t)
     avg_range = start:t-1
