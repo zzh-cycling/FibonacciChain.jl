@@ -149,6 +149,5 @@ else
     Slis_ensemble = collect([r[5] for r in success_tasks])
     S_t_ensemble = collect([r[6] for r in success_tasks])
     mkpath("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)")
-    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble2.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
-
+    save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/ee_ensemble_L$(N).jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
 end
