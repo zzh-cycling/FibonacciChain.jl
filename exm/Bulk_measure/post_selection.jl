@@ -72,7 +72,7 @@ end
             final_st = statelis[end]
             Slis = anyon_eelis(model, final_st)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
-            path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
+            path = "exm/data/OBF/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
             return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
@@ -106,7 +106,7 @@ end
             )
             mc = get(mctable, N, 4)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=mc, pbc=true)
-            path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
+            path = "exm/data/OBF/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
             return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
