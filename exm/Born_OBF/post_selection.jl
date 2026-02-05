@@ -72,7 +72,7 @@ end
             final_st = statelis[end]
             Slis = anyon_eelis(model, final_st)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
-            path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
+            path = "exm/data/OBF/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
             return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
@@ -100,8 +100,13 @@ end
             S_tlis = [ee(anyon_rdm(model, collect(1:div(N, 2)), st)) for st in statelis]
             final_st = statelis[end]
             Slis = anyon_eelis(model, final_st)
-            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
-            path = "exm/data/OBF/Dynamics/eescaling_figs/gammaind$(ind)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
+            mctable = Dict(
+                8 => 2,
+                10 => 3,
+            )
+            mc = get(mctable, N, 4)
+            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=mc, pbc=true)
+            path = "exm/data/OBF/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
             mkpath(dirname(path))
             savefig(fig, path)
             return (λ=λ, N=N, c=cent, c_err=cent_err, Slis=Slis, S_t=S_tlis, status=:success, error=nothing)
@@ -117,12 +122,10 @@ else
     N = parse(Int64, ARGS[1])
     τ_idx = parse(Int64, ARGS[2])
     
-     if τ_idx== 1
-        # λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
-        λlis = [0.976, 1.0, 1.016, 1.2, 1.3, 1.7]
+    if τ_idx== 1
+        λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02),[11.0])))
     elseif τ_idx== 7
-        # λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
-        λlis = [0.756, 0.796, 0.9, 0.916, 0.936, 1.2]
+        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
     end
     tasks  = [(λ, N) for λ in λlis] |> vec
     
@@ -149,13 +152,3 @@ else
     save("exm/data/OBF/Dynamics/gammaind$(τ_idx)/L$(N)/GS_cc_ensemble2.jld2", "λlis", λlis, "cc_ensemble", cc_ensemble, "cc_err_ensemble", cc_err_ensemble, "Slis_ensemble", Slis_ensemble, "S_t_ensemble", S_t_ensemble)
 
 end
-
-
-# for λ in unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.816:0.04:1.02),[11.0])))
-# for λ in unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02),[11.0])))
-#     if 0.6<λ< 0.91
-#         result2 = run_task_exact((λ, 12), 7)
-#         fig = plot(result2.S_t, label="λ=$(round(λ, digits=3))", xlabel="Time step", ylabel="Half-chain EE", title="Time evolution of Half-chain EE for N=12")
-#         display(fig)
-#     end
-# end
