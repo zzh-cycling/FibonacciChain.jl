@@ -12,10 +12,27 @@ using JLD2
 using Statistics
 using Random
 
-function samples_generate(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
+function get_dynamics_params(ind, λ)
+    if ind == 1
+            cfg = Dict(
+                11.0 => (400,   14, 10),
+            )
+            t, step, start = get(cfg, λ, (200, 10, 750))
+    elseif ind == 7
+            cfg = Dict(
+                12.0 => (10,   14, 10),
+            )
+            t, step, start = get(cfg, λ, (8, 1, 2))
+    end
+    inds = collect(1:step:t)
+    avg_range = start:t-1
+    return t, inds, avg_range
+end
+
+function samples_generate(L::Int64, τind::Int64, λ::Float64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
-        t, _, _ = get_system_params(τ, L)
+        t, _, _ = get_dynamics_params(τind, λ)
         rng = MersenneTwister(index)
         
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
@@ -28,7 +45,7 @@ function samples_generate(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
         final_state = sample_measured_states[end]
         final_EElis = anyon_eelis(model, final_state)
 
-        save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(index)_chi$(χ).jld2", 
+        save("exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/t$(t)_samples$(index)_chi$(χ).jld2", 
         "sample", sample, "sample_free_energy", sample_free_energy, "seed", index, 
         "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis)
 
@@ -51,7 +68,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     ensemble_final_EElis = zeros(samples_num, L-1)
 
      for i in 1:samples_num
-        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/t$(t)_samples$(index)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_seed[i] = seed
@@ -64,7 +81,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+    save("exm/data/OBF/Born_dynamics_records_mps//L$(L)/gammaind$(τind)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2", 
     "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
     "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
@@ -74,7 +91,7 @@ function process_data(L::Int64, τind::Int64)
     # timewindow = 8L:35L-10
     τ = τlis[τind]
     t, _, timewindow = get_system_params(τ, L)
-    load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
+    load_data_path = "exm/data/OBF/Born_dynamics_records_mps//L$(L)/gammaind$(τind)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2"
     data = load(load_data_path)
     
     average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"]
@@ -103,7 +120,7 @@ function process_data(L::Int64, τind::Int64)
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
     time_FElis = mean(temp, dims=2)[:]
     
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t).jld2", 
+    save("exm/data/OBF/Born_dynamics_records_mps//L$(L)/gammaind$(τind)/monitored_EE_FEdynamics_λ$(λ)_t$(t)_chi$(χ).jld2", 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
