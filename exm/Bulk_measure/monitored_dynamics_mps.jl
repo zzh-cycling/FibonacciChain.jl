@@ -1,54 +1,57 @@
 using Distributed
 using FibonacciChain
 using ITensorMPS, ITensors
-using JLD
+using JLD2
 using Statistics
 using Random
 
 @everywhere begin
 using FibonacciChain
 using ITensorMPS, ITensors
-using JLD
+using JLD2
 using Statistics
 using Random
 
-function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::Int64=5L)
+function samples_generate(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
+    τ = τlis[τind]
     try
-        rng = MersenneTwister(seed)
+        t, _, _ = get_system_params(τ, L)
+        rng = MersenneTwister(index)
         
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
-        ψ, sites = initial_mps(model)
-        
-        config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng, cutoff=1e-12, maxdim=500)
-        @time mps_mo = bulk_evolution(model, ψ, sites, config)
+        ψ, sites = initial_mps(L)
+        config = MeasureConfig(τ=τ, mode=:Born, t₂=2t*L, rng=rng, cutoff=1e-12, maxdim=χ)
+        @time mps_mo = bulk_evolution(model, sites, ψ, config)
         sample_measured_states, sample, sample_free_energy = mps_mo.states, mps_mo.samples, mps_mo.free_energys
         
         halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
         final_state = sample_measured_states[end]
         final_EElis = anyon_eelis(model, final_state)
 
-        save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", 
-        "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed, 
-        "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis)
+        save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(index)_chi$(χ).jld2", 
+        "sample", sample, "sample_free_energy", sample_free_energy, "seed", index, 
+        "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis)
 
-        return (L, τ, index, seed, :success, nothing)
+        return (L, τ, index, :success, nothing)
     catch e
-        return (L, τ, index, seed, :failed, e)
+        return (L, τ, index, :failed, e)
     end
 end
 
 
-function samples_collect(L::Int64, τ::Float64, D::Int64=5L)
-    samples_num = 5000
-    ensemble = Vector{Matrix{Int}}(undef, samples_num)
-    ensemble_free_energy = Vector{Vector{Float64}}(undef, samples_num)
-    ensemble_seed = Vector{Int64}(undef, samples_num)
+function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
+    τ = τlis[τind]
+    t = get_system_params(τ, L)[1]
+    samples_num = 1
+    ensemble = Vector{BitMatrix}(undef, samples_num)
+    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+    ensemble_seed = zeros(samples_num)
+    D = 2t * L
     ensemble_EE_dynamics= zeros(samples_num, D) 
     ensemble_final_EElis = zeros(samples_num, L-1)
 
      for i in 1:samples_num
-        @show i
-        @time sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_seed[i] = seed
@@ -61,15 +64,16 @@ function samples_collect(L::Int64, τ::Float64, D::Int64=5L)
     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", 
+    save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
     "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
     "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
-function process_data(L::Int64, D::Int64=25L, τ::Float64=log(1+ √2))
+function process_data(L::Int64, τind::Int64)
     # timewindow = 8L:35L-10
-    timewindow = 5L:D-5  # Adjusted time window for averaging
+    τ = τlis[τind]
+    t, _, timewindow = get_system_params(τ, L)
     load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld"
     data = load(load_data_path)
     
@@ -114,22 +118,22 @@ end
 
 function get_system_params(τ, L)
     cfg = Dict(
-        atanh(0.1)  => (2500L, 1000, 1500L),
-        atanh(0.2)  => (500L,  100, 250L),
-        atanh(0.3)  => (120L,  48, 100L),
-        atanh(0.4)  => (100L,  40, 80L),
-        atanh(0.5)  => (80L,   32, 40L),
-        atanh(0.6)  => (45L,   20, 30L),
-        log(1 + √2) => (35L,   14, 20L),
-        atanh(0.8)  => (25L,   10, 10L),
-        atanh(0.9)  => (8L,    4, 4L),
-        atanh(0.95) => (8L,    4, 4L),
-        atanh(0.999)=> (5L,    2, 2L),
+        atanh(0.1)  => (1250, 1000, 1500L),
+        atanh(0.2)  => (250,  100, 250L),
+        atanh(0.3)  => (65,  48, 100L),
+        atanh(0.4)  => (50,  40, 80L),
+        atanh(0.5)  => (40,   32, 40L),
+        atanh(0.6)  => (22,   20, 30L),
+        log(1 + √2) => (18,   14, 20L),
+        atanh(0.8)  => (12,   10, 10L),
+        atanh(0.9)  => (5,    4, 4L),
+        atanh(0.95) => (4,    4, 4L),
+        atanh(0.999)=> (3,    2, 2L),
     )
-    D, step, start = get(cfg, τ, (5L, 2, 2L))
-    inds = collect(1:step:D)
-    avg_range = start:D-5
-    return D, inds, avg_range
+    t, step, start = get(cfg, τ, (2, 1, 1))
+    inds = collect(1:step:t)
+    avg_range = start:t-5
+    return t, inds, avg_range
 end
 
 
@@ -139,8 +143,8 @@ end
 
 # define a wrapper function for pmap
 function process_task(task)
-    L, τ, index, seed, D = task
-    return samples_generate(L, τ, index, seed, D)
+    L, τ, index, χ = task
+    return samples_generate(L, τ, index, χ)
 end
 end
 
@@ -154,40 +158,39 @@ else
     if mode == 1
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
-        τ = τlis[τ_idx]
-        D, _, _ = get_system_params(τ, L)
-        samples_collect(L, τ, D)
-        process_data(L, D, τ)
+        χ = parse(Int64, ARGS[4])
+        samples_collect(L, τ_idx, χ)
+        process_data(L, τ_idx)
     elseif mode == 2
         L = parse(Int64, ARGS[2])
-        inds = parse(Int64, ARGS[3])
-        τ = τlis[inds]
-        index_start = parse(Int64, ARGS[4])
-        index_end = parse(Int64, ARGS[5])
+        τ_idx = parse(Int64, ARGS[3])
+        χ = parse(Int64, ARGS[4])
+        index_start = parse(Int64, ARGS[5])
+        index_end = parse(Int64, ARGS[6])
         indexlis = collect(index_start:index_end)
         seedlis = -indexlis
 
-        D, _, _ = get_system_params(τ, L)
+    
         
         println("=== Parallel Sample Generation (MPS) ===")
-        println("L = $L, τ_idx = $inds, τ = $τ, D = $D")
+        println("L = $L, τ_idx = $τ_idx, χ = $χ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(indexlis))")
         println("Number of workers: $(nworkers())")
         
         # create task list
-        taskslis = [(L, τ, indexlis[i], seedlis[i], D) for i in eachindex(indexlis)]
+        taskslis = [(L, τ_idx, indexlis[i], χ) for i in eachindex(indexlis)]
         
         # use pmap for parallel processing
         println("\nStarting parallel processing...")
         results = pmap(process_task, taskslis; batch_size=50)
         
         # count successes and failures
-        failed_tasks = [(L_res, τ_res, idx_res, seed_res, error) 
-                        for (L_res, τ_res, idx_res, seed_res, status, error) in results 
+        failed_tasks = [(L_res, τ_res, idx_res, error) 
+                        for (L_res, τ_res, idx_res, status, error) in results 
                         if status != :success]
         
-        success_count = count(r -> r[5] == :success, results)
+        success_count = count(r -> r[4] == :success, results)
         failed_count = length(failed_tasks)
         
         # summary report
@@ -198,9 +201,9 @@ else
         
         if failed_count > 0
             println("\n=== Failed Task Details ===")
-            for (i, (L_f, τ_f, idx_f, seed_f, err)) in enumerate(failed_tasks)
-                println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f, seed=$seed_f")
-                println("  Error: $err")
+            for (i, (L_f, τ_f, idx_f, err)) in enumerate(failed_tasks)
+                println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f")
+                println("Error: $err")
             end
         end
     else
