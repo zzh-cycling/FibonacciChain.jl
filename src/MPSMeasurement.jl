@@ -44,7 +44,30 @@ function initial_mps(N::Int)
     state = ["0" for _ in 1:N]
     
     # Create MPS from product state
-    ψ0 = random_mps(sites, state)
+    ψ0 = productMPS(sites, state)
+    
+    return ψ0, sites
+end
+
+"""
+    evenparity_mps(N::Int)
+
+Create an MPS for the even-parity state in the Z basis, i.e. the equal-weight
+superposition of all bitstrings with an even number of |1⟩.
+
+# Returns
+- `MPS`: normalized even-parity MPS
+- `Vector{Index}`: site indices
+"""
+function evenparity_mps(N::Int)
+        # Create sites for Fibonacci anyons
+    sites = siteinds("Qubit", N)
+    
+    # Create initial product state in X eigenbasis |+>
+    state = fill("+", N)
+    
+    # Create MPS from product state
+    ψ0 = productMPS(sites, state)
     
     return ψ0, sites
 end

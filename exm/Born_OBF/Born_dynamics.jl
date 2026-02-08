@@ -20,21 +20,22 @@ using Random
 function get_dynamics_params(ind, λ)
     if ind == 1
             cfg = Dict(
-                11.0 => (400,   14, 10),
+                11.0 => (400, 14, 350),
             )
-            t, step, start = get(cfg, λ, (200, 10, 750))
+            t, step, start = get(cfg, λ, (200, 14, 180))
     elseif ind == 7
             cfg = Dict(
-                12.0 => (10,   14, 10),
+                12.0 => (10, 14, 10),
             )
-            t, step, start = get(cfg, λ, (8, 1, 2))
+            t, step, start = get(cfg, λ, (8, 14, 6))
     end
-    inds = collect(1:step:t)
-    avg_range = start:t-1
+    inds = collect(1:step:t*step)
+    avg_range = start:t
     return t, inds, avg_range
 end
 
 function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index::Int64)
+        τ = τlis[ind]
         try
             rng = MersenneTwister(index)
             t, _, _ = get_dynamics_params(ind, λ)
@@ -47,7 +48,6 @@ function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index
             st = ones(length(anyon_basis(model)))
             st ./= norm(st)
             
-            τ = τlis[ind]
             config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng)
             outcome = bulk_evolution(model, st, config)
             sample_measured_states = outcome.states
@@ -116,7 +116,9 @@ function data_process(L::Int, ind::Int64, λ::Float64)
     #  | -> sample
     #  | 
     #  ⬇️ time
-    time_average_free_energy = mean(temp[timewindow*L, :], dims=1)  # each sample's time-averaged free energy
+    t1 = timewindow[1]
+    t2 = timewindow[end]
+    time_average_free_energy = mean(temp[collect(t1*L:t2*L-4), :], dims=1)  # each sample's time-averaged free energy
     bulk_FE = mean(time_average_free_energy) # average over samples
     bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
     time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 

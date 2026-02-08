@@ -12,32 +12,19 @@ using JLD2
 using Statistics
 using Random
 
-function get_dynamics_params(ind, λ)
-    if ind == 1
-            cfg = Dict(
-                11.0 => (400,   14, 10),
-            )
-            t, step, start = get(cfg, λ, (200, 10, 750))
-    elseif ind == 7
-            cfg = Dict(
-                12.0 => (10,   14, 10),
-            )
-            t, step, start = get(cfg, λ, (8, 1, 2))
-    end
-    inds = collect(1:step:t)
-    avg_range = start:t-1
-    return t, inds, avg_range
-end
-
 function samples_generate(L::Int64, τind::Int64, λ::Float64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
         t, _, _ = get_dynamics_params(τind, λ)
         rng = MersenneTwister(index)
         
-        model = AnyonModel(FibonacciAnyon(), L; pbc=true)
-        ψ, sites = initial_mps(L)
-        config = MeasureConfig(τ=τ, mode=:Born, t₂=2t*L, rng=rng, cutoff=1e-12, maxdim=χ)
+        if λ >= 10.0
+            model = AnyonModel(OBFAnyon(), L; λI=0.0, pbc=true)
+        else
+            model = AnyonModel(OBFAnyon(), L; λ=λ, pbc=true)
+        end
+        ψ, sites = evenparity_mps(L)
+        config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng, cutoff=1e-12, maxdim=χ)
         @time mps_mo = bulk_evolution(model, sites, ψ, config)
         sample_measured_states, sample, sample_free_energy = mps_mo.states, mps_mo.samples, mps_mo.free_energys
         
@@ -56,19 +43,18 @@ function samples_generate(L::Int64, τind::Int64, λ::Float64, index::Int64, χ:
 end
 
 
-function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
+function samples_collect(L::Int64, τind::Int64, λ::Float64, χ::Int64=500)
     τ = τlis[τind]
-    t = get_system_params(τ, L)[1]
+    t, _, _ = get_dynamics_params(τind, λ)
     samples_num = 1
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
-    D = 2t * L
-    ensemble_EE_dynamics= zeros(samples_num, D) 
+    ensemble_EE_dynamics= zeros(samples_num, t * L) 
     ensemble_final_EElis = zeros(samples_num, L-1)
 
      for i in 1:samples_num
-        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/t$(t)_samples$(index)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_seed[i] = seed
@@ -90,7 +76,7 @@ end
 function process_data(L::Int64, τind::Int64)
     # timewindow = 8L:35L-10
     τ = τlis[τind]
-    t, _, timewindow = get_system_params(τ, L)
+    t, _, timewindow = get_dynamics_params(τind, λ)
     load_data_path = "exm/data/OBF/Born_dynamics_records_mps//L$(L)/gammaind$(τind)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2"
     data = load(load_data_path)
     
@@ -113,8 +99,10 @@ function process_data(L::Int64, τind::Int64)
     # Check if there are duplicates in the ensemble_seed
     has_duplicates = check_duplicates(ensemble_seed)
     
+    t1 = timewindow[1]
+    t2 = timewindow[end]
     temp = hcat(ensemble_free_energy...)
-    time_average_free_energy = mean(temp[timewindow, :], dims=1) 
+    time_average_free_energy = mean(temp[collect(t1*L:t2*L-4), :], dims=1) 
     bulk_FE = mean(time_average_free_energy)
     bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
@@ -133,26 +121,22 @@ function process_data(L::Int64, τind::Int64)
         "ensemble_seed", ensemble_seed)
 end
 
-function get_system_params(τ, L)
-    cfg = Dict(
-        atanh(0.1)  => (1250, 1000, 1500L),
-        atanh(0.2)  => (250,  100, 250L),
-        atanh(0.3)  => (65,  48, 100L),
-        atanh(0.4)  => (50,  40, 80L),
-        atanh(0.5)  => (40,   32, 40L),
-        atanh(0.6)  => (22,   20, 30L),
-        log(1 + √2) => (18,   14, 20L),
-        atanh(0.8)  => (12,   10, 10L),
-        atanh(0.9)  => (5,    4, 4L),
-        atanh(0.95) => (4,    4, 4L),
-        atanh(0.999)=> (3,    2, 2L),
-    )
-    t, step, start = get(cfg, τ, (2, 1, 1))
-    inds = collect(1:step:t)
-    avg_range = start:t-5
+function get_dynamics_params(ind, λ)
+    if ind == 1
+            cfg = Dict(
+                11.0 => (400, 14, 350),
+            )
+            t, step, start = get(cfg, λ, (200, 14, 180))
+    elseif ind == 7
+            cfg = Dict(
+                12.0 => (10, 14, 10),
+            )
+            t, step, start = get(cfg, λ, (8, 14, 6))
+    end
+    inds = collect(1:step:t*step)
+    avg_range = start:t
     return t, inds, avg_range
 end
-
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
@@ -160,8 +144,8 @@ end
 
 # define a wrapper function for pmap
 function process_task(task)
-    L, τ, index, χ = task
-    return samples_generate(L, τ, index, χ)
+    L, τ_idx, index, χ = task
+    return samples_generate(L, τ_idx, index, χ)
 end
 end
 
