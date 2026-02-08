@@ -12,7 +12,7 @@ using JLD2
 using Statistics
 using Random
 
-function samples_generate(L::Int64, τind::Int64, λ::Float64, index::Int64, χ::Int64=500)
+function samples_generate_OBF(L::Int64, τind::Int64, λ::Float64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
         t, _, _ = get_dynamics_params(τind, λ)
@@ -73,8 +73,8 @@ function samples_collect(L::Int64, τind::Int64, λ::Float64, χ::Int64=500)
     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
-function process_data(L::Int64, τind::Int64)
-    # timewindow = 8L:35L-10
+function process_data(L::Int64, τind::Int64, λ::Float64, χ::Int64=500)
+    # timewindow, over t, need to times L
     τ = τlis[τind]
     t, _, timewindow = get_dynamics_params(τind, λ)
     load_data_path = "exm/data/OBF/Born_dynamics_records_mps//L$(L)/gammaind$(τind)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2"
@@ -144,8 +144,8 @@ end
 
 # define a wrapper function for pmap
 function process_task(task)
-    L, τ_idx, index, χ = task
-    return samples_generate(L, τ_idx, index, χ)
+    L, τ_idx, λ, index, χ = task
+    return samples_generate_OBF(L, τ_idx, λ, index, χ)
 end
 end
 
@@ -160,8 +160,18 @@ else
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
         χ = parse(Int64, ARGS[4])
-        samples_collect(L, τ_idx, χ)
-        process_data(L, τ_idx)
+
+        λlis = vcat(collect(0.0:0.1:1.5), [11.0])
+        
+        tasklis = [(L, λ, τ_idx, χ) for λ in λlis]
+        
+        println("Total tasks: $(length(tasklis))")
+        println("Number of workers: $(nworkers())")
+        println("\nStarting parallel processing...")
+        results = pmap(samples_collect, tasklis; batch_size=1)
+        for (L, λ, ind, χ) in tasklis
+            data_process(L, ind, λ, χ) 
+        end
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
@@ -169,10 +179,9 @@ else
         index_start = parse(Int64, ARGS[5])
         index_end = parse(Int64, ARGS[6])
         indexlis = collect(index_start:index_end)
-        seedlis = -indexlis
 
     
-        
+        λlis = vcat([11.0])
         println("=== Parallel Sample Generation (MPS) ===")
         println("L = $L, τ_idx = $τ_idx, χ = $χ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
@@ -180,7 +189,7 @@ else
         println("Number of workers: $(nworkers())")
         
         # create task list
-        taskslis = [(L, τ_idx, indexlis[i], χ) for i in eachindex(indexlis)]
+        taskslis = [(L, τ_idx, λ, indexlis[i], χ) for λ in λlis for i in eachindex(indexlis)]
         
         # use pmap for parallel processing
         println("\nStarting parallel processing...")

@@ -12,7 +12,7 @@ using JLD2
 using Statistics
 using Random
 
-function samples_generate(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
+function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
         t, _, _ = get_system_params(τ)
@@ -145,7 +145,7 @@ end
 # define a wrapper function for pmap
 function process_task(task)
     L, τ, index, χ = task
-    return samples_generate(L, τ, index, χ)
+    return samples_generate_Fibo(L, τ, index, χ)
 end
 end
 
@@ -169,10 +169,7 @@ else
         index_start = parse(Int64, ARGS[5])
         index_end = parse(Int64, ARGS[6])
         indexlis = collect(index_start:index_end)
-        seedlis = -indexlis
 
-    
-        
         println("=== Parallel Sample Generation (MPS) ===")
         println("L = $L, τ_idx = $τ_idx, χ = $χ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
