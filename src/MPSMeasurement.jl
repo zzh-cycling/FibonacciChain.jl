@@ -867,8 +867,7 @@ function bulk_evolution(model::AnyonModel{AT},
                   sites::Vector{<:Index},
                   state::MPS,
                   measure_config::MeasureConfig,
-                  samples::Union{Nothing,BitMatrix}=nothing;
-                  on_state::Union{Nothing,Function}=nothing) where AT <: AbstractAnyonType
+                  samples::Union{Nothing,BitMatrix}=nothing;) where AT <: AbstractAnyonType
 
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
@@ -878,7 +877,7 @@ function bulk_evolution(model::AnyonModel{AT},
     maxdim = measure_config.maxdim
     current_state = copy(state)
     if mode == :Born
-        return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim, on_state=on_state)
+        return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim)
     elseif mode == :sample
         return _sample_measure_mps(model, sites, current_state, samples, measure_config; cutoff=cutoff, maxdim=maxdim)
     end
@@ -906,7 +905,7 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:Bor
   - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
   - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
 """
-function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100, on_state::Union{Nothing,Function}=nothing) where AT <: AbstractAnyonType
+function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -946,10 +945,6 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
         end
         # Compute half-chain EE on-the-fly
         entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
-        # Optional user callback for additional per-period processing
-        if !isnothing(on_state)
-            on_state(period, current_state)
-        end
     end
 
     return Measurement_outcome_mps_bulk(current_state, samples, sample_free_energy, entanglement_entropys)

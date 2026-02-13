@@ -30,14 +30,6 @@ rng = MersenneTwister(1)
 model = AnyonModel(FibonacciAnyon(), L; pbc=true)
 ψ, sites = initial_mps(L)
 config = MeasureConfig(τ=log(1+√2), mode=:Born, t₂=10*L, rng=rng, cutoff=1e-12, maxdim=20)
-# Pre-allocate arrays for on-the-fly EE computation
-last_state = Ref{MPS}()  # to capture the final state
-
-# Callback: compute EE immediately and discard the MPS
-function on_state_callback(period::Int, state::MPS)
-    halfchain_EE_tlis[period] = ee_mps(state, div(L, 2))
-    last_state[] = state  # only keeps reference to the latest state
-end
-halfchain_EE_tlis = zeros(10 * L)
-final_EElis = zeros(L - 1)
-@time mps_mo = bulk_evolution(model, sites, ψ, config; on_state=on_state_callback)
+@time mps_mo = bulk_evolution(model, sites, ψ, config)
+halfchain_EE_tlis = mps_mo.entanglement_entropys
+final_EElis = anyon_eelis(model, mps_mo.state)
