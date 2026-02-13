@@ -30,6 +30,4 @@ rng = MersenneTwister(1)
 model = AnyonModel(FibonacciAnyon(), L; pbc=true)
 ψ, sites = initial_mps(L)
 config = MeasureConfig(τ=log(1+√2), mode=:Born, t₂=10*L, rng=rng, cutoff=1e-12, maxdim=20)
-@time mps_mo = bulk_evolution(model, sites, ψ, config)
-halfchain_EE_tlis = mps_mo.entanglement_entropys
-final_EElis = anyon_eelis(model, mps_mo.state)
+@btime mps_mo = bulk_evolution(model, sites, ψ, config)
