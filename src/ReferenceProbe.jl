@@ -871,6 +871,7 @@ function reference_evolution(model::AnyonModel, forward::ET, measure_config::Mea
         outcome1 = reference_bulk_evolution(model, state1, config1, sample[2*t₁+1:2*t₂, :])
 
         # 4) add reference qubit 2 at x₂ at time slice t₂
+        @show typeof(outcome1.state), size(outcome1.state)
         state2 = add_reference_qubits(model, outcome1.state, x₂; verbose=verbose)
         
         # 5) t₂ → D evolution
