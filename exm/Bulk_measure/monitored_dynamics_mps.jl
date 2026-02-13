@@ -43,7 +43,7 @@ end
 function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     τ = τlis[τind]
     t = get_system_params(τ)[1]
-    samples_num = 1
+    samples_num = 10000
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)

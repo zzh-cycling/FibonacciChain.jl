@@ -745,7 +745,7 @@ This function avoids recomputing the forward evolution up to time `t₁` by usin
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type, etc.)
-- `forward::Vector{ET}`: Cached forward state evolution trajectory from a previous `bulk_evolution` run
+- `forward::ET`: Cached forward state from a previous `bulk_evolution` run
 - `measure_config::MeasureConfig`: Configuration struct containing:
   - `τ::Float64`: Measurement strength parameter
   - `t₁::Int`: First time slice index for correlation
@@ -770,7 +770,7 @@ Based on `δt = t₂ - t₁` and `δx = |x₂ - x₁|`:
 - `δx == 0`: Pure 2-point temporal correlation at fixed site, uses 2 reference qubits
 
 # Notes
-- The `forward` states should come from a previous `bulk_evolution` call
+- The `forward` state should come from a previous `bulk_evolution` call
 - Reference qubits are added via [`add_reference_qubits`](@ref) at the specified spacetime points
 - In `:sample` mode, `sample` must be provided; in `:Born` mode, samples are generated via Born rule
 
