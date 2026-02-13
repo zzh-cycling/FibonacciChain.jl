@@ -50,7 +50,7 @@ println("total procs:       ", nprocs())
             sample = BitMatrix(reshape([binary_distribution(prob, rng) for _ in 1:gate_num], D, div(L, 2)))
             config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
             mo = bulk_evolution(model, initial_state, config, sample)
-            ee_plis[idx] = anyon_eelis(model, mo.states[end])
+            ee_plis[idx] = anyon_eelis(model, mo.state)
         end
         
         mkpath("exm/data/Bulk_measure/ps_prob_evolution/L$(L)/τ$(τ)")

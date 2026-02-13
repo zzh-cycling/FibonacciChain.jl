@@ -67,9 +67,9 @@ end
             measure_config = MeasureConfig(τ=τ, t₂=t*N, mode=:sample, cutoff=1e-12, maxdim=1000, verbose=false)
             samples = BitMatrix(zeros(Int8, 14t*N, N))
             measure_outcome = bulk_evolution(model, sites, ψ, measure_config, samples)
-            statelis, F = measure_outcome.states, measure_outcome.free_energys
-            S_tlis = [ee_mps(st, div(N, 2)) for st in statelis]
-            final_st = statelis[end]
+            F = measure_outcome.free_energys
+            S_tlis = measure_outcome.entanglement_entropys
+            final_st = measure_outcome.state
             Slis = anyon_eelis(model, final_st)
             (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut=4, pbc=true)
             path = "exm/data/OBF/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/OBF_EntScal_λ=$(round(λ, digits=4))_N=$(N).pdf"
@@ -96,9 +96,9 @@ end
             measure_config = MeasureConfig(τ=τ, t₂=t*N, mode=:sample, cutoff=1e-12, maxdim=1000, verbose=false)
             samples = BitMatrix(zeros(Int8, 14t*N, N))
             measure_outcome = bulk_evolution(model, st, measure_config, samples)
-            statelis, F = measure_outcome.states, measure_outcome.free_energys
-            S_tlis = [ee(anyon_rdm(model, collect(1:div(N, 2)), st)) for st in statelis]
-            final_st = statelis[end]
+            F = measure_outcome.free_energys
+            S_tlis = measure_outcome.entanglement_entropys
+            final_st = measure_outcome.state
             Slis = anyon_eelis(model, final_st)
             mctable = Dict(
                 8 => 2,

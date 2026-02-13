@@ -667,9 +667,10 @@ _samples_per_layer(model::AnyonModel{OBFAnyon}) = model.N  # Max of all layer ty
 
 
 struct Measurement_outcome_bulk{ET}
-    states::Vector{ET}
+    state::ET
     samples::BitMatrix
     free_energys::Vector{Float32}
+    entanglement_entropys::Vector{Float32}
 end
 
 struct Measurement_outcome_boundary{T}
@@ -932,9 +933,10 @@ Evolve a state vector under bulk measurements.
 
 ### Returns
 - `Measurement_outcome_bulk`: A struct containing:
-  - `states::Vector{Vector{ET}}`: Intermediate states at each time step
+  - `state::ET`: Final state after evolution
   - `samples::BitMatrix`: Measurement outcome sequences
-  - `free_energys::Vector{Float64}`: Free energy for each layer
+  - `free_energys::Vector{Float32}`: Free energy for each layer
+  - `entanglement_entropys::Vector{Float32}`: Half-chain EE at each period
 
 ## MPS version (from `MPSMeasurement.jl`)
 Evolve an MPS state under bulk measurements.
@@ -949,10 +951,11 @@ Evolve an MPS state under bulk measurements.
 - `maxdim::Int=100`: Maximum bond dimension
 
 ### Returns
-- `Measurement_outcome_bulk`: A struct containing:
-  - `states::Vector{MPS}`: Intermediate states at each time step
+- `Measurement_outcome_mps_bulk`: A struct containing:
+  - `state::MPS`: Final MPS state after evolution
   - `samples::BitMatrix`: Measurement outcome sequences
-  - `free_energy::Vector{Float64}`: Free energy for each layer
+  - `free_energys::Vector{Float32}`: Free energy for each layer
+  - `entanglement_entropys::Vector{Float32}`: Half-chain EE at each period
 
 # Notes
 - In `:Born` mode, samples are generated probabilistically via Born rule
@@ -991,7 +994,8 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
     # 1. Initialize sample matrix with max columns per layer
     samples = BitMatrix(zeros(Bool, D, n_cols))
     sample_free_energy = zeros(Float32, D)
-    states = Vector{Vector{ET}}(undef, Δt)
+    N = model.N
+    entanglement_entropys = zeros(Float32, Δt)
 
     for period in 1:Δt
         # Apply all layers in this period
@@ -1009,10 +1013,11 @@ function _born_measure(model::AnyonModel{AT}, current_state::Vector{ET}, measure
             samples[global_layer_idx, col_indices] = outcome.sample
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
-        states[period] = current_state
+        # Compute half-chain EE on-the-fly
+        entanglement_entropys[period] = Float32(ee(anyon_rdm(model, collect(1:div(N, 2)), current_state)))
     end
 
-    return Measurement_outcome_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, samples::BitMatrix, measure_config::MeasureConfig) where {AT, ET}
@@ -1027,7 +1032,8 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
         D = Δt * n_layers  # total number of layers
 
         sample_free_energy = zeros(Float32, D)
-        states = Vector{Vector{ET}}(undef, Δt)
+        N = model.N
+        entanglement_entropys = zeros(Float32, Δt)
         
         # 2. Validate sample matrix dimensions
         size(samples) == (D, n_cols) || error("sample size should be ($D, $n_cols), got $(size(samples))")
@@ -1077,9 +1083,10 @@ function _sample_measure(model::AnyonModel{AT}, current_state::Vector{ET}, sampl
                 current_state = outcome.state
                 sample_free_energy[global_layer_idx] = outcome.free_energy
             end
-            states[period] = current_state
+            # Compute half-chain EE on-the-fly
+            entanglement_entropys[period] = Float32(ee(anyon_rdm(model, collect(1:div(N, 2)), current_state)))
         end
-    return Measurement_outcome_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 

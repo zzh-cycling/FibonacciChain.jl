@@ -50,12 +50,11 @@ function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index
             
             config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng)
             outcome = bulk_evolution(model, st, config)
-            sample_measured_states = outcome.states
             sample = outcome.samples
             sample_free_energy = outcome.free_energys
             
-            halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-            final_state = sample_measured_states[end]
+            halfchain_EE_tlis = outcome.entanglement_entropys
+            final_state = outcome.state
             final_EElis = anyon_eelis(model, final_state)
             
             # Assume seed is the index

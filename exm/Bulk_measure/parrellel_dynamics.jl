@@ -141,7 +141,7 @@ end
     t = div(D, 2)
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂ = t, enable_τ_eff=false)
     pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
-    statelis, Flis = pre_mo.states, pre_mo.free_energys
+    Flis = pre_mo.free_energys
     
     rng = MersenneTwister(index)
     # tlis is the time list after adding two ref qubits.
@@ -159,24 +159,24 @@ end
         ref_sample = BitMatrix(zeros(Int, 2*(t + δt + Δt), length(2:2:L)))
         if δt == 0
             ref_config = MeasureConfig(τ = τ, t₂ = t, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1)
-            ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-            ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref
+            ref_mo = reference_evolution(model, pre_mo.state, ref_config, ref_sample)
+            sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref
             spatial = true
             temporal = false
             view(sample_free_energy, 1:D) .= view(Flis, :)
             view(sample_layer, 1:D, :) .= view(sample, :, :)
         else
             ref_config = MeasureConfig(τ = τ, t₂ = t + δt, t₁ = t, rng = rng, mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
-            ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-            ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+            ref_mo = reference_evolution(model, pre_mo.state, ref_config, ref_sample)
+            sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
             temporal = true
             spatial = false
             view(sample_free_energy, 1:D) .= view(Flis, :)
             view(sample_layer, 1:D, :) .= view(sample, :, :)
         end
-        sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2stlis[end], traceref = false)
+        sysrdm = reference_rdm(model, collect(1:div(L,2)), ref_mo.state, traceref = false)
         eelis[idx] = ee(sysrdm)
-        spatial_corr, temporal_corr = ref_correlation(model, ref2stlis[end], spatial=spatial, temporal=temporal)
+        spatial_corr, temporal_corr = ref_correlation(model, ref_mo.state, spatial=spatial, temporal=temporal)
         temporal_corr_lis[idx] = temporal_corr
         spatial_corr_lis[idx] = spatial_corr
     end

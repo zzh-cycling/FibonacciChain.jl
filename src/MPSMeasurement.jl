@@ -421,10 +421,10 @@ function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::I
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
     
-    # Normalize the state
-    ψ_normalized = normalize(ψ_measured)
+    # Normalize the state in-place to avoid extra MPS allocation
+    normalize!(ψ_measured)
     
-    return ψ_normalized, prob
+    return ψ_measured, prob
 end
 
 function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; layer_idx::Int=1) where AT <: AbstractAnyonType
@@ -465,9 +465,8 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
 
-    final_state = copy(ψ)
     for (i, site) in enumerate(measurement_sites)
-        # first 0 branch
+        # Compute probability of outcome 0 via measuremap
         ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, false; cutoff=cutoff, maxdim=maxdim)
         p1 = 1 - p0
 
@@ -475,12 +474,13 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
         verbose && @show randomNumber
         if randomNumber < p0
             sample_layer[i] = 0
-            ψ = ψ0
+            ψ = ψ0  # reuse the already-computed branch
             F_layer += -log(p0)
             verbose && @show -log(p0)
         else
-            # else 1 branch
-            ψ1, p1_re = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
+            # Discard ψ0 (goes out of scope), compute only the needed branch
+            ψ0 = nothing  # release ψ0 memory before allocating ψ1
+            ψ1, _ = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
             sample_layer[i] = 1
             ψ = ψ1
             F_layer += -log(p1)
@@ -867,7 +867,8 @@ function bulk_evolution(model::AnyonModel{AT},
                   sites::Vector{<:Index},
                   state::MPS,
                   measure_config::MeasureConfig,
-                  samples::Union{Nothing,BitMatrix}=nothing;) where AT <: AbstractAnyonType
+                  samples::Union{Nothing,BitMatrix}=nothing;
+                  on_state::Union{Nothing,Function}=nothing) where AT <: AbstractAnyonType
 
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
@@ -877,7 +878,7 @@ function bulk_evolution(model::AnyonModel{AT},
     maxdim = measure_config.maxdim
     current_state = copy(state)
     if mode == :Born
-        return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim)
+        return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim, on_state=on_state)
     elseif mode == :sample
         return _sample_measure_mps(model, sites, current_state, samples, measure_config; cutoff=cutoff, maxdim=maxdim)
     end
@@ -900,11 +901,12 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:Bor
 
 # Returns
 - `Measurement_outcome_mps_bulk`: A struct containing:
-  - `states::Vector{MPS}`: Intermediate states at each full time step.
+  - `state::MPS`: The final MPS state.
   - `samples::BitMatrix`: The generated measurement outcome sequences.
-  - `free_energy::Vector{Float64}`: The free energy for each measurement layer.
+  - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
+  - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
 """
-function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100, on_state::Union{Nothing,Function}=nothing) where AT <: AbstractAnyonType
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -919,11 +921,12 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
     
     n_layers = layers_per_period(model.anyon_type)
     D = Δt * n_layers  # total number of layers
+    N = length(sites)
 
     # 1. Initialize sample matrix with max columns per layer
     samples = BitMatrix(zeros(Bool, D, n_cols))
     sample_free_energy = zeros(Float32, D)
-    states = Vector{MPS}(undef, Δt)
+    entanglement_entropys = zeros(Float32, Δt)
 
     for period in 1:Δt
         # Apply all layers in this period
@@ -941,10 +944,15 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
             samples[global_layer_idx, col_indices] = outcome.sample
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
-        states[period] = current_state
+        # Compute half-chain EE on-the-fly
+        entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
+        # Optional user callback for additional per-period processing
+        if !isnothing(on_state)
+            on_state(period, current_state)
+        end
     end
 
-    return Measurement_outcome_mps_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_mps_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 """
@@ -965,9 +973,10 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:sam
 
 # Returns
 - `Measurement_outcome_mps_bulk`: A struct containing:
-  - `states::Vector{MPS}`: Intermediate states at each full time step.
+  - `state::MPS`: The final MPS state.
   - `samples::BitMatrix`: The input measurement outcome sequences.
-  - `free_energy::Vector{Float64}`: The free energy for each measurement layer.
+  - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
+  - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
 """
 function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, samples::BitMatrix, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
 
@@ -984,7 +993,8 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
     D = Δt * n_layers  # total number of layers
 
     sample_free_energy = zeros(Float32, D)
-    states = Vector{MPS}(undef, Δt)
+    N = length(sites)
+    entanglement_entropys = zeros(Float32, Δt)
     
     # Validate sample matrix dimensions
     isnothing(samples) && error("When mode=:sample samples must be ::BitMatrix")
@@ -1007,16 +1017,18 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
             current_state = outcome.state
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
-        states[period] = current_state
+        # Compute half-chain EE on-the-fly
+        entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
     end
 
-    return Measurement_outcome_mps_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_mps_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 struct Measurement_outcome_mps_bulk
-    states::Vector{MPS}
+    state::MPS
     samples::BitMatrix
     free_energys::Vector{Float32}
+    entanglement_entropys::Vector{Float32}
 end
 
 struct Measurement_outcome_mps_boundary
@@ -1079,7 +1091,7 @@ Compute correlation using MPS states.
 - `BitMatrix`: The measurement samples used for the evolution.
 - `Vector{Float64}`: The free energy calculated for each layer.
 """
-function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forward::Vector{MPS}, measure_config::MeasureConfig, sample::BitMatrix) where AT <: AbstractAnyonType
+function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forward::MPS, measure_config::MeasureConfig, sample::BitMatrix) where AT <: AbstractAnyonType
     
     N = model.N
     τ = measure_config.τ
@@ -1101,12 +1113,10 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
 
     δt = t₂ - t₁ 
     δx = abs(x₂ - x₁) 
-    state = forward[t₁]
-    statelis = Vector{MPS}(undef, Δt) 
-    view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    state = forward
     sample_layer = BitMatrix(undef, (size(sample, 1), n_measure))
-    view(sample_layer, 1:t₁, :) .= view(sample, 1:t₁, :)
     sample_free_energy = zeros(Float64, D)
+    final_state = state  # will be overwritten
 
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
@@ -1116,20 +1126,19 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
         state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
     
         config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites2, state2, sample[2*t₁+1:2*t₂, :], config1)
+        mo1 = bulk_evolution(model, sites2, state2, config1, sample[2*t₁+1:2*t₂, :])
 
-        state3, sites3 = add_reference_qubits(model, final_stlis1[end], sites2, x₂; verbose=verbose)
+        state3, sites3 = add_reference_qubits(model, mo1.state, sites2, x₂; verbose=verbose)
 
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites3, state3, sample[2*t₂+1:end, :], config2)
+        mo2 = bulk_evolution(model, sites3, state3, config2, sample[2*t₂+1:end, :])
 
-        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
-        view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
+        final_state = mo2.state
 
-        sample_layer[2*t₁+1:2*t₂, :] .= samples1
-        sample_layer[2*t₂+1:end, :] .= samples2
-        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
-        sample_free_energy[2*t₂+1:end] .= free_energy2
+        sample_layer[2*t₁+1:2*t₂, :] .= mo1.samples
+        sample_layer[2*t₂+1:end, :] .= mo2.samples
+        sample_free_energy[2*t₁+1:2*t₂] .= mo1.free_energys
+        sample_free_energy[2*t₂+1:end] .= mo2.free_energys
 
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
         verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
@@ -1138,11 +1147,11 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
         state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
         
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites2, state2, sample[2*t₁+1:end, :], config2)
+        mo2 = bulk_evolution(model, sites2, state2, config2, sample[2*t₁+1:end, :])
 
-        view(statelis, t₁+1:Δt) .= view(final_stlis2, :)
-        sample_layer[2*t₁+1:end, :] .= samples2
-        sample_free_energy[2*t₁+1:end] .= free_energy2
+        final_state = mo2.state
+        sample_layer[2*t₁+1:end, :] .= mo2.samples
+        sample_free_energy[2*t₁+1:end] .= mo2.free_energys
 
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
@@ -1150,22 +1159,21 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
         state1, sites1 = add_reference_qubits(model, state, sites, x₂; verbose=verbose)
 
         config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        final_stlis1, samples1, free_energy1 = bulk_evolution(model, sites1, state1, sample[2*t₁+1:2*t₂, :], config1)
+        mo1 = bulk_evolution(model, sites1, state1, config1, sample[2*t₁+1:2*t₂, :])
 
-        state2, sites2 = add_reference_qubits(model, final_stlis1[end], sites1, x₂; verbose=verbose)
+        state2, sites2 = add_reference_qubits(model, mo1.state, sites1, x₂; verbose=verbose)
     
         config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        final_stlis2, samples2, free_energy2 = bulk_evolution(model, sites2, state2, sample[2*t₂+1:end, :], config2)
+        mo2 = bulk_evolution(model, sites2, state2, config2, sample[2*t₂+1:end, :])
 
-        view(statelis, t₁+1:t₂) .= view(final_stlis1, :)
-        view(statelis, t₂+1:Δt) .= view(final_stlis2, :)
-        sample_layer[2*t₁+1:2*t₂, :] .= samples1
-        sample_layer[2*t₂+1:end, :] .= sample[2*t₂+1:end, :]
-        sample_free_energy[2*t₁+1:2*t₂] .= free_energy1
-        sample_free_energy[2*t₂+1:end] .= free_energy2
+        final_state = mo2.state
+        sample_layer[2*t₁+1:2*t₂, :] .= mo1.samples
+        sample_layer[2*t₂+1:end, :] .= mo2.samples
+        sample_free_energy[2*t₁+1:2*t₂] .= mo1.free_energys
+        sample_free_energy[2*t₂+1:end] .= mo2.free_energys
     end
 
-    return statelis, sample_layer, sample_free_energy
+    return final_state, sample_layer, sample_free_energy
 end
 
 """

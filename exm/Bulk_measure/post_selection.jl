@@ -23,9 +23,9 @@ end
         sample = sign ? BitMatrix(ones(Bool, D, length(2:2:L))) : BitMatrix(zeros(Bool, D, length(2:2:L)))
         config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
         mo = bulk_evolution(model, st, config, sample)
-        sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
-        EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), state_t)) for state_t in sample_measured_states]
-        final_state = sample_measured_states[end]
+        sample, sample_free_energy = mo.samples, mo.free_energys
+        EE_tlis = mo.entanglement_entropys
+        final_state = mo.state
         average_EElis = anyon_eelis(model, final_state)
 
         

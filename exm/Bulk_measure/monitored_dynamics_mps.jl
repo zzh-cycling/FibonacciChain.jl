@@ -21,12 +21,13 @@ function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=5
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
         ψ, sites = initial_mps(L)
         config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng, cutoff=1e-12, maxdim=χ)
+
         @time mps_mo = bulk_evolution(model, sites, ψ, config)
-        sample_measured_states, sample, sample_free_energy = mps_mo.states, mps_mo.samples, mps_mo.free_energys
-        
-        halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
-        final_state = sample_measured_states[end]
-        final_EElis = anyon_eelis(model, final_state)
+        sample, sample_free_energy = mps_mo.samples, mps_mo.free_energys
+        halfchain_EE_tlis = mps_mo.entanglement_entropys
+
+        # Compute final state EE profile
+        final_EElis = anyon_eelis(model, mps_mo.state)
 
         save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(index)_chi$(χ).jld2", 
         "sample", sample, "sample_free_energy", sample_free_energy, "seed", index, 

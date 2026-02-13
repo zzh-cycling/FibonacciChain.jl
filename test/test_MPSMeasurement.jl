@@ -174,14 +174,14 @@ end
     state = zeros(length(anyon_basis(model))); state[1] = 1.0
 
     measure_outcome = FibonacciChain._born_measure(model, state, measure_config)
-    _, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
 
     ψ, sites = initial_mps(N)
     measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
     measure_outcome_mps =  FibonacciChain._born_measure_mps(model, sites, ψ, measure_config)
-    _, samples_mps, sample_free_energy_mps = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
+    samples_mps, sample_free_energy_mps = measure_outcome_mps.samples, measure_outcome_mps.free_energys
     @test samples_mps == samples
     @test sample_free_energy_mps ≈ sample_free_energy
 end
@@ -195,13 +195,13 @@ end
     samples = BitMatrix(undef, 2t, div(N,2))
 
     measure_outcome = FibonacciChain._sample_measure(model, state, samples, measure_config)
-    _, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
 
     ψ, sites = initial_mps(N)
     measure_outcome_mps =  FibonacciChain._sample_measure_mps(model, sites, ψ, samples, measure_config)
-    _, samples_mps, sample_free_energy_mps = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
+    samples_mps, sample_free_energy_mps = measure_outcome_mps.samples, measure_outcome_mps.free_energys
     @test samples_mps == samples
     @test sample_free_energy_mps ≈ sample_free_energy
 end
@@ -221,11 +221,11 @@ end
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born)
     # Perform bulk measurements
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config)
-    bulk_states, bulk_samples, bulk_free_energy = measure_outcome_mps.states, measure_outcome_mps.samples, measure_outcome_mps.free_energys
+    bulk_samples, bulk_free_energy = measure_outcome_mps.samples, measure_outcome_mps.free_energys
 
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = MersenneTwister(seed), mode = :Born) # NEED to reset rng to ensure same sampling
     measure_outcome = bulk_evolution(model, st, measure_config)
-    bulk_states_exact, bulk_samples_exact, bulk_free_energy_exact = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    bulk_samples_exact, bulk_free_energy_exact = measure_outcome.samples, measure_outcome.free_energys
 
     @test bulk_samples == bulk_samples_exact
     @test bulk_free_energy ≈ bulk_free_energy_exact
@@ -270,16 +270,16 @@ end
     bulk_samples = BitMatrix([1 1 1; 0 0 0])
     measure_config = MeasureConfig(τ = τ, t₂=1, mode = :sample)
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, bulk_samples)
-    generated_statelis, F = measure_outcome_mps.states, measure_outcome_mps.free_energys
+    generated_statelis, F = measure_outcome_mps.state, measure_outcome_mps.free_energys
     measure_outcome = bulk_evolution(model, st, measure_config, bulk_samples)
-    generated_statelis_exact, F_exact = measure_outcome.states, measure_outcome.free_energys
+    generated_statelis_exact, F_exact = measure_outcome.state, measure_outcome.free_energys
 
     inds = [i.buf for i in anyon_basis(model)] .+1
     
     # Convert MPS states to dense vectors for comparison, note the order of elements may differ, as actually we are dealing with OBC MPS, but PBC Hamiltonian.
-    ψ_dense = [reduce(*, ψ_layer).tensor.storage[inds] for ψ_layer in generated_statelis]
-    ψ_dense = [sort(ψ[ψ.>0]) for ψ in ψ_dense] 
-    generated_statelis_exact = [sort(st_exact[st_exact .>0]) for st_exact in generated_statelis_exact]
+    ψ_dense = reduce(*, generated_statelis).tensor.storage[inds]
+    ψ_dense = sort(ψ_dense[ψ_dense.>0])
+    generated_statelis_exact = sort(generated_statelis_exact[generated_statelis_exact .>0])
 
     @test ψ_dense ≈ generated_statelis_exact
     @test F ≈ F_exact
@@ -308,10 +308,10 @@ function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     model = AnyonModel(FibonacciAnyon(), L; pbc=true)
     measure_config = MeasureConfig(τ = τ, t₂=D, rng = rng, mode = :Born)
     measure_outcome = bulk_evolution(model, sites, ψ, measure_config)
-    sample_measured_states, sample, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    sample, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
 
-    halfchain_EE_tlis = [ee_mps(j, div(L,2)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
+    halfchain_EE_tlis = measure_outcome.entanglement_entropys
+    final_state = measure_outcome.state
     final_EElis = anyon_eelis(model, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis
@@ -326,10 +326,10 @@ function samples_generate(L::Int64, τ::Float64, seed::Int64, D::Int64=5L)
     st[1] = 1.0
 
     measure_outcome = bulk_evolution(model, st, measure_config)
-    sample_measured_states, sample, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    sample, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
 
-    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
+    halfchain_EE_tlis = measure_outcome.entanglement_entropys
+    final_state = measure_outcome.state
     final_EElis = anyon_eelis(model, final_state)
 
     return sample, sample_free_energy, final_EElis, halfchain_EE_tlis

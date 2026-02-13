@@ -45,12 +45,11 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
             
             config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
             outcome = bulk_evolution(model, st, config)
-            sample_measured_states = outcome.states
             sample = outcome.samples
             sample_free_energy = outcome.free_energys
             
-            halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-            final_state = sample_measured_states[end]
+            halfchain_EE_tlis = outcome.entanglement_entropys
+            final_state = outcome.state
             final_EElis = anyon_eelis(model, final_state)
             
             save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
