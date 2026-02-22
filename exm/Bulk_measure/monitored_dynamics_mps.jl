@@ -43,7 +43,7 @@ end
 function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     τ = τlis[τind]
     t = get_system_params(τ)[1]
-    samples_num = 10000
+    samples_num = 20000
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
@@ -70,7 +70,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
-function process_data(L::Int64, τind::Int64)
+function process_data(L::Int64, τind::Int64, χ::Int64)
     # timewindow = 8L:35L-10
     τ = τlis[τind]
     t, _, timewindow = get_system_params(τ)
@@ -162,7 +162,7 @@ else
         τ_idx = parse(Int64, ARGS[3])
         χ = parse(Int64, ARGS[4])
         samples_collect(L, τ_idx, χ)
-        process_data(L, τ_idx)
+        process_data(L, τ_idx, χ)
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
