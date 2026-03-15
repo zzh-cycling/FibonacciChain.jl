@@ -112,26 +112,6 @@ function Observable_collect(L::Int64, τ::Float64)
     save("exm/data/Bulk_measure/Observable_monitored_dynamics/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
 end
 
-function get_system_params(τ, L)
-    cfg = Dict(
-        atanh(0.1)  => (2500L, 1000, 750L),
-        atanh(0.2)  => (500L,  100, 120L),
-        atanh(0.3)  => (120L,  48, 50L),
-        atanh(0.4)  => (100L,  40, 40L),
-        atanh(0.5)  => (80L,   32, 20L),
-        atanh(0.6)  => (45L,   20, 15L),
-        log(1 + √2) => (35L,   14, 10L),
-        atanh(0.8)  => (25L,   10, 5L),
-        atanh(0.9)  => (8L,    4, 2L),
-        atanh(0.95) => (8L,    4, 2L),
-        atanh(0.999)=> (5L,    2, 1L),
-    )
-    D, step, start = get(cfg, τ, (5L, 2, L))
-    inds = collect(1:step:div(D,2))
-    avg_range = start:div(D,2)-5
-    return D, inds, avg_range
-end
-
 function save_data_filename(L, τ, D)
     return "monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D, L)).jld"
 end
@@ -216,7 +196,6 @@ else
         index_start = parse(Int64, ARGS[4])
         index_end = parse(Int64, ARGS[5])
         indexlis = collect(index_start:index_end)
-        seedlis = -indexlis
         
         
         println("=== Parallel Sample Generation ===")
