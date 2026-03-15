@@ -19,7 +19,7 @@ function get_system_params(τ, L)
     cfg = Dict(
         atanh(0.1)  => (2500L, 1000, 750L),
         atanh(0.2)  => (500L,  100, 120L),
-        atanh(0.3)  => (140L,  48, 50L),
+        atanh(0.3)  => (200L,  48, 100L),
         atanh(0.4)  => (100L,  40, 40L),
         atanh(0.5)  => (80L,   32, 20L),
         atanh(0.6)  => (45L,   20, 15L),
@@ -69,7 +69,7 @@ end
 
 function samples_collect(L::Int64, τ::Float64)
     D = get_system_params(τ, L)[1]
-    samples_num = 20000
+    samples_num = 40000
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(Int64, samples_num)
@@ -86,7 +86,7 @@ end
 
 function Observable_collect(L::Int64, τ::Float64)
     D = get_system_params(τ, L)[1]
-    samples_num = 20000
+    samples_num = 40000
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(Int64, samples_num)
     ensemble_EE_dynamics= zeros(samples_num, div(D,2)) 
@@ -196,7 +196,7 @@ else
         index_start = parse(Int64, ARGS[4])
         index_end = parse(Int64, ARGS[5])
         indexlis = collect(index_start:index_end)
-        
+        seedlis = indexlis
         
         println("=== Parallel Sample Generation ===")
         println("L = $L, τ_idx = $inds, τ = $τ")
