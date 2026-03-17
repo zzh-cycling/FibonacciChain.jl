@@ -71,11 +71,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
 end
 
 function process_data(L::Int64, τind::Int64, χ::Int64)
-    # timewindow = 8L:35L-10
-    τ = τlis[τind]
     t, _, timewindow = get_system_params(τind, L)
-    t1 = timewindow[1]
-    t2 = timewindow[end]
     load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
     data = load(load_data_path)
     
@@ -99,7 +95,7 @@ function process_data(L::Int64, τind::Int64, χ::Int64)
     has_duplicates = check_duplicates(ensemble_seed)
     
     temp = hcat(ensemble_free_energy...)
-    time_average_free_energy = mean(temp[collect(t1*L:t2*L-4), :], dims=1) 
+    time_average_free_energy = mean(temp[2 .* timewindow, :], dims=1) 
     bulk_FE = mean(time_average_free_energy)
     bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
