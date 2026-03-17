@@ -130,7 +130,7 @@ function get_system_params(τind, L)
     )
     t, step, start = get(cfg, τind, (2, 2, 1))
     inds = collect(1:step:t*step)
-    avg_range = Int(start*L):2:Int(tL)-4
+    avg_range = Int(start*L):2:Int(t*L)-4
     return t, inds, avg_range
 end
 
