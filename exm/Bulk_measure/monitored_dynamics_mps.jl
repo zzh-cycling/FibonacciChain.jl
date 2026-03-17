@@ -15,7 +15,7 @@ using Random
 function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
-        t, _, _ = get_system_params(τ)
+        t, _, _ = get_system_params(τind, L)
         rng = MersenneTwister(index)
         
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
@@ -42,7 +42,7 @@ end
 
 function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     τ = τlis[τind]
-    t = get_system_params(τ)[1]
+    t = get_system_params(τind, L)[1]
     samples_num = 20000
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
@@ -73,7 +73,7 @@ end
 function process_data(L::Int64, τind::Int64, χ::Int64)
     # timewindow = 8L:35L-10
     τ = τlis[τind]
-    t, _, timewindow = get_system_params(τ)
+    t, _, timewindow = get_system_params(τind, L)
     t1 = timewindow[1]
     t2 = timewindow[end]
     load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
@@ -118,23 +118,23 @@ function process_data(L::Int64, τind::Int64, χ::Int64)
         "ensemble_seed", ensemble_seed)
 end
 
-function get_system_params(τ)
+function get_system_params(τind, L)
     cfg = Dict(
-        atanh(0.1)  => (1250, 1000, 1000),
-        atanh(0.2)  => (250,  100, 200),
-        atanh(0.3)  => (65,  48, 50),
-        atanh(0.4)  => (50,  40, 40),
-        atanh(0.5)  => (40,   32, 32),
-        atanh(0.6)  => (22,   20, 18),
-        log(1 + √2) => (18,   14, 14),
-        atanh(0.8)  => (12,   10, 9),
-        atanh(0.9)  => (5,    4, 4),
-        atanh(0.95) => (4,    4, 3),
-        atanh(0.999)=> (3,    2, 2),
+        1  => (1250, 1000, 600),
+        2  => (250,  100, 150),
+        3  => (65,  48, 30),
+        4  => (50,  40, 30),
+        5  => (40,   32, 24),
+        6  => (22,   20, 15),
+        7  => (18,   14, 10),
+        8  => (12,   10, 8),
+        9  => (5,    4, 3),
+        10 => (4,    4, 2.5),
+        11 => (3,    2, 2),
     )
-    t, step, start = get(cfg, τ, (2, 2, 1))
+    t, step, start = get(cfg, τind, (2, 2, 1))
     inds = collect(1:step:t*step)
-    avg_range = start:t
+    avg_range = Int(start*L):2:Int(tL)-4
     return t, inds, avg_range
 end
 
