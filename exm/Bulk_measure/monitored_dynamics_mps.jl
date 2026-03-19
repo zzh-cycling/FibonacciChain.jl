@@ -43,7 +43,7 @@ end
 function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     τ = τlis[τind]
     t = get_system_params(τind, L)[1]
-    samples_num = 20000
+    samples_num = 10000
     ensemble = Vector{BitMatrix}(undef, samples_num)
     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
     ensemble_seed = zeros(samples_num)
@@ -51,7 +51,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
     ensemble_final_EElis = zeros(samples_num, L-1)
 
      for i in 1:samples_num
-        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
         ensemble[i] = sample
         ensemble_free_energy[i] = sample_free_energy
         ensemble_seed[i] = seed
@@ -101,7 +101,7 @@ function process_data(L::Int64, τind::Int64, χ::Int64)
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
     time_FElis = mean(temp, dims=2)[:]
     
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t).jld2", 
+    save("exm/data/Bulk_measure/monitored_dynamics_mps/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
@@ -116,21 +116,22 @@ end
 
 function get_system_params(τind, L)
     cfg = Dict(
-        1  => (1250, 1000, 600),
-        2  => (250,  100, 150),
-        3  => (65,  48, 30),
-        4  => (50,  40, 30),
-        5  => (40,   32, 24),
-        6  => (22,   20, 15),
-        7  => (18,   14, 10),
-        8  => (12,   10, 8),
-        9  => (5,    4, 3),
-        10 => (4,    4, 2.5),
-        11 => (3,    2, 2),
+        1  => (1250, 1000, 1000),
+        2  => (250,  100, 200),
+        3  => (40,  48, 30),
+        4  => (28,  40, 22),
+        5  => (20,   32, 16),
+        6  => (12,   20, 10),
+        7  => (10,   14, 7),
+        8  => (7,   10, 5.5),
+        9  => (3,    4, 2.5),
+        10 => (2,    4, 1.5),
+        11 => (2,    2, 1.5),
     )
     t, step, start = get(cfg, τind, (2, 2, 1))
     inds = collect(1:step:t*step)
     avg_range = Int(start*L):2:Int(t*L)-4
+    # avg_range = 20*L:2:25*L
     return t, inds, avg_range
 end
 
