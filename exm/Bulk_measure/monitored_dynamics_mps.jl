@@ -29,7 +29,7 @@ function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=5
         # Compute final state EE profile
         final_EElis = anyon_eelis(model, mps_mo.state)
 
-        save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/t$(t)_samples$(index)_chi$(χ).jld2", 
+        save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)/t$(t)_samples$(index)_chi$(χ).jld2", 
         "sample", sample, "sample_free_energy", sample_free_energy, "seed", index, 
         "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis", final_EElis)
 
@@ -39,35 +39,67 @@ function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=5
     end
 end
 
+# function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
+#     τ = τlis[τind]
+#     t = get_system_params(τind, L)[1]
+#     samples_num = 10000
+#     ensemble = Vector{BitMatrix}(undef, samples_num)
+#     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+#     ensemble_seed = zeros(samples_num)
+#     ensemble_EE_dynamics= zeros(samples_num, t * L) 
+#     ensemble_final_EElis = zeros(samples_num, L-1)
+
+#      for i in 1:samples_num
+#         sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+#         ensemble[i] = sample
+#         ensemble_free_energy[i] = sample_free_energy
+#         ensemble_seed[i] = seed
+#         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+#         ensemble_final_EElis[i, :] = final_EElis
+#     end
+
+#     bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
+#     average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+#     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
+#     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+
+#     save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+#     "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
+#     "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
+#     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+# end
 
 function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
-    τ = τlis[τind]
-    t = get_system_params(τind, L)[1]
-    samples_num = 10000
-    ensemble = Vector{BitMatrix}(undef, samples_num)
-    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
-    ensemble_seed = zeros(samples_num)
-    ensemble_EE_dynamics= zeros(samples_num, t * L) 
-    ensemble_final_EElis = zeros(samples_num, L-1)
+           τ = τlis[τind]
+           t = get_system_params(τind, L)[1]
+           dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)"
+            # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
+           samples_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path)))
+           ensemble = Vector{BitMatrix}(undef, samples_num)
+           ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+           ensemble_seed = zeros(samples_num)
+           ensemble_EE_dynamics= zeros(samples_num, t * L) 
+           ensemble_final_EElis = zeros(samples_num, L-1)
 
-     for i in 1:samples_num
-        sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
-        ensemble[i] = sample
-        ensemble_free_energy[i] = sample_free_energy
-        ensemble_seed[i] = seed
-        ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
-        ensemble_final_EElis[i, :] = final_EElis
-    end
+           existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path))
+           for (i, fname) in enumerate(existing_files)
+               sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load(joinpath(dir_path, fname), "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+               ensemble[i] = sample
+               ensemble_free_energy[i] = sample_free_energy
+               ensemble_seed[i] = seed
+               ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+               ensemble_final_EElis[i, :] = final_EElis
+           end
 
-    bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
-    average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
-    ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
-    stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+           bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
+           average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+           ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
+           stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
-    "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
-    "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
-    "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+           save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+           "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
+           "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
+           "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
 end
 
 function process_data(L::Int64, τind::Int64, χ::Int64)
