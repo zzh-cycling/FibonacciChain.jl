@@ -414,16 +414,19 @@ end
 function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
     # Create measurement operator
     M = measurement_operator_mps(model, sites, i, τ, sign)
-    
-    # Apply measurement operator, initial state \psi should be normalized
+    return _measuremap_with_operator(ψ, M; cutoff=cutoff, maxdim=maxdim)
+end
+
+function _measuremap_with_operator(ψ::MPS, M::ITensor; cutoff::Float64=1e-10, maxdim::Int=100)
+    # Apply measurement operator, initial state ψ should be normalized
     ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
-    
+
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
-    
+
     # Normalize the state in-place to avoid extra MPS allocation
     normalize!(ψ_measured)
-    
+
     return ψ_measured, prob
 end
 
@@ -446,9 +449,16 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
     # Helper function to apply measurements to a layer
     measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
     F_layer = 0.0
+    n = length(measurement_sites)
+    operators = Vector{ITensor}(undef, n)
 
-    for (idx, sign) in enumerate(layer_sample)
-        ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], measurement_strength, sign; cutoff=cutoff, maxdim=maxdim)
+    # Cache layer operators to avoid rebuilding them in each apply.
+    @inbounds for k in 1:n
+        operators[k] = measurement_operator_mps(measure_anyon_model, sites, measurement_sites[k], measurement_strength, layer_sample[k])
+    end
+
+    @inbounds for idx in 1:n
+        ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim)
         F_layer += -log(prob)
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
@@ -464,10 +474,19 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     n = length(measurement_sites)
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
+    operators_false = Vector{ITensor}(undef, n)
+    operators_true = Vector{ITensor}(undef, n)
 
-    for (i, site) in enumerate(measurement_sites)
+    # Build local operators once per layer and reuse for branch evaluations.
+    @inbounds for i in 1:n
+        site = measurement_sites[i]
+        operators_false[i] = measurement_operator_mps(measure_anyon_model, sites, site, measurement_strength, false)
+        operators_true[i] = measurement_operator_mps(measure_anyon_model, sites, site, measurement_strength, true)
+    end
+
+    @inbounds for i in 1:n
         # Compute probability of outcome 0 via measuremap
-        ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, false; cutoff=cutoff, maxdim=maxdim)
+        ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim)
         p1 = 1 - p0
 
         randomNumber = rand(rng)
@@ -480,7 +499,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
         else
             # Discard ψ0 (goes out of scope), compute only the needed branch
             ψ0 = nothing  # release ψ0 memory before allocating ψ1
-            ψ1, _ = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
+            ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim)
             sample_layer[i] = 1
             ψ = ψ1
             F_layer += -log(p1)
