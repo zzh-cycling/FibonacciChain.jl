@@ -417,9 +417,9 @@ function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::I
     return _measuremap_with_operator(ψ, M; cutoff=cutoff, maxdim=maxdim)
 end
 
-function _measuremap_with_operator(ψ::MPS, M::ITensor; cutoff::Float64=1e-10, maxdim::Int=100)
+function _measuremap_with_operator(ψ::MPS, M::ITensor; cutoff::Float64=1e-10, maxdim::Int=100, truncate_per_event::Bool=true)
     # Apply measurement operator, initial state ψ should be normalized
-    ψ_measured = apply(M, ψ; cutoff=cutoff, maxdim=maxdim)
+    ψ_measured = truncate_per_event ? apply(M, ψ; cutoff=cutoff, maxdim=maxdim) : apply(M, ψ)
 
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
@@ -436,16 +436,17 @@ function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index},
 
     cutoff = measure_config.cutoff
     maxdim = measure_config.maxdim
+    truncate_per_layer = measure_config.truncate_per_layer
     if measure_config.mode == :sample
         N = anyon_model.N
         size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
-        return _apply_measurement_layer_mps(anyon_model, measure_config.τ, sites, state, sample, layer_idx; cutoff=cutoff, maxdim=maxdim)
+        return _apply_measurement_layer_mps(anyon_model, measure_config.τ, sites, state, sample, layer_idx; cutoff=cutoff, maxdim=maxdim, truncate_per_layer=truncate_per_layer)
     elseif measure_config.mode == :Born
-        return _sample_layer_mps(anyon_model, measure_config.τ, sites, state, measure_config.rng, layer_idx, verbose=measure_config.verbose, cutoff=cutoff, maxdim=maxdim)
+        return _sample_layer_mps(anyon_model, measure_config.τ, sites, state, measure_config.rng, layer_idx, verbose=measure_config.verbose, cutoff=cutoff, maxdim=maxdim, truncate_per_layer=truncate_per_layer)
     end
 end
 
-function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS, layer_sample::BitVector, layer_idx::Int64; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS, layer_sample::BitVector, layer_idx::Int64; cutoff::Float64=1e-10, maxdim::Int=100, truncate_per_layer::Bool=false) where AT <: AbstractAnyonType
     # Helper function to apply measurements to a layer
     measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
     F_layer = 0.0
@@ -458,8 +459,12 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
     end
 
     @inbounds for idx in 1:n
-        ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim)
+        ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=!truncate_per_layer)
         F_layer += -log(prob)
+    end
+    if truncate_per_layer
+        truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
+        normalize!(ψ)
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
@@ -468,7 +473,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     rng::MersenneTwister = MersenneTwister(), 
     layer_idx::Int64=1;
     cutoff::Float64=1e-10, maxdim::Int=100,
-    verbose::Bool=false) where AT <: AbstractAnyonType
+    verbose::Bool=false, truncate_per_layer::Bool=false) where AT <: AbstractAnyonType
 
     measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
     n = length(measurement_sites)
@@ -486,7 +491,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
 
     @inbounds for i in 1:n
         # Compute probability of outcome 0 via measuremap
-        ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim)
+        ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=!truncate_per_layer)
         p1 = 1 - p0
 
         randomNumber = rand(rng)
@@ -499,12 +504,16 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
         else
             # Discard ψ0 (goes out of scope), compute only the needed branch
             ψ0 = nothing  # release ψ0 memory before allocating ψ1
-            ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim)
+            ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=!truncate_per_layer)
             sample_layer[i] = 1
             ψ = ψ1
             F_layer += -log(p1)
             verbose && @show -log(p1)
         end
+    end
+    if truncate_per_layer
+        truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
+        normalize!(ψ)
     end
     return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
 end
@@ -954,7 +963,7 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
             
             outcome = _sample_layer_mps(model, τ_current, sites, current_state, rng, global_layer_idx;
-                                        cutoff=cutoff, maxdim=maxdim, verbose=verbose)
+                                        cutoff=cutoff, maxdim=maxdim, verbose=verbose, truncate_per_layer=measure_config.truncate_per_layer)
             current_state = outcome.state
             
             # Write samples to correct column indices for this layer
@@ -1027,7 +1036,7 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
             
             outcome = _apply_measurement_layer_mps(
                             model, τ_current, sites, current_state,
-                            layer_sample, global_layer_idx; cutoff=cutoff, maxdim=maxdim)
+                            layer_sample, global_layer_idx; cutoff=cutoff, maxdim=maxdim, truncate_per_layer=measure_config.truncate_per_layer)
             current_state = outcome.state
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
