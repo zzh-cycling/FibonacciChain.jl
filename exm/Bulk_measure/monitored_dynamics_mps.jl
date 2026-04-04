@@ -96,7 +96,7 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
            ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
            stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-           save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+           save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
            "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
            "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
            "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
@@ -104,7 +104,7 @@ end
 
 function process_data(L::Int64, τind::Int64, χ::Int64)
     t, _, timewindow = get_system_params(τind, L)
-    load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
+    load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
     data = load(load_data_path)
     
     average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"]
@@ -133,7 +133,7 @@ function process_data(L::Int64, τind::Int64, χ::Int64)
     time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
     time_FElis = mean(temp, dims=2)[:]
     
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+    save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
         "average_EE_tlis", average_EE_tlis, 
         "stderr_EE_tlis", stderr_EE_tlis, 
         "bulk_meanEElis", bulk_meanEElis, 
