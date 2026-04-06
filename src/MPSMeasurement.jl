@@ -460,22 +460,24 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
     end
 
     do_per_event_truncate = (truncate_every_events == 1)
-    events_since_truncate = 0
-    @inbounds for idx in 1:n
-        ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=do_per_event_truncate)
-        F_layer += -log(prob)
-        if !do_per_event_truncate
-            events_since_truncate += 1
-            if events_since_truncate == truncate_every_events
-                truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
-                normalize!(ψ)
-                events_since_truncate = 0
-            end
+
+    if do_per_event_truncate
+        # If truncating every event, we can apply operators sequentially with truncation.
+        @inbounds for idx in 1:n
+                    ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
+                    F_layer += -log(prob)
         end
-    end
-    if !do_per_event_truncate && events_since_truncate > 0
-        truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
-        normalize!(ψ)
+    else
+        # If truncating less frequently, we apply all operators first and then truncate at the end    
+        @inbounds for idx in 1:n
+            if idx % truncate_every_events == 0
+                truncate_signal=true
+            else
+                truncate_signal=false
+            end
+            ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+            F_layer += -log(prob)
+        end
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
@@ -501,41 +503,55 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     end
 
     do_per_event_truncate = (truncate_every_events == 1)
-    events_since_truncate = 0
-    @inbounds for i in 1:n
-        # Compute probability of outcome 0 via measuremap
-        ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=do_per_event_truncate)
-        p1 = 1 - p0
 
-        randomNumber = rand(rng)
-        verbose && @show randomNumber
-        if randomNumber < p0
-            sample_layer[i] = 0
-            ψ = ψ0  # reuse the already-computed branch
-            F_layer += -log(p0)
-            verbose && @show -log(p0)
-        else
-            # Discard ψ0 (goes out of scope), compute only the needed branch
-            ψ0 = nothing  # release ψ0 memory before allocating ψ1
-            ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=do_per_event_truncate)
-            sample_layer[i] = 1
-            ψ = ψ1
-            F_layer += -log(p1)
-            verbose && @show -log(p1)
+    if do_per_event_truncate
+        # If truncating every event, we can apply operators sequentially with truncation.
+        @inbounds for idx in 1:n
+            ψ, prob = _measuremap_with_operator(ψ, operators_false[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
+            p0 = prob
+            p1 = 1 - p0
+
+            randomNumber = rand(rng)
+            verbose && @show randomNumber
+            if randomNumber < p0
+                sample_layer[idx] = 0
+                F_layer += -log(p0)
+            else
+                ψ, _ = _measuremap_with_operator(ψ, operators_true[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
+                sample_layer[idx] = 1
+                F_layer += -log(p1)
+            end
         end
-        if !do_per_event_truncate
-            events_since_truncate += 1
-            if events_since_truncate == truncate_every_events
-                truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
-                normalize!(ψ)
-                events_since_truncate = 0
+    else
+        @inbounds for i in 1:n
+            if i % truncate_every_events == 0
+                truncate_signal=true
+            else
+                truncate_signal=false
+            end
+            # Compute probability of outcome 0 via measuremap
+            ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+            p1 = 1 - p0
+    
+            randomNumber = rand(rng)
+            verbose && @show randomNumber
+            if randomNumber < p0
+                sample_layer[i] = 0
+                ψ = ψ0  # reuse the already-computed branch
+                F_layer += -log(p0)
+                verbose && @show -log(p0)
+            else
+                # Discard ψ0 (goes out of scope), compute only the needed branch
+                ψ0 = nothing  # release ψ0 memory before allocating ψ1
+                ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+                sample_layer[i] = 1
+                ψ = ψ1
+                F_layer += -log(p1)
+                verbose && @show -log(p1)
             end
         end
     end
-    if !do_per_event_truncate && events_since_truncate > 0
-        truncate!(ψ; cutoff=cutoff, maxdim=maxdim)
-        normalize!(ψ)
-    end
+    
     return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
 end
 
