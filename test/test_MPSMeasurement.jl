@@ -178,6 +178,7 @@ end
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 1.5009765892377303 atol=1e-6
 
+    measure_config = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born)
     ψ, sites = initial_mps(N)
     measure_outcome_mps =  FibonacciChain._born_measure_mps(model, sites, ψ, measure_config)
     samples_mps, sample_free_energy_mps = measure_outcome_mps.samples, measure_outcome_mps.free_energys

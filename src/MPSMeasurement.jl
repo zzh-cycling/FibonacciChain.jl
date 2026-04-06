@@ -462,10 +462,10 @@ function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites:
     do_per_event_truncate = (truncate_every_events == 1)
 
     if do_per_event_truncate
-        # If truncating every event, we can apply operators sequentially with truncation.
+        # Preserve legacy behavior for exact RNG trajectory compatibility.
         @inbounds for idx in 1:n
-                    ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
-                    F_layer += -log(prob)
+            ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], measurement_strength, layer_sample[idx]; cutoff=cutoff, maxdim=maxdim)
+            F_layer += -log(prob)
         end
     else
         # If truncating less frequently, we apply all operators first and then truncate at the end    
@@ -505,19 +505,20 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     do_per_event_truncate = (truncate_every_events == 1)
 
     if do_per_event_truncate
-        # If truncating every event, we can apply operators sequentially with truncation.
+        # Preserve legacy behavior for exact RNG trajectory compatibility.
         @inbounds for idx in 1:n
-            ψ, prob = _measuremap_with_operator(ψ, operators_false[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
-            p0 = prob
+            site = measurement_sites[idx]
+            ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, false; cutoff=cutoff, maxdim=maxdim)
             p1 = 1 - p0
 
             randomNumber = rand(rng)
             verbose && @show randomNumber
             if randomNumber < p0
                 sample_layer[idx] = 0
+                ψ = ψ0
                 F_layer += -log(p0)
             else
-                ψ, _ = _measuremap_with_operator(ψ, operators_true[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=true)
+                ψ, _ = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
                 sample_layer[idx] = 1
                 F_layer += -log(p1)
             end
