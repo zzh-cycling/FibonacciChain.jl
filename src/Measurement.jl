@@ -704,7 +704,7 @@ Base.@kwdef struct MeasureConfig
     x₁::Int = 1
     cutoff::Float64 = 1e-12
     maxdim::Int = 1000
-    truncate_per_layer::Bool = false
+    truncate_every_events::Int = 1
 end
 
 """
