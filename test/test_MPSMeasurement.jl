@@ -184,6 +184,12 @@ end
     samples_mps, sample_free_energy_mps = measure_outcome_mps.samples, measure_outcome_mps.free_energys
     @test samples_mps == samples
     @test sample_free_energy_mps ≈ sample_free_energy
+
+    measure_config2 = MeasureConfig(τ=1000.0, t₂=t, rng=MersenneTwister(42), mode=:Born, truncate_every_events=2)
+    measure_outcome_mps2 =  FibonacciChain._born_measure_mps(model, sites, ψ, measure_config2)
+    samples_mps2, sample_free_energy_mps2 = measure_outcome_mps2.samples, measure_outcome_mps2.free_energys
+    @test samples_mps2 == samples
+    @test sample_free_energy_mps2 ≈ sample_free_energy
 end
 
 @testset "_sample_measure" begin

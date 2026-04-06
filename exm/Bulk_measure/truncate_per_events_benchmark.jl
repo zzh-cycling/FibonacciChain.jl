@@ -46,5 +46,5 @@ else
     n = parse(Int64, ARGS[1])
     config = MeasureConfig(τ=τ, mode=:Born, t₂=t*L, rng=rng, cutoff=1e-12, maxdim=χ, truncate_every_events=n)
     @time mps_mo = bulk_evolution(model, sites, ψ, config)
-    # n = 1, 
+    # n = 1, 27s, n = 2, 82s, n = 4, 223s, n = 8, 1144s
 end
