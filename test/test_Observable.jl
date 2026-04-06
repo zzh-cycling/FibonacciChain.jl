@@ -378,15 +378,14 @@ end
     sample = BitMatrix(zeros(Int, D, N))
     config = MeasureConfig(τ=τ, t₂ =div(D,2), mode=:sample)
     measure_outcome = bulk_evolution(model, mes, config, sample)
-    statelis, free_energy = measure_outcome.states, measure_outcome.free_energys
-    # Noting that the first state of statelis is not mes.
-    spatial_corr_lis = [spatial_correlation(model, st, 1, div(N,2)) for st in statelis]
-    @test spatial_corr_lis ≈ log(2)*ones(div(D,2))
+    free_energy = measure_outcome.free_energys
+    # Check spatial correlation of final state
+    spatial_corr = spatial_correlation(model, measure_outcome.state, 1, div(N,2))
+    @test spatial_corr ≈ log(2)
 
     ref_config = MeasureConfig(τ=τ, rng = MersenneTwister(1234), x₂ = div(N,2), mode=:sample, t₁ = 2, t₂ = 4)
-    ref_mo = reference_evolution(model, statelis, ref_config, sample)
-    final_stlis = ref_mo.states
-    final_st = final_stlis[end]
+    ref_mo = reference_evolution(model, measure_outcome.state, ref_config, sample)
+    final_st = ref_mo.state
     tc = temporal_correlation(model, final_st)
     # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol=1e-6)

@@ -346,13 +346,12 @@ end
     initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0
     mo = bulk_evolution(model, initial_state, config,sample)
-    statelis = mo.states
+    final_state = mo.state
     
     ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
     ref_config = MeasureConfig(τ = τ, t₂ = 8, t₁ = 5, x₁ = 1,  x₂ = 1, rng=MersenneTwister(1234), mode =:sample)
-    ref_mo = reference_evolution(model, statelis, ref_config, sample)
-    stlis, samples, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys
-    st=stlis[end]
+    ref_mo = reference_evolution(model, mo.state, ref_config, sample)
+    st, samples, sample_free_energy = ref_mo.state, ref_mo.samples, ref_mo.free_energys
     ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L,2)), st)
     ρ2 = disjoint_rdm(ref_model, model, Int64[], collect(1:L), st)
     ρ2r = anyon_rdm(model, collect(1:div(L,2)), ρ2)

@@ -348,14 +348,12 @@ end
 
     config = MeasureConfig(τ = τ, t₂ = 2, mode=:sample)
     mo = reference_bulk_evolution(model, add_st, config, sample)
-    output1, samples, free_energy = mo.states, mo.samples, mo.free_energys
-    @test length(output1) == 2
+    output1, samples, free_energy = mo.state, mo.samples, mo.free_energys
     @test samples == zeros(Int, (4, length(2:2:N)))
 
     config = MeasureConfig(τ = τ, t₂ = 2, rng =MersenneTwister(100), mode=:Born)
     mo_born = reference_bulk_evolution(model, add_st, config)
-    output1, samples, free_energy = mo_born.states, mo_born.samples, mo_born.free_energys
-    @test length(output1) == 2
+    output1, samples, free_energy = mo_born.state, mo_born.samples, mo_born.free_energys
     @test samples == [1 1 1 1; 0 1 0 1; 0 0 0 0; 0 0 1 0]
     @test free_energy ≈ [2.617994480798357, 2.563763819200177, 1.415477184509482, 2.8031245965479576]
 end
@@ -369,7 +367,7 @@ end
     add_st = add_reference_qubits(model, state, 1)
     ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(model))
     mo = FibonacciChain._reference_born_measure(model, add_st, measure_config, extended_basis=ext_basis)
-    sts, samples, free_energys = mo.states, mo.samples, mo.free_energys
+    samples, free_energys = mo.samples, mo.free_energys
     @test size(samples) == (20, 3)
     @test free_energys[1] ≈  1.9248473002384137 atol=1e-6
 end
@@ -385,7 +383,7 @@ end
 
     ext_basis = FibonacciChain.build_extended_basis(1, anyon_basis(model))
     measure_outcome = FibonacciChain._reference_sample_measure(model, add_st, samples, measure_config, extended_basis=ext_basis)
-    @test measure_outcome.states[end][[1,64]] ≈ 1/√2 .* ones(2)
+    @test measure_outcome.state[[1,64]] ≈ 1/√2 .* ones(2)
     @test measure_outcome.free_energys[end] ≈ 5log(2) atol=1e-6
 end
 
@@ -650,7 +648,6 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::I
     # Here should use τ to evolve at time slice inserting reference qubit, instead of τ_eff
     config = MeasureConfig(τ = τ, t₂ = t, mode=:sample, enable_τ_eff=false)
     mo = bulk_evolution(model, initial_state, config, sample)
-    statelis = mo.states
 
     ref_sample = sign ? BitMatrix(ones(Int, 2*(t+δt+t), L)) : BitMatrix(zeros(Int, 2*(t+δt+t), L))
 
@@ -660,9 +657,9 @@ function compute_post_selection_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::I
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, mode=:sample, x₂=L÷2+1, x₁ = L÷2+1)
     end
     
-    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
+    ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
 
-    return ref_mo.states[end]
+    return ref_mo.state
 end
 
 function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign::Bool=false)
@@ -674,7 +671,6 @@ function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign
 
     config = MeasureConfig(τ = τ, t₂ = t, mode=:sample, enable_τ_eff=false)
     mo = bulk_evolution(model, initial_state, config, sample)
-    statelis = mo.states
 
     ref_sample = sign ? BitMatrix(ones(Int, 2*(t+δt+t), L)) : BitMatrix(zeros(Int, 2*(t+δt+t), L))
     
@@ -684,10 +680,10 @@ function compute_Born_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=2; sign
         ref_config = MeasureConfig(τ = τ, t₂ = t+δt, t₁ = t, rng = MersenneTwister(100), mode=:Born, x₂=L÷2+1, x₁ = L÷2+1)
     end
     
-    ref_mo = reference_evolution(model, statelis, ref_config, ref_sample)
-    ref2stlis, sample_layer, sample_free_energy = ref_mo.states, ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
+    ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample)
+    sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
     
-    return ref2stlis[end], sample_layer, sample_free_energy
+    return ref_mo.state, sample_layer, sample_free_energy
 end
 
 @testset "reference_evolution" begin

@@ -353,7 +353,7 @@ end
     samples = BitMatrix(zeros(2t, N))
 
     measure_outcome = FibonacciChain._sample_measure(model, state , samples, measure_config)
-    @test measure_outcome.states[end][[1,64]] ≈ 1/√2 .* ones(2)
+    @test measure_outcome.state[[1,64]] ≈ 1/√2 .* ones(2)
     @test measure_outcome.free_energys[end] ≈ 5log(2) atol=1e-6
 end
 
@@ -379,13 +379,12 @@ end
 
     measure_config_bulk_evolution = MeasureConfig(τ=τ, t₂=N, rng=MersenneTwister(42), mode=:Born)
     measure_outcome3 = bulk_evolution(model, st, measure_config_bulk_evolution)
-    sample_measured_states, sample_bulk, sample_free_energy = measure_outcome3.states, measure_outcome3.samples, measure_outcome3.free_energys
+    sample_measured_states, sample_bulk, sample_free_energy = measure_outcome3.state, measure_outcome3.samples, measure_outcome3.free_energys
 
     measure_config_bulk_generate = MeasureConfig(τ=τ, t₂=N, mode=:sample)
     measure_outcome4 = bulk_evolution(model, st, measure_config_bulk_generate, sample_bulk)
-    statelis, Fs = measure_outcome4.states, measure_outcome4.free_energys
-    state = statelis[end]
-    @test state ≈ sample_measured_states[end]
+    state, Fs = measure_outcome4.state, measure_outcome4.free_energys
+    @test state ≈ sample_measured_states
 end
 
 @testset "boundary_Born" begin
@@ -428,11 +427,10 @@ end
     st[1] = 1.0
 
     measure_outcome = bulk_evolution(model, st, measure_config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
-    EElis = [anyon_eelis(model, state_t)[5] for state_t in sample_measured_states]
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (2t, 5)
-    @test EElis[1] ≈ 0.6895721925700435 atol = 1e-4
-    @test EElis[end] > 0.7
+    @test measure_outcome.entanglement_entropys[1] ≈ 0.6895721925700435 atol = 1e-4
+    @test measure_outcome.entanglement_entropys[end] > 0.7
     @test sample_free_energy[end] ≈  3.371812546192422 atol=1e-6
 end
 
@@ -449,8 +447,8 @@ end
     EE_tlis = zeros(D)
     samples = BitMatrix(zeros(Int8, D, div(L,2)))
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
-    state_t = sample_measured_states[end]
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
+    state_t = measure_outcome.state
     EE = anyon_eelis(model, state_t)[5]
     @test samples[end,:] == fill(0, div(L,2))
     @test EE ≈ 0.8098675501545762 atol = 1e-4
@@ -535,8 +533,8 @@ end
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
 
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    generated_statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = generated_statelis[end]
+    F = measure_outcome.free_energys
+    final_st = measure_outcome.state
     EE = anyon_eelis(model, final_st)
     @test fitCCEntEntScal(EE, mincut=2, pbc=true)[1][1] ≈ 0.8 atol=1e-1
 
@@ -544,8 +542,8 @@ end
     measure_config = MeasureConfig(τ=τ, t₂=div(15N, 2), mode=:sample)
     ψ0, sites = initial_mps(N)
     measure_outcome_mps = bulk_evolution(model, sites, ψ0, measure_config, samples)
-    generated_statelis_mps, F = measure_outcome_mps.states, measure_outcome_mps.free_energys
-    final_mps = generated_statelis_mps[end]
+    F = measure_outcome_mps.free_energys
+    final_mps = measure_outcome_mps.state
     EE_mps = anyon_eelis(model, final_mps)
     c = fitCCEntEntScal(EE_mps, mincut=4, pbc =true)[1]
     @test c ≈ 0.7 atol=1e-1

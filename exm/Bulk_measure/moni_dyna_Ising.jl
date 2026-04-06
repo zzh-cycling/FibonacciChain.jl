@@ -19,10 +19,10 @@ function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64, D::I
     
     config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
     mo = bulk_evolution(model, st, config)
-    @time sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
+    @time sample, sample_free_energy = mo.samples, mo.free_energys
 
-    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
+    halfchain_EE_tlis = mo.entanglement_entropys
+    final_state = mo.state
     final_EElis = anyon_eelis(model, final_state)
 
     
@@ -41,13 +41,13 @@ function sample_continue_calculate(L::Int64, τ::Float64, index::Int64, seed::In
     st = zeros(length(anyon_basis(model))); st[1] = 1.0
     pre_config = MeasureConfig(τ=τ, mode=:sample, t₂=div(D,2))
     pre_mo = bulk_evolution(model, st, pre_config, sample)
-    final_st = pre_mo.states[end]
+    final_st = pre_mo.state
 
     re_config = MeasureConfig(τ=τ, mode=:Born, t₂=div(additional_layers,2), rng=rng)
     after_mo = bulk_evolution(model, final_st, re_config)
-    sample_measured_states, sample, sample_free_energy = after_mo.states, after_mo.samples, after_mo.free_energys
-    halfchain_EE_tlis = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-    final_state = sample_measured_states[end]
+    sample, sample_free_energy = after_mo.samples, after_mo.free_energys
+    halfchain_EE_tlis = after_mo.entanglement_entropys
+    final_state = after_mo.state
     final_EElis = anyon_eelis(model, final_state)
 
     
@@ -118,10 +118,10 @@ function monitored_dynamics(L::Int64, τ::Float64, D::Int64=20L, window = 5L:D-5
         @show i
         config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=MersenneTwister(i))
         @time mo = bulk_evolution(model, st, config)
-        sample_measured_states, sample, sample_free_energy = mo.states, mo.samples, mo.free_energys
+        sample, sample_free_energy = mo.samples, mo.free_energys
         #
-        ensemble_EE_dynamics[i, :] = [ee(anyon_rdm(model, collect(1:div(L,2)), j)) for j in sample_measured_states]
-        final_state = sample_measured_states[end]
+        ensemble_EE_dynamics[i, :] = mo.entanglement_entropys
+        final_state = mo.state
         final_EElis[i, :] = anyon_eelis(model, final_state)
 
         all_FE_tlis[i, :] = sample_free_energy

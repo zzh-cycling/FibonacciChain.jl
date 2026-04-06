@@ -176,14 +176,14 @@ end
     samples = BitMatrix(zeros(Int8, 14t, N))
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = statelis[end]
+    F = measure_outcome.free_energys
+    final_st = measure_outcome.state
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
 
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples);
-    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
-    final_mps = mpslis[end]
+    F_mps = measure_outcome_mps.free_energys
+    final_mps = measure_outcome_mps.state
     S_mps_lis = anyon_eelis(model, final_mps)
     c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
     @test F ≈ F_mps atol=1e-4
@@ -207,15 +207,15 @@ end
     samples = BitMatrix(zeros(Int8, 14t, N))
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = statelis[end]
+    F = measure_outcome.free_energys
+    final_st = measure_outcome.state
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
     @test c ≈ 0.73 atol=1e-2
 
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples)
-    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
-    final_mps = mpslis[end]
+    F_mps = measure_outcome_mps.free_energys
+    final_mps = measure_outcome_mps.state
     S_mps_lis = anyon_eelis(model, final_mps)
     c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
     @test F ≈ F_mps atol=1e-4
@@ -238,15 +238,15 @@ end
     samples = BitMatrix(zeros(Int8, 14t, N))
     measure_config = MeasureConfig(τ=τ, t₂=t, mode=:sample)
     measure_outcome = bulk_evolution(model, st, measure_config, samples)
-    statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = statelis[end]
+    F = measure_outcome.free_energys
+    final_st = measure_outcome.state
     Slis = anyon_eelis(model, final_st)
     c = fitCCEntEntScal(Slis, mincut=2, pbc=true)[1][1]
     @test c ≈ 0.6487693939797943 atol=1e-2
 
     measure_outcome_mps = bulk_evolution(model, sites, ψ, measure_config, samples)
-    mpslis, F_mps = measure_outcome_mps.states, measure_outcome_mps.free_energys
-    final_mps = mpslis[end]
+    F_mps = measure_outcome_mps.free_energys
+    final_mps = measure_outcome_mps.state
     S_mps_lis = anyon_eelis(model, final_mps)
     c_mps = fitCCEntEntScal(S_mps_lis, mincut=2, pbc=true)[1][1]
     @test F ≈ F_mps atol=1e-4

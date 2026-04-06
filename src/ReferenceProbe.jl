@@ -42,6 +42,36 @@ function reference_measure_basismap(model::AnyonModel, ::Type{T}, ::Type{newT}, 
 end
 
 num_digits(::Type{<:BitStr{N}}) where N = N
+
+# Type-stable inner implementation using function barrier pattern
+function _reference_measuremap_impl!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool, extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+    mask = bmask(newT, 1:N...)
+    
+    @inbounds for (i, ext_basis_i) in enumerate(extended_basis)
+        result = reference_measure_basismap(model, T, newT, τ, ext_basis_i, idx, sign, k_old=k_old)
+        prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
+
+        mapped_state[i] += result.w1 * state[i]
+        if result.w2 != 0
+            target_state = join(prefix_i, result.s2)
+            j2 = searchsortedfirst(extended_basis, target_state)
+            mapped_state[j2] += result.w2 * state[i]
+        end
+    end
+
+    return mapped_state
+end
+
+"""
+    reference_measuremap!(mapped_state, model, ::Type{T}, ::Type{pretype}, τ, state, idx, sign; extended_basis)
+
+In-place version of `reference_measuremap` that writes result into pre-allocated `mapped_state` buffer.
+"""
+function reference_measuremap!(mapped_state::Vector{ET}, model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
+    fill!(mapped_state, zero(ET))
+    return _reference_measuremap_impl!(mapped_state, model, T, pretype, τ, state, idx, sign, extended_basis)
+end
+
 function reference_measuremap(model::AnyonModel, ::Type{T}, ::Type{pretype}, τ::Float64, state::Vector{ET}, idx::Int, sign::Bool; extended_basis::Vector{newT}) where {N, k_old, T <: BitStr{N}, ET, newT <: BitStr, pretype <: BitStr{k_old, Int}}
     # input a superposition state with reference qubit, and output the measured state. k_old is the number of reference qubits in the state.
     if model.measure_operator ∈ [:Ferro, :Antiferro]
@@ -57,24 +87,7 @@ function reference_measuremap(model::AnyonModel, ::Type{T}, ::Type{pretype}, τ:
     @assert num_digits(newT) == N + k_old "The output basis should be with length $(N + k_old), but got $(num_digits(newT))"
 
     mapped_state = zeros(ET, length(state))
-
-    mask = bmask(newT, 1:N...)
-    
-    for (i, ext_basis_i) in enumerate(extended_basis)
-        outputstate1, outputstate2, output1, output2 = reference_measure_basismap(model, T, newT, τ, ext_basis_i, idx, sign, k_old=k_old)
-
-        prefix_i = pretype(takeenviron(ext_basis_i, mask) >> N)
-
-        if output2 ==0
-            mapped_state[i]+=output1*state[i]
-        else
-            j2=searchsortedfirst(extended_basis, join(prefix_i, outputstate2))
-            mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-            mapped_state[j2]+=output2*state[i]
-        end
-    end
-
-    return mapped_state
+    return _reference_measuremap_impl!(mapped_state, model, T, pretype, τ, state, idx, sign, extended_basis)
 end
 
 """
@@ -446,17 +459,28 @@ function _reference_apply_measurement_layer(model::AnyonModel, τ::Float64, stat
     extended_basis::Vector{newT}, k_old::Int64=1) where {ET, newT}
 
     total_free_energy = zero(real(ET))
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)  
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
+
+    N = model.N
+    T = BitStr{N, Int}
+    pretype = BitStr{k_old, Int}
+
+    # Pre-allocate buffer to avoid per-site allocations
+    l = length(extended_basis)
+    buf = Vector{ET}(undef, l)
+    current_state = copy(state)
 
     for (idx, sign) in enumerate(layer_sample)
-        state = reference_measuremap(measure_anyon_model, τ, state, measurement_sites[idx], sign, extended_basis=extended_basis, k_old=k_old)
-
-        prob = real(dot(state, state))
+        # Apply measurement into pre-allocated buffer
+        fill!(buf, zero(ET))
+        _reference_measuremap_impl!(buf, measure_anyon_model, T, pretype, measurement_strength, current_state, measurement_sites[idx], sign, extended_basis)
+        prob = sum(abs2, buf)
         total_free_energy += -log(prob)
-        state ./= sqrt(prob)
+        buf .*= inv(sqrt(prob))
+        current_state, buf = buf, current_state  # swap buffers
     end
 
-    return Measurement_outcome_boundary(state, layer_sample, Float32(total_free_energy))
+    return Measurement_outcome_boundary(current_state, layer_sample, Float32(total_free_energy))
 end
 
 
@@ -486,35 +510,48 @@ function _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vect
     layer_idx::Int64=1; 
     extended_basis::Vector{newT}, k_old::Int64=1, verbose::Bool=false) where {T, newT}
 
-    measurement_sites, measure_anyon_model = _obtain_measurement_config(model, layer_idx)
+    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ_eff)
     n = length(measurement_sites)
-    sample = BitVector(zeros(Bool, n))
+    sample = BitVector(undef, n)
     F_layer = 0.0
 
+    N = model.N
+    TT = BitStr{N, Int}
+    pretype = BitStr{k_old, Int}
+
+    # Pre-allocate buffers to avoid per-site allocations
+    l = length(extended_basis)
+    buf0 = Vector{T}(undef, l)
+    buf1 = Vector{T}(undef, l)
+    current_state = copy(state)
 
     for (i, site) in enumerate(measurement_sites)
-        # first 0 branch
-        ψ0 = reference_measuremap(measure_anyon_model, τ_eff, state, site, false, extended_basis=extended_basis, k_old=k_old)
-        p0 = real(dot(ψ0, ψ0))
+        # Compute 0-branch into pre-allocated buffer
+        fill!(buf0, zero(T))
+        _reference_measuremap_impl!(buf0, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, false, extended_basis)
+        p0 = sum(abs2, buf0)
         p1 = 1 - p0
 
         random_number = rand(rng)
         verbose && @show random_number
         if random_number < p0
-            sample[i] = 0
-            state = ψ0 ./ sqrt(p0)
+            sample[i] = false
+            buf0 .*= inv(sqrt(p0))
+            current_state, buf0 = buf0, current_state  # swap buffers
             F_layer += -log(p0)
             verbose && @show -log(p0)
         else
-            # else 1 branch
-            ψ1 = reference_measuremap(measure_anyon_model, τ_eff, state, site, true, extended_basis=extended_basis, k_old=k_old)
-            sample[i] = 1
-            state = ψ1 ./ sqrt(p1)
+            # Compute 1-branch only when needed
+            fill!(buf1, zero(T))
+            _reference_measuremap_impl!(buf1, measure_anyon_model, TT, pretype, measurement_strength, current_state, site, true, extended_basis)
+            sample[i] = true
+            buf1 .*= inv(sqrt(p1))
+            current_state, buf1 = buf1, current_state  # swap buffers
             F_layer += -log(p1)
             verbose && @show -log(p1)
         end
     end
-    return Measurement_outcome_boundary(state, sample, Float32(F_layer))
+    return Measurement_outcome_boundary(current_state, sample, Float32(F_layer))
 end
 
 
@@ -600,7 +637,7 @@ function _reference_born_measure(model::AnyonModel{AT}, current_state::Vector{ET
     # Initialize sample matrix
     samples = BitMatrix(undef, (D, n_measure))
     sample_free_energy = zeros(Float32, D)
-    states = Vector{Vector{ET}}(undef, Δt)
+    entanglement_entropys = zeros(Float32, Δt)
 
     for period in 1:Δt
         τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
@@ -616,11 +653,9 @@ function _reference_born_measure(model::AnyonModel{AT}, current_state::Vector{ET
         current_state = outcome2.state
         samples[2*period, :] = outcome2.sample
         sample_free_energy[2*period] = outcome2.free_energy
-
-        states[period] = current_state
     end
 
-    return Measurement_outcome_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 """
@@ -663,7 +698,7 @@ function _reference_sample_measure(model::AnyonModel{AT}, current_state::Vector{
     size(samples) == (D, n_measure) || error("sample size should be ($D, $n_measure)")
 
     sample_free_energy = zeros(Float32, D)
-    states = Vector{Vector{ET}}(undef, Δt)
+    entanglement_entropys = zeros(Float32, Δt)
 
     for period in 1:Δt
         τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
@@ -679,11 +714,9 @@ function _reference_sample_measure(model::AnyonModel{AT}, current_state::Vector{
                                                       extended_basis=extended_basis, k_old=k_old)
         current_state = outcome2.state
         sample_free_energy[2*period] = outcome2.free_energy
-
-        states[period] = current_state
     end
 
-    return Measurement_outcome_bulk(states, samples, sample_free_energy)
+    return Measurement_outcome_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
 end
 
 
@@ -712,7 +745,7 @@ This function avoids recomputing the forward evolution up to time `t₁` by usin
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type, etc.)
-- `forward::Vector{ET}`: Cached forward state evolution trajectory from a previous `bulk_evolution` run
+- `forward::ET`: Cached forward state from a previous `bulk_evolution` run
 - `measure_config::MeasureConfig`: Configuration struct containing:
   - `τ::Float64`: Measurement strength parameter
   - `t₁::Int`: First time slice index for correlation
@@ -737,13 +770,13 @@ Based on `δt = t₂ - t₁` and `δx = |x₂ - x₁|`:
 - `δx == 0`: Pure 2-point temporal correlation at fixed site, uses 2 reference qubits
 
 # Notes
-- The `forward` states should come from a previous `bulk_evolution` call
+- The `forward` state should come from a previous `bulk_evolution` call
 - Reference qubits are added via [`add_reference_qubits`](@ref) at the specified spacetime points
 - In `:sample` mode, `sample` must be provided; in `:Born` mode, samples are generated via Born rule
 
 See also: [`add_reference_qubits`](@ref), [`reference_bulk_evolution`](@ref), [`ref_correlation`](@ref)
 """
-function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_config::MeasureConfig, sample::BitMatrix) where {ET}
+function reference_evolution(model::AnyonModel, forward::ET, measure_config::MeasureConfig, sample::BitMatrix) where {ET}
     # This function is used to evolve state to compute the spatial-temporal correlation at different space and time slices cache, avoiding the repeated calculation of the state evolution. INPUT the forward state evolution, given the trajectory.
     # The length of forward is to t₁, but the time length of sample is 0-> D, need to note that the input sample will be updated in :Born mode, and the smaple front part must be consistent with forward.
     # t₁ and t₂ are the indices of the time slices in the sample. Spacetime is:
@@ -772,7 +805,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period), each time slice have two layers.
 
     @assert size(sample, 2) == n_measure "Sample size spatial dimension must be $n_measure, but got $(size(sample, 2))"
-    @assert 1 <= t₁ <= t₂ <= Δt "Time slice t₁ must before time slice t₂, both must be in the range [1, $(D÷2)]"
+    @assert 1 <= t₁ <= t₂ <= Δt "Time slice t₁ must before time slice t₂, both must be in the range [1, $(Δt)]"
     @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
     @assert mode ∈ [:sample, :Born] "mode must be one of :sample, :Born" # It will only evolve according to the mode, even if sample is given.
 
@@ -780,13 +813,11 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
     δt = t₂ - t₁ # if δt = 0, pure spatial correlation
     δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
     
-    # 1) 1 → t₁, the steady state, at the t₁ of forward evolution
-    state = forward[t₁]
-    statelis = Vector{ET}(undef, Δt) 
-    view(statelis, 1:t₁) .= view(forward, 1:t₁)
+    # 1) forward is the steady state at time t₁
+    state = forward
     sample_layer = BitMatrix(undef, (D, n_measure))
-    view(sample_layer, 1:2t₁, :) .= view(sample, 1:2t₁, :)
     sample_free_energy = zeros(Float32, D)
+    final_state = state  # will be overwritten
 
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
@@ -800,14 +831,13 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
         outcome1 = reference_bulk_evolution(model, state2, config1, sample[2*t₁+1:2*t₂, :])
 
         # 4) add reference qubit 3 at x₂
-        state3 = add_reference_qubits(model, outcome1.states[end], x₂; verbose=verbose)
+        state3 = add_reference_qubits(model, outcome1.state, x₂; verbose=verbose)
 
         # 5) t₂ → D evolution
         config2 = MeasureConfig(τ=τ, t₂=Δt, rng=rng, mode=mode, t₁=t₂+1, verbose=verbose, enable_τ_eff=true)
         outcome2 = reference_bulk_evolution(model, state3, config2, sample[2*t₂+1:end, :])
 
-        view(statelis, t₁+1:t₂) .= view(outcome1.states, :)
-        view(statelis, t₂+1:Δt) .= view(outcome2.states, :)
+        final_state = outcome2.state
 
         sample_layer[2*t₁+1:2*t₂, :] .= outcome1.samples
         sample_layer[2*t₂+1:end, :] .= outcome2.samples
@@ -826,7 +856,7 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
         # Debug: verbose && @show size(sample),  Δt, t₁, t₂, size(sample[2*t₁+1:end, :])
         outcome2 = reference_bulk_evolution(model, state2, config2, sample[2*t₁+1:end, :])
 
-        view(statelis, t₁+1:Δt) .= view(outcome2.states, :)
+        final_state = outcome2.state
         sample_layer[2*t₁+1:end, :] .= outcome2.samples
         sample_free_energy[2*t₁+1:end] .= outcome2.free_energys
 
@@ -841,19 +871,19 @@ function reference_evolution(model::AnyonModel, forward::Vector{ET}, measure_con
         outcome1 = reference_bulk_evolution(model, state1, config1, sample[2*t₁+1:2*t₂, :])
 
         # 4) add reference qubit 2 at x₂ at time slice t₂
-        state2 = add_reference_qubits(model, outcome1.states[end], x₂; verbose=verbose)
+        @show typeof(outcome1.state), size(outcome1.state)
+        state2 = add_reference_qubits(model, outcome1.state, x₂; verbose=verbose)
         
         # 5) t₂ → D evolution
         config2 = MeasureConfig(τ=τ, t₂=Δt, rng=rng, mode=mode, t₁=t₂+1, verbose=verbose, enable_τ_eff=true)
         outcome2 = reference_bulk_evolution(model, state2, config2, sample[2*t₂+1:end, :])
 
-        view(statelis, t₁+1:t₂) .= view(outcome1.states, :)
-        view(statelis, t₂+1:Δt) .= view(outcome2.states, :)
+        final_state = outcome2.state
         sample_layer[2*t₁+1:2*t₂, :] .= outcome1.samples
         sample_layer[2*t₂+1:end, :] .= outcome2.samples
         sample_free_energy[2*t₁+1:2*t₂] .= outcome1.free_energys
         sample_free_energy[2*t₂+1:end] .= outcome2.free_energys
     end
 
-    return Measurement_outcome_bulk(statelis, sample_layer, sample_free_energy)
+    return Measurement_outcome_bulk(final_state, sample_layer, sample_free_energy, zeros(Float32, 0))
 end

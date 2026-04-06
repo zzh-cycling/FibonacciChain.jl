@@ -442,11 +442,10 @@ end
 
     config = MeasureConfig(τ=τ, t₂=D, rng = MersenneTwister(100), mode=:Born)
     measure_outcome = bulk_evolution(model, st, config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
-    EElis = [anyon_eelis(model, state_t)[div(L,2)] for state_t in sample_measured_states]
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
     @test size(samples) == (2D, L)
     # Each layer will erase previous info.
-    @test EElis ≈ [log(2) for i in 1:D] atol = 1e-6
+    @test measure_outcome.entanglement_entropys ≈ [log(2) for i in 1:D] atol = 1e-6
 end
 
 @testset "Bulk_post_selection" begin
@@ -462,8 +461,8 @@ end
     config = MeasureConfig(τ=τ, t₂=D, mode=:sample)
     samples= BitMatrix(zeros(Int, 2D, L))
     measure_outcome = bulk_evolution(model, st, config, samples)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
-    state_t = sample_measured_states[end]
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
+    state_t = measure_outcome.state
     EE = anyon_eelis(model, state_t)
     @test samples[end,:] == fill(0, L)
     @test EE ≈ log(2)*ones(L-1) atol = 1e-4
@@ -476,15 +475,15 @@ end
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
-    config = MeasureConfig(τ=τ, t₂=N, rng = MersenneTwister(100), mode=:Born)
+    config = MeasureConfig(τ=τ, t₂=1, rng = MersenneTwister(100), mode=:Born)
     measure_outcome = bulk_evolution(model, st, config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    samples, sample_free_energy = measure_outcome.samples, measure_outcome.free_energys
 
     measure_outcome_layer1 = FibonacciChain._apply_measurement_layer(model, τ, st, samples[1,:], layer_idx = 1)
     new_state, F1 = measure_outcome_layer1.state, measure_outcome_layer1.free_energy
     measure_outcome_layer2 = FibonacciChain._apply_measurement_layer(model, τ, new_state, samples[2,:], layer_idx = 2)
     new_state, F2 = measure_outcome_layer2.state, measure_outcome_layer2.free_energy
-    @test new_state ≈ sample_measured_states[1]
+    @test new_state ≈ measure_outcome.state
     @test F1 ≈ sample_free_energy[1] atol=1e-6
     @test F2 ≈ sample_free_energy[2] atol=1e-6
 end
@@ -507,11 +506,11 @@ end
 
     config = MeasureConfig(τ=τ, t₂=N, rng = MersenneTwister(100), mode=:Born)
     measure_outcome = bulk_evolution(model, st, config)
-    sample_measured_states, samples, sample_free_energy = measure_outcome.states, measure_outcome.samples, measure_outcome.free_energys
+    sample_measured_states, samples, sample_free_energy = measure_outcome.state, measure_outcome.samples, measure_outcome.free_energys
     config_generate = MeasureConfig(τ=τ, t₂=N, mode=:sample)
     measure_outcome_post = bulk_evolution(model, st, config_generate, samples)
-    statelis, F = measure_outcome_post.states, measure_outcome_post.free_energys
-    @test statelis ≈ sample_measured_states
+    state_post, F = measure_outcome_post.state, measure_outcome_post.free_energys
+    @test state_post ≈ sample_measured_states
     @test F ≈ sample_free_energy atol=1e-6  
 end
 
@@ -555,15 +554,15 @@ end
     config = MeasureConfig(τ=τ, t₂=t, mode=:sample, cutoff=1e-10, maxdim=1000)
 
     measure_outcome = bulk_evolution(model, st, config, samples)
-    generated_statelis, F = measure_outcome.states, measure_outcome.free_energys
-    final_st = generated_statelis[end]
+    F = measure_outcome.free_energys
+    final_st = measure_outcome.state
     EE = anyon_eelis(model, final_st)
     @test fitCCEntEntScal(EE, mincut=2, pbc =true)[1][1] ≈ 0.5 atol=1e-2
     
     ψ0, sites = initial_mps(N)
     measure_outcome_mps = bulk_evolution(model, sites, ψ0, config, samples)
-    generated_statelis_mps, F = measure_outcome_mps.states, measure_outcome_mps.free_energys
-    final_mps = generated_statelis_mps[end]
+    F = measure_outcome_mps.free_energys
+    final_mps = measure_outcome_mps.state
     EE_mps = anyon_eelis(model, final_mps)
     @test EE_mps ≈ EE atol = 1e-5
     c = fitCCEntEntScal(EE_mps, mincut=2, pbc =true)[1]

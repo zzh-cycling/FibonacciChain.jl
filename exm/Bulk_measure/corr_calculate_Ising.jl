@@ -22,9 +22,8 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64=20L, start_
     t= div(D, 2) # evolution time before adding ref qubits
     config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
     mo = bulk_evolution(model, initial_state, config, BitMatrix(sample))
-    statelis = mo.states
+    final_st = mo.state
 
-    final_st= statelis[end]
     spatial_corr = spatial_correlation(model, final_st, 1, div(L,2)+1)
     
     timeslice1 = L*start_point
