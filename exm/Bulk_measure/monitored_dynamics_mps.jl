@@ -4,8 +4,18 @@ using ITensorMPS, ITensors
 using JLD2
 using Statistics
 using Random
+using ClusterManagers
+
+const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
+const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
+const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
+addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
 
 @everywhere begin
+using Pkg
+Pkg.activate($PROJECT_DIR; io=devnull)
+const num_workers = nworkers()
+@info("Number of workers: $num_workers")    
 using FibonacciChain
 using ITensorMPS, ITensors
 using JLD2
@@ -148,8 +158,8 @@ end
 
 function get_system_params(τind, L)
     cfg = Dict(
-        1  => (1250, 1000, 1000),
-        2  => (250,  100, 200),
+        1  => (800, 1000, 600),
+        2  => (150,  100, 100),
         3  => (40,  48, 30),
         4  => (28,  40, 22),
         5  => (20,   32, 16),
@@ -202,16 +212,20 @@ else
 
         println("=== Parallel Sample Generation (MPS) ===")
         println("L = $L, τ_idx = $τ_idx, χ = $χ")
+        println("Total parallel workers: $(nworkers())")
+        println("CPUs per worker: $CPUS_PER_TASK")
+        println("Total system CPUs: $(nworkers() * CPUS_PER_TASK) cores")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(indexlis))")
         println("Number of workers: $(nworkers())")
-        
-        # create task list
+        println("Batch size: 1")
+        println("Estimated batches: $(cld(length(indexlis), 1))")
+        println()
         taskslis = [(L, τ_idx, indexlis[i], χ) for i in eachindex(indexlis)]
         
         # use pmap for parallel processing
         println("\nStarting parallel processing...")
-        results = pmap(process_task, taskslis; batch_size=50)
+        results = pmap(process_task, taskslis; batch_size=1)
         
         # count successes and failures
         failed_tasks = [(L_res, τ_res, idx_res, error) 
