@@ -49,39 +49,8 @@ function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=5
     end
 end
 
-# function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
-#     τ = τlis[τind]
-#     t = get_system_params(τind, L)[1]
-#     samples_num = 10000
-#     ensemble = Vector{BitMatrix}(undef, samples_num)
-#     ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
-#     ensemble_seed = zeros(samples_num)
-#     ensemble_EE_dynamics= zeros(samples_num, t * L) 
-#     ensemble_final_EElis = zeros(samples_num, L-1)
-
-#      for i in 1:samples_num
-#         sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)/t$(t)_samples$(i)_chi$(χ).jld2", "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
-#         ensemble[i] = sample
-#         ensemble_free_energy[i] = sample_free_energy
-#         ensemble_seed[i] = seed
-#         ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
-#         ensemble_final_EElis[i, :] = final_EElis
-#     end
-
-#     bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
-#     average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
-#     ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
-#     stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
-
-#     save("exm/data/Bulk_measure/monitored_dynamics_mps/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
-#     "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
-#     "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
-#     "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
-# end
-
-function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
-           τ = τlis[τind]
-           t = get_system_params(τind, L)[1]
+function samples_collect_process_data(L::Int64, τind::Int64, χ::Int64=500)
+           t, _, _= get_system_params(τind, L)
            dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)"
             # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
            samples_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path)))
@@ -106,22 +75,30 @@ function samples_collect(L::Int64, τind::Int64, χ::Int64=500)
            ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
            stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
 
-           save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
-           "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed,  
-           "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, 
-           "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis)
+           check_duplicates(ensemble_seed)
+           
+           timewindow = get_FE_avg_range(τind, L)
+           temp = hcat(ensemble_free_energy...)
+           time_average_free_energy = mean(temp[2 .* timewindow, :], dims=1) 
+           bulk_FE = mean(time_average_free_energy)
+           bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
+           time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
+           time_FElis = mean(temp, dims=2)[:]
+           
+           save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/EE_FEdynamics_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
+               "average_EE_tlis", average_EE_tlis, 
+               "stderr_EE_tlis", stderr_EE_tlis, 
+               "bulk_meanEElis", bulk_meanEElis, 
+               "ensemble_stderr_EElis", ensemble_stderr_EElis, 
+               "time_average_free_energy", time_average_free_energy, 
+               "bulk_FE", bulk_FE,
+               "bulk_FE_stderr", bulk_FE_stderr, 
+               "time_FEstderr", time_FEstderr, 
+               "time_FElis", time_FElis, 
+               "ensemble_seed", ensemble_seed)
 end
 
-function process_data(L::Int64, τind::Int64, χ::Int64)
-    t, _, timewindow = get_system_params(τind, L)
-    load_data_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/ensemble_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2"
-    data = load(load_data_path)
-    
-    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"]
-    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"]
-    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"]
-    
-    function check_duplicates(seeds)
+function check_duplicates(seeds)
         if length(seeds) != length(unique(seeds))
             duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
             duplicate_values = unique(seeds)[duplicates]
@@ -131,50 +108,63 @@ function process_data(L::Int64, τind::Int64, χ::Int64)
             println("No duplicate seeds found in $(length(seeds)) seeds.")
             return false
         end
-    end
-    
-    # Check if there are duplicates in the ensemble_seed
-    has_duplicates = check_duplicates(ensemble_seed)
-    
-    temp = hcat(ensemble_free_energy...)
-    time_average_free_energy = mean(temp[2 .* timewindow, :], dims=1) 
-    bulk_FE = mean(time_average_free_energy)
-    bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-    time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
-    time_FElis = mean(temp, dims=2)[:]
-    
-    save("exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/monitored_EE_FEdynamics_L$(L)_gamma$(τind)_t$(t)_chi$(χ).jld2", 
-        "average_EE_tlis", average_EE_tlis, 
-        "stderr_EE_tlis", stderr_EE_tlis, 
-        "bulk_meanEElis", bulk_meanEElis, 
-        "ensemble_stderr_EElis", ensemble_stderr_EElis, 
-        "time_average_free_energy", time_average_free_energy, 
-        "bulk_FE", bulk_FE,
-        "bulk_FE_stderr", bulk_FE_stderr, 
-        "time_FEstderr", time_FEstderr, 
-        "time_FElis", time_FElis, 
-        "ensemble_seed", ensemble_seed)
 end
 
-function get_system_params(τind, L)
-    cfg = Dict(
-        1  => (800, 1000, 600),
-        2  => (150,  100, 100),
-        3  => (40,  48, 30),
-        4  => (28,  40, 22),
-        5  => (20,   32, 16),
-        6  => (12,   20, 10),
-        7  => (10,   14, 7),
-        8  => (7,   10, 5.5),
-        9  => (3,    4, 2.5),
-        10 => (2,    4, 1.5),
-        11 => (2,    2, 1.5),
-    )
+
+function get_mps_params_Born(τind, L)
+    cfg = if L <= 32
+        Dict(
+            1  => (1250, 1000, 600),
+            2  => (250,  100, 150),
+            3  => (40,  48, 30),
+            4  => (28,  40, 30),
+            5  => (40,   32, 24),
+            6  => (22,   20, 15),
+            7  => (10,   14, 10),
+            8  => (12,   10, 8),
+            9  => (3,    4, 3),
+            10 => (4,    4, 2.5),
+            11 => (3,    2, 2),
+        )
+    else
+        Dict(
+            1  => (800, 1000, 500),
+            2  => (150,  100, 100),
+            3  => (40,  48, 30),
+            4  => (28,  40, 22),
+            5  => (20,   32, 16),
+            6  => (12,   20, 10),
+            7  => (10,   14, 7),
+            8  => (7,   10, 5.5),
+            9  => (3,    4, 2.5),
+            10 => (2,    4, 1.5),
+            11 => (2,    2, 1.5),
+        )
+    end
     t, step, start = get(cfg, τind, (2, 2, 1))
-    inds = collect(1:step:t*step)
+    inds = collect(1:step:t*L)
     avg_range = Int(start*L):2:Int(t*L)-4
-    # avg_range = 20*L:2:25*L
     return t, inds, avg_range
+end
+
+function get_FE_avg_range(τind, L)
+    # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
+    toidx(x) = floor(Int, x * L)
+
+    avg_table = Dict(
+        2  => toidx(4):2:(40 * L - 10),
+        3  => toidx(4):2:(40 * L - 10),
+        4  => toidx(3):2:(28 * L - 10),
+        5  => toidx(2):2:(20 * L - 10),
+        6  => toidx(1.2):2:(12 * L - 10),
+        7  => toidx(1.0):2:(10 * L - 10),
+        8  => toidx(0.8):2:(7 * L - 10),
+        9  => toidx(0.5):2:(3 * L - 10),
+        10 => toidx(0.5):2:(2 * L - 10),
+    )
+
+    default_range = toidx(0.4):2:(2 * L - 10)
+    return get(avg_table, τind, default_range)
 end
 
 

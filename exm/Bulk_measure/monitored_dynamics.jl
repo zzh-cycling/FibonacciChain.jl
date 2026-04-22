@@ -15,124 +15,27 @@ using Random
 τlis[end] = 1000.0
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 
-function get_system_params(τ, L)
+function get_system_params(τ_idx, L)
     cfg = Dict(
-        atanh(0.1)  => (2500L, 1000, 750L),
-        atanh(0.2)  => (500L,  100, 120L),
-        atanh(0.3)  => (200L,  40, 80L),
-        atanh(0.4)  => (100L,  40, 40L),
-        atanh(0.5)  => (80L,   32, 20L),
-        atanh(0.6)  => (45L,   20, 15L),
-        log(1 + √2) => (35L,   14, 10L),
-        atanh(0.8)  => (25L,   10, 5L),
-        atanh(0.9)  => (8L,    4, 2L),
-        atanh(0.95) => (8L,    4, 2L),
-        atanh(0.999)=> (5L,    2, 1L),
+        1  => (1250L, 1000, 750L),
+        2  => (250L,  100, 120L),
+        3  => (100L,  40, 80L),
+        4  => (50L,  40, 40L),
+        5  => (40L,   32, 20L),
+        6  => (22.5L,   20, 15L),
+        7  => (17.5L,   14, 10L),
+        8  => (12.5L,   10, 5L),
+        9  => (4L,    4, 2L),
+        10 => (4L,    4, 2L),
+        11 => (2.5L,    2, 1L),
     )
-    D, step, start = get(cfg, τ, (5L, 2, L))
+    D, step, start = get(cfg, τ_idx, (2.5L, 2, L))
     inds = collect(1:step:div(D,2))
     avg_range = start:div(D,2)-5
     return D, inds, avg_range
 end
 
-function samples_generate(L::Int64, τ::Float64, index::Int64, seed::Int64)
-        try
-            rng = MersenneTwister(seed)
-            D, _, _ = get_system_params(τ, L)
-            model = AnyonModel(FibonacciAnyon(), L; pbc=true)
-            st = zeros(length(anyon_basis(model)))
-            st[1] = 1.0
-            
-            config = MeasureConfig(τ=τ, mode=:Born, t₂=div(D,2), rng=rng)
-            outcome = bulk_evolution(model, st, config)
-            sample = outcome.samples
-            sample_free_energy = outcome.free_energys
-            
-            halfchain_EE_tlis = outcome.entanglement_entropys
-            final_state = outcome.state
-            final_EElis = anyon_eelis(model, final_state)
-            
-            save("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "halfchain_EE_tlis", halfchain_EE_tlis, "final_EElis ", final_EElis, "seed", seed, "sample_free_energy", sample_free_energy)
-            save("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld", "sample", sample, "sample_free_energy", sample_free_energy, "seed", seed)
-            
-            return (L, τ, index, seed, :success, nothing)
-        catch e
-            return (L, τ, index, seed, :failed, e)
-        end
-end
-
-# define a wrapper function for pmap
-function process_task(task)
-    L, τ, index, seed = task
-    return samples_generate(L, τ, index, seed)
-end
-
-function samples_collect(L::Int64, τ::Float64)
-    D = get_system_params(τ, L)[1]
-    samples_num = 40000
-    ensemble = Vector{BitMatrix}(undef, samples_num)
-    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
-    ensemble_seed = zeros(Int64, samples_num)
-     for i in 1:samples_num
-        sample, sample_free_energy, seed = load("exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "sample", "sample_free_energy", "seed")
-        ensemble[i] = sample
-        ensemble_free_energy[i] = sample_free_energy
-        ensemble_seed[i] = seed
-    end
-
-    save("exm/data/Bulk_measure/Samples_monitored_dynamics/monitored_dynamics_ensemble_L$(L)_τ$(τ)_D$(div(D,L)).jld", "ensemble", ensemble, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
-end
-
-
-function Observable_collect(L::Int64, τ::Float64)
-    D = get_system_params(τ, L)[1]
-    samples_num = 40000
-    ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
-    ensemble_seed = zeros(Int64, samples_num)
-    ensemble_EE_dynamics= zeros(samples_num, div(D,2)) 
-    ensemble_final_EElis = zeros(samples_num, L-1)
-
-    for i in 1:samples_num
-        halfchain_EE_tlis, final_EElis, seed, sample_free_energy = load("./exm/data/Bulk_measure/Observable_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(i).jld", "halfchain_EE_tlis", "final_EElis ", "seed",  "sample_free_energy")
-        if length(halfchain_EE_tlis) == D
-            halfchain_EE_tlis = halfchain_EE_tlis[2:2:end]
-        end
-        ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
-        ensemble_final_EElis[i, :] = final_EElis
-        ensemble_seed[i] = seed
-        ensemble_free_energy[i] = sample_free_energy
-    end
-
-    bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
-    average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
-    ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
-    stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
-
-    
-    save("exm/data/Bulk_measure/Observable_monitored_dynamics/monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D,L)).jld", "average_EE_tlis", average_EE_tlis, "stderr_EE_tlis", stderr_EE_tlis, "bulk_meanEElis", bulk_meanEElis, "ensemble_stderr_EElis",ensemble_stderr_EElis, "ensemble_free_energy", ensemble_free_energy, "ensemble_seed", ensemble_seed)
-end
-
-function save_data_filename(L, τ, D)
-    return "monitored_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D, L)).jld"
-end
-
-function get_data_filename(L, τ, D)
-    return "Born_Fibo_EE_FEdynamics_L$(L)_τ$(τ)_D$(div(D, L)).jld"
-end
-
-## == Process the data for entanglement entropy and free energy dynamics == ##
-function process_data(L::Int64, τ::Float64=log(1+ √2))
-    # timewindow = 8L:35L-10
-    D, _, timewindow = get_system_params(τ, L)  # Adjusted time window for averaging
-    DATA_DIR = "exm/data/Bulk_measure/Observable_monitored_dynamics/"
-    load_data_path = joinpath(DATA_DIR, save_data_filename(L, τ, D))
-    data = load(load_data_path)
-    
-    average_EE_tlis, stderr_EE_tlis = data["average_EE_tlis"], data["stderr_EE_tlis"] # S vs time
-    bulk_meanEElis, ensemble_stderr_EElis = data["bulk_meanEElis"], data["ensemble_stderr_EElis"] # S(l) at final time slice
-    ensemble_free_energy, ensemble_seed = data["ensemble_free_energy"], data["ensemble_seed"] # collection of free energy vs time for each sample and the corresponding seeds
-    
-    function check_duplicates(seeds)
+function check_duplicates(seeds)
         if length(seeds) != length(unique(seeds))
             duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
             duplicate_values = unique(seeds)[duplicates]
@@ -142,34 +45,114 @@ function process_data(L::Int64, τ::Float64=log(1+ √2))
             println("No duplicate seeds found in $(length(seeds)) seeds.")
             return false
         end
-    end
-    
-    # Check if there are duplicates in the ensemble_seed
-    has_duplicates = check_duplicates(ensemble_seed)
-    
-    temp = hcat(ensemble_free_energy...) # fuse the free energy of each sample into a matrix 
-    #  | -> sample
-    #  | 
-    #  ⬇️ time
-    time_average_free_energy = mean(temp[timewindow, :], dims=1)  # each sample's time-averaged free energy
-    bulk_FE = mean(time_average_free_energy) # average over samples
-    bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-    time_FEstderr = (std(temp./2 , dims=2) ./ sqrt(size(temp, 2)))[:] 
-    time_FElis = mean(temp, dims=2)[:] ./2 # average over samples vs time; S/2T
-
-    save_data_path = joinpath(DATA_DIR, get_data_filename(L, τ, D))
-    save(save_data_path, 
-        "average_EE_tlis", average_EE_tlis, 
-        "stderr_EE_tlis", stderr_EE_tlis, 
-        "bulk_meanEElis", bulk_meanEElis, 
-        "ensemble_stderr_EElis", ensemble_stderr_EElis, 
-        "time_average_free_energy", time_average_free_energy, 
-        "bulk_FE", bulk_FE,
-        "bulk_FE_stderr", bulk_FE_stderr, 
-        "time_FEstderr", time_FEstderr, 
-        "time_FElis", time_FElis, 
-        "ensemble_seed", ensemble_seed)
 end
+
+function get_FE_avg_range(τind, L)
+    # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
+    toidx(x) = floor(Int, x * L)
+
+    avg_table = Dict(
+        2  => toidx(4):2:(40 * L - 10),
+        3  => toidx(4):2:(40 * L - 10),
+        4  => toidx(3):2:(28 * L - 10),
+        5  => toidx(2):2:(20 * L - 10),
+        6  => toidx(1.2):2:(12 * L - 10),
+        7  => toidx(1.0):2:(10 * L - 10),
+        8  => toidx(0.8):2:(7 * L - 10),
+        9  => toidx(0.5):2:(3 * L - 10),
+        10 => toidx(0.5):2:(2 * L - 10),
+    )
+
+    default_range = toidx(0.4):2:(2 * L - 10)
+    return get(avg_table, τind, default_range)
+end
+
+function samples_generate(L::Int64, τ_idx::Int64, index::Int64)
+        try
+            τ = τlis[τ_idx]
+            rng = MersenneTwister(index)
+            t, _, _ = get_system_params(τ_idx, L)
+            model = AnyonModel(FibonacciAnyon(), L; pbc=true)
+            st = zeros(length(anyon_basis(model)))
+            st[1] = 1.0
+            
+            config = MeasureConfig(τ=τ, mode=:Born, t₂=t, rng=rng)
+            outcome = bulk_evolution(model, st, config)
+            sample = outcome.samples
+            sample_free_energy = outcome.free_energys
+            
+            halfchain_EE_tlis = outcome.entanglement_entropys
+            final_state = outcome.state
+            final_EElis = anyon_eelis(model, final_state)
+            
+            out_dir = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)"
+            save(joinpath(out_dir, "t$(div(t,L))_samples$(index).jld"), 
+                "sample", sample, 
+                "sample_free_energy", sample_free_energy, 
+                "seed", index, 
+                "halfchain_EE_tlis", halfchain_EE_tlis, 
+                "final_EElis", final_EElis)
+            return (L, τ_idx, index, :success, nothing)
+        catch e
+            return (L, τ_idx, index, :failed, e)
+        end
+end
+
+# define a wrapper function for pmap
+function process_task(task)
+    L, τ_idx, index = task
+    return samples_generate(L, τ_idx, index)
+end
+
+function samples_collect_process_data(L::Int64, τind::Int64)
+           t, _, _= get_system_params(τind, L)
+           dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)/"
+            # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
+           samples_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"), readdir(dir_path)))
+           ensemble = Vector{BitMatrix}(undef, samples_num)
+           ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
+           ensemble_seed = zeros(samples_num)
+           ensemble_EE_dynamics= zeros(samples_num, t * L) 
+           ensemble_final_EElis = zeros(samples_num, L-1)
+
+           existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path))
+           for (i, fname) in enumerate(existing_files)
+               sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load(joinpath(dir_path, fname), "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
+               ensemble[i] = sample
+               ensemble_free_energy[i] = sample_free_energy
+               ensemble_seed[i] = seed
+               ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+               ensemble_final_EElis[i, :] = final_EElis
+           end
+
+           bulk_meanEElis = mean(ensemble_final_EElis, dims=1)[:]
+           average_EE_tlis = mean(ensemble_EE_dynamics, dims=1)[:]
+           ensemble_stderr_EElis = (std(ensemble_final_EElis, dims=1) ./ sqrt(samples_num))[:]
+           stderr_EE_tlis = (std(ensemble_EE_dynamics, dims=1) ./ sqrt(samples_num))[:]
+
+           check_duplicates(ensemble_seed)
+           
+           timewindow = get_FE_avg_range(τind, L)
+           temp = hcat(ensemble_free_energy...)
+           time_average_free_energy = mean(temp[2 .* timewindow, :], dims=1) 
+           bulk_FE = mean(time_average_free_energy)
+           bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
+           time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
+           time_FElis = mean(temp, dims=2)[:]
+           
+           save("exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)/EE_FEdynamics_L$(L)_gamma$(τind)_t$(t).jld2", 
+               "average_EE_tlis", average_EE_tlis, 
+               "stderr_EE_tlis", stderr_EE_tlis, 
+               "bulk_meanEElis", bulk_meanEElis, 
+               "ensemble_stderr_EElis", ensemble_stderr_EElis, 
+               "time_average_free_energy", time_average_free_energy, 
+               "bulk_FE", bulk_FE,
+               "bulk_FE_stderr", bulk_FE_stderr, 
+               "time_FEstderr", time_FEstderr, 
+               "time_FElis", time_FElis, 
+               "ensemble_seed", ensemble_seed)
+end
+
 end
 
 if length(ARGS) == 0
@@ -191,21 +174,20 @@ else
         # results = pmap(Observable_collect, [(L, τ)])
     elseif mode == 2
         L = parse(Int64, ARGS[2])
-        inds = parse(Int64, ARGS[3])
-        τ = τlis[inds]
+        τ_idx = parse(Int64, ARGS[3])
         index_start = parse(Int64, ARGS[4])
         index_end = parse(Int64, ARGS[5])
         indexlis = collect(index_start:index_end)
         seedlis = indexlis
         
         println("=== Parallel Sample Generation ===")
-        println("L = $L, τ_idx = $inds, τ = $τ")
+        println("L = $L, τ_idx = $τ_idx, τ = $τ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(indexlis))")
         println("Number of workers: $(nworkers())")
         
         # create task list
-        taskslis = [(L, τ, indexlis[i], seedlis[i]) for i in eachindex(indexlis)]
+        taskslis = [(L, τ_idx, indexlis[i]) for i in eachindex(indexlis)]
         
         # use pmap for parallel processing
         println("\nStarting parallel processing...")
