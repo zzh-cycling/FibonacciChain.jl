@@ -25,7 +25,7 @@ using Random
 function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=500)
     τ = τlis[τind]
     try
-        t, _, _ = get_system_params(τind, L)
+        t, _, _ = get_mps_params_Born(τind, L)
         rng = MersenneTwister(index)
         
         model = AnyonModel(FibonacciAnyon(), L; pbc=true)
@@ -50,7 +50,7 @@ function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64=5
 end
 
 function samples_collect_process_data(L::Int64, τind::Int64, χ::Int64=500)
-           t, _, _= get_system_params(τind, L)
+           t, _, _= get_mps_params_Born(τind, L)
            dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)/chi$(χ)"
             # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
            samples_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path)))
@@ -120,7 +120,7 @@ function get_mps_params_Born(τind, L)
             4  => (28,  40, 30),
             5  => (40,   32, 24),
             6  => (22,   20, 15),
-            7  => (10,   14, 10),
+            7  => (10,   14, 7),
             8  => (12,   10, 8),
             9  => (3,    4, 3),
             10 => (4,    4, 2.5),
@@ -128,7 +128,7 @@ function get_mps_params_Born(τind, L)
         )
     else
         Dict(
-            1  => (800, 1000, 500),
+            1  => (700, 1000, 500),
             2  => (150,  100, 100),
             3  => (40,  48, 30),
             4  => (28,  40, 22),
@@ -151,19 +151,37 @@ function get_FE_avg_range(τind, L)
     # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
     toidx(x) = floor(Int, x * L)
 
-    avg_table = Dict(
-        2  => toidx(4):2:(40 * L - 10),
-        3  => toidx(4):2:(40 * L - 10),
-        4  => toidx(3):2:(28 * L - 10),
-        5  => toidx(2):2:(20 * L - 10),
-        6  => toidx(1.2):2:(12 * L - 10),
-        7  => toidx(1.0):2:(10 * L - 10),
-        8  => toidx(0.8):2:(7 * L - 10),
-        9  => toidx(0.5):2:(3 * L - 10),
-        10 => toidx(0.5):2:(2 * L - 10),
+    avg_table = if L<=32
+        Dict(
+        1  => toidx(100):(1250 * L - 10),
+        2  => toidx(20):(250 * L - 10),
+        3  => toidx(10):(40 * L - 10),
+        4  => toidx(3):(28 * L - 10),
+        5  => toidx(2):(40 * L - 10),
+        6  => toidx(1.2):(22 * L - 10),
+        7  => toidx(1.0):(10 * L - 10),
+        8  => toidx(0.8):(12 * L - 10),
+        9  => toidx(0.5):(3 * L - 10),
+        10 => toidx(0.5):(4 * L - 10),
+        11 => toidx(0.5):(3 * L - 10),
+        )
+    else
+        Dict(
+        1  => toidx(100):(1250 * L - 10),
+        2  => toidx(20):(250 * L - 10),
+        3  => toidx(10):(40 * L - 10),
+        4  => toidx(3):(28 * L - 10),
+        5  => toidx(2):(20 * L - 10),
+        6  => toidx(1.2):(12 * L - 10),
+        7  => toidx(1.0):(10 * L - 10),
+        8  => toidx(0.8):(7 * L - 10),
+        9  => toidx(0.5):(3 * L - 10),
+        10 => toidx(0.5):(2 * L - 10),
+        11 => toidx(0.5):(3 * L - 10),
     )
+    end
 
-    default_range = toidx(0.4):2:(2 * L - 10)
+    default_range = toidx(0.4):(2 * L - 10)
     return get(avg_table, τind, default_range)
 end
 
@@ -171,6 +189,48 @@ end
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
 τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
+
+function get_default_chi_Born(ind, L)
+    if L == 32
+        chi64_table = Dict(
+                3 => 150,
+                4 => 150,
+                7 => 150,
+                9 => 200,
+            )
+            return get(chi64_table, ind, 80)
+    elseif L == 48
+        chi48_table = Dict(
+                1 => 150,
+            )
+            return get(chi48_table, ind, 200)
+    elseif L == 128 && ind == 10
+        return 300
+    elseif L == 64
+            chi64_table = Dict(
+                3 => 250,
+                4 => 250,
+                5 => 300,
+                6 => 175,
+                7 => 250,
+                8 => 300,
+                9 => 200,
+                10 => 250,
+            )
+            return get(chi64_table, ind, 110)
+    end
+end
+
+function process_merge_task(task)
+    Lr, τr_idx = task
+    try
+        chi = get_default_chi_Born(τr_idx, Lr)
+        samples_collect_process_data(Lr, τr_idx, chi)
+        return (Lr, τr_idx, :success, nothing)
+    catch e
+        return (Lr, τr_idx, :failed, e)
+    end
+end
 
 # define a wrapper function for pmap
 function process_task(task)
@@ -187,11 +247,28 @@ if length(ARGS) == 0
 else
     mode = parse(Int64, ARGS[1])
     if mode == 1
-        L = parse(Int64, ARGS[2])
-        τ_idx = parse(Int64, ARGS[3])
-        χ = parse(Int64, ARGS[4])
-        samples_collect(L, τ_idx, χ)
-        process_data(L, τ_idx, χ)
+        
+        Llis = [32, 48, 64]
+        τlis_idx = collect(1:12)
+        merge_tasks = [(ll, tidx) for ll in Llis for tidx in τlis_idx]
+
+        merge_results = pmap(process_merge_task, merge_tasks; batch_size=1)
+
+        failed_merges = [(Lr, τr, err) for (Lr, τr, status, err) in merge_results if status != :success]
+        success_count = count(r -> r[3] == :success, merge_results)
+
+        println("\n=== Merge Complete ===")
+        println("Successes: $success_count")
+        println("Failures: $(length(failed_merges))")
+
+        if !isempty(failed_merges)
+            println("\n=== Failed Merge Details ===")
+            for (i, (Lf, τf, err)) in enumerate(failed_merges)
+                println("Failed $i: L=$Lf, τ_idx=$τf")
+                println("  Error: $err")
+            end
+        end
+
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])

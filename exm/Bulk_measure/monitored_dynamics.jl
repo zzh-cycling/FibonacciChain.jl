@@ -1,12 +1,14 @@
 using Distributed
 using FibonacciChain
 using JLD
+using JLD2
 using Statistics
 using Random
 
 @everywhere begin
 using FibonacciChain
 using JLD
+using JLD2
 using Statistics
 using Random
 
@@ -15,24 +17,34 @@ using Random
 τlis[end] = 1000.0
 τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
 
-function get_system_params(τ_idx, L)
+function get_cfg_params_Born(ind, L)
     cfg = Dict(
-        1  => (1250L, 1000, 750L),
-        2  => (250L,  100, 120L),
-        3  => (100L,  40, 80L),
-        4  => (50L,  40, 40L),
-        5  => (40L,   32, 20L),
-        6  => (22.5L,   20, 15L),
-        7  => (17.5L,   14, 10L),
-        8  => (12.5L,   10, 5L),
-        9  => (4L,    4, 2L),
-        10 => (4L,    4, 2L),
-        11 => (2.5L,    2, 1L),
+        1 => (2500L, 1000, 750L),
+        2 => (500L,  100, 120L),
+        3 => (200L,  40, 80L),
+        4 => (100L,  40, 40L),
+        5 => (80L,   32, 20L),
+        6 => (45L,   20, 15L),
+        7 => (35L,   14, 10L),
+        8 => (25L,   10, 5L),
+        9 => (8L,    4, 2L),
+        10 => (8L,    4, 2L),
+        11 => (5L,    2, 1L),
     )
-    D, step, start = get(cfg, τ_idx, (2.5L, 2, L))
+    D, step, start = get(cfg, ind, (5L, 2, L))
     inds = collect(1:step:div(D,2))
     avg_range = start:div(D,2)-5
     return D, inds, avg_range
+end
+
+function process_merge_task(task)
+    Lr, τr_idx = task
+    try
+        samples_collect_process_data(Lr, τr_idx)
+        return (Lr, τr_idx, :success, nothing)
+    catch e
+        return (Lr, τr_idx, :failed, e)
+    end
 end
 
 function check_duplicates(seeds)
@@ -51,19 +63,21 @@ function get_FE_avg_range(τind, L)
     # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
     toidx(x) = floor(Int, x * L)
 
-    avg_table = Dict(
-        2  => toidx(4):2:(40 * L - 10),
-        3  => toidx(4):2:(40 * L - 10),
-        4  => toidx(3):2:(28 * L - 10),
-        5  => toidx(2):2:(20 * L - 10),
-        6  => toidx(1.2):2:(12 * L - 10),
-        7  => toidx(1.0):2:(10 * L - 10),
-        8  => toidx(0.8):2:(7 * L - 10),
-        9  => toidx(0.5):2:(3 * L - 10),
-        10 => toidx(0.5):2:(2 * L - 10),
-    )
+    avg_table = 
+    Dict(
+        1  => toidx(100):2:(2500 * L - 10),
+        2  => toidx(40):2:(500 * L - 10),
+        3  => toidx(20):2:(200 * L - 10),
+        4  => toidx(15):2:(100 * L - 10),
+        5  => toidx(8):2:(80 * L - 10),
+        6  => toidx(6):2:(45 * L - 10),
+        7  => toidx(5):2:(35 * L - 10),
+        8  => toidx(5):2:(25 * L - 10),
+        9  => toidx(4):2:(8 * L - 10),
+        10 => toidx(4):2:(8 * L - 10),
+        )
 
-    default_range = toidx(0.4):2:(2 * L - 10)
+    default_range = toidx(3):2:(5 * L - 10)
     return get(avg_table, τind, default_range)
 end
 
@@ -71,7 +85,8 @@ function samples_generate(L::Int64, τ_idx::Int64, index::Int64)
         try
             τ = τlis[τ_idx]
             rng = MersenneTwister(index)
-            t, _, _ = get_system_params(τ_idx, L)
+            D, _, _ = get_cfg_params_Born(τ_idx, L)
+            t = div(D, 2)
             model = AnyonModel(FibonacciAnyon(), L; pbc=true)
             st = zeros(length(anyon_basis(model)))
             st[1] = 1.0
@@ -105,23 +120,30 @@ function process_task(task)
 end
 
 function samples_collect_process_data(L::Int64, τind::Int64)
-           t, _, _= get_system_params(τind, L)
+           D, _, _= get_cfg_params_Born(τind, L)
+           t = div(D,2L)
            dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)/"
             # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
            samples_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"), readdir(dir_path)))
+           println("collecting $(samples_num) sample files")
            ensemble = Vector{BitMatrix}(undef, samples_num)
            ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
            ensemble_seed = zeros(samples_num)
-           ensemble_EE_dynamics= zeros(samples_num, t * L) 
+           ensemble_EE_dynamics= zeros(samples_num, div(D,2)) 
            ensemble_final_EElis = zeros(samples_num, L-1)
 
-           existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path))
+           existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"), readdir(dir_path))
            for (i, fname) in enumerate(existing_files)
                sample, sample_free_energy, seed, halfchain_EE_tlis, final_EElis = load(joinpath(dir_path, fname), "sample", "sample_free_energy", "seed", "halfchain_EE_tlis", "final_EElis")
                ensemble[i] = sample
                ensemble_free_energy[i] = sample_free_energy
                ensemble_seed[i] = seed
-               ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+               if length(halfchain_EE_tlis) == div(D,2)
+                   ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+               else
+                   ensemble_EE_dynamics[i, :] = halfchain_EE_tlis[2:2:D]
+               end
+            #    ensemble_EE_dynamics[i, :] = halfchain_EE_tlis[2:2:D]
                ensemble_final_EElis[i, :] = final_EElis
            end
 
@@ -134,13 +156,13 @@ function samples_collect_process_data(L::Int64, τind::Int64)
            
            timewindow = get_FE_avg_range(τind, L)
            temp = hcat(ensemble_free_energy...)
-           time_average_free_energy = mean(temp[2 .* timewindow, :], dims=1) 
+           time_average_free_energy = mean(temp[timewindow, :], dims=1) 
            bulk_FE = mean(time_average_free_energy)
            bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
            time_FEstderr = (std(temp, dims=2) ./ sqrt(size(temp, 2)))[:]
            time_FElis = mean(temp, dims=2)[:]
            
-           save("exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)/EE_FEdynamics_L$(L)_gamma$(τind)_t$(t).jld2", 
+           save("exm/data/Bulk_measure/monitored_dynamics/L$(L)/EE_FEdynamics_L$(L)_gamma$(τind)_t$(t).jld2", 
                "average_EE_tlis", average_EE_tlis, 
                "stderr_EE_tlis", stderr_EE_tlis, 
                "bulk_meanEElis", bulk_meanEElis, 
@@ -162,16 +184,26 @@ if length(ARGS) == 0
 else
     mode = parse(Int64, ARGS[1])
     if mode == 1
-        L = parse(Int64, ARGS[2])
-        τ_idx = parse(Int64, ARGS[3])
-        τ = τlis[τ_idx]
-        samples_collect(L, τ)
-        Observable_collect(L, τ)
-        process_data(L, τ)
-        # todoτlis = [τ]
-        # taskslis = [(L, τ)]
-        # results = pmap(samples_collect, [(L, τ)])
-        # results = pmap(Observable_collect, [(L, τ)])
+        Llis = collect(12:2:20)
+        τlis_idx = collect(1:12)
+        merge_tasks = [(ll, tidx) for ll in Llis for tidx in τlis_idx]
+
+        merge_results = pmap(process_merge_task, merge_tasks; batch_size=1)
+
+        failed_merges = [(Lr, τr, err) for (Lr, τr, status, err) in merge_results if status != :success]
+        success_count = count(r -> r[3] == :success, merge_results)
+
+        println("\n=== Merge Complete ===")
+        println("Successes: $success_count")
+        println("Failures: $(length(failed_merges))")
+
+        if !isempty(failed_merges)
+            println("\n=== Failed Merge Details ===")
+            for (i, (Lf, τf, err)) in enumerate(failed_merges)
+                println("Failed $i: L=$Lf, τ_idx=$τf")
+                println("  Error: $err")
+            end
+        end
     elseif mode == 2
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])

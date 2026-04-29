@@ -3,9 +3,10 @@ using Distributed
 # Add workers if not already added
 nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
 
-@everywhere using JLD
-@everywhere using LinearAlgebra
-@everywhere using Statistics
+@everywhere begin
+using JLD2
+using LinearAlgebra
+using Statistics
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
@@ -13,25 +14,33 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
 τlis[end] = 1000.0  # Last value is for γ=1
 
 # Broadcast parameters to all workers
-@everywhere γlis = $γlis
-@everywhere τlis = $τlis
 
 L_list = collect(8:2:20)
 
-@everywhere function data_fig_path(inds, L, index, τlis)
+function data_fig_path(inds, L, index, τlis)
     τ = τlis[inds]
-    D, _, _ = get_cfg_params_Born(τ, L)
-    DATA_path = "exm/data/Bulk_measure/Samples_monitored_dynamics/L$(L)/τ$(τ)/D$(div(D,L))_Samples$(index).jld"
+    if L <= 32
+        D, _, _ = get_cfg_params_Born(τ, L)
+        DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(D,2L))_samples$(index).jld2"
+    else
+        t, _, _ = get_mps_params_Born(τ, L)
+        DATA_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(inds)/t$(div(t,L))_samples$(index).jld2"
+    end
     return DATA_path
 end
 
-@everywhere function save_data_filename(L, inds)
+function save_data_filename(L, inds)
     τ = τlis[inds]
-    D, _, _ = get_cfg_params_Born(τ, L)
-    return "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(D,L)).jld"
+    if L <= 32
+        D, _, _ = get_cfg_params_Born(τ, L)
+        t = div(D, 2L)
+    else
+        t, _, _ = get_mps_params_Born(inds, L)
+    end
+    return "exm/data/Bulk_measure/records_correlation/L$(L)/gammaind$(inds)/record_correlation_t$(t).jld2"
 end
 
-@everywhere function get_cfg_params_Born(τ, L)
+function get_cfg_params_Born(τ, L)
     cfg = Dict(
         atanh(0.1)  => (2500L, 1000, 750L),
         atanh(0.2)  => (500L,  100, 120L),
@@ -49,6 +58,74 @@ end
     inds = collect(1:step:div(D,2))
     avg_range = start:div(D,2)-5
     return D, inds, avg_range
+end
+
+function get_mps_params_Born(τind, L)
+    cfg = if L <= 32
+        Dict(
+            1  => (1250, 1000, 600),
+            2  => (250,  100, 150),
+            3  => (40,  48, 30),
+            4  => (28,  40, 30),
+            5  => (40,   32, 24),
+            6  => (22,   20, 15),
+            7  => (10,   14, 7),
+            8  => (12,   10, 8),
+            9  => (3,    4, 3),
+            10 => (4,    4, 2.5),
+            11 => (3,    2, 2),
+        )
+    else
+        Dict(
+            1  => (700, 1000, 500),
+            2  => (150,  100, 100),
+            3  => (40,  48, 30),
+            4  => (28,  40, 22),
+            5  => (20,   32, 16),
+            6  => (12,   20, 10),
+            7  => (10,   14, 7),
+            8  => (7,   10, 5.5),
+            9  => (3,    4, 2.5),
+            10 => (2,    4, 1.5),
+            11 => (2,    2, 1.5),
+        )
+    end
+    t, step, start = get(cfg, τind, (2, 2, 1))
+    inds = collect(1:step:t*L)
+    avg_range = Int(start*L):2:Int(t*L)-4
+    return t, inds, avg_range
+end
+
+
+function get_default_chi_Born(ind, L)
+    if L == 32
+        chi64_table = Dict(
+                3 => 150,
+                4 => 150,
+                7 => 150,
+                9 => 200,
+            )
+            return get(chi64_table, ind, 80)
+    elseif L == 48
+        chi48_table = Dict(
+                1 => 150,
+            )
+            return get(chi48_table, ind, 200)
+    elseif L == 128 && ind == 10
+        return 300
+    elseif L == 64
+            chi64_table = Dict(
+                3 => 250,
+                4 => 250,
+                5 => 300,
+                6 => 175,
+                7 => 250,
+                8 => 300,
+                9 => 200,
+                10 => 250,
+            )
+            return get(chi64_table, ind, 110)
+    end
 end
 
 # """
@@ -70,7 +147,7 @@ end
 # - `Vector{Float64}`: Connected correlation function C(d) for d = 1, 2, ..., N÷2
 #   (only up to N÷2 due to PBC symmetry: C(d) = C(N-d))
 # """
-@everywhere function layer_corr(sample::Vector{Int8})
+function layer_corr(sample::Vector{Int8})
     # Convert 0,1 to -1,+1
     spins = 2 .* sample .- 1
 
@@ -97,7 +174,7 @@ end
 end
 
 
-@everywhere function process_single_sample(inds, L, sample_idx, τlis)
+function process_single_sample(inds, L, sample_idx, τlis)
     data_path = data_fig_path(inds, L, sample_idx, τlis)
     @info "Processing sample $sample_idx"
     if !isfile(data_path)
@@ -227,43 +304,6 @@ function average_corr(inds, L; sample_num=10000)
     return corr_avg_odd, corr_std_odd, corr_avg_even, corr_std_even, m_avg_odd, m_std_odd, m_avg_even, m_std_even
 end
 
-# """
-#     main(inds, L_list; sample_num=10000)
-
-# Main function to compute and save correlation functions for multiple system sizes.
-# """
-# function main(inds, L_list; sample_num=10000)
-#     println("="^60)
-#     println("Computing correlation functions")
-#     println("γ = $(γlis[inds]), τ = $(τlis[inds])")
-#     println("System sizes: $L_list")
-#     println("Number of samples: $sample_num")
-#     println("Number of workers: $(nprocs())")
-#     println("="^60)
-    
-#     for L in L_list
-#         println("\n--- L = $L ---")
-#         @time corr_avg, corr_std = average_corr(inds, L; sample_num=sample_num)
-        
-#         # Save results
-#         save_path = save_data_filename(L, inds)
-#         mkpath(dirname(save_path))
-#         save(save_path, 
-#              "corr_avg", corr_avg, 
-#              "corr_std", corr_std,
-#              "L", L,
-#              "gamma", γlis[inds],
-#              "tau", τlis[inds])
-#         println("Saved to: $save_path")
-#     end
-    
-#     println("\n" * "="^60)
-#     println("All done!")
-#     println("="^60)
-# end
-
-
-
 function corr_summary(L)
     max_d = L ÷ 2 - 1
     corr_avg_odd_list = zeros(length(γlis), max_d)
@@ -295,7 +335,7 @@ function corr_summary(L)
                 m_avg_odd_list[inds, :] = m_avg_odd
                 m_avg_even_list[inds, :] = m_avg_even
             end
-        save_path_summary = "exm/data/Bulk_measure/records_correlation/L$(L)/summary_correlation.jld"
+        save_path_summary = "exm/data/Bulk_measure/records_correlation/L$(L)/summary_correlation.jld2"
         mkpath(dirname(save_path_summary))
         save(save_path_summary,
             "corr_avg_odd_list", corr_avg_odd_list,
@@ -309,7 +349,7 @@ function corr_summary(L)
     end
 end
 
-@everywhere function process_single_sample_time(inds, L, sample_idx, τlis)
+function process_single_sample_time(inds, L, sample_idx, τlis)
     # Compute time-averaged correlation at site 1 only (no spatial average)
     # C(d) = ⟨s_1 s_{1+d}⟩_t - ⟨s_1⟩_t ⟨s_{1+d}⟩_t
     # Also compute magnetization at each site: m_i = ⟨s_i⟩_t
@@ -347,6 +387,131 @@ end
     
     GC.gc()
     return corr_time_odd, corr_time_even, mlis_odd, mlis_even
+end
+
+function save_data_filename_temporal(L, inds)
+    τ = τlis[inds]
+    if L <= 32
+        D, _, _ = get_cfg_params_Born(τ, L)
+        t = div(D, 2L)
+    else
+        t, _, _ = get_mps_params_Born(inds, L)
+    end
+    return "exm/data/Bulk_measure/records_correlation/L$(L)/gammaind$(inds)/record_temporal_correlation_t$(t).jld2"
+end
+
+function separate_data(data_path, avg_range)
+    sample_data = load(data_path, "sample")  # L×T matrix
+
+    # Convert 0/1 -> -1/+1 and split odd/even layers
+    sample_data_spin = Int8.(2 .* sample_data .- 1)
+    t1 = avg_range[1]
+    odd_times = sample_data_spin[t1-1:2:end-2, :]  # (T_odd, L)
+    even_times = sample_data_spin[t1:2:end-2, :]  # (T_even, L)
+    
+    GC.gc()
+    return odd_times, even_times
+end
+
+function average_temporal_corr(inds, L; max_k=-1)
+    println("Processing temporal correlation: $sample_num samples for L=$L, γ=$(γlis[inds]) with $(nprocs()) processes...")
+    if L <= 32
+        τ = τlis[inds]
+        D, _, avg_range= get_cfg_params_Born(τ, L)
+        t = div(D, 2L)
+        dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)"
+        sample_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path)))
+        existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path))
+    else    
+        t, _, avg_range= get_mps_params_Born(inds, L)
+        χ = get_default_chi_Born(inds, L)
+        dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(inds)/chi$(χ)"
+        sample_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path)))
+        existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path))
+    end
+
+    # Step 1: Load all samples and extract odd/even layer data (L×T for each)
+    results = pmap(i -> separate_data(joinpath(dir_path, existing_files[i]), avg_range), 1:sample_num)
+    valid_results = filter(!isnothing, results)
+    n_valid = length(valid_results)
+
+    if n_valid == 0
+        error("No valid samples found for temporal correlation!")
+    end
+    if n_valid < sample_num
+        @warn "Only $n_valid out of $sample_num samples were valid"
+    end
+
+    # Extract odd and even data for all samples
+    odd_data_list = [r[1] for r in valid_results]  # List of (L, T_odd) matrices
+    even_data_list = [r[2] for r in valid_results]  # List of (L, T_even) matrices
+    
+    # Determine maximum time lag (same for all samples and parities)
+    T_odd = size(odd_data_list[1], 2)
+    T_even = size(even_data_list[1], 2)
+    auto_max_k = min(T_odd, T_even) - 1
+    k_use = max_k < 0 ? auto_max_k : min(max_k, auto_max_k)
+    
+    # Step 2: For odd layers, compute temporal autocorrelation for each site
+    c_site1_odd = zeros(k_use + 1)
+    c_avg_odd = zeros(k_use + 1)
+    
+    L_T = size(odd_data_list[1], 1)
+    L_L = size(odd_data_list[1], 2)
+    smatrix_averaged_odd = zeros(L_T, L_L)
+    corrmatrix_averaged_odd = zeros(k_use + 1, L_L)
+    for sample_idx in 1:n_valid
+        data = odd_data_list[sample_idx]  # (T_odd, L)
+        smatrix_averaged_odd += data
+        for k in 0:k_use
+            corrmatrix_averaged_odd[k+1, :] = data[1, :] .* data[1+k, :]
+        end
+    end
+    smatrix_averaged_odd ./= n_valid
+    corrmatrix_averaged_odd ./= n_valid
+
+    connected_corr_odd = zeros(size(corrmatrix_averaged_odd))
+    for k in 0:k_use
+        connected_corr_odd[k+1, :] = corrmatrix_averaged_odd[k+1, :] - smatrix_averaged_odd[:, 1] .* smatrix_averaged_odd[:, 1+k]'
+    end
+    c_site1_odd .= connected_corr_odd[1, :]
+    c_avg_odd .= mean(connected_corr_odd, dims=1)[:]
+
+    L_T = size(even_data_list[1], 1)
+    L_L = size(even_data_list[1], 2)
+    smatrix_averaged_even = zeros(L_T, L_L)
+    corrmatrix_averaged_even = zeros(k_use + 1, L_L)
+    for sample_idx in 1:n_valid
+        data = even_data_list[sample_idx]  # (T_even, L)
+        smatrix_averaged_even += data
+        for k in 0:k_use
+            corrmatrix_averaged_even[k+1, :] = data[1, :] .* data[1+k, :]
+        end
+    end
+    smatrix_averaged_even ./= n_valid
+    corrmatrix_averaged_even ./= n_valid
+    connected_corr_even = zeros(size(corrmatrix_averaged_even))
+    for k in 0:k_use
+        connected_corr_even[k+1, :] = corrmatrix_averaged_even[k+1, :] - smatrix_averaged_even[:, 1] .* smatrix_averaged_even[:, 1+k]'
+    end
+    c_site1_even .= connected_corr_even[1, :]
+    c_avg_even .= mean(connected_corr_even, dims=1)[:]
+
+    tlist = collect(0:k_use)
+
+    save_path = save_data_filename_temporal(L, inds)
+    mkpath(dirname(save_path))
+    save(save_path,
+        "tlist", tlist,
+        "c_site1_odd", c_site1_odd,
+        "c_avg_odd", c_avg_odd,
+        "c_site1_even", c_site1_even,
+        "c_avg_even", c_avg_even)
+
+    println("Done temporal correlation! Valid samples: $n_valid, max_k used: $k_use")
+    println("Saved temporal correlation to: $save_path")
+
+    return tlist, c_site1_odd, c_avg_odd, c_site1_even, c_avg_even
 end
 
 function average_corr_time(inds, L; sample_num=10000)
@@ -403,7 +568,7 @@ function average_corr_time(inds, L; sample_num=10000)
     # Save with consistent key names
     τ = τlis[inds]
     D, _, _ = get_cfg_params_Born(τ, L)
-    save_path = "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(D,L)).jld"
+    save_path = "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(D,L)).jld2"
     mkpath(dirname(save_path))
     save(save_path,
          "corr_avg_odd", corr_avg_odd,
@@ -417,6 +582,9 @@ function average_corr_time(inds, L; sample_num=10000)
     println("Saved to: $save_path")
     
     return corr_avg_odd, corr_std_odd, corr_avg_even, corr_std_even, mlis_avg_odd, mlis_std_odd, mlis_avg_even, mlis_std_even
+end
+
+
 end
 
 # Command line interface
