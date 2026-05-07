@@ -413,15 +413,15 @@ function separate_data(data_path, avg_range)
     return odd_times, even_times
 end
 
+
 function average_temporal_corr(inds, L; max_k=-1)
-    println("Processing temporal correlation: $sample_num samples for L=$L, γ=$(γlis[inds]) with $(nprocs()) processes...")
     if L <= 32
         τ = τlis[inds]
         D, _, avg_range= get_cfg_params_Born(τ, L)
         t = div(D, 2L)
         dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)"
-        sample_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path)))
-        existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld2"), readdir(dir_path))
+        sample_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"), readdir(dir_path)))
+        existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"), readdir(dir_path))
     else    
         t, _, avg_range= get_mps_params_Born(inds, L)
         χ = get_default_chi_Born(inds, L)
@@ -429,7 +429,8 @@ function average_temporal_corr(inds, L; max_k=-1)
         sample_num = length(filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path)))
         existing_files = filter(f -> startswith(f, "t$(t)_samples") && endswith(f, "_chi$(χ).jld2"), readdir(dir_path))
     end
-
+    println("Processing temporal correlation: $sample_num samples for L=$L, γ=$(γlis[inds]) with $(nprocs()) processes...")
+    
     # Step 1: Load all samples and extract odd/even layer data (L×T for each)
     results = pmap(i -> separate_data(joinpath(dir_path, existing_files[i]), avg_range), 1:sample_num)
     valid_results = filter(!isnothing, results)
@@ -447,56 +448,75 @@ function average_temporal_corr(inds, L; max_k=-1)
     even_data_list = [r[2] for r in valid_results]  # List of (L, T_even) matrices
     
     # Determine maximum time lag (same for all samples and parities)
-    T_odd = size(odd_data_list[1], 2)
-    T_even = size(even_data_list[1], 2)
+    T_odd = size(odd_data_list[1], 1)
+    T_even = size(even_data_list[1], 1)
     auto_max_k = min(T_odd, T_even) - 1
     k_use = max_k < 0 ? auto_max_k : min(max_k, auto_max_k)
     
     # Step 2: For odd layers, compute temporal autocorrelation for each site
-    c_site1_odd = zeros(k_use + 1)
-    c_avg_odd = zeros(k_use + 1)
-    
-    L_T = size(odd_data_list[1], 1)
-    L_L = size(odd_data_list[1], 2)
-    smatrix_averaged_odd = zeros(L_T, L_L)
-    corrmatrix_averaged_odd = zeros(k_use + 1, L_L)
+    smatrix_averaged_odd = zeros(T_odd, div(L, 2))
+    corrmatrix_averaged_odd = zeros(k_use, div(L, 2))
     for sample_idx in 1:n_valid
         data = odd_data_list[sample_idx]  # (T_odd, L)
         smatrix_averaged_odd += data
-        for k in 0:k_use
-            corrmatrix_averaged_odd[k+1, :] = data[1, :] .* data[1+k, :]
+        for k in 1:k_use
+            corrmatrix_averaged_odd[k, :] += data[1, :] .* data[1+k, :]
         end
     end
     smatrix_averaged_odd ./= n_valid
     corrmatrix_averaged_odd ./= n_valid
 
     connected_corr_odd = zeros(size(corrmatrix_averaged_odd))
-    for k in 0:k_use
-        connected_corr_odd[k+1, :] = corrmatrix_averaged_odd[k+1, :] - smatrix_averaged_odd[:, 1] .* smatrix_averaged_odd[:, 1+k]'
+    for k in 1:k_use
+        connected_corr_odd[k, :] = corrmatrix_averaged_odd[k, :] - smatrix_averaged_odd[1, :] .* smatrix_averaged_odd[1+k, :]
     end
-    c_site1_odd .= connected_corr_odd[1, :]
-    c_avg_odd .= mean(connected_corr_odd, dims=1)[:]
+    c_site1_odd = connected_corr_odd[:, 1]
+    c_avg_odd = mean(connected_corr_odd, dims=2)[:]
 
-    L_T = size(even_data_list[1], 1)
-    L_L = size(even_data_list[1], 2)
-    smatrix_averaged_even = zeros(L_T, L_L)
-    corrmatrix_averaged_even = zeros(k_use + 1, L_L)
+    smatrix_averaged_even = zeros(T_even, div(L, 2))
+    corrmatrix_averaged_even = zeros(k_use, div(L, 2))
     for sample_idx in 1:n_valid
         data = even_data_list[sample_idx]  # (T_even, L)
         smatrix_averaged_even += data
-        for k in 0:k_use
-            corrmatrix_averaged_even[k+1, :] = data[1, :] .* data[1+k, :]
+        for k in 1:k_use
+            corrmatrix_averaged_even[k, :] += data[1, :] .* data[1+k, :]
         end
     end
     smatrix_averaged_even ./= n_valid
     corrmatrix_averaged_even ./= n_valid
     connected_corr_even = zeros(size(corrmatrix_averaged_even))
-    for k in 0:k_use
-        connected_corr_even[k+1, :] = corrmatrix_averaged_even[k+1, :] - smatrix_averaged_even[:, 1] .* smatrix_averaged_even[:, 1+k]'
+    for k in 1:k_use
+        connected_corr_even[k, :] = corrmatrix_averaged_even[k, :] - smatrix_averaged_even[1, :] .* smatrix_averaged_even[1+k, :]
     end
-    c_site1_even .= connected_corr_even[1, :]
-    c_avg_even .= mean(connected_corr_even, dims=1)[:]
+    c_site1_even = connected_corr_even[:, 1]
+    c_avg_even = mean(connected_corr_even, dims=2)[:]
 
+    # Step 3: Estimate standard error across samples for connected correlation observables
+    c_site1_odd_samples = zeros(n_valid, k_use)
+    c_avg_odd_samples = zeros(n_valid, k_use)
+    for sample_idx in 1:n_valid
+        data = odd_data_list[sample_idx]
+        for k in 1:k_use
+            connected_row = data[1, :] .* data[1+k, :] .- smatrix_averaged_odd[1, :] .* smatrix_averaged_odd[1+k, :]
+            c_site1_odd_samples[sample_idx, k] = connected_row[1]
+            c_avg_odd_samples[sample_idx, k] = mean(connected_row)
+        end
+    end
+    c_site1_odd_stderr = std(c_site1_odd_samples, dims=1)[:] ./ sqrt(n_valid)
+    c_avg_odd_stderr = std(c_avg_odd_samples, dims=1)[:] ./ sqrt(n_valid)
+
+    c_site1_even_samples = zeros(n_valid, k_use)
+    c_avg_even_samples = zeros(n_valid, k_use)
+    for sample_idx in 1:n_valid
+        data = even_data_list[sample_idx]
+        for k in 1:k_use
+            connected_row = data[1, :] .* data[1+k, :] .- smatrix_averaged_even[1, :] .* smatrix_averaged_even[1+k, :]
+            c_site1_even_samples[sample_idx, k] = connected_row[1]
+            c_avg_even_samples[sample_idx, k] = mean(connected_row)
+        end
+    end
+    c_site1_even_stderr = std(c_site1_even_samples, dims=1)[:] ./ sqrt(n_valid)
+    c_avg_even_stderr = std(c_avg_even_samples, dims=1)[:] ./ sqrt(n_valid)
     tlist = collect(0:k_use)
 
     save_path = save_data_filename_temporal(L, inds)
@@ -505,8 +525,12 @@ function average_temporal_corr(inds, L; max_k=-1)
         "tlist", tlist,
         "c_site1_odd", c_site1_odd,
         "c_avg_odd", c_avg_odd,
+        "c_site1_odd_stderr", c_site1_odd_stderr,
+        "c_avg_odd_stderr", c_avg_odd_stderr,
         "c_site1_even", c_site1_even,
-        "c_avg_even", c_avg_even)
+        "c_avg_even", c_avg_even,
+        "c_site1_even_stderr", c_site1_even_stderr,
+        "c_avg_even_stderr", c_avg_even_stderr)
 
     println("Done temporal correlation! Valid samples: $n_valid, max_k used: $k_use")
     println("Saved temporal correlation to: $save_path")
@@ -590,20 +614,54 @@ end
 # Command line interface
 if abspath(PROGRAM_FILE) == @__FILE__
     if length(ARGS) < 1
-        println("Usage: julia -p <nprocs> layer_corr.jl <gamma_index> [sample_num]")
+        println("Usage: julia -p <nprocs> layer_corr.jl <gamma_index> [sample_num] [L]")
         println("  gamma_index: 1-12, corresponding to γ = $γlis")
         println("  sample_num: number of samples (default: 10000)")
+        println("  L: system size (default: 20)")
         exit(1)
     end
     
-    inds = parse(Int, ARGS[1])
-    sample_num = length(ARGS) >= 2 ? parse(Int, ARGS[2]) : 10000
+    # inds = parse(Int, ARGS[1])
+    # L = parse(Int, ARGS[2])
     
-    if !(1 <= inds <= length(γlis))
-        error("gamma_index must be between 1 and $(length(γlis))")
+    process_task(task) = begin
+        L_task, τ_idx_task = task
+        try
+            result = average_temporal_corr(τ_idx_task, L_task)
+            if isnothing(result)
+                return (L_task, τ_idx_task, :failed, "No valid sample data")
+            end
+            return (L_task, τ_idx_task, :success, nothing)
+        catch err
+            return (L_task, τ_idx_task, :failed, sprint(showerror, err))
+        end
     end
-    
-    # main(inds, L_list; sample_num=sample_num)
-    average_corr_time(inds, 20; sample_num=sample_num) 
-end
 
+    taskslis = [(L, 10) for L in collect(12:2:26)]
+
+    # use pmap for parallel processing
+    println("\nStarting parallel processing...")
+    results = pmap(process_task, taskslis; batch_size=1)
+
+    # count successes and failures
+    failed_tasks = [(L_res, τ_res, idx_res, err)
+                    for (L_res, τ_res, idx_res, status, err) in results
+                    if status != :success]
+
+    success_count = count(r -> r[4] == :success, results)
+    failed_count = length(failed_tasks)
+
+    # summary report
+    println("\n=== Processing Complete ===")
+    println("Total tasks: $(length(taskslis))")
+    println("Successes: $success_count")
+    println("Failures: $failed_count")
+
+    if failed_count > 0
+        println("\n=== Failed Task Details ===")
+        for (i, (L_f, τ_f, idx_f, err)) in enumerate(failed_tasks)
+            println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f")
+            println("Error: $err")
+        end
+    end
+end
