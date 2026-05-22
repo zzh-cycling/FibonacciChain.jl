@@ -17,7 +17,7 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
 
     L_list = collect(8:2:20)
 
-    function data_fig_path(inds, L, index, τlis)
+    function data_path(inds, L, index)
         τ = τlis[inds]
         if L <= 32
             D, _, _ = get_cfg_params_Born(τ, L)
@@ -167,8 +167,8 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
     end
 
 
-    function process_single_sample(inds, L, sample_idx, τlis)
-        data_path = data_fig_path(inds, L, sample_idx, τlis)
+    function process_single_sample(inds, L, sample_idx)
+        data_path = data_path(inds, L, sample_idx)
         @info "Processing sample $sample_idx"
         if !isfile(data_path)
             @warn "File not found: $data_path"
@@ -241,7 +241,7 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
         )
 
         # Parallel map over all samples
-        results = pmap(i -> process_single_sample(inds, L, i, τlis), 1:sample_num)
+        results = pmap(i -> process_single_sample(inds, L, i), 1:sample_num)
 
         # Filter out failed samples (nothing values)
         valid_results = filter(!isnothing, results)
@@ -373,11 +373,11 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
         end
     end
 
-    function process_single_sample_time(inds, L, sample_idx, τlis)
+    function process_single_sample_time(inds, L, sample_idx)
         # Compute time-averaged correlation at site 1 only (no spatial average)
         # C(d) = ⟨s_1 s_{1+d}⟩_t - ⟨s_1⟩_t ⟨s_{1+d}⟩_t
         # Also compute magnetization at each site: m_i = ⟨s_i⟩_t
-        data_path = data_fig_path(inds, L, sample_idx, τlis)
+        data_path = data_path(inds, L, sample_idx)
         @info "Processing sample $sample_idx"
         if !isfile(data_path)
             @warn "File not found: $data_path"
@@ -616,7 +616,7 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
         )
 
         # Parallel map over all samples
-        results = pmap(i -> process_single_sample_time(inds, L, i, τlis), 1:sample_num)
+        results = pmap(i -> process_single_sample_time(inds, L, i), 1:sample_num)
 
         # Filter out failed samples
         valid_results = filter(!isnothing, results)
