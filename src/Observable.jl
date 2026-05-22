@@ -35,9 +35,9 @@ function ee(subrm::Matrix{ET}) where {ET}
     EE=0
     for i in eachindex(spectrum)
         v=abs(spectrum[i])
-            if v>1e-8
-                EE+=-v*log(v)
-            end
+        if v>1e-8
+            EE+=-v*log(v)
+        end
     end
 
     return EE
@@ -80,17 +80,17 @@ julia> all(x -> x ≥ 0, ee_profile)  # All entropies are non-negative
 true
 ```
 """
-function anyon_eelis(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}) where {ET}
+function anyon_eelis(model::AnyonModel, state::Union{Vector{ET},Matrix{ET}}) where {ET}
     # Generate ee list for a given state from the left to the right
     N = model.N
-    splitlis=Vector(1:N-1)
+    splitlis=Vector(1:(N-1))
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
-        if m<= div(N,2)
+        if m <= div(N, 2)
             subrho=anyon_rdm(model, collect(1:m), state)
             EE_lis[m]=ee(subrho)
         else
-            subrho=anyon_rdm(model, collect(m+1:N), state)
+            subrho=anyon_rdm(model, collect((m+1):N), state)
             EE_lis[m]=ee(subrho)
         end
     end
@@ -100,14 +100,14 @@ end
 function anyonladder_eelis(model::AnyonModel, state::Vector{ET}) where {ET}
     # Generate ee list for a given state from the left to the right
     N = model.N
-    splitlis=Vector(1:N-1)
+    splitlis=Vector(1:(N-1))
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
-        if m<= div(N,2)
+        if m <= div(N, 2)
             subrho=ladderrdm(model, collect(1:m), state)
             EE_lis[m]=ee(subrho)
         else
-            subrho=ladderrdm(model, collect(m+1:N), state)
+            subrho=ladderrdm(model, collect((m+1):N), state)
             EE_lis[m]=ee(subrho)
         end
     end
@@ -126,15 +126,15 @@ Generate translation operator matrix for anyon basis states.
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
 """
 function translation_matrix(model::AnyonModel)
-    basis=anyon_basis(model) 
-    l = length(basis) 
-    Mat=zeros(Float64,(l,l))
+    basis=anyon_basis(model)
+    l = length(basis)
+    Mat=zeros(Float64, (l, l))
     translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
     order = searchsortedfirst.(Ref(basis), translated_basis) # Find the indices of the translated basis in the original basis
-    for i in 1:l
+    for i = 1:l
         Mat[i, order[i]] += 1.0
     end
-    
+
     return Mat
 end
 
@@ -152,15 +152,15 @@ Generate spatial inversion operator matrix for anyon basis states.
 function inversion_matrix(model::AnyonModel)
     basis=anyon_basis(model)
     l=length(basis)
-    Imatrix=zeros((l,l))
+    Imatrix=zeros((l, l))
     # reversed_basis = map(breflect, basis) # The optimization try of using map function and broadcast
     reversed_basis=breflect.(basis)
     order = searchsortedfirst.(Ref(basis), reversed_basis) # Find the indices of the reversed basis in the original basis
     # Imatrix[CartesianIndex.(collect(1:length(basis)),searchsortedfirst.(Ref(basis), reversed_basis))].+=1.0
-    for i in 1:l
-        Imatrix[i,order[i]]+=1.0
+    for i = 1:l
+        Imatrix[i, order[i]]+=1.0
     end
-   
+
     return Imatrix
 end
 
@@ -179,23 +179,37 @@ Apply braiding squared operation on a single basis state at specified site.
 
 Braiding is a fundamental topological operation that exchanges adjacent anyons.
 """
-function _braidingsq_apply(model::AnyonModel{FibonacciAnyon}, state::T, i::Int) where {N, T <: BitStr{N}}
+function _braidingsq_apply(
+    model::AnyonModel{FibonacciAnyon},
+    state::T,
+    i::Int,
+) where {N,T<:BitStr{N}}
     # default for PBC system
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
     @assert num_digits(T) == N "State length mismatch: expected $(N), got $(num_digits(T))"
     ϕ = (1+√5)/2
     fl=bmask(T, N)
-    X(state,i) = flip(state, fl >> (i-1))
-    
-    if 2<= i <= N-1
-        mask=bmask(T,1,2,3) << (N-i-1)
-        str100, str101, str010, str001, str000 = T(4) << (N-i-1), T(5) << (N-i-1), T(2) << (N-i-1), T(1) << (N-i-1), T(0) << (N-i-1)
+    X(state, i) = flip(state, fl >> (i-1))
+
+    if 2 <= i <= N-1
+        mask=bmask(T, 1, 2, 3) << (N-i-1)
+        str100, str101, str010, str001, str000 = T(4) << (N-i-1),
+        T(5) << (N-i-1),
+        T(2) << (N-i-1),
+        T(1) << (N-i-1),
+        T(0) << (N-i-1)
         if state & mask == str000
-            return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            return state,
+            X(state, i),
+            exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2),
+            (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
         elseif state & mask == str001
             return state, state, exp(-6im*π/5), 0
         elseif state & mask == str010
-            return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+            return state,
+            X(state, i),
+            exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1),
+            (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
         elseif state & mask == str100
             return state, state, exp(-6im*π/5), 0
         elseif state & mask == str101
@@ -204,28 +218,42 @@ function _braidingsq_apply(model::AnyonModel{FibonacciAnyon}, state::T, i::Int) 
     end
     if model.pbc
         if i == 1 #count from the left
-        mask=bmask(T, N, N-1,1)
-        str100, str101, str010, str001, str000 = bmask(T,1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
+            mask=bmask(T, N, N-1, 1)
+            str100, str101, str010, str001, str000 =
+                bmask(T, 1), bmask(T, N-1, 1), bmask(T, N), bmask(T, N-1), T(0)
             if state & mask == str000
-                return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+                return state,
+                X(state, i),
+                exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2),
+                (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str001
                 return state, state, exp(-6im*π/5), 0
             elseif state & mask == str010
-                return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+                return state,
+                X(state, i),
+                exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1),
+                (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str100
                 return state, state, exp(-6im*π/5), 0
             elseif state & mask == str101
                 return state, state, exp(-2im*π/5), 0
             end
         elseif i == N #count from the left
-        mask=bmask(T, N, 2, 1)
-        str100, str101, str010, str001, str000 = bmask(T,2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
+            mask=bmask(T, N, 2, 1)
+            str100, str101, str010, str001, str000 =
+                bmask(T, 2), bmask(T, N, 2), bmask(T, 1), bmask(T, N), T(0)
             if state & mask == str000
-                return state, X(state,i), exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+                return state,
+                X(state, i),
+                exp(-2im*π/5)*ϕ^(-1)+exp(-6im*π/5)*ϕ^(-2),
+                (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str001
                 return state, state, exp(-6im*π/5), 0
             elseif state & mask == str010
-                return state, X(state,i), exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1), (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
+                return state,
+                X(state, i),
+                exp(-2im*π/5)*ϕ^(-2)+exp(-6im*π/5)*ϕ^(-1),
+                (exp(-2im*π/5)-exp(-6im*π/5))*ϕ^(-3/2)
             elseif state & mask == str100
                 return state, state, exp(-6im*π/5), 0
             elseif state & mask == str101
@@ -235,23 +263,24 @@ function _braidingsq_apply(model::AnyonModel{FibonacciAnyon}, state::T, i::Int) 
     end
 end
 
-function braidingsq_matrix(model::AnyonModel{FibonacciAnyon}, idx::Int) 
+function braidingsq_matrix(model::AnyonModel{FibonacciAnyon}, idx::Int)
     @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
     basis=anyon_basis(model)
     l=length(basis)
-    Bmatrix=zeros(ComplexF64, (l,l))
-    for i in 1:l
-        outputstate1, outputstate2, output1, output2 = _braidingsq_apply(model, basis[i], idx)
+    Bmatrix=zeros(ComplexF64, (l, l))
+    for i = 1:l
+        outputstate1, outputstate2, output1, output2 =
+            _braidingsq_apply(model, basis[i], idx)
         if output2 == 0
-            Bmatrix[i,i]+=output1
+            Bmatrix[i, i]+=output1
         else
             j2=searchsortedfirst(basis, outputstate2)
-            Bmatrix[i,i]+=output1
-            Bmatrix[i,j2]+=output2
+            Bmatrix[i, i]+=output1
+            Bmatrix[i, j2]+=output2
         end
     end
-    
+
     return Bmatrix
 end
 
@@ -268,7 +297,11 @@ Apply braiding squared operation to quantum state at specified site.
 # Returns
 - `Vector{ComplexF64}`: Transformed state after braiding operation
 """
-function braidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx::Int) where {ET}
+function braidingsqmap(
+    model::AnyonModel{FibonacciAnyon},
+    state::Vector{ET},
+    idx::Int,
+) where {ET}
     # input a superposition state, and output the braided state
     @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
 
@@ -276,17 +309,18 @@ function braidingsqmap(model::AnyonModel{FibonacciAnyon}, state::Vector{ET}, idx
     l=length(basis)
     @assert l == length(state) "state length is expected to be $(l), but got $(length(state))"
     mapped_state = zeros(ComplexF64, length(state))
-    for i in 1:l
-        outputstate1, outputstate2, output1, output2 = _braidingsq_apply(model, basis[i], idx)
+    for i = 1:l
+        outputstate1, outputstate2, output1, output2 =
+            _braidingsq_apply(model, basis[i], idx)
         if output2 == 0
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
-        else    
+        else
             j2=searchsortedfirst(basis, outputstate2)
             mapped_state[i]+=output1*state[i] # outputstate1 is the same as basis[i]
             mapped_state[j2]+=output2*state[i]
         end
     end
-    
+
     return mapped_state
 end
 
@@ -306,7 +340,12 @@ Calculate mutual information between two sites as spatial correlation measure.
 
 Computes quantum mutual information as measure of spatial correlations.
 """
-function spatial_correlation(model::AnyonModel, state::Union{Vector{ET}, Matrix{ET}}, site1::Int64, site2::Int64) where {ET}
+function spatial_correlation(
+    model::AnyonModel,
+    state::Union{Vector{ET},Matrix{ET}},
+    site1::Int64,
+    site2::Int64,
+) where {ET}
     # Calculate the spatial correlation between two sites in a given state. For reference qubit added state, we need reference_rdm. For an initial state without reference qubit, we do not need anything.
     N = model.N
     @assert 1 <= site1 <= N "Site1 index must be in the range [1, $(N)]"
@@ -316,7 +355,7 @@ function spatial_correlation(model::AnyonModel, state::Union{Vector{ET}, Matrix{
     ρ1 = anyon_rdm(model, [site1], state)
     ρ2 = anyon_rdm(model, [site2], state)
     ρ12 = anyon_rdm(model, [site1, site2], state)
-    
+
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation
@@ -341,7 +380,7 @@ function temporal_correlation(model::AnyonModel, state_addref2::Vector{ET}) wher
     # traceref default true, thus keep reference qubits
     ρ1 = reference_rdm(model, [2], state_addref2)
     ρ2 = reference_rdm(model, [1], state_addref2)
-    ρ12 = reference_rdm(model, [1,2], state_addref2)
+    ρ12 = reference_rdm(model, [1, 2], state_addref2)
     correlation = ee(ρ1) + ee(ρ2) - ee(ρ12)
 
     return correlation
@@ -363,7 +402,12 @@ Calculate spatio-temporal correlation using state with three reference qubits.
 
 Uses reference qubit protocol to measure spatio-temporal correlations at two any spacetime points.
 """
-function ref_correlation(model::AnyonModel, state_addref3::Vector{ET}; spatial::Bool=false, temporal::Bool=false) where {ET}
+function ref_correlation(
+    model::AnyonModel,
+    state_addref3::Vector{ET};
+    spatial::Bool = false,
+    temporal::Bool = false,
+) where {ET}
     # Calculate the spatio-temporal correlation I(x₁, x₂, t₁, t₂) between two any spacetime points in a given initial_state
     # In basis, aligned as Ref3 Ref2 Ref1 |ψ_{1,2,...,N}>
     #                 Ref3  |   t₂
@@ -411,9 +455,9 @@ function fidelity(st1::AbstractVector, st2::AbstractVector)
     return abs(dot(st1, st2))^2
 end
 
-function qfi(Ob::Vector{Float64}, state::Vector{T}) where T    
+function qfi(Ob::Vector{Float64}, state::Vector{T}) where {T}
     # Calculate the quantum fisher information, espeically for diagonal operators.
-    DeltaOb=state'*(Ob.^2 .*state)-(state'*(Ob.*state))^2
+    DeltaOb=state'*(Ob .^ 2 .* state)-(state'*(Ob .* state))^2
     # Calculate the Quantum Fisher Information
     # For spin 1/2, w/o 4
     F_Q = 4*DeltaOb
@@ -421,7 +465,7 @@ function qfi(Ob::Vector{Float64}, state::Vector{T}) where T
     return F_Q
 end
 
-function qfi(Ob::Matrix{Float64}, state::Vector{T}) where T
+function qfi(Ob::Matrix{Float64}, state::Vector{T}) where {T}
     rho=state*state'
     DeltaOb=tr(rho*Ob^2)-tr(rho*Ob)^2
     # Calculate the Quantum Fisher Information
@@ -431,11 +475,14 @@ function qfi(Ob::Matrix{Float64}, state::Vector{T}) where T
     return F_Q
 end
 
-function anti_ferro_order(model::AnyonModel{AT}, ::Type{T}) where {N, T <: BitStr{N}, AT<:AbstractAnyonType}
-#param N: Number of sites
-#return:  antiferromagnetic order diagonal elements
-#The eigenvectors of this operator are going from -N to N, increasing by 2, totally N+1 eigenvectors. Number of each eigenvalues is N choose k, 
-#where k is the number of domain walls when we consider total Hilbert space. Defined as sum_i Z_i =1/2 (-1)^(i+1) * Z_i, we aim for spin systems.(S_Z= 1/2 Pauli Z)
+function anti_ferro_order(
+    model::AnyonModel{AT},
+    ::Type{T},
+) where {N,T<:BitStr{N},AT<:AbstractAnyonType}
+    #param N: Number of sites
+    #return:  antiferromagnetic order diagonal elements
+    #The eigenvectors of this operator are going from -N to N, increasing by 2, totally N+1 eigenvectors. Number of each eigenvalues is N choose k, 
+    #where k is the number of domain walls when we consider total Hilbert space. Defined as sum_i Z_i =1/2 (-1)^(i+1) * Z_i, we aim for spin systems.(S_Z= 1/2 Pauli Z)
     basis = anyon_basis(model)
     l=length(basis)
     anti_ferro = zeros(l)
@@ -443,13 +490,14 @@ function anti_ferro_order(model::AnyonModel{AT}, ::Type{T}) where {N, T <: BitSt
     mask = bmask(T, collect(2:2:N)...)
     for (idx, str) in enumerate(basis)
         masked_str = flip(str, mask)
-        Zi=sum([masked_str...].-1/2)
+        Zi=sum([masked_str...] .- 1/2)
         anti_ferro[idx] = Zi
     end
 
     return anti_ferro
 end
-anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonType} = anti_ferro_order(model, BitStr{model.N, Int})
+anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonType} =
+    anti_ferro_order(model, BitStr{model.N,Int})
 
 
 """
@@ -476,7 +524,11 @@ B_sites = [7, 8, 9]
 mi = mutual_information(model, (A_sites, B_sites), psi)
 ```
 """
-function mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+function mutual_information(
+    model::AnyonModel,
+    subsystems::Tuple{Vector{Int64},Vector{Int64}},
+    state::Vector{ET},
+) where {ET}
     A, B = subsystems
     # MI formula defined as: I(A:B) = S_A + S_B - S_AB
     # Calculate the reduced density matrices
@@ -490,7 +542,7 @@ function mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, 
     # Calculate the mutual information
     I_AB = S_A + S_B - S_AB
     return I_AB
-    
+
 end
 
 
@@ -520,22 +572,26 @@ C_sites = [9, 10]
 tmi = tri_mutual_information(model, (A_sites, B_sites, C_sites), psi)
 ```
 """
-function tri_mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}, state::Vector{ET}) where {ET}
+function tri_mutual_information(
+    model::AnyonModel,
+    subsystems::Tuple{Vector{Int64},Vector{Int64},Vector{Int64}},
+    state::Vector{ET},
+) where {ET}
     A, B, C = subsystems
     # TMI formula defined as: I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC
-    
+
     ρ_A = anyon_rdm(model, A, state)
     ρ_B = anyon_rdm(model, B, state)
     ρ_C = anyon_rdm(model, C, state)
 
-    ρ_AB = anyon_rdm(model, vcat(A,B), state)
-    ρ_BC = anyon_rdm(model, vcat(B,C), state)
-    ρ_AC = anyon_rdm(model, vcat(A,C), state)
-    
-    ρ_ABC = anyon_rdm(model, vcat(A,B,C), state)
-    
+    ρ_AB = anyon_rdm(model, vcat(A, B), state)
+    ρ_BC = anyon_rdm(model, vcat(B, C), state)
+    ρ_AC = anyon_rdm(model, vcat(A, C), state)
+
+    ρ_ABC = anyon_rdm(model, vcat(A, B, C), state)
+
     # Calculate the Von Neumann entropies
-    
+
     S_A = ee(ρ_A)
     S_B = ee(ρ_B)
     S_C = ee(ρ_C)
@@ -546,6 +602,6 @@ function tri_mutual_information(model::AnyonModel, subsystems::Tuple{Vector{Int6
 
     # Calculate the mutual information
     I_ABC = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC
-    
+
     return I_ABC
 end

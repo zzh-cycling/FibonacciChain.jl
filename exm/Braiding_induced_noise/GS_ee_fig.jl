@@ -4,29 +4,35 @@ using JLD
 using Arpack
 # include("../FitEntEntScal.jl")
 
-function ee_Fibo_scaling_fig(N::Int64, state::Vector{ET},fit::String, mincut::Int64=1, pbc::Bool=true) where {ET}
-    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
-    splitlis=Vector(1:N-1)
+function ee_Fibo_scaling_fig(
+    N::Int64,
+    state::Vector{ET},
+    fit::String,
+    mincut::Int64 = 1,
+    pbc::Bool = true,
+) where {ET}
+    model = AnyonModel(FibonacciAnyon(), N; pbc = pbc)
+    splitlis=Vector(1:(N-1))
     EElis=anyon_eelis(model, state)
 
-    if fit=="CC" 
-        cent, fig=fitCCEntEntScal(EElis; mincut=mincut, pbc)
+    if fit=="CC"
+        cent, fig=fitCCEntEntScal(EElis; mincut = mincut, pbc)
     end
 
     if fit=="Page"
-        cent, fig=fitpage_curve(EElis; mincut=mincut)
+        cent, fig=fitpage_curve(EElis; mincut = mincut)
     end
 
     if fit=="L+lnL"
-        cent, fig=fitLpluslnL(EElis; mincut=mincut)
+        cent, fig=fitLpluslnL(EElis; mincut = mincut)
     end
     return cent, fig
 end
 
 N=34
-model = AnyonModel(FibonacciAnyon(), N; pbc=true)
-energy, states =  eigs(anyon_ham_sparse(model), nev=1, which=:SR)
-antiGS= states[:, 1]
+model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+energy, states = eigs(anyon_ham_sparse(model), nev = 1, which = :SR)
+antiGS = states[:, 1]
 EElis=anyon_eelis(model, antiGS)
 save("./exm/Fibo_antiGS_N$(N)_EElis.jld", "antiGS", antiGS, "EElis", EElis)
 # cent, fig = fitCCEntEntScal(EElis; mincut=4,pbc=true)

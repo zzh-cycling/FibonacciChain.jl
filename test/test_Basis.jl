@@ -1,13 +1,13 @@
 using FibonacciChain
 using Test
 using BitBasis
-using LinearAlgebra 
+using LinearAlgebra
 using Random
 
 @testset "antimap" begin
     ϕ = (1+√5)/2
     @test FibonacciChain.antimap(bit"000", 2) == (bit"000", bit"010", -ϕ^(-1), -ϕ^(-3/2))
-    @test FibonacciChain.antimap(bit"010", 2) == (bit"010", bit"000",  -ϕ^(-2), -ϕ^(-3/2))
+    @test FibonacciChain.antimap(bit"010", 2) == (bit"010", bit"000", -ϕ^(-2), -ϕ^(-3/2))
 end
 
 @testset "count_subBitStr" begin
@@ -23,22 +23,26 @@ end
 @testset "actingHamobc" begin
     ϕ = (1+√5)/2
     T = BitStr{3}
-    model = AnyonModel(FibonacciAnyon(), 3, pbc=false)
+    model = AnyonModel(FibonacciAnyon(), 3, pbc = false)
     output1 = FibonacciChain.actingHam(model, bit"000")
     expected1 = Dict(T(bit"000") => -ϕ^(-1), T(bit"010") => -ϕ^(-3/2))
-    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
+    @test all(output1[k] ≈ v for (k, v) in expected1) &&
+          length(output1) == length(expected1)
 
     output2 = FibonacciChain.actingHam(model, bit"010")
     expected2 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-2))
-    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
+    @test all(output2[k] ≈ v for (k, v) in expected2) &&
+          length(output2) == length(expected2)
 
     output3 = FibonacciChain.actingHam(model, bit"001")
     expected3 = Dict(T(bit"001") => 0.0)
-    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
+    @test all(output3[k] ≈ v for (k, v) in expected3) &&
+          length(output3) == length(expected3)
 
     output4 = FibonacciChain.actingHam(model, bit"100")
     expected4 = Dict(T(bit"100") => 0.0)
-    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
+    @test all(output4[k] ≈ v for (k, v) in expected4) &&
+          length(output4) == length(expected4)
 
     output = FibonacciChain.actingHam(model, bit"101")
     expected = Dict(T(bit"101") => -1.0)
@@ -48,7 +52,7 @@ end
 @testset "Fsymmetry_coef" begin
     ϕ = (1+√5)/2
     N = 3
-    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
     T = BitStr{N}
     output1 = FibonacciChain.Fsymmetry_coef(model, T(bit"000"), T(bit"010"))
     @test output1 ≈ -ϕ^(-3/2)
@@ -61,11 +65,14 @@ end
 @testset "topological_symmetry_basismap" begin
     N = 4
     T = BitStr{N}
-    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
     ϕ = (1+√5)/2
-    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0000")) ≈ [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
-    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0100")) ≈ [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
-    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"1010")) ≈ [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0000")) ≈
+          [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0100")) ≈
+          [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
+    @test FibonacciChain.topological_symmetry_basismap(model, T(bit"1010")) ≈
+          [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
 end
 
 
@@ -73,33 +80,50 @@ end
     ϕ = (1+√5)/2
     N = 4
     T = BitStr{N}
-    model = AnyonModel(FibonacciAnyon(), N, pbc=true)
-    Y =FibonacciChain.topological_charge_operator(model, T)
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
+    Y = FibonacciChain.topological_charge_operator(model, T)
     Y = (Y + Y') / 2
     vals = eigvals(Y)
-    @test vals ≈ [-1.0799610383969367, -0.23606797749978994, -0.23606797749978972, -0.23606797749978964, 0.4778136965285674, 1.9041523147215358, 3.079961038396939]
+    @test vals ≈ [
+        -1.0799610383969367,
+        -0.23606797749978994,
+        -0.23606797749978972,
+        -0.23606797749978964,
+        0.4778136965285674,
+        1.9041523147215358,
+        3.079961038396939,
+    ]
     @test vals[end]/vals[end-1] ≈ ϕ atol = 1e-3
 end
 
 @testset "actingHampbc" begin
     ϕ = (1+√5)/2
     T = BitStr{3}
-    model = AnyonModel(FibonacciAnyon(), 3, pbc=true)
+    model = AnyonModel(FibonacciAnyon(), 3, pbc = true)
     output1 = FibonacciChain.actingHam(model, bit"000")
-    expected1 = Dict(T(bit"000") => -3ϕ^(-1), T(bit"100") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-3/2), T(bit"001") => -ϕ^(-3/2))
-    @test all(output1[k] ≈ v for (k, v) in expected1) && length(output1) == length(expected1)
+    expected1 = Dict(
+        T(bit"000") => -3ϕ^(-1),
+        T(bit"100") => -ϕ^(-3/2),
+        T(bit"010") => -ϕ^(-3/2),
+        T(bit"001") => -ϕ^(-3/2),
+    )
+    @test all(output1[k] ≈ v for (k, v) in expected1) &&
+          length(output1) == length(expected1)
 
     output2 = FibonacciChain.actingHam(model, bit"010")
     expected2 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"010") => -ϕ^(-2))
-    @test all(output2[k] ≈ v for (k, v) in expected2) && length(output2) == length(expected2)
+    @test all(output2[k] ≈ v for (k, v) in expected2) &&
+          length(output2) == length(expected2)
 
     output3 = FibonacciChain.actingHam(model, bit"001")
     expected3 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"001") => -ϕ^(-2))
-    @test all(output3[k] ≈ v for (k, v) in expected3) && length(output3) == length(expected3)
+    @test all(output3[k] ≈ v for (k, v) in expected3) &&
+          length(output3) == length(expected3)
 
     output4 = FibonacciChain.actingHam(model, bit"100")
     expected4 = Dict(T(bit"000") => -ϕ^(-3/2), T(bit"100") => -ϕ^(-2))
-    @test all(output4[k] ≈ v for (k, v) in expected4) && length(output4) == length(expected4)
+    @test all(output4[k] ≈ v for (k, v) in expected4) &&
+          length(output4) == length(expected4)
 
     T10 = BitStr{10}
     output = FibonacciChain.actingHam(AnyonModel(FibonacciAnyon(), 10), bit"1000010000")
@@ -110,39 +134,50 @@ end
         T10(bit"1000010010") => -ϕ^(-3/2),
         T10(bit"1000010100") => -ϕ^(-3/2),
         T10(bit"1000000000") => -ϕ^(-3/2),
-        T10(bit"1001010000") => -ϕ^(-3/2)
+        T10(bit"1001010000") => -ϕ^(-3/2),
     )
     @test all(output[k] ≈ v for (k, v) in expected) && length(output) == length(expected)
 end
 
 @testset "basis.jl" begin
     # Test the Fibonacci basis creation
-    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc=true))
+    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc = true))
     @test length(fib_basis) == 11
-    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc=false))
+    fib_basis = anyon_basis(AnyonModel(FibonacciAnyon(), 5, pbc = false))
     @test length(fib_basis) == 13
     # Test the Fibonacci Hamiltonian
-    fib_ham = anyon_ham(AnyonModel(FibonacciAnyon(), 5, pbc=true))
+    fib_ham = anyon_ham(AnyonModel(FibonacciAnyon(), 5, pbc = true))
     @test size(fib_ham) == (11, 11)
     @test ishermitian(fib_ham)
 
-    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=false)) ≈ [-0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0; 0.0 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0 -1.0]
-    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc=true)) ≈ [-1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565; -0.48586827175664565 -0.3819660112501051 0.0 0.0; -0.48586827175664565 0.0 -0.3819660112501051 0.0; -0.48586827175664565 0.0 0.0 -0.3819660112501051]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc = false)) ≈ [
+        -0.6180339887498948 0.0 -0.48586827175664565 0.0 0.0;
+        0.0 0.0 0.0 0.0 0.0;
+        -0.48586827175664565 0.0 -0.3819660112501051 0.0 0.0;
+        0.0 0.0 0.0 0.0 0.0;
+        0.0 0.0 0.0 0.0 -1.0
+    ]
+    @test anyon_ham(AnyonModel(FibonacciAnyon(), 3, pbc = true)) ≈ [
+        -1.8541019662496843 -0.48586827175664565 -0.48586827175664565 -0.48586827175664565;
+        -0.48586827175664565 -0.3819660112501051 0.0 0.0;
+        -0.48586827175664565 0.0 -0.3819660112501051 0.0;
+        -0.48586827175664565 0.0 0.0 -0.3819660112501051
+    ]
 end
 
 @testset "process_join" begin
     # [[000 ₍₂₎, 001 ₍₂₎, 010 ₍₂₎, 100 ₍₂₎, 101 ₍₂₎], [000 ₍₂₎, 001 ₍₂₎, 010 ₍₂₎, 100 ₍₂₎, 101 ₍₂₎]]
     lis1 = BitStr{2}[0, 1, 2]
     lis2 = BitStr{3}[0, 1, 2, 4, 5]
-    res = FibonacciChain.process_join(lis1, lis2) 
+    res = FibonacciChain.process_join(lis1, lis2)
     @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
     # joint_basis
     res = FibonacciChain.joint_basis(FibonacciAnyon(), [2, 3])
     @test res == [join(l1, l2) for l1 in lis1 for l2 in lis2]
 
-    lis1 = anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc=false))
-    lis2 = anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc=false))
+    lis1 = anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc = false))
+    lis2 = anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))
     res = FibonacciChain.joint_basis(FibonacciAnyon(), [1, 2])
     # Ensureing the order is 2*1, not 1*2
     # kron(st1*st2') is in order 1*2, while reshape(st1*st2',9) is in order 2*1
@@ -152,15 +187,24 @@ end
 
     # Test disjoint system joint_basis
     res = FibonacciChain.joint_basis(FibonacciAnyon(), FibonacciAnyon(), [1], [2])
-    @test res == [join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))]
+    @test res == [
+        join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc = false)) for
+        l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))
+    ]
     res = FibonacciChain.joint_basis(IsingAnyon(), IsingAnyon(), [1], [2])
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))])
+    @test res == vec([
+        join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc = false)) for
+        l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))
+    ])
     res = FibonacciChain.joint_basis(IsingAnyon(), FibonacciAnyon(), [1], [2])
-    @test res == vec([join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc=false)) for l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))])
+    @test res == vec([
+        join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc = false)) for
+        l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))
+    ])
     res = FibonacciChain.joint_basis(FibonacciAnyon(), IsingAnyon(), [1], [2])
 
     # move_subsystem
-    res = FibonacciChain.move_subsystem(BitStr{5, Int}, bit"111", [1, 2, 5])
+    res = FibonacciChain.move_subsystem(BitStr{5,Int}, bit"111", [1, 2, 5])
     @test res == BitStr{5}(bit"11001")
 
     # takeenviron
@@ -174,16 +218,17 @@ end
 @testset "connected components" begin
     v = [1, 2, 4, 5, 7]
     @test FibonacciChain.connected_components(v) == [[1, 2], [4, 5], [7]]
-    @test FibonacciChain.connected_components([1,2,3,7,8,9]) == [[1, 2, 3], [7, 8, 9]]
+    @test FibonacciChain.connected_components([1, 2, 3, 7, 8, 9]) == [[1, 2, 3], [7, 8, 9]]
 end
 
 @testset "anyon_rdm" begin
     N = 3
     model = AnyonModel(FibonacciAnyon(), N)
-    st = ones(length(anyon_basis(model))); st /= norm(st)  # Normalize the state
+    st = ones(length(anyon_basis(model)));
+    st /= norm(st)  # Normalize the state
     # The empty subsystem
     rdm = anyon_rdm(model, Int64[], st)
-    @test rdm ≈ ones(Float64, 1,1)
+    @test rdm ≈ ones(Float64, 1, 1)
 
     # The total system
     rdm = anyon_rdm(model, collect(1:N), st)
@@ -195,10 +240,13 @@ end
 
 @testset "anyon_rdm_Ising" begin
     N = 3
-    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    st = zeros(2^N);
+    st[1]=1;
+    st[end]=1;
+    st /= norm(st)  # Normalize the state
     model = AnyonModel(IsingAnyon(), N)
     rdm = anyon_rdm(model, Int[], st)
-    @test rdm ≈ ones(Float64, 1,1)
+    @test rdm ≈ ones(Float64, 1, 1)
 
     rdm = anyon_rdm(model, collect(1:N), st)
     @test rdm ≈ st*st'
@@ -210,7 +258,10 @@ end
 @testset "anyon_rdm_matrix" begin
     N = 4
     model = AnyonModel(FibonacciAnyon(), N)
-    st = zeros(length(anyon_basis(model)));st[5]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    st = zeros(length(anyon_basis(model)));
+    st[5]=1;
+    st[end]=1;
+    st /= norm(st)  # Normalize the state
 
     rdm = anyon_rdm(model, collect(1:2), st*st')
     @test rdm ≈ diagm([0.0, 0.5, 0.5])
@@ -218,11 +269,17 @@ end
     @test rdm ≈ st*st'
 
     model2 = AnyonModel(IsingAnyon(), N)
-    st = zeros(2^N); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    st = zeros(2^N);
+    st[1]=1;
+    st[end]=1;
+    st /= norm(st)  # Normalize the state
 
-    rdm = anyon_rdm(model2, [1,2], st*st') ≈ diagm([0.5, 0.0, 0.0, 0.5])
+    rdm = anyon_rdm(model2, [1, 2], st*st') ≈ diagm([0.5, 0.0, 0.0, 0.5])
 
-    st = zeros(2^2); st[1]=1; st[end]=1; st /= norm(st)  # Normalize the state
+    st = zeros(2^2);
+    st[1]=1;
+    st[end]=1;
+    st /= norm(st)  # Normalize the state
     rdm = anyon_rdm(AnyonModel(IsingAnyon(), 2), [1], st*st') ≈ 0.5 * I(2)
 end
 
@@ -256,10 +313,10 @@ end
     sec_gs = eigvecs(fib_ham_k)[:, 1]
     gs = eigvecs(H)[:, 1]
     mapped_st = FibonacciChain.mapst_sec2tot(model, sec_gs, k)
-    @test isapprox(abs.(mapped_st), abs.(gs), atol=1e-9) # Check if the mapped state matches the ground state
+    @test isapprox(abs.(mapped_st), abs.(gs), atol = 1e-9) # Check if the mapped state matches the ground state
 
-    rdm_sec = anyon_rdm_sec(model, collect(1:div(N,2)), sec_gs, k)
-    rdm = anyon_rdm(model, collect(1:div(N,2)), gs)
+    rdm_sec = anyon_rdm_sec(model, collect(1:div(N, 2)), sec_gs, k)
+    rdm = anyon_rdm(model, collect(1:div(N, 2)), gs)
     @test rdm_sec ≈ rdm  # Check if the reduced density matrix matches
 end
 
@@ -268,15 +325,17 @@ end
     N2 = 4
     model1 = AnyonModel(FibonacciAnyon(), N1)
     model2 = AnyonModel(FibonacciAnyon(), N2)
-    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2)));
+    state[1] = 1;
+    state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
 
     rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (9, 9)  # Check the size of the reduced density matrix
-    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
-    
+    @test rdm_result[1, 1] ≈ rdm_result[end, end] ≈ 0.5
+
     # Test for one subsystem is empty
     rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.5]
@@ -290,14 +349,16 @@ end
     N2 = 4
     model1 = AnyonModel(IsingAnyon(), N1)
     model2 = AnyonModel(IsingAnyon(), N2)
-    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2)));
+    state[1] = 1;
+    state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
 
     rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (16, 16)  # Check the size of the reduced density matrix
-    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
+    @test rdm_result[1, 1] ≈ rdm_result[end, end] ≈ 0.5
 
     rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
     @test all(diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5])
@@ -312,15 +373,17 @@ end
     N2 = 4
     model1 = AnyonModel(FibonacciAnyon(), N1)
     model2 = AnyonModel(IsingAnyon(), N2)
-    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2))); state[1] = 1; state[end] = 1
+    state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2)));
+    state[1] = 1;
+    state[end] = 1
     state = state ./ norm(state)  # Normalize the state
     subsystemsA = [1, 2]
     subsystemsB = [1, 2]
 
     rdm_result = disjoint_rdm(model1, model2, subsystemsA, subsystemsB, state)
     @test size(rdm_result) == (12, 12)  # Check the size of the reduced density matrix
-    @test rdm_result[1,1] ≈ rdm_result[end, end] ≈ 0.5
-    
+    @test rdm_result[1, 1] ≈ rdm_result[end, end] ≈ 0.5
+
     # Test for one subsystem is empty
     rdm_result_empty1 = disjoint_rdm(model1, model2, Int64[], subsystemsB, state)
     @test diag(rdm_result_empty1) ≈ [0.5, 0.0, 0.0, 0.5]
@@ -329,32 +392,42 @@ end
     @test diag(rdm_result_empty2) ≈ [0.5, 0.0, 0.5]
 
     # One is empty, the other is total
-    rdm_result_empty_total1 = disjoint_rdm(model1, model2, Int64[], collect(1:N2), state, pbcB = model2.pbc) # add pbcB no difference here since pbc 2^N basis is no difference with obc
-    rdm_result_empty_total2 = disjoint_rdm(model1, model2, collect(1:N1), Int64[], state, pbcA = model1.pbc) # only difference for Fibonacci model
-    @test rdm_result_empty_total1[1,1] ≈ rdm_result_empty_total1[16,16] ≈ 0.5
-    @test rdm_result_empty_total2[1,1] ≈ rdm_result_empty_total2[7,7] ≈ 0.5
+    rdm_result_empty_total1 =
+        disjoint_rdm(model1, model2, Int64[], collect(1:N2), state, pbcB = model2.pbc) # add pbcB no difference here since pbc 2^N basis is no difference with obc
+    rdm_result_empty_total2 =
+        disjoint_rdm(model1, model2, collect(1:N1), Int64[], state, pbcA = model1.pbc) # only difference for Fibonacci model
+    @test rdm_result_empty_total1[1, 1] ≈ rdm_result_empty_total1[16, 16] ≈ 0.5
+    @test rdm_result_empty_total2[1, 1] ≈ rdm_result_empty_total2[7, 7] ≈ 0.5
 end
 
 @testset "disjoint_rdm and ref qubit" begin
     L=6
-    model = AnyonModel(IsingAnyon(), L, pbc=true, measure_operator = :X)
+    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
     t₂ = 10
     sample = BitMatrix(ones(Int, 2t₂, L))
     τ = log(1 + √2)
-    config = MeasureConfig(τ = τ, t₂ = t₂, rng=MersenneTwister(1234), mode =:sample)
-    
+    config = MeasureConfig(τ = τ, t₂ = t₂, rng = MersenneTwister(1234), mode = :sample)
+
     initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0
-    mo = bulk_evolution(model, initial_state, config,sample)
+    mo = bulk_evolution(model, initial_state, config, sample)
     final_state = mo.state
-    
-    ref_model = AnyonModel(IsingAnyon(), 2, pbc=false, measure_operator=:X)
-    ref_config = MeasureConfig(τ = τ, t₂ = 8, t₁ = 5, x₁ = 1,  x₂ = 1, rng=MersenneTwister(1234), mode =:sample)
+
+    ref_model = AnyonModel(IsingAnyon(), 2, pbc = false, measure_operator = :X)
+    ref_config = MeasureConfig(
+        τ = τ,
+        t₂ = 8,
+        t₁ = 5,
+        x₁ = 1,
+        x₂ = 1,
+        rng = MersenneTwister(1234),
+        mode = :sample,
+    )
     ref_mo = reference_evolution(model, mo.state, ref_config, sample)
     st, samples, sample_free_energy = ref_mo.state, ref_mo.samples, ref_mo.free_energys
-    ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L,2)), st)
+    ρ1 = disjoint_rdm(ref_model, model, Int64[], collect(1:div(L, 2)), st)
     ρ2 = disjoint_rdm(ref_model, model, Int64[], collect(1:L), st)
-    ρ2r = anyon_rdm(model, collect(1:div(L,2)), ρ2)
+    ρ2r = anyon_rdm(model, collect(1:div(L, 2)), ρ2)
     S1 = ee(ρ1)
     S2 = ee(ρ2r)
     @test S1 ≈ S2

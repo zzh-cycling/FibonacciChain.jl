@@ -39,13 +39,13 @@ true
 function initial_mps(N::Int)
     # Create sites for Fibonacci anyons
     sites = siteinds("Qubit", N)
-    
+
     # Create initial product state (vacuum state)
-    state = ["0" for _ in 1:N]
-    
+    state = ["0" for _ = 1:N]
+
     # Create MPS from product state
     ψ0 = productMPS(sites, state)
-    
+
     return ψ0, sites
 end
 
@@ -60,29 +60,35 @@ superposition of all bitstrings with an even number of |1⟩.
 - `Vector{Index}`: site indices
 """
 function evenparity_mps(N::Int)
-        # Create sites for Fibonacci anyons
+    # Create sites for Fibonacci anyons
     sites = siteinds("Qubit", N)
-    
+
     # Create initial product state in X eigenbasis |+>
     state = fill("+", N)
-    
+
     # Create MPS from product state
     ψ0 = productMPS(sites, state)
-    
+
     return ψ0, sites
 end
 
-function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1) where AT <: AbstractAnyonType
+function anyon_mps_gst(
+    model::AnyonModel{AT};
+    sweep_times = 5,
+    maxdim = 5,
+    cutoff = 1e-10,
+    outputlevel = 1,
+) where {AT<:AbstractAnyonType}
     # Create sites for anyons (using S=1/2 fermions to approximate)
     N = model.N
     sites = siteinds("Qubit", N)
 
     # Create initial product state (vacuum state)
-    state = ["0" for _ in 1:N]
-    
+    state = ["0" for _ = 1:N]
+
     # Create MPS from product state
     ψ0 = random_mps(sites, state)
-    
+
     # Create anyon Hamiltonian
     H = anyon_ham(model, sites)
 
@@ -90,9 +96,9 @@ function anyon_mps_gst(model::AnyonModel{AT}; sweep_times=5, maxdim=5, cutoff=1e
     sweeps = Sweeps(sweep_times)
     setmaxdim!(sweeps, maxdim)
     setcutoff!(sweeps, cutoff)
-    
+
     energy, ψ = dmrg(H, ψ0, sweeps, outputlevel = outputlevel)
-    
+
     return ψ, energy
 end
 
@@ -115,7 +121,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
     N = length(sites)
     os = OpSum()
     pbc = model.pbc
-    
+
     measure_operator = model.measure_operator # Default measurement operator for Fibonacci anyons
     # Golden ratio
     ϕ = (1 + √5) / 2
@@ -123,7 +129,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
     if measure_operator == :Antiferro # Default measurement 
         coef = 1/2
         # Three-body interactions for Fibonacci chain
-        for i in 2:(N-1)
+        for i = 2:(N-1)
             # Add three-body terms based on Fibonacci fusion rules
             os += coef, "Proj0", i-1, "Z", i, "Proj1", i+1
             os += coef, "Proj1", i-1, "Z", i, "Proj0", i+1
@@ -131,7 +137,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
             os += coef * (1 - 2 * ϕ^(-1)), "Proj0", i-1, "Z", i, "Proj0", i+1
             os += coef * (-2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1
         end
-        
+
         # Periodic boundary conditions
         if pbc && N > 2
             # H1 term
@@ -151,7 +157,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
         coef = 1/2
         # Three-body interactions for Fibonacci chain (Ferro version)
         # Ferro differs from Antiferro in sign conventions
-        for i in 2:(N-1)
+        for i = 2:(N-1)
             # Add three-body terms based on Fibonacci fusion rules (Ferro)
             os += -coef, "Proj0", i-1, "Z", i, "Proj1", i+1
             os += -coef, "Proj1", i-1, "Z", i, "Proj0", i+1
@@ -159,7 +165,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
             os += coef * (2 * ϕ^(-1) - 1), "Proj0", i-1, "Z", i, "Proj0", i+1  # different coefficient
             os += coef * (2 * ϕ^(-3/2)), "Proj0", i-1, "X", i, "Proj0", i+1  # positive instead of negative
         end
-        
+
         # Periodic boundary conditions
         if pbc && N > 2
             # H1 term
@@ -176,7 +182,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
             os += coef * (2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
         end
     end
-    
+
     return MPO(os, sites)
 
 end
@@ -188,17 +194,17 @@ function anyon_ham(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index})
     os = OpSum()
     pbc = model.pbc
 
-    for i in 1:N
+    for i = 1:N
         os += -h, "X", i
     end
 
-    for i in 1:N-1
+    for i = 1:(N-1)
         os += -J, "Z", i, "Z", i+1
     end
     if pbc && N > 2
         os += -J, "Z", N, "Z", 1
     end
-    
+
     return MPO(os, sites)
 end
 
@@ -210,18 +216,18 @@ function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
     os = OpSum()
     pbc = model.pbc
 
-    for i in 1:N
+    for i = 1:N
         os -= λI, "X", i
     end
 
-    for i in 1:N-1
+    for i = 1:(N-1)
         os -= λI, "Z", i, "Z", i+1
     end
     if pbc && N > 2
         os -= λI, "Z", N, "Z", 1
     end
 
-    for i in 1:N-2
+    for i = 1:(N-2)
         os += λ/2, "X", i, "Z", i+1, "Z", i+2
         os += λ/2, "Z", i, "Z", i+1, "X", i+2
     end
@@ -233,7 +239,7 @@ function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
         os += λ/2, "X", N, "Z", 1, "Z", 2
         os += λ/2, "Z", N, "Z", 1, "X", 2
     end
-    
+
     return MPO(os, sites)
 end
 
@@ -252,7 +258,13 @@ Create local measurement operator at site i as ITensor.
 # Returns
 - `ITensor`: Local measurement operator incorporating neighboring site correlations
 """
-function measurement_operator_mps(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
+function measurement_operator_mps(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool;
+)
     @assert model.measure_operator ∈ [:Ferro, :Antiferro] "measure_operator must be :Ferro or :Antiferro"
     N = length(sites)
     @assert 1 <= i <= N "Index i must be in the range [1, N]"
@@ -261,17 +273,18 @@ function measurement_operator_mps(model::AnyonModel{FibonacciAnyon}, sites::Vect
 
     # Golden ratio
     ϕ = (1 + √5) / 2
-    
+
     # Calculate coefficients based on τ
     if τ >= 1e2
         cstτ = 0.5
         coef = sign ? -0.5 : 0.5
     else
         cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
-        coef = sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) : (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
+        coef =
+            sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) : (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
     end
 
-    
+
     s_im1_idx = (i == 1 && pbc) ? N : i - 1 #i=1 and pbc, return N, otherwise i-1
     s_i_idx = i
     s_ip1_idx = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
@@ -311,7 +324,13 @@ function measurement_operator_mps(model::AnyonModel{FibonacciAnyon}, sites::Vect
     return M_local
 end
 
-function measurement_operator_mps(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
+function measurement_operator_mps(
+    model::AnyonModel{IsingAnyon},
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool;
+)
     @assert model.measure_operator in [:X, :ZZ] "measure_operator must be either :X or :ZZ"
     pbc = model.pbc
     N = length(sites)
@@ -327,10 +346,10 @@ function measurement_operator_mps(model::AnyonModel{IsingAnyon}, sites::Vector{<
     end
 
     if model.measure_operator == :X
-        
+
         M_local = cstτ * op("I", sites[i]) + coef * op("X", sites[i])
 
-    elseif model.measure_operator == :ZZ    
+    elseif model.measure_operator == :ZZ
         idx_p1 = (i == N && pbc) ? 1 : i + 1 #i=N and pbc, return 1, otherwise i+1
         Z_i = op("Z", sites[i])
         Z_ip1 = op("Z", sites[idx_p1])
@@ -342,7 +361,13 @@ function measurement_operator_mps(model::AnyonModel{IsingAnyon}, sites::Vector{<
     return M_local
 end
 
-function measurement_operator_mps(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool;)
+function measurement_operator_mps(
+    model::AnyonModel{OBFAnyon},
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool;
+)
     @assert model.measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X"
     pbc = model.pbc
     N = length(sites)
@@ -375,14 +400,16 @@ function measurement_operator_mps(model::AnyonModel{OBFAnyon}, sites::Vector{<:I
             cstτ_ising = cosh(τ/2) / √(2cosh(τ))
             coef_ising = sign ? -sinh(τ/2) / √(2cosh(τ)) : sinh(τ/2) / √(2cosh(τ))
         end
-        
+
         if model.measure_operator == :X
             M_local = cstτ_ising * op("I", sites[i]) + coef_ising * op("X", sites[i])
         else  # :ZZ
             idx_p1 = (i == N && pbc) ? 1 : i + 1
             Z_i = op("Z", sites[i])
             Z_ip1 = op("Z", sites[idx_p1])
-            M_local = cstτ_ising * (op("I", sites[i]) * op("I", sites[idx_p1])) + coef_ising * (Z_i * Z_ip1)
+            M_local =
+                cstτ_ising * (op("I", sites[i]) * op("I", sites[idx_p1])) +
+                coef_ising * (Z_i * Z_ip1)
         end
         return M_local
     elseif model.measure_operator == :XZZ
@@ -411,15 +438,31 @@ function measurement_operator_mps(model::AnyonModel{OBFAnyon}, sites::Vector{<:I
 end
 
 
-function measuremap(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function measuremap(
+    model::AnyonModel{AT},
+    ψ::MPS,
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+) where {AT<:AbstractAnyonType}
     # Create measurement operator
     M = measurement_operator_mps(model, sites, i, τ, sign)
-    return _measuremap_with_operator(ψ, M; cutoff=cutoff, maxdim=maxdim)
+    return _measuremap_with_operator(ψ, M; cutoff = cutoff, maxdim = maxdim)
 end
 
-function _measuremap_with_operator(ψ::MPS, M::ITensor; cutoff::Float64=1e-10, maxdim::Int=100, truncate_per_event::Bool=true)
+function _measuremap_with_operator(
+    ψ::MPS,
+    M::ITensor;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+    truncate_per_event::Bool = true,
+)
     # Apply measurement operator, initial state ψ should be normalized
-    ψ_measured = truncate_per_event ? apply(M, ψ; cutoff=cutoff, maxdim=maxdim) : apply(M, ψ)
+    ψ_measured =
+        truncate_per_event ? apply(M, ψ; cutoff = cutoff, maxdim = maxdim) : apply(M, ψ)
 
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
@@ -430,7 +473,14 @@ function _measuremap_with_operator(ψ::MPS, M::ITensor; cutoff::Float64=1e-10, m
     return ψ_measured, prob
 end
 
-function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index}, state::MPS, measure_config::MeasureConfig, sample::Union{Nothing, BitVector} =nothing; layer_idx::Int=1) where AT <: AbstractAnyonType
+function boundary_evolution(
+    anyon_model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    state::MPS,
+    measure_config::MeasureConfig,
+    sample::Union{Nothing,BitVector} = nothing;
+    layer_idx::Int = 1,
+) where {AT<:AbstractAnyonType}
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
@@ -440,55 +490,117 @@ function boundary_evolution(anyon_model::AnyonModel{AT}, sites::Vector{<:Index},
     truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
     if measure_config.mode == :sample
         N = anyon_model.N
-        size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) || error("sample size mismatch with anyon_model $(N)")
-        return _apply_measurement_layer_mps(anyon_model, measure_config.τ, sites, state, sample, layer_idx; cutoff=cutoff, maxdim=maxdim, truncate_every_events=truncate_every_events)
+        size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) ||
+            error("sample size mismatch with anyon_model $(N)")
+        return _apply_measurement_layer_mps(
+            anyon_model,
+            measure_config.τ,
+            sites,
+            state,
+            sample,
+            layer_idx;
+            cutoff = cutoff,
+            maxdim = maxdim,
+            truncate_every_events = truncate_every_events,
+        )
     elseif measure_config.mode == :Born
-        return _sample_layer_mps(anyon_model, measure_config.τ, sites, state, measure_config.rng, layer_idx, verbose=measure_config.verbose, cutoff=cutoff, maxdim=maxdim, truncate_every_events=truncate_every_events)
+        return _sample_layer_mps(
+            anyon_model,
+            measure_config.τ,
+            sites,
+            state,
+            measure_config.rng,
+            layer_idx,
+            verbose = measure_config.verbose,
+            cutoff = cutoff,
+            maxdim = maxdim,
+            truncate_every_events = truncate_every_events,
+        )
     end
 end
 
-function _apply_measurement_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS, layer_sample::BitVector, layer_idx::Int64; cutoff::Float64=1e-10, maxdim::Int=100, truncate_every_events::Int=1) where AT <: AbstractAnyonType
+function _apply_measurement_layer_mps(
+    model::AnyonModel{AT},
+    τ::Float64,
+    sites::Vector{<:Index},
+    ψ::MPS,
+    layer_sample::BitVector,
+    layer_idx::Int64;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+    truncate_every_events::Int = 1,
+) where {AT<:AbstractAnyonType}
     # Helper function to apply measurements to a layer
-    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
+    measurement_sites, measure_anyon_model, measurement_strength =
+        _obtain_measurement_config(model, layer_idx, τ)
     F_layer = 0.0
     n = length(measurement_sites)
     operators = Vector{ITensor}(undef, n)
 
     # Cache layer operators to avoid rebuilding them in each apply.
-    @inbounds for k in 1:n
-        operators[k] = measurement_operator_mps(measure_anyon_model, sites, measurement_sites[k], measurement_strength, layer_sample[k])
+    @inbounds for k = 1:n
+        operators[k] = measurement_operator_mps(
+            measure_anyon_model,
+            sites,
+            measurement_sites[k],
+            measurement_strength,
+            layer_sample[k],
+        )
     end
 
     do_per_event_truncate = (truncate_every_events == 1)
 
     if do_per_event_truncate
         # Preserve legacy behavior for exact RNG trajectory compatibility.
-        @inbounds for idx in 1:n
-            ψ, prob = measuremap(measure_anyon_model, ψ, sites, measurement_sites[idx], measurement_strength, layer_sample[idx]; cutoff=cutoff, maxdim=maxdim)
+        @inbounds for idx = 1:n
+            ψ, prob = measuremap(
+                measure_anyon_model,
+                ψ,
+                sites,
+                measurement_sites[idx],
+                measurement_strength,
+                layer_sample[idx];
+                cutoff = cutoff,
+                maxdim = maxdim,
+            )
             F_layer += -log(prob)
         end
     else
         # If truncating less frequently, we apply all operators first and then truncate at the end    
-        @inbounds for idx in 1:n
+        @inbounds for idx = 1:n
             if idx % truncate_every_events == 0
                 truncate_signal=true
             else
                 truncate_signal=false
             end
-            ψ, prob = _measuremap_with_operator(ψ, operators[idx]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+            ψ, prob = _measuremap_with_operator(
+                ψ,
+                operators[idx];
+                cutoff = cutoff,
+                maxdim = maxdim,
+                truncate_per_event = truncate_signal,
+            )
             F_layer += -log(prob)
         end
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
 
-function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:Index}, ψ::MPS,
-    rng::MersenneTwister = MersenneTwister(), 
-    layer_idx::Int64=1;
-    cutoff::Float64=1e-10, maxdim::Int=100,
-    verbose::Bool=false, truncate_every_events::Int=1) where AT <: AbstractAnyonType
+function _sample_layer_mps(
+    model::AnyonModel{AT},
+    τ::Float64,
+    sites::Vector{<:Index},
+    ψ::MPS,
+    rng::MersenneTwister = MersenneTwister(),
+    layer_idx::Int64 = 1;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+    verbose::Bool = false,
+    truncate_every_events::Int = 1,
+) where {AT<:AbstractAnyonType}
 
-    measurement_sites, measure_anyon_model, measurement_strength = _obtain_measurement_config(model, layer_idx, τ)  
+    measurement_sites, measure_anyon_model, measurement_strength =
+        _obtain_measurement_config(model, layer_idx, τ)
     n = length(measurement_sites)
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
@@ -496,19 +608,40 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
     operators_true = Vector{ITensor}(undef, n)
 
     # Build local operators once per layer and reuse for branch evaluations.
-    @inbounds for i in 1:n
+    @inbounds for i = 1:n
         site = measurement_sites[i]
-        operators_false[i] = measurement_operator_mps(measure_anyon_model, sites, site, measurement_strength, false)
-        operators_true[i] = measurement_operator_mps(measure_anyon_model, sites, site, measurement_strength, true)
+        operators_false[i] = measurement_operator_mps(
+            measure_anyon_model,
+            sites,
+            site,
+            measurement_strength,
+            false,
+        )
+        operators_true[i] = measurement_operator_mps(
+            measure_anyon_model,
+            sites,
+            site,
+            measurement_strength,
+            true,
+        )
     end
 
     do_per_event_truncate = (truncate_every_events == 1)
 
     if do_per_event_truncate
         # Preserve legacy behavior for exact RNG trajectory compatibility.
-        @inbounds for idx in 1:n
+        @inbounds for idx = 1:n
             site = measurement_sites[idx]
-            ψ0, p0 = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, false; cutoff=cutoff, maxdim=maxdim)
+            ψ0, p0 = measuremap(
+                measure_anyon_model,
+                ψ,
+                sites,
+                site,
+                measurement_strength,
+                false;
+                cutoff = cutoff,
+                maxdim = maxdim,
+            )
             p1 = 1 - p0
 
             randomNumber = rand(rng)
@@ -518,22 +651,37 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
                 ψ = ψ0
                 F_layer += -log(p0)
             else
-                ψ, _ = measuremap(measure_anyon_model, ψ, sites, site, measurement_strength, true; cutoff=cutoff, maxdim=maxdim)
+                ψ, _ = measuremap(
+                    measure_anyon_model,
+                    ψ,
+                    sites,
+                    site,
+                    measurement_strength,
+                    true;
+                    cutoff = cutoff,
+                    maxdim = maxdim,
+                )
                 sample_layer[idx] = 1
                 F_layer += -log(p1)
             end
         end
     else
-        @inbounds for i in 1:n
+        @inbounds for i = 1:n
             if i % truncate_every_events == 0
                 truncate_signal=true
             else
                 truncate_signal=false
             end
             # Compute probability of outcome 0 via measuremap
-            ψ0, p0 = _measuremap_with_operator(ψ, operators_false[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+            ψ0, p0 = _measuremap_with_operator(
+                ψ,
+                operators_false[i];
+                cutoff = cutoff,
+                maxdim = maxdim,
+                truncate_per_event = truncate_signal,
+            )
             p1 = 1 - p0
-    
+
             randomNumber = rand(rng)
             verbose && @show randomNumber
             if randomNumber < p0
@@ -544,7 +692,13 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
             else
                 # Discard ψ0 (goes out of scope), compute only the needed branch
                 ψ0 = nothing  # release ψ0 memory before allocating ψ1
-                ψ1, _ = _measuremap_with_operator(ψ, operators_true[i]; cutoff=cutoff, maxdim=maxdim, truncate_per_event=truncate_signal)
+                ψ1, _ = _measuremap_with_operator(
+                    ψ,
+                    operators_true[i];
+                    cutoff = cutoff,
+                    maxdim = maxdim,
+                    truncate_per_event = truncate_signal,
+                )
                 sample_layer[i] = 1
                 ψ = ψ1
                 F_layer += -log(p1)
@@ -552,7 +706,7 @@ function _sample_layer_mps(model::AnyonModel{AT}, τ::Float64, sites::Vector{<:I
             end
         end
     end
-    
+
     return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
 end
 
@@ -576,7 +730,15 @@ Enumerate all possible measurement trajectories on MPS state.
 - `Vector{Vector{Bool}}`: Measurement trajectories
 - `Vector{Float64}`: Probabilities for each trajectory
 """
-function mps_measurement_enumeration(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, measurement_sites::Vector{Int}, τ::Float64; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function mps_measurement_enumeration(
+    model::AnyonModel{AT},
+    ψ::MPS,
+    sites::Vector{<:Index},
+    measurement_sites::Vector{Int},
+    τ::Float64;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+) where {AT<:AbstractAnyonType}
     # Initialize with single initial state
     current_level_trajectories = [Bool[]]
     current_level_probabilities = [1.0]
@@ -586,38 +748,56 @@ function mps_measurement_enumeration(model::AnyonModel{AT}, ψ::MPS, sites::Vect
         next_level_states = Vector{MPS}()
         next_level_trajectories = Vector{Vector{Bool}}()
         next_level_probabilities = Vector{Float64}()
-        
+
         # Branch for each current state
         for (state_idx, state) in enumerate(current_level_states)
             current_trajectory = current_level_trajectories[state_idx]
             current_prob = current_level_probabilities[state_idx]
-            
+
             # Apply 0 measurement
-            ψ_p, prob_p = measuremap(model, state, sites, site, τ, false; cutoff=cutoff, maxdim=maxdim)
+            ψ_p, prob_p = measuremap(
+                model,
+                state,
+                sites,
+                site,
+                τ,
+                false;
+                cutoff = cutoff,
+                maxdim = maxdim,
+            )
             # if prob_p > 1e-12
-                new_trajectory_p = [current_trajectory; false]
-                new_prob_p = current_prob * prob_p
-                push!(next_level_states, ψ_p)
-                push!(next_level_trajectories, new_trajectory_p)
-                push!(next_level_probabilities, new_prob_p)
+            new_trajectory_p = [current_trajectory; false]
+            new_prob_p = current_prob * prob_p
+            push!(next_level_states, ψ_p)
+            push!(next_level_trajectories, new_trajectory_p)
+            push!(next_level_probabilities, new_prob_p)
             # end
-            
+
             # Apply 1 measurement
-            ψ_m, prob_m = measuremap(model, state, sites, site, τ, true; cutoff=cutoff, maxdim=maxdim)
+            ψ_m, prob_m = measuremap(
+                model,
+                state,
+                sites,
+                site,
+                τ,
+                true;
+                cutoff = cutoff,
+                maxdim = maxdim,
+            )
             # if prob_m > 1e-12
-                new_trajectory_m = [current_trajectory; true]
-                new_prob_m = current_prob * prob_m
-                push!(next_level_states, ψ_m)
-                push!(next_level_trajectories, new_trajectory_m)
-                push!(next_level_probabilities, new_prob_m)
+            new_trajectory_m = [current_trajectory; true]
+            new_prob_m = current_prob * prob_m
+            push!(next_level_states, ψ_m)
+            push!(next_level_trajectories, new_trajectory_m)
+            push!(next_level_probabilities, new_prob_m)
             # end
         end
-        
+
         current_level_states = next_level_states
         current_level_trajectories = next_level_trajectories
         current_level_probabilities = next_level_probabilities
     end
-    
+
     return current_level_states, current_level_trajectories, current_level_probabilities
 end
 
@@ -677,61 +857,69 @@ model = AnyonModel(FibonacciAnyon(), 6)
 
 See also: [`add_reference_qubits_reset`](@ref)
 """
-function add_reference_qubits(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1; k_new::Int=1, verbose::Bool=false) where AT <: AbstractAnyonType
-    1 ≤ site_idx ≤ length(ψ) || error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
+function add_reference_qubits(
+    model::AnyonModel{AT},
+    ψ::MPS,
+    sites::Vector{<:Index},
+    site_idx::Int = 1;
+    k_new::Int = 1,
+    verbose::Bool = false,
+) where {AT<:AbstractAnyonType}
+    1 ≤ site_idx ≤ length(ψ) ||
+        error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
     0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
-    
+
     k_new == 0 && return copy(ψ), copy(sites)  # No-op if k_new == 0
 
     N = length(sites)
-    
+
     # Create new reference qubit site index
     ref_site = Index(2, "Qubit,Site,n=ref")
     new_sites = vcat([ref_site], sites)
-    
+
     # Build new MPS with reference qubit at position 1
     ψ_new = MPS(N + 1)
-    
+
     # Create reference qubit tensor initialized to |+⟩ = (|0⟩ + |1⟩)/√2
     # with a link index connecting to the rest of MPS
     link_idx = Index(1, "Link,l=0")
     ref_tensor = ITensor(ref_site, link_idx)
-    ref_tensor[ref_site => 1, link_idx => 1] = 1.0  # Start with |0⟩
+    ref_tensor[ref_site=>1, link_idx=>1] = 1.0  # Start with |0⟩
     ψ_new[1] = ref_tensor
-    
+
     # Copy rest of MPS, adjusting first tensor to have the link
     first_tensor = ψ[1]
     first_inds = inds(first_tensor)
     new_first_tensor = first_tensor * ITensor([1.0], link_idx)
     ψ_new[2] = new_first_tensor
-    
-    for i in 2:N
+
+    for i = 2:N
         ψ_new[i+1] = ψ[i]
     end
-    
+
     # Move reference qubit next to target site for applying copy gate
     target_pos = site_idx + 1  # +1 because we added reference at position 1
-    
+
     # Swap reference qubit (at pos 1) towards target position
-    for i in 1:(target_pos - 2)
+    for i = 1:(target_pos-2)
         # Swap sites i and i+1
         orthogonalize!(ψ_new, i)
         s_i = new_sites[i]
         s_ip1 = new_sites[i+1]
-        
+
         SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
-        for a in 1:dim(s_i), b in 1:dim(s_ip1)
+        for a = 1:dim(s_i), b = 1:dim(s_ip1)
             SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
         end
-        ψ_new = apply(SWAP, ψ_new; cutoff=1e-15)
+        ψ_new = apply(SWAP, ψ_new; cutoff = 1e-15)
         new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
-    
+
     # Now reference is adjacent to target (at position target_pos - 1)
     ref_pos = target_pos - 1
     s_ref = new_sites[ref_pos]
     s_tgt = new_sites[target_pos]
-    
+
     # Create copy gate: target controls reference
     # |t=0,r=0⟩ → |t=0,r=0⟩
     # |t=1,r=0⟩ → |t=1,r=1⟩  (copy 1 to reference)
@@ -742,27 +930,27 @@ function add_reference_qubits(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:In
     CopyGate[s_tgt=>2, s_tgt'=>2, s_ref=>1, s_ref'=>2] = 1.0  # |1,0⟩ → |1,1⟩
     CopyGate[s_tgt=>1, s_tgt'=>1, s_ref=>2, s_ref'=>2] = 1.0  # |0,1⟩ → |0,1⟩
     CopyGate[s_tgt=>2, s_tgt'=>2, s_ref=>2, s_ref'=>1] = 1.0  # |1,1⟩ → |1,0⟩
-    
+
     orthogonalize!(ψ_new, ref_pos)
-    ψ_new = apply(CopyGate, ψ_new; cutoff=1e-15)
-    
+    ψ_new = apply(CopyGate, ψ_new; cutoff = 1e-15)
+
     # Swap reference back to position 1
-    for i in (ref_pos - 1):-1:1
+    for i = (ref_pos-1):-1:1
         orthogonalize!(ψ_new, i+1)
         s_i = new_sites[i]
         s_ip1 = new_sites[i+1]
-        
+
         SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
-        for a in 1:dim(s_i), b in 1:dim(s_ip1)
+        for a = 1:dim(s_i), b = 1:dim(s_ip1)
             SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
         end
-        ψ_new = apply(SWAP, ψ_new; cutoff=1e-15)
+        ψ_new = apply(SWAP, ψ_new; cutoff = 1e-15)
         new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
-    
+
     verbose && @info "Added reference qubit at position 1, entangled with site $site_idx"
     verbose && @show maxlinkdim(ψ_new)
-    
+
     return ψ_new, new_sites
 end
 
@@ -811,103 +999,111 @@ prob0, prob1, ψ0, ψ1, sites_ref = add_reference_qubits_reset(model, ψ, sites,
 
 See also: [`add_reference_qubits`](@ref)
 """
-function add_reference_qubits_reset(model::AnyonModel{AT}, ψ::MPS, sites::Vector{<:Index}, site_idx::Int=1; k_new::Int=1, verbose::Bool=false) where AT <: AbstractAnyonType
-    1 ≤ site_idx ≤ length(ψ) || error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
+function add_reference_qubits_reset(
+    model::AnyonModel{AT},
+    ψ::MPS,
+    sites::Vector{<:Index},
+    site_idx::Int = 1;
+    k_new::Int = 1,
+    verbose::Bool = false,
+) where {AT<:AbstractAnyonType}
+    1 ≤ site_idx ≤ length(ψ) ||
+        error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
     0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
-    
+
     if k_new == 0
         # No reference qubit to add, just return identity
         return 1.0, 0.0, copy(ψ), copy(ψ), copy(sites)
     end
 
     N = length(sites)
-    
+
     # Step 1: Measure the system qubit at site_idx in Z basis
     # Calculate probabilities for |0⟩ and |1⟩ outcomes
     ψ_orth = orthogonalize(ψ, site_idx)
     site_tensor = ψ_orth[site_idx]
     s = sites[site_idx]
-    
+
     # Project onto |0⟩
     proj0 = ITensor(s)
-    proj0[s => 1] = 1.0
-    
+    proj0[s=>1] = 1.0
+
     # Project onto |1⟩  
     proj1 = ITensor(s)
-    proj1[s => 2] = 1.0
-    
+    proj1[s=>2] = 1.0
+
     # Calculate probabilities using tensor contraction
     ψ0_proj = copy(ψ_orth)
     ψ1_proj = copy(ψ_orth)
-    
+
     # Apply projectors
     ψ0_proj[site_idx] = noprime(site_tensor * proj0 * dag(prime(proj0, s)))
     ψ1_proj[site_idx] = noprime(site_tensor * proj1 * dag(prime(proj1, s)))
-    
+
     prob0 = real(inner(ψ0_proj, ψ0_proj))
     prob1 = real(inner(ψ1_proj, ψ1_proj))
-    
+
     # Normalize probabilities (should sum to 1)
     total_prob = prob0 + prob1
     prob0 /= total_prob
     prob1 /= total_prob
-    
+
     verbose && @info "Measurement probabilities: P(0) = $prob0, P(1) = $prob1"
-    
+
     # Normalize the projected states
     normalize!(ψ0_proj)
     normalize!(ψ1_proj)
-    
+
     # Step 2: Add reference qubit and create Bell pair for each branch
     # Create reference site
     ref_site = Index(2, "Qubit,Site,n=ref")
     new_sites = vcat([ref_site], sites)
-    
+
     # Helper function to add ref and create Bell pair
     function create_bell_pair_state(ψ_collapsed::MPS, measured_val::Int)
         ψ_bell = MPS(N + 1)
-        
+
         # Create Bell pair: (|00⟩ + |11⟩)/√2 for measured 0
         #                   (|01⟩ + |10⟩)/√2 for measured 1
         link_idx = Index(2, "Link,l=0")
-        
+
         ref_tensor = ITensor(ref_site, link_idx)
         if measured_val == 0
             # |Φ+⟩ = (|0⟩|0⟩ + |1⟩|1⟩)/√2
-            ref_tensor[ref_site => 1, link_idx => 1] = 1/sqrt(2)  # |0⟩ paired with sys |0⟩
-            ref_tensor[ref_site => 2, link_idx => 2] = 1/sqrt(2)  # |1⟩ paired with sys |1⟩
+            ref_tensor[ref_site=>1, link_idx=>1] = 1/sqrt(2)  # |0⟩ paired with sys |0⟩
+            ref_tensor[ref_site=>2, link_idx=>2] = 1/sqrt(2)  # |1⟩ paired with sys |1⟩
         else
             # |Ψ+⟩ = (|0⟩|1⟩ + |1⟩|0⟩)/√2
-            ref_tensor[ref_site => 1, link_idx => 2] = 1/sqrt(2)  # |0⟩ paired with sys |1⟩
-            ref_tensor[ref_site => 2, link_idx => 1] = 1/sqrt(2)  # |1⟩ paired with sys |0⟩
+            ref_tensor[ref_site=>1, link_idx=>2] = 1/sqrt(2)  # |0⟩ paired with sys |1⟩
+            ref_tensor[ref_site=>2, link_idx=>1] = 1/sqrt(2)  # |1⟩ paired with sys |0⟩
         end
         ψ_bell[1] = ref_tensor
-        
+
         # Connect to rest of MPS
         first_tensor = ψ_collapsed[1]
         # Add link index to first tensor
         entangle_tensor = ITensor(link_idx, sites[1], sites[1]')
         # link=1 -> |0⟩, link=2 -> |1⟩
-        entangle_tensor[link_idx => 1, sites[1] => 1, sites[1]' => 1] = 1.0
-        entangle_tensor[link_idx => 2, sites[1] => 2, sites[1]' => 2] = 1.0
-        
+        entangle_tensor[link_idx=>1, sites[1]=>1, sites[1]'=>1] = 1.0
+        entangle_tensor[link_idx=>2, sites[1]=>2, sites[1]'=>2] = 1.0
+
         new_first = noprime(first_tensor * entangle_tensor)
         ψ_bell[2] = new_first
-        
-        for i in 2:N
+
+        for i = 2:N
             ψ_bell[i+1] = ψ_collapsed[i]
         end
-        
+
         normalize!(ψ_bell)
         return ψ_bell
     end
-    
+
     ψ0_bell = create_bell_pair_state(ψ0_proj, 0)
     ψ1_bell = create_bell_pair_state(ψ1_proj, 1)
-    
+
     verbose && @info "Created Bell pairs for both measurement branches"
     verbose && @show maxlinkdim(ψ0_bell), maxlinkdim(ψ1_bell)
-    
+
     return prob0, prob1, ψ0_bell, ψ1_bell, new_sites
 end
 
@@ -923,17 +1119,23 @@ function move_site!(ψ::MPS, i::Int, j::Int)
     while cur != j
         nxt = cur + step
         # SWAP gate
-        apply!(ψ, [min(cur,nxt), max(cur,nxt)], op("SWAP", site_type(ψ,cur), site_type(ψ,nxt)))
+        apply!(
+            ψ,
+            [min(cur, nxt), max(cur, nxt)],
+            op("SWAP", site_type(ψ, cur), site_type(ψ, nxt)),
+        )
         cur = nxt
     end
 end
 
 # MPS method for bulk_evolution - see Measurement.jl for full docstring
-function bulk_evolution(model::AnyonModel{AT},
-                  sites::Vector{<:Index},
-                  state::MPS,
-                  measure_config::MeasureConfig,
-                  samples::Union{Nothing,BitMatrix}=nothing;) where AT <: AbstractAnyonType
+function bulk_evolution(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    state::MPS,
+    measure_config::MeasureConfig,
+    samples::Union{Nothing,BitMatrix} = nothing;
+) where {AT<:AbstractAnyonType}
 
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
@@ -943,9 +1145,24 @@ function bulk_evolution(model::AnyonModel{AT},
     maxdim = measure_config.maxdim
     current_state = copy(state)
     if mode == :Born
-        return _born_measure_mps(model, sites, current_state, measure_config; cutoff=cutoff, maxdim=maxdim)
+        return _born_measure_mps(
+            model,
+            sites,
+            current_state,
+            measure_config;
+            cutoff = cutoff,
+            maxdim = maxdim,
+        )
     elseif mode == :sample
-        return _sample_measure_mps(model, sites, current_state, samples, measure_config; cutoff=cutoff, maxdim=maxdim)
+        return _sample_measure_mps(
+            model,
+            sites,
+            current_state,
+            samples,
+            measure_config;
+            cutoff = cutoff,
+            maxdim = maxdim,
+        )
     end
 end
 
@@ -971,7 +1188,14 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:Bor
   - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
   - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
 """
-function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function _born_measure_mps(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    current_state::MPS,
+    measure_config::MeasureConfig;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+) where {AT<:AbstractAnyonType}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -983,7 +1207,7 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
 
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
-    
+
     n_layers = layers_per_period(model.anyon_type)
     D = Δt * n_layers  # total number of layers
     N = length(sites)
@@ -993,17 +1217,27 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
     sample_free_energy = zeros(Float32, D)
     entanglement_entropys = zeros(Float32, Δt)
 
-    for period in 1:Δt
+    for period = 1:Δt
         # Apply all layers in this period
-        for layer in 1:n_layers
+        for layer = 1:n_layers
             global_layer_idx = (period - 1) * n_layers + layer
             # Apply τ_eff only on the last layer of the last period
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
-            
-            outcome = _sample_layer_mps(model, τ_current, sites, current_state, rng, global_layer_idx;
-                                        cutoff=cutoff, maxdim=maxdim, verbose=verbose, truncate_every_events=measure_config.truncate_every_events)
+
+            outcome = _sample_layer_mps(
+                model,
+                τ_current,
+                sites,
+                current_state,
+                rng,
+                global_layer_idx;
+                cutoff = cutoff,
+                maxdim = maxdim,
+                verbose = verbose,
+                truncate_every_events = measure_config.truncate_every_events,
+            )
             current_state = outcome.state
-            
+
             # Write samples to correct column indices for this layer
             col_indices = _get_sample_column_indices(model, global_layer_idx)
             samples[global_layer_idx, col_indices] = outcome.sample
@@ -1013,7 +1247,12 @@ function _born_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curren
         entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
     end
 
-    return Measurement_outcome_mps_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
+    return Measurement_outcome_mps_bulk(
+        current_state,
+        samples,
+        sample_free_energy,
+        entanglement_entropys,
+    )
 end
 
 """
@@ -1039,7 +1278,15 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:sam
   - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
   - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
 """
-function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, current_state::MPS, samples::BitMatrix, measure_config::MeasureConfig; cutoff::Float64=1e-10, maxdim::Int=100) where AT <: AbstractAnyonType
+function _sample_measure_mps(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    current_state::MPS,
+    samples::BitMatrix,
+    measure_config::MeasureConfig;
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+) where {AT<:AbstractAnyonType}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -1049,32 +1296,41 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
 
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
-    
+
     n_layers = layers_per_period(model.anyon_type)
     D = Δt * n_layers  # total number of layers
 
     sample_free_energy = zeros(Float32, D)
     N = length(sites)
     entanglement_entropys = zeros(Float32, Δt)
-    
+
     # Validate sample matrix dimensions
     isnothing(samples) && error("When mode=:sample samples must be ::BitMatrix")
-    size(samples) == (D, n_cols) || error("sample size should be ($D, $n_cols), got $(size(samples))")
+    size(samples) == (D, n_cols) ||
+        error("sample size should be ($D, $n_cols), got $(size(samples))")
 
-    for period in 1:Δt
+    for period = 1:Δt
         # Apply all layers in this period
-        for layer in 1:n_layers
+        for layer = 1:n_layers
             global_layer_idx = (period - 1) * n_layers + layer
             # Apply τ_eff only on the last layer of the last period
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
-            
+
             # Read samples from correct column indices for this layer
             col_indices = _get_sample_column_indices(model, global_layer_idx)
             layer_sample = BitVector(samples[global_layer_idx, col_indices])
-            
+
             outcome = _apply_measurement_layer_mps(
-                            model, τ_current, sites, current_state,
-                            layer_sample, global_layer_idx; cutoff=cutoff, maxdim=maxdim, truncate_every_events=measure_config.truncate_every_events)
+                model,
+                τ_current,
+                sites,
+                current_state,
+                layer_sample,
+                global_layer_idx;
+                cutoff = cutoff,
+                maxdim = maxdim,
+                truncate_every_events = measure_config.truncate_every_events,
+            )
             current_state = outcome.state
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
@@ -1082,7 +1338,12 @@ function _sample_measure_mps(model::AnyonModel{AT}, sites::Vector{<:Index}, curr
         entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
     end
 
-    return Measurement_outcome_mps_bulk(current_state, samples, sample_free_energy, entanglement_entropys)
+    return Measurement_outcome_mps_bulk(
+        current_state,
+        samples,
+        sample_free_energy,
+        entanglement_entropys,
+    )
 end
 
 struct Measurement_outcome_mps_bulk
@@ -1152,8 +1413,14 @@ Compute correlation using MPS states.
 - `BitMatrix`: The measurement samples used for the evolution.
 - `Vector{Float64}`: The free energy calculated for each layer.
 """
-function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forward::MPS, measure_config::MeasureConfig, sample::BitMatrix) where AT <: AbstractAnyonType
-    
+function reference_evolution(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    forward::MPS,
+    measure_config::MeasureConfig,
+    sample::BitMatrix,
+) where {AT<:AbstractAnyonType}
+
     N = model.N
     τ = measure_config.τ
     t₁ = measure_config.t₁
@@ -1172,8 +1439,8 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
     @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
     @assert mode ∈ [:sample, :Born] "mode must be either :sample or :Born, but got $mode"
 
-    δt = t₂ - t₁ 
-    δx = abs(x₂ - x₁) 
+    δt = t₂ - t₁
+    δx = abs(x₂ - x₁)
     state = forward
     sample_layer = BitMatrix(undef, (size(sample, 1), n_measure))
     sample_free_energy = zeros(Float64, D)
@@ -1183,55 +1450,99 @@ function reference_evolution(model::AnyonModel{AT}, sites::Vector{<:Index}, forw
     if δt > 0 && δx > 0 # 3 ref qubits, both spatial and temporal correlation, actually 3-point correlation.
         verbose && @info "t₁ = $(t₁), t₂ = $(t₂), x₁ = $(x₁), x₂ = $(x₂), 3 refs"
 
-        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose=verbose)
-        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
-    
-        config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        mo1 = bulk_evolution(model, sites2, state2, config1, sample[2*t₁+1:2*t₂, :])
+        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose = verbose)
+        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose = verbose)
 
-        state3, sites3 = add_reference_qubits(model, mo1.state, sites2, x₂; verbose=verbose)
+        config1 = MeasureConfig(
+            τ = τ,
+            t₂ = (t₂-t₁),
+            rng = rng,
+            mode = mode,
+            t₁ = 1,
+            verbose = verbose,
+            enable_τ_eff = false,
+        )
+        mo1 = bulk_evolution(model, sites2, state2, config1, sample[(2*t₁+1):(2*t₂), :])
 
-        config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        mo2 = bulk_evolution(model, sites3, state3, config2, sample[2*t₂+1:end, :])
+        state3, sites3 =
+            add_reference_qubits(model, mo1.state, sites2, x₂; verbose = verbose)
+
+        config2 = MeasureConfig(
+            τ = τ,
+            t₂ = (Δt-t₂),
+            rng = rng,
+            mode = mode,
+            t₁ = 1,
+            verbose = verbose,
+            enable_τ_eff = true,
+        )
+        mo2 = bulk_evolution(model, sites3, state3, config2, sample[(2*t₂+1):end, :])
 
         final_state = mo2.state
 
-        sample_layer[2*t₁+1:2*t₂, :] .= mo1.samples
-        sample_layer[2*t₂+1:end, :] .= mo2.samples
-        sample_free_energy[2*t₁+1:2*t₂] .= mo1.free_energys
-        sample_free_energy[2*t₂+1:end] .= mo2.free_energys
+        sample_layer[(2*t₁+1):(2*t₂), :] .= mo1.samples
+        sample_layer[(2*t₂+1):end, :] .= mo2.samples
+        sample_free_energy[(2*t₁+1):(2*t₂)] .= mo1.free_energys
+        sample_free_energy[(2*t₂+1):end] .= mo2.free_energys
 
     elseif δt == 0 # 2 ref qubits, pure 2-point spatial correlation
-        verbose && @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
-    
-        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose=verbose)
-        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose=verbose)
-        
-        config2 = MeasureConfig(τ=τ, t₂=(Δt-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        mo2 = bulk_evolution(model, sites2, state2, config2, sample[2*t₁+1:end, :])
+        verbose &&
+            @info "x₁ = $(x₁), x₂ = $(x₂), δx = $(δx), at time slice t₁ = t₂ = $(t₁), 2 refs"
+
+        state1, sites1 = add_reference_qubits(model, state, sites, x₁; verbose = verbose)
+        state2, sites2 = add_reference_qubits(model, state1, sites1, x₂; verbose = verbose)
+
+        config2 = MeasureConfig(
+            τ = τ,
+            t₂ = (Δt-t₁),
+            rng = rng,
+            mode = mode,
+            t₁ = 1,
+            verbose = verbose,
+            enable_τ_eff = true,
+        )
+        mo2 = bulk_evolution(model, sites2, state2, config2, sample[(2*t₁+1):end, :])
 
         final_state = mo2.state
-        sample_layer[2*t₁+1:end, :] .= mo2.samples
-        sample_free_energy[2*t₁+1:end] .= mo2.free_energys
+        sample_layer[(2*t₁+1):end, :] .= mo2.samples
+        sample_free_energy[(2*t₁+1):end] .= mo2.free_energys
 
     elseif δx == 0 # 2 ref qubits, pure 2-point temporal correlation
-        verbose && @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
+        verbose &&
+            @info "t₁ = $(t₁), t₂ = $(t₂), δt = $(δt), at site x₁ = x₂ = $(x₂), 2 refs"
 
-        state1, sites1 = add_reference_qubits(model, state, sites, x₂; verbose=verbose)
+        state1, sites1 = add_reference_qubits(model, state, sites, x₂; verbose = verbose)
 
-        config1 = MeasureConfig(τ=τ, t₂=(t₂-t₁), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=false)
-        mo1 = bulk_evolution(model, sites1, state1, config1, sample[2*t₁+1:2*t₂, :])
+        config1 = MeasureConfig(
+            τ = τ,
+            t₂ = (t₂-t₁),
+            rng = rng,
+            mode = mode,
+            t₁ = 1,
+            verbose = verbose,
+            enable_τ_eff = false,
+        )
+        mo1 = bulk_evolution(model, sites1, state1, config1, sample[(2*t₁+1):(2*t₂), :])
 
-        state2, sites2 = add_reference_qubits(model, mo1.state, sites1, x₂; verbose=verbose)
-    
-        config2 = MeasureConfig(τ=τ, t₂=(Δt-t₂), rng=rng, mode=mode, t₁=1, verbose=verbose, enable_τ_eff=true)
-        mo2 = bulk_evolution(model, sites2, state2, config2, sample[2*t₂+1:end, :])
+        state2, sites2 =
+            add_reference_qubits(model, mo1.state, sites1, x₂; verbose = verbose)
+
+        config2 = MeasureConfig(
+            τ = τ,
+            t₂ = (Δt-t₂),
+            rng = rng,
+            mode = mode,
+            t₁ = 1,
+            verbose = verbose,
+            enable_τ_eff = true,
+        )
+        mo2 = bulk_evolution(model, sites2, state2, config2, sample[(2*t₂+1):end, :])
 
         final_state = mo2.state
-        sample_layer[2*t₁+1:2*t₂, :] .= mo1.samples
-        sample_layer[2*t₂+1:end, :] .= mo2.samples
-        sample_free_energy[2*t₁+1:2*t₂] .= mo1.free_energys
-        sample_free_energy[2*t₂+1:end] .= mo2.free_energys
+        sample_layer[(2*t₁+1):(2*t₂), :] .= mo1.samples
+        sample_layer[(2*t₂+1):end, :] .= mo2.samples
+        sample_free_energy[(2*t₁+1):(2*t₂)] .= mo1.free_energys
+        sample_free_energy[(2*t₂+1):end] .= mo2.free_energys
     end
 
     return final_state, sample_layer, sample_free_energy
@@ -1258,14 +1569,14 @@ function ee_mps(ψ::MPS, b::Int)
     # 
     # Calculate entanglement entropy from singular values
     SvN = 0.0
-    for n in 1:dim(S, 1)
+    for n = 1:dim(S, 1)
         p = S[n, n]^2
         if p > 1e-12
             SvN -= p * log(p)
         end
     end
-    
-    if abs(SvN) <1e-14
+
+    if abs(SvN) < 1e-14
         SvN = 0.0
     end
     return SvN
@@ -1303,7 +1614,7 @@ true
 """
 function anyon_eelis(model::AnyonModel, ψ::MPS)
     N = model.N
-    splitlis=Vector(1:N-1)
+    splitlis=Vector(1:(N-1))
     EE_lis=zeros(length(splitlis))
     for m in eachindex(EE_lis)
         EE_lis[m]=ee_mps(ψ, splitlis[m])

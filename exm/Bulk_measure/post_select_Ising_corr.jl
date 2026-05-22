@@ -9,78 +9,117 @@ using Random
 
 function get_system_params(τ, L)
     table = Dict(
-            atanh(0.1)  => (1200L, 1000, 1500L),
-            atanh(0.2)  => (250L,  100, 250L),
-            atanh(0.3)  => (60L,  48, 100L),
-            atanh(0.4)  => (50L,  40, 80L),
-            atanh(0.5)  => (40L,   32, 40L),
-            atanh(0.6)  => (22L,   20, 30L),
-            log(1 + √2) => (16L,   14, 20L),
-            atanh(0.8)  => (12L,   10, 10L),
-            atanh(0.9)  => (4L,    4, 4L),
-            atanh(0.95) => (4L,    4, 4L),
-        )
+        atanh(0.1) => (1200L, 1000, 1500L),
+        atanh(0.2) => (250L, 100, 250L),
+        atanh(0.3) => (60L, 48, 100L),
+        atanh(0.4) => (50L, 40, 80L),
+        atanh(0.5) => (40L, 32, 40L),
+        atanh(0.6) => (22L, 20, 30L),
+        log(1 + √2) => (16L, 14, 20L),
+        atanh(0.8) => (12L, 10, 10L),
+        atanh(0.9) => (4L, 4, 4L),
+        atanh(0.95) => (4L, 4, 4L),
+    )
     D, step, start = get(table, τ, (3L, 2, 2L))
     inds = collect(1:step:D)
-    avg_range = start:D-5
+    avg_range = start:(D-5)
     return D, inds, avg_range
 end
 
 # Here need to note that t is div(D,2), where D is the total evolution layer of get_system_params
-function compute_post_selection_Ising(L::Int64, τ::Float64, t::Int64=5L, δt::Int=1; sign::Bool=false, entangle_way::Symbol=:copy)
-    model = AnyonModel(IsingAnyon(), L; pbc=true, measure_operator=:X)
+function compute_post_selection_Ising(
+    L::Int64,
+    τ::Float64,
+    t::Int64 = 5L,
+    δt::Int = 1;
+    sign::Bool = false,
+    entangle_way::Symbol = :copy,
+)
+    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
     sample = sign ? BitMatrix(ones(Bool, 2t, L)) : BitMatrix(zeros(Bool, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
     initial_state /= norm(initial_state) # initial state is all zero state
 
-    steady_config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
+    steady_config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
     mo = bulk_evolution(model, initial_state, steady_config, sample)
     Flis = mo.free_energys
 
-    ref_sample = sign ? BitMatrix(ones(Bool, 2*(t+δt+t), L)) : BitMatrix(zeros(Bool, 2*(t+δt+t), L))
-       
+    ref_sample =
+        sign ? BitMatrix(ones(Bool, 2*(t+δt+t), L)) : BitMatrix(zeros(Bool, 2*(t+δt+t), L))
+
     if entangle_way == :copy
         if δt == 0
-            ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t, t₁ = t, verbose=true)
+            ref_config = MeasureConfig(
+                τ = τ,
+                mode = :sample,
+                x₂ = L÷2+1,
+                t₂ = t,
+                t₁ = t,
+                verbose = true,
+            )
             spatial = true
             temporal = false
         else
-            ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t + δt, t₁ = t, verbose=true, x₁ = L÷2+1)
+            ref_config = MeasureConfig(
+                τ = τ,
+                mode = :sample,
+                x₂ = L÷2+1,
+                t₂ = t + δt,
+                t₁ = t,
+                verbose = true,
+                x₁ = L÷2+1,
+            )
             temporal = true
             spatial = false
         end
-        
-        ref_mo = reference_evolution(model, mo.state,ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
+
+        ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
         ref2st = ref_mo.state
 
-        spatial_corr, temporal_corr = ref_correlation(model, ref2st, spatial = spatial, temporal = temporal)
-        sysrdm = reference_rdm(model, collect(1:div(L,2)), ref2st, traceref = false)
+        spatial_corr, temporal_corr =
+            ref_correlation(model, ref2st, spatial = spatial, temporal = temporal)
+        sysrdm = reference_rdm(model, collect(1:div(L, 2)), ref2st, traceref = false)
         S = ee(sysrdm)
     end
 
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(2t,L))_ps$(sign)_$(δt).jld", "temporal_corr", temporal_corr, "spatial_corr", spatial_corr, "S", S)
+    save(
+        "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(2t,L))_ps$(sign)_$(δt).jld",
+        "temporal_corr",
+        temporal_corr,
+        "spatial_corr",
+        spatial_corr,
+        "S",
+        S,
+    )
     return temporal_corr, spatial_corr, S
 end
 
-function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, t::Int64=5L, δt::Int=1; sign::Bool=false, entangle_way::Symbol=:copy)
+function spatial_temporal_corr_varyingt(
+    L::Int64,
+    τ::Float64,
+    t::Int64 = 5L,
+    δt::Int = 1;
+    sign::Bool = false,
+    entangle_way::Symbol = :copy,
+)
     # | ----> |____| ----> |
     # 0       t   t+δt   t+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. block_size is the time interval δt between two ref qubits divided by L
-    model = AnyonModel(IsingAnyon(), L; pbc=true, measure_operator=:X) # Reset to |+> state, if IsingZ, reset to |0>; If copy entangle, irrelevant.
- 
+    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X) # Reset to |+> state, if IsingZ, reset to |0>; If copy entangle, irrelevant.
+
     # 1). First evolve to steady state with D time steps
     sample = sign ? BitMatrix(ones(Bool, 2t, L)) : BitMatrix(zeros(Bool, 2t, L))
     initial_state = ones(length(anyon_basis(model)))
     initial_state /= norm(initial_state) # initial state is all plus state
-    
-    config = MeasureConfig(τ=τ, mode=:sample, t₂=t, enable_τ_eff=false)
+
+    config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
     mo = bulk_evolution(model, initial_state, config, sample)
     Flis = mo.free_energys
 
     mp = model.measure_operator
     # tlis is the time list after adding two ref qubits.
-    Dlis = (mp == :X) ? collect(0:2:2t) :  collect(1:2:2t)
+    Dlis = (mp == :X) ? collect(0:2:2t) : collect(1:2:2t)
     spatial_corr_lis = zeros(Float64, length(Dlis))
     temporal_corr_lis = zeros(Float64, length(Dlis))
     eelis = zeros(Float64, length(Dlis))
@@ -93,49 +132,85 @@ function spatial_temporal_corr_varyingt(L::Int64, τ::Float64, t::Int64=5L, δt:
         elseif mp == :X
             savesign = sign ? :m : :p
         end
-    
-        for (idx, t) in enumerate(Dlis)
-            t2 = t + δt    
-            ref_sample = sign ? BitMatrix(ones(Int, t+δt, L)) : BitMatrix(zeros(Int, t+δt, L))
 
-            ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t2, t₁ = t, verbose=true)
+        for (idx, t) in enumerate(Dlis)
+            t2 = t + δt
+            ref_sample =
+                sign ? BitMatrix(ones(Int, t+δt, L)) : BitMatrix(zeros(Int, t+δt, L))
+
+            ref_config = MeasureConfig(
+                τ = τ,
+                mode = :sample,
+                x₂ = L÷2+1,
+                t₂ = t2,
+                t₁ = t,
+                verbose = true,
+            )
             ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample) # to compute temporal correlation, add ref qubit at site L/2+1
             sample, sample_free_energy = ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site 1
-            sysrdm = reference_rdm(model, collect(1:div(L,2)), ref_mo.state, traceref = false)
+            sysrdm =
+                reference_rdm(model, collect(1:div(L, 2)), ref_mo.state, traceref = false)
             eelis[idx] = ee(sysrdm)
             temporal_corr_lis[idx] = temporal_correlation(model, ref_mo.state)
             # spatial_correlation.(L, final_st, 1, div(L,2),  pbc=pbc, anyon_type=anyon_type)
 
         end
-        
+
         # save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(savesign)_$(div(δt,L)).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
         return temporal_corr_lis, spatial_corr_lis, eelis
-    # entangle_way is copy, conditioned by the given site qubit.
+        # entangle_way is copy, conditioned by the given site qubit.
     elseif entangle_way == :copy
         for (idx, t) in enumerate(Dlis)
-            ref_sample = sign ? BitMatrix(ones(Int, t+δt + D, L)) : BitMatrix(zeros(Int, t+δt + D, L))
+            ref_sample =
+                sign ? BitMatrix(ones(Int, t + δt + D, L)) :
+                BitMatrix(zeros(Int, t + δt + D, L))
 
             if δt == 0
-                ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t, t₁ = t, verbose=true)
+                ref_config = MeasureConfig(
+                    τ = τ,
+                    mode = :sample,
+                    x₂ = L÷2+1,
+                    t₂ = t,
+                    t₁ = t,
+                    verbose = true,
+                )
                 spatial = true
                 temporal = false
             else
-                ref_config = MeasureConfig(τ=τ, mode=:sample, x₂ = L÷2+1, t₂=t + δt, t₁ = t, verbose=true, x₁ = L÷2+1)
+                ref_config = MeasureConfig(
+                    τ = τ,
+                    mode = :sample,
+                    x₂ = L÷2+1,
+                    t₂ = t + δt,
+                    t₁ = t,
+                    verbose = true,
+                    x₁ = L÷2+1,
+                )
                 temporal = true
                 spatial = false
             end
-            
+
             ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample)
             sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
 
-            sysrdm = reference_rdm(model, collect(1:div(L,2)), ref_mo.state, traceref = false)
+            sysrdm =
+                reference_rdm(model, collect(1:div(L, 2)), ref_mo.state, traceref = false)
             eelis[idx] = ee(sysrdm)
-            spatial_corr, temporal_corr = ref_correlation(model, ref_mo.state, spatial=spatial, temporal=temporal)
+            spatial_corr, temporal_corr =
+                ref_correlation(model, ref_mo.state, spatial = spatial, temporal = temporal)
             temporal_corr_lis[idx] = temporal_corr
-            spatial_corr_lis[idx] = spatial_corr 
+            spatial_corr_lis[idx] = spatial_corr
         end
 
-        save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld", "temporal_corr_lis", temporal_corr_lis, "spatial_corr_lis", spatial_corr_lis, "eelis", eelis)
+        save(
+            "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(div(D,L))_ps$(sign)_$(δt).jld",
+            "temporal_corr_lis",
+            temporal_corr_lis,
+            "spatial_corr_lis",
+            spatial_corr_lis,
+            "eelis",
+            eelis,
+        )
         return temporal_corr_lis, spatial_corr_lis, eelis
     end
 end
@@ -148,147 +223,272 @@ function organize()
     for (i, L) in enumerate(Llis)
         τ = log(1 + √2)
         D = 8
-        spatial_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld", "spatial_corr")
+        spatial_corr = load(
+            "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_0.jld",
+            "spatial_corr",
+        )
         scLlis[i] = spatial_corr
         for (j, δt) in enumerate(δtlis)
-            temporal_corr = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",  "temporal_corr")
+            temporal_corr = load(
+                "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps1_$(δt).jld",
+                "temporal_corr",
+            )
             tcLlis[i, j] = temporal_corr
         end
     end
-    save("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", scLlis, "tcLlis", tcLlis)
+    save(
+        "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld",
+        "scLlis",
+        scLlis,
+        "tcLlis",
+        tcLlis,
+    )
 end
 
 function get_system_params_corr(τ)
     D = Dict(
-        atanh(0.1)  => 1200,
-        atanh(0.2)  => 250,
-        atanh(0.3)  => 60,
-        atanh(0.4)  => 50,
-        atanh(0.5)  => 40,
-        atanh(0.6)  => 22,
+        atanh(0.1) => 1200,
+        atanh(0.2) => 250,
+        atanh(0.3) => 60,
+        atanh(0.4) => 50,
+        atanh(0.5) => 40,
+        atanh(0.6) => 22,
         log(1 + √2) => 16,
-        atanh(0.8)  => 12,
-        atanh(0.9)  => 4,
+        atanh(0.8) => 12,
+        atanh(0.9) => 4,
         atanh(0.95) => 4,
     )
     return get(D, τ, 3)   # 5 is the default value for τ=1000.0
 end
 
-function plot_stc_tlis(L::Int64=10, D::Int64=10, τ::Float64=log(1+√2); sign::Int=0)
+function plot_stc_tlis(L::Int64 = 10, D::Int64 = 10, τ::Float64 = log(1+√2); sign::Int = 0)
     # Plot the spatio-temporal correlations vs t for different δt
     δtlis = collect(1:6)
-    c = cgrad(:blues, length(δtlis)+1, categorical=true)
-    
+    c = cgrad(:blues, length(δtlis)+1, categorical = true)
+
     fig = plot(
-        label=false,
-        legend_background_color=nothing,
-        legend_foreground_color=nothing, 
-        xlabel=L"t /L",
-        ylabel=L"g(0, \Delta t), g_{space}",
-        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+        label = false,
+        legend_background_color = nothing,
+        legend_foreground_color = nothing,
+        xlabel = L"t /L",
+        ylabel = L"g(0, \Delta t), g_{space}",
+        title = latexstring("γ= $(round(tanh(τ), digits=3))"),
     )
     # annotate!(fig_monitored_N, [(335, 3.6, text(L"L=", 10, :black))])
-    temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
+    temporal_corr_lis, spatial_corr_lis, eelis = load(
+        "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld",
+        "temporal_corr_lis",
+        "spatial_corr_lis",
+        "eelis",
+    )
 
-    tlis = collect(1:length(temporal_corr_lis))./L
-    plot!(fig, tlis, spatial_corr_lis, label=latexstring("(δx,δt) = (L/2, 0)"), color=c[1], linestyle=:dash, linewidth=2)
+    tlis = collect(1:length(temporal_corr_lis)) ./ L
+    plot!(
+        fig,
+        tlis,
+        spatial_corr_lis,
+        label = latexstring("(δx,δt) = (L/2, 0)"),
+        color = c[1],
+        linestyle = :dash,
+        linewidth = 2,
+    )
 
     for (idx, δt) in enumerate(δtlis)
 
-        temporal_corr_lis, spatial_corr_lis, eelis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",  "temporal_corr_lis", "spatial_corr_lis", "eelis")
+        temporal_corr_lis, spatial_corr_lis, eelis = load(
+            "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",
+            "temporal_corr_lis",
+            "spatial_corr_lis",
+            "eelis",
+        )
 
-        plot!(fig, tlis, temporal_corr_lis, label=latexstring("(δx,δt) = (0, $(δt/2L)L)"), color=c[idx+1], linewidth=2)
+        plot!(
+            fig,
+            tlis,
+            temporal_corr_lis,
+            label = latexstring("(δx,δt) = (0, $(δt/2L)L)"),
+            color = c[idx+1],
+            linewidth = 2,
+        )
     end
 
     return fig
 end
-    
+
 function plot_ref_ee(eelis, gamma)
     # Plot the entanglement entropy evolution
     fig = plot(
-        label=false,
-        legend_background_color=nothing,
-        legend_foreground_color=nothing, 
-        xlabel=L"\Delta t /L",
-        ylabel=L"S_{vN}",
-        title=latexstring("γ= $(round(gamma, digits=3))"),
+        label = false,
+        legend_background_color = nothing,
+        legend_foreground_color = nothing,
+        xlabel = L"\Delta t /L",
+        ylabel = L"S_{vN}",
+        title = latexstring("γ= $(round(gamma, digits=3))"),
     )
-    plot!(fig, collect(1:length(eelis))./L, eelis, color=:blues, linewidth=2, label=false)
+    plot!(
+        fig,
+        collect(1:length(eelis)) ./ L,
+        eelis,
+        color = :blues,
+        linewidth = 2,
+        label = false,
+    )
 
     return fig
 end
 
-function plot_tc(L::Int, D::Int=10, τ::Float64=log(1+√2); sign::Int=1)
+function plot_tc(L::Int, D::Int = 10, τ::Float64 = log(1+√2); sign::Int = 1)
     # Plot the temporal correlations vs δt
-    
+
     fig = plot(
-        label=false,
-        legend_background_color=nothing,
-        legend_foreground_color=nothing,
-        xlabel=L"δt /L",
-        ylabel=L"g(0, \Delta t)/g_{space}",
-        title=latexstring("γ= $(round(tanh(τ), digits=3))"),
+        label = false,
+        legend_background_color = nothing,
+        legend_foreground_color = nothing,
+        xlabel = L"δt /L",
+        ylabel = L"g(0, \Delta t)/g_{space}",
+        title = latexstring("γ= $(round(tanh(τ), digits=3))"),
         # ylim =(-0.2, 3.0),
-        )
-        
-        
+    )
+
+
     δtlis = collect(1:6)
     @show δtlis
 
     tc1lis = zeros(length(δtlis))
-    sc1 = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld", "spatial_corr")
+    sc1 = load(
+        "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_0.jld",
+        "spatial_corr",
+    )
     for (idx, δt) in enumerate(δtlis)
-        temporal_corr= load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",  "temporal_corr")
+        temporal_corr = load(
+            "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/L$(L)/τ$(τ)/D$(D)_ps$(sign)_$(δt).jld",
+            "temporal_corr",
+        )
         tc1lis[idx] = temporal_corr
     end
 
-    plot!(fig, δtlis./L, tc1lis./sc1, label=L"s=1", xticks=δtlis./L, color=:reds, linewidth=2, marker=:circle, markersize=4)
+    plot!(
+        fig,
+        δtlis ./ L,
+        tc1lis ./ sc1,
+        label = L"s=1",
+        xticks = δtlis ./ L,
+        color = :reds,
+        linewidth = 2,
+        marker = :circle,
+        markersize = 4,
+    )
 
-    t_star = log(1 + √2)/ π
-    plot!(fig, t_star*[1, 1],[minimum(tc1lis./sc1), maximum(tc1lis./sc1)], linestyle=:dash, color=:gray, label = false)
-    plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
-    scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false) # 
-    annotate!(fig, t_star+0.1, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 10, :black))
+    t_star = log(1 + √2) / π
+    plot!(
+        fig,
+        t_star*[1, 1],
+        [minimum(tc1lis ./ sc1), maximum(tc1lis ./ sc1)],
+        linestyle = :dash,
+        color = :gray,
+        label = false,
+    )
+    plot!(fig, [0.05, 0.75], [1, 1], linestyle = :dash, color = :gray, label = false) # horizontal line
+    scatter!(
+        fig,
+        [t_star],
+        [1],
+        color = :black,
+        marker = :star5,
+        markersize = 8,
+        label = false,
+    ) # 
+    annotate!(
+        fig,
+        t_star+0.1,
+        1+0.15,
+        text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 10, :black),
+    )
 
     return fig
 end
 
-function plot_stc_scaling(τ::Float64=log(1+√2))
+function plot_stc_scaling(τ::Float64 = log(1+√2))
     Llis = collect(8)
     δtlis = collect(1:8)
 
-    scLlis, tcLlis = load("exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld", "scLlis", "tcLlis")
-    
-    c = cgrad(:blues, length(Llis), categorical=true)
-    fig = plot(
-        legend_background_color=nothing,
-        legend_foreground_color=nothing,
-        xlabel=L"δt/L",
-        ylabel=L"g(0, \delta t)/g(\delta x=L/2, 0)",
-        title="spacetime self-dual",
-        )
+    scLlis, tcLlis = load(
+        "exm/data/Bulk_measure/spatial_temporal_corr_varying_Ising/stc_L$(Llis[1])$(Llis[end])_t0$(δtlis[end]).jld",
+        "scLlis",
+        "tcLlis",
+    )
 
-    for (i, L) in enumerate(Llis[1:end-1])    
-        scatter!(fig, δtlis./(L), tcLlis[i, :]./scLlis[i], label=latexstring("L=$(L)"), color=c[i], marker=:circle, markersize=4)
+    c = cgrad(:blues, length(Llis), categorical = true)
+    fig = plot(
+        legend_background_color = nothing,
+        legend_foreground_color = nothing,
+        xlabel = L"δt/L",
+        ylabel = L"g(0, \delta t)/g(\delta x=L/2, 0)",
+        title = "spacetime self-dual",
+    )
+
+    for (i, L) in enumerate(Llis[1:(end-1)])
+        scatter!(
+            fig,
+            δtlis ./ (L),
+            tcLlis[i, :] ./ scLlis[i],
+            label = latexstring("L=$(L)"),
+            color = c[i],
+            marker = :circle,
+            markersize = 4,
+        )
     end
 
-    plot!(fig, δtlis./(Llis[end]), tcLlis[end, :]./scLlis[end], label=latexstring("L=$(Llis[end])"), color=c[end], linewidth=2, marker=:circle, markersize=4)
+    plot!(
+        fig,
+        δtlis ./ (Llis[end]),
+        tcLlis[end, :] ./ scLlis[end],
+        label = latexstring("L=$(Llis[end])"),
+        color = c[end],
+        linewidth = 2,
+        marker = :circle,
+        markersize = 4,
+    )
 
-    t_star = log(1 + √2)/ π
-    plot!(fig, t_star*[1, 1],[minimum(tcLlis./scLlis), maximum(tcLlis./scLlis)], linestyle=:dash, color=:gray, label = false) # vertical line
-    plot!(fig, [0.05, 0.75], [1,1], linestyle=:dash, color=:gray, label = false) # horizontal line
-    scatter!(fig, [t_star], [1], color=:black, marker=:star5, markersize=8, label=false)
-    annotate!(fig, t_star+0.15, 1+0.15, text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 8, :black))
+    t_star = log(1 + √2) / π
+    plot!(
+        fig,
+        t_star*[1, 1],
+        [minimum(tcLlis ./ scLlis), maximum(tcLlis ./ scLlis)],
+        linestyle = :dash,
+        color = :gray,
+        label = false,
+    ) # vertical line
+    plot!(fig, [0.05, 0.75], [1, 1], linestyle = :dash, color = :gray, label = false) # horizontal line
+    scatter!(
+        fig,
+        [t_star],
+        [1],
+        color = :black,
+        marker = :star5,
+        markersize = 8,
+        label = false,
+    )
+    annotate!(
+        fig,
+        t_star+0.15,
+        1+0.15,
+        text(L"(t^*=\frac{\log(1+\sqrt{2})}{\pi}, g/g=1)", 8, :black),
+    )
     return fig
 end
 
 function alpha_compute_corr(L, τ)
     D = get_system_params_corr(τ)
 
-    temporal_corr_lis, spatial_corr = load("exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",  "temporal_corr_lis", "spatial_corr")
+    temporal_corr_lis, spatial_corr = load(
+        "exm/data/Bulk_measure/temporal_corr_Ising/L$(L)/τ$(τ)/D$(D)_ps1.jld",
+        "temporal_corr_lis",
+        "spatial_corr",
+    )
 
-    inds = findall(x-> isapprox(x, 1.0, atol=0.1), temporal_corr_lis ./ spatial_corr)
-    Δt = (collect(1:2:length(temporal_corr_lis))./L)[inds][end-1]
+    inds = findall(x -> isapprox(x, 1.0, atol = 0.1), temporal_corr_lis ./ spatial_corr)
+    Δt = (collect(1:2:length(temporal_corr_lis)) ./ L)[inds][end-1]
     α = 2*log(1+√2)/π/Δt
     return α
 end
@@ -316,7 +516,7 @@ else
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
     # D, _, _ = get_system_params(τ, L)
-    compute_post_selection_Ising(L, τ, 5L, δt, sign=1)
+    compute_post_selection_Ising(L, τ, 5L, δt, sign = 1)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end
 
