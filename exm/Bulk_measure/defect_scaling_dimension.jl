@@ -35,7 +35,7 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
         else
             t, _, _ = get_mps_params_Born(inds, L)
         end
-        return "exm/data/Bulk_measure/records_correlation/L$(L)/gammaind$(inds)/record_correlation_t$(t).jld2"
+        return "exm/data/Bulk_measure/defect_scaling/L$(L)/gammaind$(inds)"
     end
 
     function get_cfg_params_Born(ind, L)
@@ -124,7 +124,10 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             τ = τlis[τ_idx]
             sample_path = data_path(τ_idx, L, index)
             sample = load(sample_path, "sample")
-            sample[1, :] = BitVector(1 .- sample[1, :])
+            # sample[1, :] = BitVector(1 .- sample[1, :])
+            sample[1:2:end, end] .= BitVector(1 .- sample[1:2:end, end])
+            parity = foldr(*, 2 .*sample[1, :] .-1)
+
             FE=load(sample_path, "sample_free_energy")[end]
             
             D, _, _ = get_cfg_params_Born(τ_idx, L)
@@ -137,7 +140,8 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             outcome = bulk_evolution(model, st, config, sample)
             sample_free_energy = outcome.free_energys
 
-            save("exm/data/Bulk_measure/defect_scaling/L$(L)/gammaind$(τ_idx)/defect_FE_t$(div(D,2L))_samples$(index).jld2", "defect_FE", sample_free_energy[end], "FE", FE)
+            save_path = save_data_path(L, τ_idx)
+            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_samples$(index).jld2", "defect_FE", sample_free_energy[end], "FE", FE, "parity", parity)
             return (L, τ_idx, index, :success, nothing)
         catch e
             return (L, τ_idx, index, :failed, e)
@@ -149,6 +153,53 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
         L, τ_idx, index = task
         return defect_FE(L, τ_idx, index)
     end
+
+    function defect_FE_collect(L::Int64, τind::Int64)
+        try
+            D, _, _ = get_cfg_params_Born(τind, L)
+            t = div(D, 2L)
+            dir_path = save_data_path(L, τind)
+        
+            samples_num = length(
+                filter(
+                    f -> startswith(f, "defect_FE_t$(t)") && endswith(f, ".jld2"),
+                    readdir(dir_path),
+                ),
+            )
+            println("collecting $(samples_num) sample files")
+            defect_FE_lis = zeros(samples_num)
+            FE_lis = zeros(samples_num)
+            parity_lis = zeros(samples_num)
+
+            existing_files = filter(
+                f -> startswith(f, "defect_FE_t$(t)") && endswith(f, ".jld2"),
+                readdir(dir_path),
+            )
+            for (i, fname) in enumerate(existing_files)
+                data = load(joinpath(dir_path, fname))
+                defect_FE = data["defect_FE"]
+                FE = data["FE"]
+                parity = data["parity"]
+                defect_FE_lis[i] = defect_FE
+                FE_lis[i] = FE
+                parity_lis[i] = parity
+            end
+
+            save(joinpath(dir_path, "defect_FE_t$(t)_collected.jld2"),
+                "defect_FE_lis", defect_FE_lis,
+                "FE_lis", FE_lis,
+                "parity_lis", parity_lis,
+            )
+            return (L, τind, :success, nothing)
+        catch e
+            return (L, τind, :failed, e)
+        end
+    end
+
+    function process_merge_task(task)
+        L, τ_idx = task
+        return defect_FE_collect(L, τ_idx)
+    end
 end
 
 
@@ -159,8 +210,8 @@ if length(ARGS) == 0
 else
     mode = parse(Int64, ARGS[1])
     if mode == 1
-        Llis = collect(12:2:20)
-        τlis_idx = collect(1:12)
+        Llis = collect(12:2:14)
+        τlis_idx = collect(10:10)
         merge_tasks = [(ll, tidx) for ll in Llis for tidx in τlis_idx]
 
         merge_results = pmap(process_merge_task, merge_tasks; batch_size = 1)
@@ -186,7 +237,7 @@ else
         index_end = parse(Int64, ARGS[4])
         indexlis = collect(index_start:index_end)
         seedlis = indexlis
-        Llis = vcat(collect(12:2:20), [26, 28])
+        Llis = vcat(collect(12:2:14))
 
         println("=== Parallel Sample Generation ===")
         println("τ_idx = $τ_idx")
@@ -203,12 +254,12 @@ else
 
         # count successes and failures
         failed_tasks = [
-            (L_res, τ_res, idx_res, seed_res, error) for
-            (L_res, τ_res, idx_res, seed_res, status, error) in results if
+            (L_res, τ_res, idx_res, status, error) for
+            (L_res, τ_res, idx_res, status, error) in results if
             status != :success
         ]
 
-        success_count = count(r -> r[5] == :success, results)
+        success_count = count(r -> r[4] == :success, results)
         failed_count = length(failed_tasks)
 
         # summary report
@@ -219,18 +270,18 @@ else
 
         if failed_count > 0
             println("\n=== Failed Task Details ===")
-            for (i, (L_f, τ_f, idx_f, seed_f, err)) in enumerate(failed_tasks)
-                println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f, seed=$seed_f")
+            for (i, (L_f, τ_f, idx_f, status_f, err)) in enumerate(failed_tasks)
+                println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f, status=$status_f")
                 println("  Error: $err")
             end
 
             # save failed tasks to file
-            failed_file = "failed_tasks_L$(L)_τidx$(inds)_batch$(index).txt"
+            failed_file = "failed_tasks_τidx$(τ_idx)_batch_$(index_start)_$(index_end).txt"
             open(failed_file, "w") do io
                 println(io, "# Failed Task List")
-                println(io, "# Format: L τ_idx sample_index seed")
-                for (L_f, τ_f, idx_f, seed_f, err) in failed_tasks
-                    println(io, "$L_f $inds $idx_f $seed_f  # Error: $err")
+                println(io, "# Format: L τ_idx sample_index status error")
+                for (L_f, τ_f, idx_f, status_f, err) in failed_tasks
+                    println(io, "$L_f $τ_f $idx_f $status_f  # Error: $err")
                 end
             end
             println("\nFailed tasks saved to: $failed_file")
