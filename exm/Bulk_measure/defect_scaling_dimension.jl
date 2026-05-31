@@ -124,11 +124,10 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             τ = τlis[τ_idx]
             sample_path = data_path(τ_idx, L, index)
             sample = load(sample_path, "sample")
-            # sample[1, :] = BitVector(1 .- sample[1, :])
-            sample[1:2:end, end] .= BitVector(1 .- sample[1:2:end, end])
+            sample[1:2:end, end] .= BitVector(1 .- sample[1:2:end, end]) # twist field, defect line (only odd layer, may correspond to superposition of many different primary field)
             parity = foldr(*, 2 .*sample[1, :] .-1)
 
-            FE=load(sample_path, "sample_free_energy")[end]
+            FElis=load(sample_path, "sample_free_energy")
             
             D, _, _ = get_cfg_params_Born(τ_idx, L)
             t = div(D, 2)
@@ -141,7 +140,7 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             sample_free_energy = outcome.free_energys
 
             save_path = save_data_path(L, τ_idx)
-            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_samples$(index).jld2", "defect_FE", sample_free_energy[end], "FE", FE, "parity", parity)
+            save(joinpath(save_path, "defect_FE_t$(div(t,L))_samples$(index).jld2"), "defect_FElis", sample_free_energy, "FElis", FElis, "parity", parity)
             return (L, τ_idx, index, :success, nothing)
         catch e
             return (L, τ_idx, index, :failed, e)
@@ -177,15 +176,18 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             )
             for (i, fname) in enumerate(existing_files)
                 data = load(joinpath(dir_path, fname))
-                defect_FE = data["defect_FE"]
-                FE = data["FE"]
+                defect_FElis = data["defect_FElis"]
+                FElis = data["FElis"]
                 parity = data["parity"]
+                avg_range = get_cfg_params_Born(τind, L)[3]
+                defect_FE = mean(defect_FElis[avg_range])
+                FE = mean(FElis[avg_range])
                 defect_FE_lis[i] = defect_FE
                 FE_lis[i] = FE
                 parity_lis[i] = parity
             end
 
-            save(joinpath(dir_path, "defect_FE_t$(t)_collected.jld2"),
+            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_gamma$(τind)collected.jld2",
                 "defect_FE_lis", defect_FE_lis,
                 "FE_lis", FE_lis,
                 "parity_lis", parity_lis,

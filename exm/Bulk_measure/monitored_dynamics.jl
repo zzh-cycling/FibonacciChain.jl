@@ -4,8 +4,18 @@ using JLD
 using JLD2
 using Statistics
 using Random
+using ClusterManagers
+
+const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
+const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
+const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
+addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
 
 @everywhere begin
+using Pkg
+Pkg.activate($PROJECT_DIR; io=devnull)
+const num_workers = nworkers()
+@info("Number of workers: $num_workers")    
     using FibonacciChain
     using JLD
     using JLD2
