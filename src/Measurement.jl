@@ -585,66 +585,6 @@ function measurement_tree_visualization(
     end
 end
 
-"""
-    transfer_matrix(model::AnyonModel, τ::Float64; sign::Bool=true)
-
-Construct the transfer matrix for two measurement layers.
-
-# Arguments
-- `model::AnyonModel`: Anyon model containing system parameters
-- `τ::Float64`: Measurement strength parameter
-- `sign::Bool=true`: Measurement outcome sign
-
-# Returns
-- `Matrix{Float64}`: Transfer matrix between two measurement layers
-"""
-function transfer_matrix(
-    model::AnyonModel{AT},
-    τ::Float64;
-    sign::Bool = true,
-) where {AT<:AbstractAnyonType}
-    measurement_sites1, measure_type = _obtain_measurement_config(model.N, 1)
-    measurement_sites2, measure_type = _obtain_measurement_config(model.N, 2)
-
-    basis = anyon_basis(model)
-    l = length(basis)
-    TM = zeros(Float64, l, l)
-
-    for i = 1:l
-        # First layer
-        for (idx, site) in enumerate(measurement_sites1)
-            outputstate1, outputstate2, output1, output2 =
-                measure_basismap(model, τ, basis[i], site, sign)
-
-            if output2 == 0
-                TM[i, i] += output1
-            else
-                j2 = searchsortedfirst(basis, outputstate2)
-                TM[i, i] += output1
-                TM[i, j2] += output2
-            end
-        end
-    end
-
-    for i = 1:l
-        # Second layer
-        for (idx, site) in enumerate(measurement_sites2)
-            outputstate1, outputstate2, output1, output2 =
-                measure_basismap(model, τ, basis[i], site, sign)
-
-            if output2 == 0
-                TM[i, i] += output1
-            else
-                j2 = searchsortedfirst(basis, outputstate2)
-                TM[i, i] += output1
-                TM[i, j2] += output2
-            end
-        end
-    end
-
-    return TM
-end
-
 function _obtain_measurement_config(
     model::AnyonModel{FibonacciAnyon},
     layer_idx::Int,
