@@ -542,48 +542,37 @@ end
 
 
 """
-    measurement_tree_visualization(trajectories::Vector{Vector{Int64}}, probabilities::Vector{Float64})
+    measurement_tree_visualization(sample::BitMatrix)
 
-Visualize a measurement tree given trajectories and their probabilities.
+Visualize a fixed measurement trajectory with staggered odd/even layers.
 
 # Arguments
-- `trajectories::Vector{Vector{Int64}}`: Measurement outcome sequences at each branch.
-- `probabilities::Vector{Float64}`: Corresponding probabilities for each trajectory.
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
 
 # Behavior
-- Normalizes probabilities to sum to 1.
-- Prints levels from root to leaves with indentation representing depth.
+- Prints each layer with odd/even rows staggered to show the alternating measurement pattern.
+- Uses `●` for outcome 1 (true) and `○` for outcome 0 (false).
 """
-function measurement_tree_visualization(
-    trajectories::Vector{Vector{Int64}},
-    probabilities::Vector{Float64},
-)
-    total_prob = sum(probabilities)
-    normalized_probs = probabilities / total_prob
+function measurement_tree_visualization(sample::BitMatrix)
+    println("Measurement Tree Visualization")
+    println("=" ^ 40)
 
-    println("Measurement Tree Visualization:")
-    println("==============================")
+    n_layers, n_sites = size(sample)
 
-    max_length = maximum(length.(trajectories))
+    for layer in 1:n_layers
+        # Convert bits to symbols
+        symbols = [bit ? "●" : "○" for bit in sample[layer, :]]
 
-    for traj_length = 0:max_length
-        level_indices = findall(t -> length(t) == traj_length, trajectories)
-        if !isempty(level_indices)
-            println("Level $(traj_length):")
-            for idx in level_indices
-                traj = trajectories[idx]
-                prob = normalized_probs[idx]
-                indent = "  " ^ traj_length
-                if traj_length == 0
-                    println("$(indent)Initial state (prob: 1.0)")
-                else
-                    println("$(indent)$(traj) (prob: $(round(prob, digits=6)))")
-                end
-            end
-            println()
-        end
+        # Join with spacing
+        line = join(symbols, "     ")
+
+        # Stagger: even layers shifted right by half spacing
+        indent = iseven(layer) ? "     " : "  "
+
+        println("Layer $(lpad(layer, 2)): $(indent)$(line)")
     end
 end
+
 
 function _obtain_measurement_config(
     model::AnyonModel{FibonacciAnyon},
@@ -913,10 +902,9 @@ function _apply_measurement_layer(
     state::Vector{T},
     layer_sample::BitVector;
     layer_idx::Int64 = 1,
+    normalized::Bool = true,
 ) where {T,AT<:AbstractAnyonType}
     # Helper function to apply deterministic measurements to a layer, connect measure on each site together.
-
-    total_free_energy = zero(real(T))
 
     measurement_sites, measure_anyon_model, measurement_strength =
         _obtain_measurement_config(anyon_model, layer_idx, τ)
@@ -940,29 +928,53 @@ function _apply_measurement_layer(
     buf = Vector{T}(undef, l)
     current_state = copy(state)
 
-    for (idx, sign) in enumerate(layer_sample)
-        # Apply measurement into pre-allocated buffer
-        fill!(buf, zero(T))
-        _measuremap_impl!(
-            buf,
-            basis,
-            measure_anyon_model,
-            measurement_strength,
-            current_state,
-            measurement_sites[idx],
-            sign,
-        )
-        prob = sum(abs2, buf)
-        total_free_energy += -log(prob)
-        buf .*= inv(sqrt(prob))
-        current_state, buf = buf, current_state  # swap buffers
-    end
+    if normalized
+        total_free_energy = zero(real(T))
+        for (idx, sign) in enumerate(layer_sample)
+            # Apply measurement into pre-allocated buffer
+            fill!(buf, zero(T))
+            _measuremap_impl!(
+                buf,
+                basis,
+                measure_anyon_model,
+                measurement_strength,
+                current_state,
+                measurement_sites[idx],
+                sign,
+            )
+            prob = sum(abs2, buf)
+            total_free_energy += -log(prob)
+            buf .*= inv(sqrt(prob))
+            current_state, buf = buf, current_state  # swap buffers
+        end
 
-    return Measurement_outcome_boundary(
-        current_state,
-        layer_sample,
-        Float32(total_free_energy),
-    )
+        return Measurement_outcome_boundary(
+            current_state,
+            layer_sample,
+            Float32(total_free_energy),
+        )
+    else
+        for (idx, sign) in enumerate(layer_sample)
+            # Apply measurement into pre-allocated buffer (no normalization)
+            fill!(buf, zero(T))
+            _measuremap_impl!(
+                buf,
+                basis,
+                measure_anyon_model,
+                measurement_strength,
+                current_state,
+                measurement_sites[idx],
+                sign,
+            )
+            current_state, buf = buf, current_state  # swap buffers
+        end
+
+        return Measurement_outcome_boundary(
+            current_state,
+            layer_sample,
+            Float32(0.0),
+        )
+    end
 end
 
 """
@@ -1344,4 +1356,91 @@ function bayes_distort(
     distorted_probabilities = collect(values(distorted_prob_dict))
 
     return distorted_trajectories, distorted_probabilities
+end
+
+# ---------------------------------------------------------------------------
+# Unnormalized bulk evolution: apply a fixed sample without normalizing.
+# This gives a linear map T(s) acting on the state vector.
+# ---------------------------------------------------------------------------
+function bulk_evolution_unnormalized(
+    model::AnyonModel{AT},
+    state::Vector{ET},
+    samples::BitMatrix;
+    τ::Float64 = 1.0,
+    enable_τ_eff::Bool = true,
+) where {ET,AT}
+    n_layers = FibonacciChain.layers_per_period(model.anyon_type)
+    D_layers, n_cols = size(samples)
+    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
+    Δt = D_layers ÷ n_layers
+    n_cols == FibonacciChain._samples_per_layer(model) ||
+        error("sample size spatial dimension must be $n_cols, got $(size(samples, 2))")
+    current_state = copy(state)
+    for period = 1:Δt
+        for layer = 1:n_layers
+            global_layer_idx = (period - 1) * n_layers + layer
+            τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+            col_indices = FibonacciChain._get_sample_column_indices(model, global_layer_idx)
+            layer_sample = BitVector(samples[global_layer_idx, col_indices])
+            outcome = _apply_measurement_layer(
+                model,
+                τ,
+                current_state,
+                layer_sample;
+                layer_idx = global_layer_idx,
+                normalized = false,
+            )
+            current_state = outcome.state
+        end
+    end
+    return current_state
+end
+
+"""
+    transfer_matrix(model::AnyonModel, τ::Float64, sample::BitMatrix)
+
+Construct the transfer matrix for a fixed measurement trajectory.
+Applies `_apply_measurement_layer` with `normalized=false` to each basis vector.
+
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `τ::Float64`: Measurement strength parameter
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites)
+
+# Returns
+- `Matrix{Float64}`: Transfer matrix where column i = T(sample) * e_i
+"""
+function transfer_matrix(
+    model::AnyonModel{AT},
+    τ::Float64,
+    sample::BitMatrix,
+) where {AT<:AbstractAnyonType}
+    basis = anyon_basis(model)
+    l = length(basis)
+    TM = zeros(Float64, l, l)
+
+    for i = 1:l
+        st = zeros(Float64, l)
+        st[i] = 1.0
+
+        # First layer
+        col_indices1 = _get_sample_column_indices(model, 1)
+        layer1_sample = BitVector(sample[1, col_indices1])
+        out1 = _apply_measurement_layer(
+            model, τ, st, layer1_sample;
+            layer_idx = 1, normalized = false,
+        )
+
+        # Second layer
+        col_indices2 = _get_sample_column_indices(model, 2)
+        layer2_sample = BitVector(sample[2, col_indices2])
+        out2 = _apply_measurement_layer(
+            model, τ, out1.state, layer2_sample;
+            layer_idx = 2, normalized = false,
+        )
+
+        TM[:, i] = out2.state
+    end
+
+    return TM
 end

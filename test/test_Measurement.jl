@@ -655,3 +655,14 @@ end
     c = fitCCEntEntScal(EE_mps, mincut = 4, pbc = true)[1]
     @test c ≈ 0.7 atol=1e-1
 end
+
+@testset "transfer matrix" begin
+    N = 12
+    τ = atanh(0.95) 
+    model = AnyonModel(FibonacciAnyon(), N;)
+    sample = BitMatrix(ones(Int8, 2, div(N, 2)))
+    T = transfer_matrix(model, τ, sample)
+    energy, states = eigen(T)
+    @test -log(energy[end]) ≈ 4.1178289917939805 atol = 1e-6
+    # Obtained from transfer matrix applied
+end
