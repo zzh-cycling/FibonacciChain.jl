@@ -1359,32 +1359,32 @@ function bayes_distort(
 end
 
 # ---------------------------------------------------------------------------
-# Unnormalized bulk evolution: apply a fixed sample without normalizing.
+# Unnormalized sample evolution: apply a fixed sample without normalizing.
 # This gives a linear map T(s) acting on the state vector.
 # ---------------------------------------------------------------------------
-function bulk_evolution_unnormalized(
+function sample_evolution_unnormalized(
     model::AnyonModel{AT},
     state::Vector{ET},
     samples::BitMatrix;
     τ::Float64 = 1.0,
-    enable_τ_eff::Bool = true,
+    enable_τ_eff::Bool = false,
 ) where {ET,AT}
-    n_layers = FibonacciChain.layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model.anyon_type)
     D_layers, n_cols = size(samples)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
     Δt = D_layers ÷ n_layers
-    n_cols == FibonacciChain._samples_per_layer(model) ||
+    n_cols == _samples_per_layer(model) ||
         error("sample size spatial dimension must be $n_cols, got $(size(samples, 2))")
     current_state = copy(state)
     for period = 1:Δt
         for layer = 1:n_layers
             global_layer_idx = (period - 1) * n_layers + layer
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
-            col_indices = FibonacciChain._get_sample_column_indices(model, global_layer_idx)
+            col_indices = _get_sample_column_indices(model, global_layer_idx)
             layer_sample = BitVector(samples[global_layer_idx, col_indices])
             outcome = _apply_measurement_layer(
                 model,
-                τ,
+                τ_current,
                 current_state,
                 layer_sample;
                 layer_idx = global_layer_idx,

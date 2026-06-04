@@ -44,7 +44,8 @@ export measure_basismap,
     measurement_tree_visualization,
     transfer_matrix,
     boundary_evolution,
-    bulk_evolution
+    bulk_evolution,
+    sample_evolution_unnormalized
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,

@@ -1,7 +1,7 @@
 using Distributed
 using FibonacciChain
 using LinearAlgebra
-using JLD, JLD2
+using JLD2
 using Statistics
 # using ClusterManagers
 
@@ -106,11 +106,7 @@ using Statistics
         end
     end
 
-    # ---------------------------------------------------------------------------
-    # Build the transfer matrix for a fixed sample.
-    # Column i = T(s) * e_i  (evolved basis vector, unnormalized).
-    # ---------------------------------------------------------------------------
-    function transfer_matrix(
+    function scaling_dimension_Born(
         L::Int,
         τ_idx::Int,
         index::Int;
@@ -120,79 +116,163 @@ using Statistics
         D = get_cfg_params_Born(τ_idx, L)[1]
         t = div(D, 2L)
         path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index).jld"
-
         data = load(path)
         sample = data["sample"]
-
+        
         model = AnyonModel(FibonacciAnyon(), L; pbc = true)
         model_basis = anyon_basis(model)
         l = length(model_basis)
 
-        T = zeros(l, l)
-        for i in 1:l
-            st = zeros(l)
-            st[i] = 1.0
-            final_st = bulk_evolution_unnormalized(model, st, sample; τ = τ)
-            T[:, i] = final_st
+        initial_stlis = Vector{Vector{Float64}}(undef, 10) # initialized 10 vectors
+        for (idx, st) in enumerate(initial_stlis)
+            st = zeros(Float64, l)
+            st[idx] = 1.0
+            initial_stlis[idx] = st
         end
 
-        return T
+        for step in 1:t
+            sample_layer = sample[2step-1:2step, :]
+            T = transfer_matrix(model, τ, sample_layer)
+            for (idx, st) in enumerate(initial_stlis)
+                initial_stlis[idx] = T * st
+            end
+        end
+
+    
     end
-# Llis = collect(6:6:18)
-# spectrum_lis = zeros(length(Llis), 10)
-# τ = atanh(0.95) 
-# for (i, L) in enumerate(Llis)
-#     @show L
-#     model = AnyonModel(FibonacciAnyon(), L)
-#     sample = BitMatrix(zeros(Int8, 2, div(L, 2)))
-#     T = transfer_matrix(model, τ, sample)
-#     energy, states = eigen(T)
-#     spectrum_lis[i, :] = -log.(real.(energy[end-9:end]))
-# end
-# save("transfer_matrix_spectrum_post_selection_fm.jld2", "Llis", Llis, "spectrum_lis", spectrum_lis)
+
+    function transfer_matrix_Born(
+        L::Int,
+        τ_idx::Int,
+        index::Int;
+    )
+        τ = τlis[τ_idx]
+
+        D, inds, avg_range = get_cfg_params_Born(τ_idx, L)
+        t = div(D, 2)
+        # path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index).jld"
+        # data = load(path)
+        # sample = data["sample"]
+        sample = BitMatrix(ones(Int8, D, div(L, 2)))
+        
+        model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+        basis = anyon_basis(model)
+        l = length(basis)
+        k = min(10, l)
+
+        # Initialize k product states (basis vectors)
+        states = zeros(Float64, l, k)
+        for i in 1:k
+            states[i, i] = 1.0
+        end
+
+        free_energies = zeros(k, t)
+
+        for step in 1:t
+            sample_layer = sample[2step-1:2step, :]
+
+            # Apply transfer matrix to each state
+            for i in 1:k
+                states[:, i] = sample_evolution_unnormalized(
+                    model, states[:, i], sample_layer; τ=τ, enable_τ_eff=false
+                )
+            end
+
+            # Compute probabilities (squared norms) before normalization
+            probs = vec(sum(abs2, states, dims=1))
+            free_energies[:, step] = -log.(probs)
+
+            # Normalize each state
+            for i in 1:k
+                norm_i = sqrt(probs[i])
+                if norm_i > 0
+                    states[:, i] ./= norm_i
+                end
+            end
+
+            # QR orthogonalize
+            Q = qr(states).Q
+            states = Q[:, 1:k]
+        end
+
+        return free_energies
+    end
+
+    function transfer_matrix_parellel(
+        model::AnyonModel{AT},
+        τ::Float64,
+        sign::Bool,
+        index::Int
+    ) where {AT}
+        basis = anyon_basis(model)
+        l = length(basis)
+        sample = sign ? BitMatrix(ones(Int8, 2, div(L, 2))) : BitMatrix(zeros(Int8, 2, div(L, 2)))
+        
+        st = zeros(Float64, l)
+        st[index] = 1.0
+        # First layer
+        col_indices1 = FibonacciChain._get_sample_column_indices(model, 1)
+        layer1_sample = BitVector(sample[1, col_indices1])
+        out1 = FibonacciChain._apply_measurement_layer(
+            model, τ, st, layer1_sample;
+            layer_idx = 1, normalized = false,
+        )
+        # Second layer
+        col_indices2 = FibonacciChain._get_sample_column_indices(model, 2)
+        layer2_sample = BitVector(sample[2, col_indices2])
+        out2 = FibonacciChain._apply_measurement_layer(
+            model, τ, out1.state, layer2_sample;
+            layer_idx = 2, normalized = false,
+        )
+    
+        label = sign ? "af" : "fm"
+        save("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/L$(L)/gammaind$(τ_idx)/stlis_L$(L)_index$(index).jld2", "st", out2.state)
+    end
+    
+    function collect_transfer_matrix(L, τ_idx, sign::Bool)
+        model = AnyonModel(FibonacciAnyon(), L)
+        basis = anyon_basis(model)
+        l = length(basis)
+
+        T = zeros(l, l)
+        label = sign ? "af" : "fm"
+        for index in 1:l
+            st = load("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/L$(L)/gammaind$(τ_idx)/stlis_L$(L)_index$(index).jld2", "st")
+            T[:, index] = st
+        end
+        save("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/transfer_matrix_L$(L)_gammaind$(τ_idx).jld2", "T", T)
+    end
+
+    function compute_ps_spectrum_task(sign::Bool=true)
+        Llis = sign ? collect(8:2:20) : collect(6:6:18)
+        spectrum_lis = zeros(length(Llis), 10)
+        τ = atanh(0.95) 
+        for (i, L) in enumerate(Llis)
+            @show L
+            model = AnyonModel(FibonacciAnyon(), L)
+            sample = sign ? BitMatrix(ones(Int8, 2, div(L, 2))) : BitMatrix(zeros(Int8, 2, div(L, 2)))
+            T = transfer_matrix(model, τ, sample)
+            energy, states = eigen(T)
+            spectrum_lis[i, :] = -log.(real.(energy[end-9:end]))
+        end
+        save_path = sign ? "transfer_matrix_spectrum_post_selection_af.jld2" : "transfer_matrix_spectrum_post_selection_fm.jld2"
+        save(save_path, "Llis", Llis, "spectrum_lis", spectrum_lis)        
+    end
+
     # ---------------------------------------------------------------------------
     # Parallel task wrappers
     # ---------------------------------------------------------------------------
     function compute_transfer_matrix_task(task)
         L, τ_idx, index = task
+        model = AnyonModel(FibonacciAnyon(), L)
         try
-            T = transfer_matrix(L, τ_idx, index)
-            out_dir = "exm/data/Bulk_measure/transfer_matrix/L$(L)/gammaind$(τ_idx)"
-            mkpath(out_dir)
-            out_path = joinpath(out_dir, "transfer_matrix_samples$(index).jld")
-            save(out_path, "T", T, "L", L, "τ_idx", τ_idx, "index", index)
+            sign = true
+            transfer_matrix_parellel(model, τlis[τ_idx], sign, index)
             return (L, τ_idx, index, :success, nothing)
         catch e
             return (L, τ_idx, index, :failed, e)
         end
     end
-
-    function compute_spectrum_task(task)
-        L, τ_idx, index = task
-        try
-            T = transfer_matrix(L, τ_idx, index)
-            energy = eigvals(T)
-            λ = -log.(real(energy))
-            return (L, τ_idx, index, :success, λ)
-        catch e
-            return (L, τ_idx, index, :failed, e)
-        end
-    end
-
-    function compute_ps_spectrum_task(task)
-        L, τ_idx, channel, λlength = task
-        try
-            T = transfer_matrix_post_selection(L, τ_idx, channel)
-            D = get_cfg_params_Born(τ_idx, L)[1]
-            energy = eigvals(T)
-            # largest eigenvalues → smallest λ
-            spectrum = -log.(real(energy[end-min(λlength, length(energy))+1:end])) / D * 2
-            return (L, τ_idx, channel, :success, spectrum)
-        catch e
-            return (L, τ_idx, channel, :failed, e)
-        end
-    end
-
 end
 
 # =============================================================================
@@ -236,7 +316,7 @@ else
         println("Total tasks: $(length(tasks))")
         println("Number of workers: $(nworkers())")
 
-        results = pmap(compute_transfer_matrix_task, tasks; batch_size=1)
+        results = pmap(compute_transfer_matrix_task, tasks; batch_size=10)
 
         failed = [(Lr, τr, ir, err) for (Lr, τr, ir, status, err) in results if status != :success]
         success_count = count(r -> r[4] == :success, results)
@@ -368,8 +448,17 @@ else
             end
         end
 
-    else
-        println("Unknown mode: $mode")
-        println("Valid modes are 1, 2, or 3.")
+    elseif mode == 4
+        L         = parse(Int64, ARGS[2])
+        τ_idx     = parse(Int64, ARGS[3])
+        collect_transfer_matrix(L, τ_idx, false)
+    elseif mode == 5
+        L         = parse(Int64, ARGS[2])
+        τ_idx     = parse(Int64, ARGS[3])
+        sign = false
+        label = sign ? "af" : "fm"
+        T = load("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/transfer_matrix_L$(L)_gammaind$(τ_idx).jld2", "T")
+        energy, states = Arpack.eigs(T, nev=10, which=:LR)
+        save("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/tf_spectrum_L$(L)_gammaind$(τ_idx).jld2", "energy", real.(energy))
     end
 end

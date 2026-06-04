@@ -166,8 +166,8 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
                 ),
             )
             println("collecting $(samples_num) sample files")
-            defect_FE_lis = zeros(samples_num)
-            FE_lis = zeros(samples_num)
+            defect_FE_lis = zeros(samples_num, D)
+            FE_lis = zeros(samples_num, D)
             parity_lis = zeros(samples_num)
 
             existing_files = filter(
@@ -179,11 +179,8 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
                 defect_FElis = data["defect_FElis"]
                 FElis = data["FElis"]
                 parity = data["parity"]
-                avg_range = get_cfg_params_Born(τind, L)[3]
-                defect_FE = mean(defect_FElis[avg_range])
-                FE = mean(FElis[avg_range])
-                defect_FE_lis[i] = defect_FE
-                FE_lis[i] = FE
+                defect_FE_lis[i, :] = defect_FElis
+                FE_lis[i, :] = FElis
                 parity_lis[i] = parity
             end
 
@@ -192,6 +189,13 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
                 "FE_lis", FE_lis,
                 "parity_lis", parity_lis,
             )
+
+            avg_range = get_cfg_params_Born(τind, L)[3]
+            defect_FElis_averaged = mean(defect_FElis, dims=2)
+            FElis_averaged = mean(FElis, dims=2)
+            defect_FE_lis = mean(defect_FElis_averaged[avg_range])
+            FE_lis = mean(FElis_averaged[avg_range])
+            
             return (L, τind, :success, nothing)
         catch e
             return (L, τind, :failed, e)
