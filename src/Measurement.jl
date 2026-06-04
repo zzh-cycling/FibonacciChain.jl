@@ -1444,3 +1444,99 @@ function transfer_matrix(
 
     return TM
 end
+
+"""
+    transfer_matrix_subspace(model::AnyonModel, τ::Float64, sample::BitMatrix; n_states::Int=10)
+
+Compute the dominant spectrum of the transfer matrix via subspace iteration
+followed by Rayleigh-Ritz projection.
+
+The algorithm initializes `n_states` product states (basis vectors), then
+iteratively applies the transfer matrix for each time slice'''s measurement outcome.
+At each step, states are normalized and QR-orthogonalized to keep the subspace
+well-conditioned. Finally, the last transfer matrix is projected onto the
+converged subspace (Rayleigh-Ritz) to obtain Ritz values, which converge to
+the true eigenvalues.
+
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `τ::Float64`: Measurement strength parameter
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
+  The number of rows must be divisible by `layers_per_period(model.anyon_type)`.
+- `n_states::Int=10`: Number of initial basis vectors to propagate (and Ritz values to compute)
+
+# Returns
+- `Vector{Float64}`: Sorted `-log.(abs.(ritz_values))`.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, LinearAlgebra
+
+julia> L = 8; τ = atanh(0.95);
+
+julia> model = AnyonModel(FibonacciAnyon(), L; pbc = true);
+
+julia> sample = BitMatrix(ones(Int8, 2, div(L, 2)));
+
+julia> spectrum = transfer_matrix_subspace(model, τ, sample; n_states = 5);
+
+julia> length(spectrum) == 5
+true
+```
+"""
+function transfer_matrix_subspace(
+    model::AnyonModel{AT},
+    τ::Float64,
+    sample::BitMatrix;
+    n_states::Int = 10,
+) where {AT<:AbstractAnyonType}
+
+    n_layers = layers_per_period(model.anyon_type)
+    D_layers, n_cols = size(sample)
+    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
+    t = D_layers ÷ n_layers
+    n_cols == _samples_per_layer(model) ||
+        error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
+
+    basis = anyon_basis(model)
+    l = length(basis)
+    k = min(n_states, l)
+
+    # Initialize k product states (basis vectors)
+    states = zeros(Float64, l, k)
+    for i in 1:k
+        states[i, i] = 1.0
+    end
+
+    for step in 1:t
+        sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
+        for i in 1:k
+            states[:, i] = sample_evolution_unnormalized(
+                model, states[:, i], sample_layer; τ = τ
+            )
+        end
+        probs = vec(sum(abs2, states, dims = 1))
+        for i in 1:k
+            norm_i = sqrt(probs[i])
+            if norm_i > 0
+                states[:, i] ./= norm_i
+            end
+        end
+        Q = qr(states).Q
+        states = Q[:, 1:k]
+    end
+
+    # Rayleigh-Ritz projection on the last step
+    H = zeros(k, k)
+    sample_layer = sample[(t - 1) * n_layers + 1 : t * n_layers, :]
+    for j in 1:k
+        w = sample_evolution_unnormalized(
+            model, states[:, j], sample_layer; τ = τ
+        )
+        for i in 1:k
+            H[i, j] = dot(states[:, i], w)
+        end
+    end
+    ritz_values = eigvals(H)
+    return sort(-log.(abs.(ritz_values)))
+end

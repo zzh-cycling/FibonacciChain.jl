@@ -666,3 +666,30 @@ end
     @test -log(energy[end]) ≈ 4.1178289917939805 atol = 1e-6
     # Obtained from transfer matrix applied
 end
+
+@testset "transfer_matrix_subspace" begin
+    L = 8
+    τ = atanh(0.95)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+
+    # Reference: direct diagonalization of a single-period transfer matrix
+    sample_ref = BitMatrix(ones(Int8, 2, div(L, 2)))
+    T = transfer_matrix(model, τ, sample_ref)
+    energy = eigen(T).values
+    sorted_energy = sort(energy, by = abs, rev = true)
+    spectrum_ref = sort(-log.(abs.(sorted_energy[1:10])))
+
+    # Multi-period sample: subspace iteration should converge to the same spectrum
+    sample_long = BitMatrix(ones(Int8, 64, div(L, 2)))
+    spectrum_sub = transfer_matrix_subspace(
+        model, τ, sample_long; n_states = 10
+    )
+    @test spectrum_sub ≈ spectrum_ref atol = 1e-8
+
+    # Single-period sample does NOT converge; just check it returns the right shape
+    spectrum_short = transfer_matrix_subspace(
+        model, τ, sample_ref; n_states = 10
+    )
+    @test length(spectrum_short) == 10
+    @test all(isfinite.(spectrum_short))
+end
