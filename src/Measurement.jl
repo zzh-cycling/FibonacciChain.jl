@@ -1415,6 +1415,7 @@ function transfer_matrix(
     τ::Float64,
     sample::BitMatrix,
 ) where {AT<:AbstractAnyonType}
+    # sample assumed to be only two layer
     basis = anyon_basis(model)
     l = length(basis)
     TM = zeros(Float64, l, l)
@@ -1444,6 +1445,52 @@ function transfer_matrix(
 
     return TM
 end
+
+function transfer_matrix_dynamics(
+    model::AnyonModel{AT},
+    τ::Float64,
+    sample::BitMatrix,
+    n_spectrums::Int=10
+) where {AT<:AbstractAnyonType}
+    # sample assumed to be multilayers
+    n_layers = layers_per_period(model.anyon_type)
+    D_layers, n_cols = size(sample)
+    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
+    t = D_layers ÷ n_layers
+    n_cols == _samples_per_layer(model) ||
+        error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
+
+    basis = anyon_basis(model)
+    l = length(basis)
+    k = min(n_spectrums, l)
+
+    spectrum_tlis = zeros(ComplexF64, k, t)
+
+    for step in 1:t
+        TM = zeros(Float64, l, l)
+        sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
+        for i in 1:l
+            st = zeros(l)
+            st[i] = 1
+            TM[:, i] = sample_evolution_unnormalized(
+                model, st, sample_layer; τ = τ
+            )
+        end
+        probs = vec(sum(abs2, states, dims = 1))
+        for i in 1:k
+            norm_i = sqrt(probs[i])
+            if norm_i > 0
+                states[:, i] ./= norm_i
+            end
+        end
+        vals, vecs = eigen(TM)
+
+        spectrum_tlis[:, step] = vals
+    end
+
+    return spectrum_tlis
+end
+
 
 """
     transfer_matrix_subspace(model::AnyonModel, τ::Float64, sample::BitMatrix; n_states::Int=10)
@@ -1490,7 +1537,7 @@ function transfer_matrix_subspace(
     sample::BitMatrix;
     n_states::Int = 10,
 ) where {AT<:AbstractAnyonType}
-
+    # Here the transfer matrix is not hermitian, thus the Schur vector is not eigenvectors. We need to do Rayleigh-Ritz projection. But when the non-hermitian matrix is too ill-conditioned, this method fails.
     n_layers = layers_per_period(model.anyon_type)
     D_layers, n_cols = size(sample)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
@@ -1507,6 +1554,7 @@ function transfer_matrix_subspace(
     for i in 1:k
         states[i, i] = 1.0
     end
+    spectrum_tlis = zeros(ComplexF64, k, t)
 
     for step in 1:t
         sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
@@ -1524,19 +1572,21 @@ function transfer_matrix_subspace(
         end
         Q = qr(states).Q
         states = Q[:, 1:k]
+        
+        # Rayleigh-Ritz projection on the last step
+        H = zeros(k, k)
+        # sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
+        for j in 1:k
+            w = sample_evolution_unnormalized(
+                model, states[:, j], sample_layer; τ = τ
+            )
+            for i in 1:k
+                H[i, j] = dot(states[:, i], w)
+            end
+        end
+        ritz_values = eigvals(H)
+        spectrum_tlis[:, step] = ritz_values
     end
 
-    # Rayleigh-Ritz projection on the last step
-    H = zeros(k, k)
-    sample_layer = sample[(t - 1) * n_layers + 1 : t * n_layers, :]
-    for j in 1:k
-        w = sample_evolution_unnormalized(
-            model, states[:, j], sample_layer; τ = τ
-        )
-        for i in 1:k
-            H[i, j] = dot(states[:, i], w)
-        end
-    end
-    ritz_values = eigvals(H)
-    return sort(-log.(abs.(ritz_values)))
+    return spectrum_tlis
 end

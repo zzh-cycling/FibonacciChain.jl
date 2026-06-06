@@ -1,5 +1,6 @@
 using FibonacciChain
 using LinearAlgebra
+using KrylovKit
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
@@ -9,15 +10,13 @@ using LinearAlgebra
 function transfer_matrix_Born(
         L::Int,
         τ_idx::Int,
-        index::Int;
+        sample::BitMatrix
     )
     τ = τlis[τ_idx]
 
     D = 64
     t = div(D, 2)
-    # sample = BitMatrix(ones(Int8, D, div(L, 2)))
-    sample = BitMatrix(vcat([vcat(ones(Int8, 1, div(L, 2)), zeros(Int8, 1, div(L, 2))) for i in 1:t]...))
-
+    
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     basis = anyon_basis(model)
     l = length(basis)
@@ -66,23 +65,42 @@ function transfer_matrix_Born(
         end
     end
     ritz_values = eigvals(H)
-    return sort(-log.(abs.(ritz_values)))
+    return -log.(ritz_values)
 end
 
-function ps_spectrum()
+function ps_spectrum(sample::BitMatrix)
     L = 8
     τ = atanh(0.95)
 
     model = AnyonModel(FibonacciAnyon(), L)
-    # sample = BitMatrix(ones(Int8, 2, div(L, 2)))
-    sample = BitMatrix(vcat(ones(Int8, 1, div(L, 2)), zeros(Int8, 1, div(L, 2))))
     T = transfer_matrix(model, τ, sample)
     energy = eigen(T).values
     # For non-symmetric matrices, eigenvalues are NOT sorted.
     # We must explicitly sort by magnitude to pick the largest ones.
-    sorted_energy = sort(energy, by = abs, rev = false)
-    return sort(-log.(abs.(sorted_energy[end-9:end])))
+    return -log.(energy[end-9:end])
 end
 
-@show [sort(transfer_matrix_Born(8, 10, 1), rev = true) sort(ps_spectrum(), rev=true)]
-@show [sort(transfer_matrix_Born(8, 10, 10), rev = true) sort(ps_spectrum(), rev=true)]
+# 定义线性映射
+function Tmap(v)
+    L = 8
+    model = AnyonModel(FibonacciAnyon(), L)
+    τ = atanh(0.95)
+    # sample = BitMatrix(ones(Int8, 2, div(L, 2)))
+    sample = load("exm/data/Bulk_measure/monitored_dynamics/L8/gammaind10/t4_samples1.jld", "sample")
+
+    return sample_evolution_unnormalized(model, v, sample; τ=τ, enable_τ_eff=false)
+end
+
+
+sample = BitMatrix(ones(Int8, 64, div(8, 2)))
+# sample = BitMatrix(vcat(ones(Int8, 1, div(L, 2)), zeros(Int8, 1, div(L, 2))))
+# sample = load("exm/data/Bulk_measure/monitored_dynamics/L8/gammaind10/t4_samples1.jld", "sample")
+# 求解前 k 个最大模本征值
+st = zeros(47);st[1] = 1
+vals, vecs, info = eigsolve(Tmap, st, 10, :LM; tol=1e-100, krylovdim=200);
+# eigsolve(Tmap, st, 10, :LR; tol=1e-50,krylovdim=80, maxiter=2000);
+energies = real.(-log.(vals))[1:10]/size(sample, 1)*2
+
+
+@show [transfer_matrix_Born(8, 10, sample) ps_spectrum(sample) sort(energies, rev=true)]
+# @show [sort(transfer_matrix_Born(8, 10, 10), rev = true) sort(ps_spectrum(sample), rev=true)]

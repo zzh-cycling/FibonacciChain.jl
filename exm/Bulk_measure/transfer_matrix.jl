@@ -184,11 +184,66 @@ using Statistics
         data = load(path)
         sample = data["sample"]
         model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-        return transfer_matrix_subspace(
-            model, τ, sample; n_states = n_states
-        )
+        # FElis = transfer_matrix_subspace(
+        #     model, τ, sample; n_states = n_states
+        # )
+        T = transfer_matrix(model, τ, sample)
+        FElis = -log.(eigvals(T)[end-9:end])
+        save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
+        return FElis
     end
 
+    function collect_transfer_matrix_Born(
+        L::Int,
+        τ_idx::Int;
+        n_states::Int = 10,
+    )
+        τ = τlis[τ_idx]
+        D, _, _ = get_cfg_params_Born(τ_idx, L)
+        t = div(D, 2L)
+        dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)"
+
+        existing_files = filter(
+            f -> startswith(f, "FElis_L$(L)_") && endswith(f, ".jld2"),
+            readdir(dir_path),
+        )
+        samples_num = length(existing_files)
+        println("collecting $(samples_num) sample files for L=$L, τ_idx=$τ_idx")
+
+
+        spectra = zeros(n_states, samples_num)
+        
+
+        for (i, fname) in enumerate(existing_files)
+            data = load(joinpath(dir_path, fname))
+            FElis = data["FElis"]
+
+            # spectra[:, i] = real.(FElis)
+            spectra[:, i] = FElis
+        end
+
+        # Ensemble statistics
+        avg_spectrum = mean(spectra, dims = 2)[:]
+        stderr_spectrum = std(spectra, dims = 2)[:] ./ sqrt(samples_num)
+
+        # Save
+        out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)"
+        mkpath(out_dir)
+        out_path = joinpath(out_dir, "ensemble_spectrum_L$(L)_gammaind$(τ_idx).jld2")
+        save(
+            out_path,
+            "avg_spectrum",
+            avg_spectrum,
+            "stderr_spectrum",
+            stderr_spectrum,
+            "n_samples",
+            samples_num
+        )
+        println("Ensemble spectrum saved to: $out_path")
+
+        # return avg_spectrum, stderr_spectrum
+        return 
+    end
     # ---------------------------------------------------------------------------
     # Parallel task wrappers
     # ---------------------------------------------------------------------------
@@ -233,10 +288,15 @@ if length(ARGS) == 0
     println("       Compute post-selection spectra for given L values.")
     println("       channel: true (AF) or false (FM).")
     println("")
+    println("  6  L τ_idx")
+    println("       Collect ensemble-averaged spectra from Born trajectories.")
+    println("       Scans monitored_dynamics data and saves avg/stderr.")
+    println("")
     println("Examples:")
     println("  julia -p 16 transfer_matrix.jl 1 12 10 1 100")
     println("  julia -p 16 transfer_matrix.jl 2 12 10 1 100")
     println("  julia -p 4  transfer_matrix.jl 3 10 true 6 8 10 12")
+    println("  julia         transfer_matrix.jl 6 8 10")
 else
     mode = parse(Int64, ARGS[1])
 
@@ -400,5 +460,18 @@ else
         T = load("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/transfer_matrix_L$(L)_gammaind$(τ_idx).jld2", "T")
         energy, states = Arpack.eigs(T, nev=10, which=:LR)
         save("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/tf_spectrum_L$(L)_gammaind$(τ_idx).jld2", "energy", real.(energy))
+    elseif mode == 6
+        # -------------------------------------------------------------------
+        # Mode 6: collect ensemble-averaged Born spectra
+        # -------------------------------------------------------------------
+        L         = parse(Int64, ARGS[2])
+        τ_idx     = parse(Int64, ARGS[3])
+        println("=== Collecting Ensemble-Averaged Born Spectrum ===")
+        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx])")
+        avg, stderr = collect_transfer_matrix_Born(L, τ_idx)
+        println("\n=== Average Spectrum ===")
+        for (i, v) in enumerate(avg)
+            println("  λ_$i = $v ± $(stderr[i])")
+        end
     end
 end

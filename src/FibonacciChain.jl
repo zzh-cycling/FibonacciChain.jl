@@ -44,6 +44,7 @@ export measure_basismap,
     measurement_tree_visualization,
     transfer_matrix,
     transfer_matrix_subspace,
+    transfer_matrix_dynamics,
     boundary_evolution,
     bulk_evolution,
     sample_evolution_unnormalized
