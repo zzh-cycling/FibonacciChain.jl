@@ -677,19 +677,60 @@ end
     T = transfer_matrix(model, τ, sample_ref)
     energy = eigen(T).values
     sorted_energy = sort(energy, by = abs, rev = true)
-    spectrum_ref = sort(-log.(abs.(sorted_energy[1:10])))
+    spectrum_ref = sorted_energy[1:10]
 
     # Multi-period sample: subspace iteration should converge to the same spectrum
     sample_long = BitMatrix(ones(Int8, 64, div(L, 2)))
     spectrum_sub = transfer_matrix_subspace(
         model, τ, sample_long; n_states = 10
     )
-    @test spectrum_sub ≈ spectrum_ref atol = 1e-8
+    # spectrum_sub is a ComplexF64 matrix of shape (10, 32)
+    @test size(spectrum_sub) == (10, 32)
+    # eigvals does not guarantee ordering; sort both by magnitude before comparing
+    @test sort(spectrum_sub[:, end], by = abs, rev = true) ≈ spectrum_ref atol = 1e-8
 
-    # Single-period sample does NOT converge; just check it returns the right shape
+    # Single-period sample: just check shape and finiteness
     spectrum_short = transfer_matrix_subspace(
         model, τ, sample_ref; n_states = 10
     )
-    @test length(spectrum_short) == 10
+    @test size(spectrum_short) == (10, 1)
     @test all(isfinite.(spectrum_short))
+end
+
+@testset "transfer_matrix_dynamics" begin
+    L = 8
+    τ = atanh(0.95)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+
+    # Reference: direct diagonalization of a single-period transfer matrix
+    sample_ref = BitMatrix(ones(Int8, 2, div(L, 2)))
+    T = transfer_matrix(model, τ, sample_ref)
+    energy = eigen(T).values
+    sorted_energy = sort(energy, by = abs, rev = true)
+    spectrum_ref = sorted_energy[1:10]
+
+    # Multi-period uniform sample: T_cum(step) = T^step
+    sample_long = BitMatrix(ones(Int8, 64, div(L, 2)))
+    spectrum_ed = transfer_matrix_dynamics(
+        model, τ, sample_long; n_spectrums = 10
+    )
+    @test size(spectrum_ed) == (10, 32)
+    @test all(isfinite.(spectrum_ed))
+
+    # Step 1 should match the bare spectrum
+    @test spectrum_ed[:, 1] ≈ spectrum_ref atol = 1e-10
+
+    # Step 2 should match T^2 spectrum (eigenvalues squared)
+    @test spectrum_ed[:, 2] ≈ spectrum_ref.^2 atol = 1e-8
+
+    # Since |λ| < 1, the dominant eigenvalue should decrease with step
+    dominant = abs.(spectrum_ed[1, :])
+    @test all(diff(dominant) .< 0)
+
+    # Single-period sample
+    spectrum_short = transfer_matrix_dynamics(
+        model, τ, sample_ref; n_spectrums = 10
+    )
+    @test size(spectrum_short) == (10, 1)
+    @test spectrum_short[:, 1] ≈ spectrum_ref atol = 1e-10
 end

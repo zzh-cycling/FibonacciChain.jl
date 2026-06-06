@@ -1446,13 +1446,35 @@ function transfer_matrix(
     return TM
 end
 
+"""
+    transfer_matrix_dynamics(model::AnyonModel, τ::Float64, sample::BitMatrix; n_spectrums::Int=10)
+
+Compute the exact eigenvalue spectrum of the **cumulative** transfer matrix
+T₁, T₁T₂, T₁T₂T₃, … at each time step via full exact diagonalization (ED).
+
+At step `t` the cumulative transfer matrix is
+    T_cum(t) = T_t ⋯ T₂ T₁
+where each Tᵢ is the local transfer matrix for time slice `i`. The function
+diagonalizes T_cum(t) exactly and records the dominant eigenvalues.
+
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `τ::Float64`: Measurement strength parameter
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites)
+- `n_spectrums::Int=10`: Number of dominant eigenvalues to keep per step
+
+# Returns
+- `Matrix{ComplexF64}`: Array of shape `(n_spectrums, n_steps)` where column `t`
+  contains the largest `n_spectrums` eigenvalues of the cumulative transfer
+  matrix up to that step.
+"""
 function transfer_matrix_dynamics(
     model::AnyonModel{AT},
     τ::Float64,
-    sample::BitMatrix,
-    n_spectrums::Int=10
+    sample::BitMatrix;
+    n_spectrums::Int = 10,
 ) where {AT<:AbstractAnyonType}
-    # sample assumed to be multilayers
+
     n_layers = layers_per_period(model.anyon_type)
     D_layers, n_cols = size(sample)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
@@ -1465,27 +1487,28 @@ function transfer_matrix_dynamics(
     k = min(n_spectrums, l)
 
     spectrum_tlis = zeros(ComplexF64, k, t)
+    TM_cum = Matrix{Float64}(I, l, l)
 
     for step in 1:t
-        TM = zeros(Float64, l, l)
         sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
+
+        # Construct the local transfer matrix for this step
+        TM_step = zeros(Float64, l, l)
         for i in 1:l
-            st = zeros(l)
-            st[i] = 1
-            TM[:, i] = sample_evolution_unnormalized(
+            st = zeros(Float64, l)
+            st[i] = 1.0
+            TM_step[:, i] = sample_evolution_unnormalized(
                 model, st, sample_layer; τ = τ
             )
         end
-        probs = vec(sum(abs2, states, dims = 1))
-        for i in 1:k
-            norm_i = sqrt(probs[i])
-            if norm_i > 0
-                states[:, i] ./= norm_i
-            end
-        end
-        vals, vecs = eigen(TM)
 
-        spectrum_tlis[:, step] = vals
+        # Cumulative product: T_cum = T_step * T_cum
+        TM_cum = TM_step * TM_cum
+
+        # Exact diagonalization of the cumulative transfer matrix
+        energy = eigvals(TM_cum)
+        sorted_energy = sort(energy, by = real, rev = true)
+        spectrum_tlis[:, step] = sorted_energy[1:k]
     end
 
     return spectrum_tlis

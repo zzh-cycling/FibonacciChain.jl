@@ -7,6 +7,34 @@ using KrylovKit
 τlis[7] = log(1 + √2)  # atanh(1/√2) = log(1 + √2)
 τlis[end] = 1000.0     # Last value is for γ=1
 
+function transfer_matrix_ED(
+        L::Int,
+        τ_idx::Int,
+        sample::BitMatrix
+    )
+    τ = τlis[τ_idx]
+
+    D = 64
+    t = div(D, 2)
+    
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    basis = anyon_basis(model)
+    l = length(basis)
+
+    TM = zeros(Float64, l, l)
+
+    for i = 1:l
+        st = zeros(Float64, l)
+        st[i] = 1.0
+
+        TM[:, i] = sample_evolution_unnormalized(
+                model, st, sample; τ = τ, enable_τ_eff = false
+            )
+    end
+
+    return TM
+end
+
 function transfer_matrix_Born(
         L::Int,
         τ_idx::Int,

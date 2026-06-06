@@ -187,8 +187,7 @@ using Statistics
         # FElis = transfer_matrix_subspace(
         #     model, τ, sample; n_states = n_states
         # )
-        T = transfer_matrix(model, τ, sample)
-        FElis = -log.(eigvals(T)[end-9:end])
+        FElis = transfer_matrix_dynamics(model, τ, sample)
         save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
         return FElis
     end
@@ -198,9 +197,8 @@ using Statistics
         τ_idx::Int;
         n_states::Int = 10,
     )
-        τ = τlis[τ_idx]
         D, _, _ = get_cfg_params_Born(τ_idx, L)
-        t = div(D, 2L)
+        t = div(D, 2)
         dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)"
 
         existing_files = filter(
@@ -211,7 +209,7 @@ using Statistics
         println("collecting $(samples_num) sample files for L=$L, τ_idx=$τ_idx")
 
 
-        spectra = zeros(n_states, samples_num)
+        spectra = zeros(ComplexF64, n_states, t, samples_num)
         
 
         for (i, fname) in enumerate(existing_files)
@@ -219,12 +217,12 @@ using Statistics
             FElis = data["FElis"]
 
             # spectra[:, i] = real.(FElis)
-            spectra[:, i] = FElis
+            spectra[:, :, i] = FElis
         end
 
         # Ensemble statistics
-        avg_spectrum = mean(spectra, dims = 2)[:]
-        stderr_spectrum = std(spectra, dims = 2)[:] ./ sqrt(samples_num)
+        avg_spectrum = mean(spectra, dims = 3)[:,:,1]
+        stderr_spectrum = std(spectra, dims = 3)[:,:,1] ./ sqrt(samples_num)
 
         # Save
         out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)"
@@ -242,7 +240,7 @@ using Statistics
         println("Ensemble spectrum saved to: $out_path")
 
         # return avg_spectrum, stderr_spectrum
-        return 
+        # return spectra
     end
     # ---------------------------------------------------------------------------
     # Parallel task wrappers
