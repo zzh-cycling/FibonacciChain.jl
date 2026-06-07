@@ -169,7 +169,6 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             defect_FE_lis = zeros(samples_num, D)
             FE_lis = zeros(samples_num, D)
             parity_lis = zeros(samples_num)
-
             existing_files = filter(
                 f -> startswith(f, "defect_FE_t$(t)") && endswith(f, ".jld2"),
                 readdir(dir_path),
@@ -183,25 +182,29 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
                 FE_lis[i, :] = FElis
                 parity_lis[i] = parity
             end
-
-            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_gamma$(τind)collected.jld2",
+            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_gamma$(τind)ensemble.jld2",
                 "defect_FE_lis", defect_FE_lis,
                 "FE_lis", FE_lis,
                 "parity_lis", parity_lis,
             )
-
             avg_range = get_cfg_params_Born(τind, L)[3]
-            defect_FElis_averaged = mean(defect_FElis, dims=2)
-            FElis_averaged = mean(FElis, dims=2)
-            defect_FE_lis = mean(defect_FElis_averaged[avg_range])
-            FE_lis = mean(FElis_averaged[avg_range])
+            defect_FElis_averaged = mean(defect_FE_lis, dims=2)
+            FElis_averaged = mean(FE_lis, dims=2)
+            defect_FE = mean(defect_FElis_averaged[avg_range])
+            defect_FEstd 
+            FE = mean(FElis_averaged[avg_range])
             
+            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_gamma$(τind)_collected.jld2",
+                "defect_FE", defect_FE,
+                "FE", FE,
+                "parity_lis", parity_lis,
+            )
             return (L, τind, :success, nothing)
         catch e
             return (L, τind, :failed, e)
         end
     end
-
+    
     function process_merge_task(task)
         L, τ_idx = task
         return defect_FE_collect(L, τ_idx)

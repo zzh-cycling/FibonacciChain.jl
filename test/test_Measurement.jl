@@ -680,12 +680,13 @@ end
     spectrum_ref = -log.(real.(sorted_energy[1:10]))
 
     # Multi-period sample: subspace iteration should converge to the same spectrum, should equals the post selection scenerio
-    sample_long = BitMatrix(ones(Int8, 100, div(L, 2)))
+    D = 100
+    sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
     spectrum_sub = transfer_matrix_subspace(
         model, τ, sample_long; n_states = 10
     )
     # spectrum_sub is a ComplexF64 matrix of shape (10, 32)
-    @test size(spectrum_sub) == (10, 32)
+    @test size(spectrum_sub) == (10, div(D,2))
     # eigvals does not guarantee ordering; sort both by magnitude before comparing
     @test spectrum_sub[:, end] ≈ spectrum_ref atol = 1e-2
 end
