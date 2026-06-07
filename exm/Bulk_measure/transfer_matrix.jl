@@ -170,13 +170,14 @@ using Statistics
         save(save_path, "Llis", Llis, "spectrum_lis", spectrum_lis)        
     end
 
-
+    
     function scaling_dimension_Born(
         L::Int,
         τ_idx::Int,
         index::Int;
         n_states::Int = 10,
-    )
+    )   
+    
         τ = τlis[τ_idx]
         D, inds, avg_range = get_cfg_params_Born(τ_idx, L)
         t = div(D, 2L)
@@ -184,10 +185,19 @@ using Statistics
         data = load(path)
         sample = data["sample"]
         model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-        # FElis = transfer_matrix_subspace(
-        #     model, τ, sample; n_states = n_states
-        # )
-        FElis = transfer_matrix_dynamics(model, τ, sample)
+        FElis = transfer_matrix_subspace(model, τ, sample)
+        # basis = anyon_basis(model)
+        # l = length(basis)
+        # function Tmap(v)        
+        #     return sample_evolution_unnormalized(model, v, sample; τ=τ, enable_τ_eff=false)
+        # end
+        # st = zeros(l);st[1] = 1
+        # tol_es = exp(-2*L^2)
+        # krydim = 18L
+        # iternum = 15000L
+        # vals, vecs, info = eigsolve(Tmap, st, 10, :LM; tol=tol_es, krylovdim=krydim, ishermitian = false, maxiter=iternum);
+        # FElis = -log.(vals)[1:10]/size(sample, 1)*2
+
         save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
         return FElis
     end
@@ -209,7 +219,7 @@ using Statistics
         println("collecting $(samples_num) sample files for L=$L, τ_idx=$τ_idx")
 
 
-        spectra = zeros(ComplexF64, n_states, t, samples_num)
+        spectra = zeros(n_states, t, samples_num)
         
 
         for (i, fname) in enumerate(existing_files)
@@ -221,8 +231,8 @@ using Statistics
         end
 
         # Ensemble statistics
-        avg_spectrum = mean(spectra, dims = 3)[:,:,1]
-        stderr_spectrum = std(spectra, dims = 3)[:,:,1] ./ sqrt(samples_num)
+        avg_spectrum = mean(spectra, dims = 3)[:, :, 1]
+        stderr_spectrum = std(spectra, dims = 3)[:, :, 1] ./ sqrt(samples_num)
 
         # Save
         out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)"

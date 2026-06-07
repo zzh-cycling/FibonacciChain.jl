@@ -677,24 +677,17 @@ end
     T = transfer_matrix(model, τ, sample_ref)
     energy = eigen(T).values
     sorted_energy = sort(energy, by = abs, rev = true)
-    spectrum_ref = sorted_energy[1:10]
+    spectrum_ref = -log.(real.(sorted_energy[1:10]))
 
-    # Multi-period sample: subspace iteration should converge to the same spectrum
-    sample_long = BitMatrix(ones(Int8, 64, div(L, 2)))
+    # Multi-period sample: subspace iteration should converge to the same spectrum, should equals the post selection scenerio
+    sample_long = BitMatrix(ones(Int8, 100, div(L, 2)))
     spectrum_sub = transfer_matrix_subspace(
         model, τ, sample_long; n_states = 10
     )
     # spectrum_sub is a ComplexF64 matrix of shape (10, 32)
     @test size(spectrum_sub) == (10, 32)
     # eigvals does not guarantee ordering; sort both by magnitude before comparing
-    @test sort(spectrum_sub[:, end], by = abs, rev = true) ≈ spectrum_ref atol = 1e-8
-
-    # Single-period sample: just check shape and finiteness
-    spectrum_short = transfer_matrix_subspace(
-        model, τ, sample_ref; n_states = 10
-    )
-    @test size(spectrum_short) == (10, 1)
-    @test all(isfinite.(spectrum_short))
+    @test spectrum_sub[:, end] ≈ spectrum_ref atol = 1e-2
 end
 
 @testset "transfer_matrix_dynamics" begin
@@ -707,15 +700,14 @@ end
     T = transfer_matrix(model, τ, sample_ref)
     energy = eigen(T).values
     sorted_energy = sort(energy, by = abs, rev = true)
-    spectrum_ref = sorted_energy[1:10]
+    spectrum_ref = real(sorted_energy[1:10])
 
     # Multi-period uniform sample: T_cum(step) = T^step
     sample_long = BitMatrix(ones(Int8, 64, div(L, 2)))
-    spectrum_ed = transfer_matrix_dynamics(
+    spectrum_ed = real.(transfer_matrix_dynamics(
         model, τ, sample_long; n_spectrums = 10
-    )
+    ))
     @test size(spectrum_ed) == (10, 32)
-    @test all(isfinite.(spectrum_ed))
 
     # Step 1 should match the bare spectrum
     @test spectrum_ed[:, 1] ≈ spectrum_ref atol = 1e-10

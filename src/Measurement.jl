@@ -1507,7 +1507,7 @@ function transfer_matrix_dynamics(
 
         # Exact diagonalization of the cumulative transfer matrix
         energy = eigvals(TM_cum)
-        sorted_energy = sort(energy, by = real, rev = true)
+        sorted_energy = sort(energy, by = abs, rev = true)
         spectrum_tlis[:, step] = sorted_energy[1:k]
     end
 
@@ -1518,8 +1518,7 @@ end
 """
     transfer_matrix_subspace(model::AnyonModel, τ::Float64, sample::BitMatrix; n_states::Int=10)
 
-Compute the dominant spectrum of the transfer matrix via subspace iteration
-followed by Rayleigh-Ritz projection.
+Compute the dominant spectrum of the transfer matrix via subspace iteration.
 
 The algorithm initializes `n_states` product states (basis vectors), then
 iteratively applies the transfer matrix for each time slice'''s measurement outcome.
@@ -1577,7 +1576,7 @@ function transfer_matrix_subspace(
     for i in 1:k
         states[i, i] = 1.0
     end
-    spectrum_tlis = zeros(ComplexF64, k, t)
+    spectrum_tlis = zeros(k, t)
 
     for step in 1:t
         sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
@@ -1586,29 +1585,11 @@ function transfer_matrix_subspace(
                 model, states[:, i], sample_layer; τ = τ
             )
         end
-        probs = vec(sum(abs2, states, dims = 1))
-        for i in 1:k
-            norm_i = sqrt(probs[i])
-            if norm_i > 0
-                states[:, i] ./= norm_i
-            end
-        end
-        Q = qr(states).Q
-        states = Q[:, 1:k]
         
-        # Rayleigh-Ritz projection on the last step
-        H = zeros(k, k)
-        # sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
-        for j in 1:k
-            w = sample_evolution_unnormalized(
-                model, states[:, j], sample_layer; τ = τ
-            )
-            for i in 1:k
-                H[i, j] = dot(states[:, i], w)
-            end
-        end
-        ritz_values = eigvals(H)
-        spectrum_tlis[:, step] = ritz_values
+        Q, R = qr(states)
+        states = Q[:, 1:k]
+        # Note here do not sort, will distort the spectrum
+        spectrum_tlis[:, step] = -log.(abs.(diag(R)))
     end
 
     return spectrum_tlis
