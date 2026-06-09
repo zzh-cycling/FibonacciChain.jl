@@ -607,7 +607,7 @@ function reference_boundary_evolution(
         )
     elseif mode == :Born
         verbose && @info "Using Born rule driven evolution mode"
-        _reference_sample_layer(
+        _reference_stochastic_measurement_layer(
             model,
             τ_eff,
             state,
@@ -691,7 +691,7 @@ end
 
 
 """
-    _reference_sample_layer(model::AnyonModel, τ_eff::Float64, state::Vector{T}, 
+    _reference_stochastic_measurement_layer(model::AnyonModel, τ_eff::Float64, state::Vector{T}, 
                             rng::MersenneTwister=MersenneTwister(), layer_idx::Int64=1;
                             extended_basis::Vector{newT}, k_old::Int64=1, 
                             verbose::Bool=false) where {T, newT}
@@ -711,7 +711,7 @@ Perform random measurement on a layer using Born rule sampling for states with r
 # Returns
 - `Measurement_outcome_boundary`: A struct containing the post-measurement state, sample outcomes, and free energy.
 """
-function _reference_sample_layer(
+function _reference_stochastic_measurement_layer(
     model::AnyonModel,
     τ_eff::Float64,
     state::Vector{T},
@@ -900,7 +900,7 @@ function _reference_born_measure(
     for period = 1:Δt
         τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
 
-        outcome1 = _reference_sample_layer(
+        outcome1 = _reference_stochastic_measurement_layer(
             model,
             τ,
             current_state,
@@ -914,7 +914,7 @@ function _reference_born_measure(
         samples[2*period-1, :] = outcome1.sample
         sample_free_energy[2*period-1] = outcome1.free_energy
 
-        outcome2 = _reference_sample_layer(
+        outcome2 = _reference_stochastic_measurement_layer(
             model,
             τ_eff,
             current_state,

@@ -388,13 +388,13 @@ end
     @test sum(map(x->-x*log(x)/3, probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 end
 
-@testset "_sample_layer" begin
+@testset "_stochastic_measurement_layer" begin
     model = AnyonModel(FibonacciAnyon(), 6)
     τ = 1000.0
     state = zeros(length(anyon_basis(model)));
     state[1] = 1.0
     rng = MersenneTwister(42)
-    measure_outcome = FibonacciChain._sample_layer(model, τ, state, rng = rng)
+    measure_outcome = FibonacciChain._stochastic_measurement_layer(model, τ, state, rng = rng)
     @test measure_outcome.sample == [1, 0, 1]
     @test measure_outcome.free_energy ≈ 1.9248473002384137 atol=1e-6
 end

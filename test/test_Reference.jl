@@ -600,7 +600,7 @@ end
     @test free_energy ≈ 2.8872709503576206
 end
 
-@testset "reference_sample_layer" begin
+@testset "reference_stochastic_measurement_layer" begin
     N = 6
     τ = 1000.0
     sign = false
@@ -612,7 +612,7 @@ end
 
     basis_F = anyon_basis(model)
     ext_basis = FibonacciChain.build_extended_basis(1, basis_F)
-    measure_outcome = FibonacciChain._reference_sample_layer(
+    measure_outcome = FibonacciChain._reference_stochastic_measurement_layer(
         model,
         τ,
         add_st,

@@ -869,7 +869,7 @@ function boundary_evolution(
             layer_idx = layer_idx,
         )
     elseif measure_config.mode == :Born
-        return _sample_layer(
+        return _stochastic_measurement_layer(
             anyon_model,
             τ_eff,
             state;
@@ -978,7 +978,7 @@ function _apply_measurement_layer(
 end
 
 """
-    _sample_layer(model::AnyonModel, τ::Float64, state::Vector{T};
+    _stochastic_measurement_layer(model::AnyonModel, τ::Float64, state::Vector{T};
                    layer_idx::Int=1, rng::MersenneTwister=MersenneTwister(), 
                    verbose::Bool=false) where {T}
 
@@ -995,7 +995,7 @@ Perform random measurement on a layer using Born rule sampling.
 # Returns
 - `Measurement_outcome_boundary`: A struct containing the post-measurement state, sample outcomes, and free energy.
 """
-function _sample_layer(
+function _stochastic_measurement_layer(
     anyon_model::AnyonModel{AT},
     τ::Float64,
     state::Vector{T};
@@ -1132,6 +1132,7 @@ function bulk_evolution(
     state::Vector{ET},
     measure_config::MeasureConfig,
     samples::Union{Nothing,BitMatrix} = nothing,
+    normalized::Bool = true,
 ) where {ET,AT<:AbstractAnyonType}
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
@@ -1141,7 +1142,7 @@ function bulk_evolution(
     if mode == :Born
         return _born_measure(anyon_model, current_state, measure_config)
     else  # mode == :sample
-        return _sample_measure(anyon_model, current_state, samples, measure_config)
+        return _sample_measure(anyon_model, current_state, samples, measure_config, normalized)
     end
 end
 
@@ -1175,7 +1176,7 @@ function _born_measure(
             # Apply τ_eff only on the last layer of the last period
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
 
-            outcome = _sample_layer(
+            outcome = _stochastic_measurement_layer(
                 model,
                 τ_current,
                 current_state;
@@ -1208,6 +1209,7 @@ function _sample_measure(
     current_state::Vector{ET},
     samples::BitMatrix,
     measure_config::MeasureConfig,
+    normalized::Bool = true,
 ) where {AT,ET}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
@@ -1272,6 +1274,11 @@ function _sample_measure(
                 current_state,
                 layer_sample;
                 layer_idx = global_layer_idx,
+                # ---------------------------------------------------------------------------
+                # Unnormalized sample evolution: apply a fixed sample without normalizing.
+                # This gives a linear map T(s) acting on the state vector.
+                # ---------------------------------------------------------------------------
+                normalized,
             )
             current_state = outcome.state
             sample_free_energy[global_layer_idx] = outcome.free_energy
@@ -1356,44 +1363,6 @@ function bayes_distort(
     distorted_probabilities = collect(values(distorted_prob_dict))
 
     return distorted_trajectories, distorted_probabilities
-end
-
-# ---------------------------------------------------------------------------
-# Unnormalized sample evolution: apply a fixed sample without normalizing.
-# This gives a linear map T(s) acting on the state vector.
-# ---------------------------------------------------------------------------
-function sample_evolution_unnormalized(
-    model::AnyonModel{AT},
-    state::Vector{ET},
-    samples::BitMatrix;
-    τ::Float64 = 1.0,
-    enable_τ_eff::Bool = false,
-) where {ET,AT}
-    n_layers = layers_per_period(model.anyon_type)
-    D_layers, n_cols = size(samples)
-    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
-    Δt = D_layers ÷ n_layers
-    n_cols == _samples_per_layer(model) ||
-        error("sample size spatial dimension must be $n_cols, got $(size(samples, 2))")
-    current_state = copy(state)
-    for period = 1:Δt
-        for layer = 1:n_layers
-            global_layer_idx = (period - 1) * n_layers + layer
-            τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
-            col_indices = _get_sample_column_indices(model, global_layer_idx)
-            layer_sample = BitVector(samples[global_layer_idx, col_indices])
-            outcome = _apply_measurement_layer(
-                model,
-                τ_current,
-                current_state,
-                layer_sample;
-                layer_idx = global_layer_idx,
-                normalized = false,
-            )
-            current_state = outcome.state
-        end
-    end
-    return current_state
 end
 
 """
@@ -1497,9 +1466,15 @@ function transfer_matrix_dynamics(
         for i in 1:l
             st = zeros(Float64, l)
             st[i] = 1.0
-            TM_step[:, i] = sample_evolution_unnormalized(
-                model, st, sample_layer; τ = τ
-            )
+            # Note that in the time end, we didn't use the effective τ, to ensure total transfer matrix is hermitian, as in Born case it born out to be non-hermitian.
+            config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
+            TM_step[:, i] = _sample_measure(
+                model,
+                st,
+                sample_layer,
+                config,
+                false;
+            ).state
         end
 
         # Cumulative product: T_cum = T_step * T_cum
@@ -1581,9 +1556,15 @@ function transfer_matrix_subspace(
     for step in 1:t
         sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
         for i in 1:k
-            states[:, i] = sample_evolution_unnormalized(
-                model, states[:, i], sample_layer; τ = τ
+            config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
+            outcome = _sample_measure(
+                model,
+                states[:, i],
+                sample_layer,
+                config,
+                false,
             )
+            states[:, i] = outcome.state
         end
         
         Q, R = qr(states)

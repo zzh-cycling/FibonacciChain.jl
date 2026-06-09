@@ -504,7 +504,7 @@ function boundary_evolution(
             truncate_every_events = truncate_every_events,
         )
     elseif measure_config.mode == :Born
-        return _sample_layer_mps(
+        return _stochastic_measurement_layer_mps_mps(
             anyon_model,
             measure_config.τ,
             sites,
@@ -529,6 +529,7 @@ function _apply_measurement_layer_mps(
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
     truncate_every_events::Int = 1,
+    normalized::Bool = true,
 ) where {AT<:AbstractAnyonType}
     # Helper function to apply measurements to a layer
     measurement_sites, measure_anyon_model, measurement_strength =
@@ -550,43 +551,60 @@ function _apply_measurement_layer_mps(
 
     do_per_event_truncate = (truncate_every_events == 1)
 
-    if do_per_event_truncate
-        # Preserve legacy behavior for exact RNG trajectory compatibility.
-        @inbounds for idx = 1:n
-            ψ, prob = measuremap(
-                measure_anyon_model,
-                ψ,
-                sites,
-                measurement_sites[idx],
-                measurement_strength,
-                layer_sample[idx];
-                cutoff = cutoff,
-                maxdim = maxdim,
-            )
-            F_layer += -log(prob)
+    if normalized
+        if do_per_event_truncate
+            # Preserve legacy behavior for exact RNG trajectory compatibility.
+            @inbounds for idx = 1:n
+                ψ, prob = measuremap(
+                    measure_anyon_model,
+                    ψ,
+                    sites,
+                    measurement_sites[idx],
+                    measurement_strength,
+                    layer_sample[idx];
+                    cutoff = cutoff,
+                    maxdim = maxdim,
+                )
+                F_layer += -log(prob)
+            end
+        else
+            # If truncating less frequently, we apply all operators first and then truncate at the end    
+            @inbounds for idx = 1:n
+                if idx % truncate_every_events == 0
+                    truncate_signal=true
+                else
+                    truncate_signal=false
+                end
+                ψ, prob = _measuremap_with_operator(
+                    ψ,
+                    operators[idx];
+                    cutoff = cutoff,
+                    maxdim = maxdim,
+                    truncate_per_event = truncate_signal,
+                )
+                F_layer += -log(prob)
+            end
         end
     else
-        # If truncating less frequently, we apply all operators first and then truncate at the end    
-        @inbounds for idx = 1:n
-            if idx % truncate_every_events == 0
-                truncate_signal=true
-            else
-                truncate_signal=false
+        # Unnormalized evolution: apply operators without normalizing
+        if do_per_event_truncate
+            @inbounds for idx = 1:n
+                ψ = apply(operators[idx], ψ; cutoff = cutoff, maxdim = maxdim)
             end
-            ψ, prob = _measuremap_with_operator(
-                ψ,
-                operators[idx];
-                cutoff = cutoff,
-                maxdim = maxdim,
-                truncate_per_event = truncate_signal,
-            )
-            F_layer += -log(prob)
+        else
+            @inbounds for idx = 1:n
+                if idx % truncate_every_events == 0
+                    ψ = apply(operators[idx], ψ; cutoff = cutoff, maxdim = maxdim)
+                else
+                    ψ = apply(operators[idx], ψ)
+                end
+            end
         end
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
 
-function _sample_layer_mps(
+function _stochastic_measurement_layer_mps_mps(
     model::AnyonModel{AT},
     τ::Float64,
     sites::Vector{<:Index},
@@ -708,6 +726,162 @@ function _sample_layer_mps(
     end
 
     return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
+end
+
+"""
+    transfer_matrix_subspace_mps(model::AnyonModel, sites::Vector{<:Index}, τ::Float64, sample::BitMatrix; 
+                                 n_states::Int=10, cutoff::Float64=1e-10, maxdim::Int=100)
+
+Compute the dominant spectrum of the transfer matrix via subspace iteration, using MPS states.
+
+This is the MPS analogue of [`transfer_matrix_subspace`](@ref). The algorithm initializes
+`n_states` product states (basis vectors), then iteratively applies the transfer matrix
+for each time slice's measurement outcome. At each step, states are orthogonalized via a
+Gram-matrix Cholesky procedure (the MPS equivalent of QR), and the diagonal Cholesky
+factors are recorded as the spectrum.
+
+# Arguments
+- `model::AnyonModel`: Anyon model containing system parameters
+- `sites::Vector{<:Index}`: ITensor site indices
+- `τ::Float64`: Measurement strength parameter
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
+  The number of rows must be divisible by `layers_per_period(model.anyon_type)`.
+- `n_states::Int=10`: Number of initial basis vectors to propagate
+- `cutoff::Float64=1e-10`: MPS truncation cutoff
+- `maxdim::Int=100`: Maximum bond dimension for MPS operations
+
+# Returns
+- `Matrix{Float64}`: Matrix of size `(k, t)` where `k = min(n_states, length(anyon_basis(model)))`
+  and `t = size(sample,1) ÷ layers_per_period`. Each column contains `-log.(abs.(diag(L)))`
+  for that time step.
+
+# Examples
+```jldoctest
+julia> using FibonacciChain, ITensorMPS, ITensors
+
+julia> L = 8; τ = atanh(0.95);
+
+julia> model = AnyonModel(FibonacciAnyon(), L; pbc = true);
+
+julia> sites = siteinds("Qubit", L);
+
+julia> sample = BitMatrix(ones(Int8, 2, div(L, 2)));
+
+julia> spectrum = transfer_matrix_subspace_mps(model, sites, τ, sample; n_states = 5);
+
+julia> size(spectrum, 1) == 5
+true
+```
+"""
+function transfer_matrix_subspace_mps(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    τ::Float64,
+    sample::BitMatrix;
+    n_states::Int = 10,
+    cutoff::Float64 = 1e-10,
+    maxdim::Int = 100,
+) where {AT<:AbstractAnyonType}
+    # Here the transfer matrix is not hermitian, thus the Schur vector is not eigenvectors.
+    # We need to do a QR-like projection via Gram-matrix Cholesky. When the non-hermitian
+    # matrix is too ill-conditioned, the eigen fallback is used.
+    n_layers = layers_per_period(model.anyon_type)
+    D_layers, n_cols = size(sample)
+    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
+    t = D_layers ÷ n_layers
+    n_cols == _samples_per_layer(model) ||
+        error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
+
+    basis = anyon_basis(model)
+    l = length(basis)
+    k = min(n_states, l)
+    N = length(sites)
+
+    # Initialize k product states (basis vectors)
+    states = Vector{MPS}(undef, k)
+    for i in 1:k
+        buf = basis[i].buf
+        state_str = [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base=2, pad=N))]
+        states[i] = productMPS(sites, state_str)
+    end
+    spectrum_tlis = zeros(k, t)
+
+    for step in 1:t
+        sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
+        config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
+        for i in 1:k
+            outcome = _sample_measure_mps(
+                model,
+                sites,
+                states[i],
+                sample_layer,
+                config;
+                cutoff = cutoff,
+                maxdim = maxdim,
+                normalized = false,
+            )
+            states[i] = outcome.state
+        end
+
+        # Compute Gram matrix
+        G = zeros(Float64, k, k)
+        for i in 1:k
+            for j in i:k
+                val = real(inner(states[i], states[j]))
+                G[i, j] = val
+                G[j, i] = val
+            end
+        end
+
+        # Gram-matrix Cholesky (MPS analogue of QR)
+        try
+            F = cholesky(Hermitian(G))
+            L = F.L
+            Linv = inv(L)
+
+            # Form orthonormal states: Q_i = sum_j (Linv)_{ij} ψ_j
+            new_states = Vector{MPS}(undef, k)
+            for i in 1:k
+                ψ_new = Linv[i, 1] * states[1]
+                for j in 2:k
+                    ψ_new = ψ_new + Linv[i, j] * states[j]
+                end
+                new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
+            end
+            states = new_states
+
+            # Note here do not sort, will distort the spectrum
+            spectrum_tlis[:, step] = -log.(abs.(diag(L)))
+        catch e
+            if e isa PosDefException
+                # Fallback to eigen if Cholesky fails (subspace collapse)
+                @show "collapse at step $step, falling back to eigen decomposition"
+                F = eigen(Hermitian(G))
+                vals = F.values
+                vecs = F.vectors
+
+                new_states = Vector{MPS}(undef, k)
+                for i in 1:k
+                    if vals[i] > 1e-14
+                        coef = vecs[:, i] / sqrt(vals[i])
+                        ψ_new = coef[1] * states[1]
+                        for j in 2:k
+                            ψ_new = ψ_new + coef[j] * states[j]
+                        end
+                        new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
+                    else
+                        new_states[i] = productMPS(sites, ["0" for _ in 1:N])
+                    end
+                end
+                states = new_states
+                spectrum_tlis[:, step] = -log.(sqrt.(abs.(vals[1:k])))
+            else
+                rethrow(e)
+            end
+        end
+    end
+
+    return spectrum_tlis
 end
 
 """
@@ -1135,6 +1309,7 @@ function bulk_evolution(
     state::MPS,
     measure_config::MeasureConfig,
     samples::Union{Nothing,BitMatrix} = nothing;
+    normalized::Bool = true,
 ) where {AT<:AbstractAnyonType}
 
     # ---------- Sample decided according to mode ----------
@@ -1162,6 +1337,7 @@ function bulk_evolution(
             measure_config;
             cutoff = cutoff,
             maxdim = maxdim,
+            normalized = normalized,
         )
     end
 end
@@ -1224,7 +1400,7 @@ function _born_measure_mps(
             # Apply τ_eff only on the last layer of the last period
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
 
-            outcome = _sample_layer_mps(
+            outcome = _stochastic_measurement_layer_mps_mps(
                 model,
                 τ_current,
                 sites,
@@ -1286,6 +1462,7 @@ function _sample_measure_mps(
     measure_config::MeasureConfig;
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
+    normalized::Bool = true,
 ) where {AT<:AbstractAnyonType}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
@@ -1330,6 +1507,7 @@ function _sample_measure_mps(
                 cutoff = cutoff,
                 maxdim = maxdim,
                 truncate_every_events = measure_config.truncate_every_events,
+                normalized = normalized,
             )
             current_state = outcome.state
             sample_free_energy[global_layer_idx] = outcome.free_energy

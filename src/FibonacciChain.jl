@@ -56,7 +56,9 @@ export anyon_mps_gst,
     initial_mps,
     evenparity_mps,
     mps_measurement_enumeration,
-    ee_mps
+    ee_mps,
+    sample_evolution_unnormalized_mps,
+    transfer_matrix_subspace_mps
 # Reference qubits functions
 export add_reference_qubits,
     add_reference_qubits_reset,
