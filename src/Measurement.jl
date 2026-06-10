@@ -1569,7 +1569,7 @@ function transfer_matrix_subspace(
         
         Q, R = qr(states)
         states = Q[:, 1:k]
-        # Note here do not sort, will distort the spectrum
+        # Note here do not sort, will distort the Lyapunov spectrum (singular eigenvalues, corresponds to the lnZ, not lnp)
         spectrum_tlis[:, step] = -log.(abs.(diag(R)))
     end
 
