@@ -151,23 +151,22 @@ using Statistics
         save("exm/data/Bulk_measure/transfer_matrix_parellel_label_$(label)/transfer_matrix_L$(L)_gammaind$(τ_idx).jld2", "T", T)
     end
 
-    function compute_ps_spectrum_task(sign::Bool=true)
-        Llis = sign ? collect(8:2:20) : collect(6:6:18)
-        spectrum_lis = zeros(length(Llis), 10)
-        τ = atanh(0.95) 
-        for (i, L) in enumerate(Llis)
-            @show L
+    function compute_ps_spectrum_task(task)
+        L, τ_idx, channel, λlength = task
+        try
+            τ = τlis[τ_idx]
             model = AnyonModel(FibonacciAnyon(), L)
-            sample = sign ? BitMatrix(ones(Int8, 2, div(L, 2))) : BitMatrix(zeros(Int8, 2, div(L, 2)))
+            sample = channel ? BitMatrix(ones(Int8, 2, div(L, 2))) : BitMatrix(zeros(Int8, 2, div(L, 2)))
             T = transfer_matrix(model, τ, sample)
             energy = eigen(T).values
             # eigen() does NOT guarantee ordering for non-symmetric matrices.
             # We must sort by absolute value to get the dominant eigenvalues.
             sorted_energy = sort(energy, by=abs, rev=true)
-            spectrum_lis[i, :] = -log.(abs.(sorted_energy[1:10]))
+            spectrum = -log.(abs.(sorted_energy[1:λlength]))
+            return (L, τ_idx, channel, :success, spectrum)
+        catch e
+            return (L, τ_idx, channel, :failed, e)
         end
-        save_path = sign ? "transfer_matrix_spectrum_post_selection_af.jld2" : "transfer_matrix_spectrum_post_selection_fm.jld2"
-        save(save_path, "Llis", Llis, "spectrum_lis", spectrum_lis)        
     end
 
     
@@ -197,6 +196,30 @@ using Statistics
         # iternum = 15000L
         # vals, vecs, info = eigsolve(Tmap, st, 10, :LM; tol=tol_es, krylovdim=krydim, ishermitian = false, maxiter=iternum);
         # FElis = -log.(vals)[1:10]/size(sample, 1)*2
+
+        save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
+        return FElis
+    end
+
+    function scaling_dimension_Born_mps(
+        L::Int,
+        τ_idx::Int,
+        index::Int;
+        n_states::Int = 10,
+    )   
+    
+        τ = τlis[τ_idx]
+        t, inds, avg_range = get_mps_params_Born(τ_idx, L)
+        path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index)_chi80.jld2"
+        data = load(path)
+        sample = data["sample"]
+        sites = siteinds("Qubit", L)
+        model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+        
+        χ = get_default_chi_Born(τ_idx, L)
+        FElis = transfer_matrix_subspace_mps(
+        model, sites, τ, sample; n_states = 10, cutoff = 1e-12, maxdim = χ)
+     
 
         save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
         return FElis
@@ -270,8 +293,18 @@ using Statistics
     function compute_tf_Born_task(task)
         L, τ_idx, index = task
         try
-            scaling_dimension_Born(L, τ_idx, index)
-            return (L, τ_idx, index, :success, nothing)
+            result = scaling_dimension_Born(L, τ_idx, index)
+            return (L, τ_idx, index, :success, result)
+        catch e
+            return (L, τ_idx, index, :failed, e)
+        end
+    end
+
+    function compute_tf_Born_task_mps(task)
+        L, τ_idx, index = task
+        try
+            result = scaling_dimension_Born_mps(L, τ_idx, index)
+            return (L, τ_idx, index, :success, result)
         catch e
             return (L, τ_idx, index, :failed, e)
         end
@@ -366,7 +399,7 @@ else
         println("Total tasks: $(length(tasks))")
         println("Number of workers: $(nworkers())")
 
-        results = pmap(compute_tf_Born_task, tasks; batch_size=1)
+        results = pmap(compute_tf_Born_task, tasks; batch_size=50)
 
         spectra  = Vector{Vector{Float64}}()
         indices  = Vector{Int}()
@@ -420,7 +453,7 @@ else
         println("Total tasks: $(length(tasks))")
         println("Number of workers: $(nworkers())")
 
-        results = pmap(compute_ps_spectrum_task, tasks; batch_size=1)
+        results = pmap(compute_ps_spectrum_task, tasks; batch_size=50)
 
         L_success      = Vector{Int}()
         spectra_success = Vector{Vector{Float64}}()
@@ -480,6 +513,59 @@ else
         println("\n=== Average Spectrum ===")
         for (i, v) in enumerate(avg)
             println("  λ_$i = $v ± $(stderr[i])")
+        end
+     elseif mode == 7
+        # -------------------------------------------------------------------
+        # Mode 2: parallel eigenvalue spectrum computation
+        # -------------------------------------------------------------------
+        L         = parse(Int64, ARGS[2])
+        τ_idx     = parse(Int64, ARGS[3])
+        idx_start = parse(Int64, ARGS[4])
+        idx_end   = parse(Int64, ARGS[5])
+        tasks = [(L, τ_idx, i) for i in idx_start:idx_end]
+
+        println("=== Parallel MPS Spectrum Computation ===")
+        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx])")
+        println("Index range: $idx_start - $idx_end")
+        println("Total tasks: $(length(tasks))")
+        println("Number of workers: $(nworkers())")
+
+        results = pmap(compute_tf_Born_task_mps, tasks; batch_size=5)
+
+        spectra  = Vector{Vector{Float64}}()
+        indices  = Vector{Int}()
+        for (Lr, τr, ir, status, result) in results
+            if status == :success
+                push!(spectra, result)
+                push!(indices, ir)
+            end
+        end
+
+        failed = [(Lr, τr, ir, err) for (Lr, τr, ir, status, err) in results if status != :success]
+        success_count = length(spectra)
+
+        println("\n=== Complete ===")
+        println("Successes: $success_count")
+        println("Failures: $(length(failed))")
+
+        if success_count > 0
+            out_dir = "exm/data/Bulk_measure/transfer_matrix/L$(L)/gammaind$(τ_idx)"
+            mkpath(out_dir)
+            out_path = joinpath(out_dir, "spectrum_$(idx_start)_$(idx_end).jld")
+            save(out_path,
+                 "spectra", spectra,
+                 "indices", indices,
+                 "L", L,
+                 "τ_idx", τ_idx)
+            println("Spectra saved to: $out_path")
+        end
+
+        if !isempty(failed)
+            println("\n=== Failed Tasks ===")
+            for (i, (Lf, τf, idxf, err)) in enumerate(failed)
+                println("Failed $i: L=$Lf, τ_idx=$τf, index=$idxf")
+                println("  Error: $err")
+            end
         end
     end
 end

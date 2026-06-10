@@ -190,12 +190,17 @@ nprocs() == 1 && addprocs(Sys.CPU_THREADS - 1)
             avg_range = get_cfg_params_Born(τind, L)[3]
             defect_FElis_averaged = mean(defect_FE_lis, dims=2)
             FElis_averaged = mean(FE_lis, dims=2)
-            defect_FE = mean(defect_FElis_averaged[avg_range])
-            defect_FEstd 
+            defect_FE1 = mean(defect_FElis_averaged[avg_range][1:2:end])
+            defect_FE2 = mean(defect_FElis_averaged[avg_range][2:2:end])
+            delta_FEstd1 = std(defect_FElis_averaged[avg_range][1:2:end] .- FElis_averaged[avg_range][1:2:end]) / length(defect_FElis_averaged[avg_range][1:2:end])
+            delta_FEstd2 = std(defect_FElis_averaged[avg_range][2:2:end] .- FElis_averaged[avg_range][2:2:end]) / length(defect_FElis_averaged[avg_range][2:2:end])
             FE = mean(FElis_averaged[avg_range])
             
-            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_t$(t)_gamma$(τind)_collected.jld2",
-                "defect_FE", defect_FE,
+            save("exm/data/Bulk_measure/defect_scaling/L$(L)/defect_FE_L$(L)_t$(t)_gamma$(τind)_collected.jld2",
+                "defect_FE1", defect_FE1,
+                "defect_FE2", defect_FE2,
+                "delta_FEstd1", delta_FEstd1,
+                "delta_FEstd2", delta_FEstd2,
                 "FE", FE,
                 "parity_lis", parity_lis,
             )

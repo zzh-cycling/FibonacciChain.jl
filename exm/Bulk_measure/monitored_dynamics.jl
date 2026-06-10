@@ -272,8 +272,8 @@ else
 
         # count successes and failures
         failed_tasks = [
-            (L_res, τ_res, idx_res, seed_res, error) for
-            (L_res, τ_res, idx_res, seed_res, status, error) in results if
+            (L_res, τ_res, idx_res, error) for
+            (L_res, τ_res, idx_res, status, error) in results if
             status != :success
         ]
 
@@ -288,7 +288,7 @@ else
 
         if failed_count > 0
             println("\n=== Failed Task Details ===")
-            for (i, (L_f, τ_f, idx_f, seed_f, err)) in enumerate(failed_tasks)
+            for (i, (L_f, τ_f, idx_f, err)) in enumerate(failed_tasks)
                 println("Failed $i: L=$L_f, τ=$τ_f, index=$idx_f, seed=$seed_f")
                 println("  Error: $err")
             end
@@ -298,7 +298,7 @@ else
             open(failed_file, "w") do io
                 println(io, "# Failed Task List")
                 println(io, "# Format: L τ_idx sample_index seed")
-                for (L_f, τ_f, idx_f, seed_f, err) in failed_tasks
+                for (L_f, τ_f, idx_f, err) in failed_tasks
                     println(io, "$L_f $inds $idx_f $seed_f  # Error: $err")
                 end
             end
