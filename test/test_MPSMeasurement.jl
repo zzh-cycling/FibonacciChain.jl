@@ -413,7 +413,7 @@ end
 end
 
 @testset "transfer_matrix_subspace_mps" begin
-    L = 12
+    L = 8
     τ = atanh(0.95)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     sites = siteinds("Qubit", L)
@@ -426,15 +426,15 @@ end
     spectrum_ref = -log.(real.(sorted_energy[1:10]))
 
     # Multi-period sample: subspace iteration should converge for dominant eigenvalues
-    D = 100
+    D = 50
     sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
     spectrum_sub = transfer_matrix_subspace_mps(
-        model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 200
+        model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 100
     )
     @test size(spectrum_sub) == (10, div(D, 2))
     # The dominant eigenvalues converge well; subdominant ones are more sensitive
     # to MPS truncation and orthogonalization errors.
-    @test spectrum_sub[1:3, end] ≈ spectrum_ref[1:3] atol = 1e-1
+    @test spectrum_sub[1:3, end] ≈ spectrum_ref[1:3] atol = 1e-5
 end
 
 @testset "transfer_matrix_subspace_mps" begin
@@ -456,7 +456,7 @@ end
     sample_long = BitMatrix(
                 reshape([binary_distribution(0.4, rng) for _ = 1:D*div(L, 2)], D, div(L, 2)))
     spectrum_sub = transfer_matrix_subspace_mps(
-        model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 200
+        model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 100
     )
     @test size(spectrum_sub) == (10, div(D, 2))
     # The dominant eigenvalues converge well; subdominant ones are more sensitive

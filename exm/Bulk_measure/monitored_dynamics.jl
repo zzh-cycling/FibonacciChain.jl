@@ -258,7 +258,7 @@ else
         seedlis = indexlis
 
         println("=== Parallel Sample Generation ===")
-        println("L = $L, τ_idx = $τ_idx, τ = $τ")
+        println("L = $L, τ_idx = $τ_idx")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(indexlis))")
         println("Number of workers: $(nworkers())")

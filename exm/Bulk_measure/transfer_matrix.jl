@@ -20,6 +20,7 @@ using Statistics
     using LinearAlgebra
     using JLD, JLD2
     using Statistics
+    using ITensors, ITensorMPS
 
     γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
     τlis = atanh.(γlis)
@@ -84,8 +85,8 @@ using Statistics
 
     function get_default_chi_Born(ind, L)
         if L == 32
-            chi64_table = Dict(3 => 150, 4 => 150, 7 => 150, 9 => 200)
-            return get(chi64_table, ind, 80)
+            chi64_table = Dict(9 => 200)
+            return get(chi64_table, ind, 150)
         elseif L == 48
             chi48_table = Dict(1 => 150)
             return get(chi48_table, ind, 200)
@@ -208,9 +209,11 @@ using Statistics
         n_states::Int = 10,
     )   
     
+    
+        χ = (L==48) ? get_default_chi_Born(τ_idx, L) : 60
         τ = τlis[τ_idx]
         t, inds, avg_range = get_mps_params_Born(τ_idx, L)
-        path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index)_chi80.jld2"
+        path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τ_idx)/chi$(χ)/t$(t)_samples$(index)_chi$(χ).jld2"
         data = load(path)
         sample = data["sample"]
         sites = siteinds("Qubit", L)
@@ -530,7 +533,7 @@ else
         println("Total tasks: $(length(tasks))")
         println("Number of workers: $(nworkers())")
 
-        results = pmap(compute_tf_Born_task_mps, tasks; batch_size=5)
+        results = pmap(compute_tf_Born_task_mps, tasks; batch_size=1)
 
         spectra  = Vector{Vector{Float64}}()
         indices  = Vector{Int}()
