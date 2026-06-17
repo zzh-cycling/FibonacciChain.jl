@@ -6,16 +6,16 @@ using Statistics
 using Random
 using ClusterManagers
 
-const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
-const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
-const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
-addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=1")
+# const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
+# const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
+# const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
+# addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=1")
 
 @everywhere begin
-    using Pkg
-    Pkg.activate($PROJECT_DIR; io = devnull)
-    const num_workers = nworkers()
-    @info("Number of workers: $num_workers")
+    # using Pkg
+    # Pkg.activate($PROJECT_DIR; io = devnull)
+    # const num_workers = nworkers()
+    # @info("Number of workers: $num_workers")
     using FibonacciChain
     using ITensorMPS, ITensors
     using JLD2
@@ -170,6 +170,7 @@ addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=
                 9 => (3, 4, 3),
                 10 => (4, 4, 2.5),
                 11 => (3, 2, 2),
+                12 => (2, 2, 1)
             )
         else
             Dict(
@@ -184,13 +185,15 @@ addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=
                 9 => (3, 4, 2.5),
                 10 => (2, 4, 1.5),
                 11 => (2, 2, 1.5),
+                12 => (2, 2, 1)
             )
         end
-        t, step, start = get(cfg, τind, (2, 2, 1))
+        t, step, start = get(cfg, τind, (8, 2, 2))
         inds = collect(1:step:(t*L))
         avg_range = Int(start*L):2:(Int(t*L)-4)
         return t, inds, avg_range
     end
+
 
     function get_FE_avg_range(τind, L)
         # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
@@ -231,9 +234,10 @@ addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=
     end
 
 
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+    γlis = vcat([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1], collect(0.77:0.01:0.79), collect(0.81:0.01:0.82), [0.825], collect(0.83:0.01:0.84))
     τlis = atanh.(γlis)
-    τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
+    τlis[7] = log(1 + √2)
+    τlis[12] = 1000.0
 
     function get_default_chi_Born(ind, L)
         if L == 32
@@ -320,9 +324,9 @@ else
 
         println("=== Parallel Sample Generation (MPS) ===")
         println("L = $L, τ_idx = $τ_idx, χ = $χ")
-        println("Total parallel workers: $(nworkers())")
-        println("CPUs per worker: $CPUS_PER_TASK")
-        println("Total system CPUs: $(nworkers() * CPUS_PER_TASK) cores")
+        # println("Total parallel workers: $(nworkers())")
+        # println("CPUs per worker: $CPUS_PER_TASK")
+        # println("Total system CPUs: $(nworkers() * CPUS_PER_TASK) cores")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
         println("Total tasks: $(length(indexlis))")
         println("Number of workers: $(nworkers())")

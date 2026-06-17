@@ -1,12 +1,23 @@
-using FibonacciChain
-using JLD
-using Statistics
-using Random
-using LaTeXStrings
-using Plots
-using LsqFit
-using LinearAlgebra
-using Measurements
+using Distributed
+# using ClusterManagers
+
+# const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
+# const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
+# const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
+# addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
+
+@everywhere begin
+    # using Pkg
+    # Pkg.activate($PROJECT_DIR; io=devnull)
+    using FibonacciChain
+    using JLD
+    using Statistics
+    using Random
+    using LaTeXStrings
+    using Plots
+    using LsqFit
+    using LinearAlgebra
+    using Measurements
 
 function get_δtL_Born(τ, L)
     if L == 6
@@ -174,17 +185,13 @@ function get_correlation_dynamics_D(τ, L)
     return t
 end
 
-function compute_total(L::Int64, τ::Float64, index::Int64, D::Int64 = 35L, δt::Int64 = 2)
-    for index = index:(index+99)
-        @show "Computing index=$index"
-        @time compute_ratio(L, τ, index, D, δt)
-    end
-end
-
-function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64 = 16L, δt::Int64 = 2)
+function compute_ratio(L::Int64, τ_idx::Int64, index::Int64, δt::Int64 = 2)
+    τ = τlis[τ_idx]
+    D, _, _ = get_system_params(τ, L)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    t = div(D, 2)
     sample = load(
-        "exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld",
+        "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(div(t,L))_samples$(index).jld",
         "sample",
     )
     # Here sample is of size D x (L/2), representing measurement outcomes at each layer for the monitored dynamics
@@ -192,6 +199,7 @@ function compute_ratio(L::Int64, τ::Float64, index::Int64, D::Int64 = 16L, δt:
     initial_state[1] = 1.0 # initial state is all zero state
 
     t = div(D, 2)
+    D1 = D + get_correlation_dynamics_D(τ, L)
 
     rng = MersenneTwister(index)
     config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
@@ -269,6 +277,7 @@ function spatial_temporal_corr_varyingt(
     initial_state[1] = 1.0 # initial state is all zero state
 
     t = div(D, 2)
+    D1 = D + get_correlation_dynamics_D(τ, L)
     pre_config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
     pre_mo = bulk_evolution(model, initial_state, pre_config, BitMatrix(sample))
     Flis = pre_mo.free_energys
@@ -552,21 +561,69 @@ end
 τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
 seed_interval_lis = collect(1:100:2000)
 
+function process_task(task)
+    L, inds, index, δt = task
+    try
+        compute_ratio(L, inds, index, δt)
+        return (L, inds, index, :success, nothing)
+    catch e
+        return (L, inds, index, :failed, e)
+    end
+end
+
+end
+
 if length(ARGS) == 0
     println("No arguments provided.")
+    println("Usage: julia -p N corr_calculate.jl L τ_idx δt index_start index_end")
+    println("Example: julia -p 16 corr_calculate.jl 10 7 2 1 1000")
 else
     L = parse(Int64, ARGS[1])
     inds = parse(Int64, ARGS[2])
     δt = parse(Int, ARGS[3])
-    seed = parse(Int, ARGS[4])
-    # seedinds = parse(Int, ARGS[4])
-    τ = τlis[inds]
-    D, _, _ = get_system_params(τ, L)
-    # seed = seed_interval_lis[seedinds]
-    println(
-        "Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt, seedlis=$(seed):$(seed+99)",
-    )
-    compute_ratio(L, τ, seed, D, δt)
-    # compute_total(L, τ, seed, D, δt)
-    # corr_collect(L, τ)
+    index_start = parse(Int64, ARGS[4])
+    index_end = parse(Int64, ARGS[5])
+
+    println("=== Parallel Correlation Calculation ===")
+    println("L = $L, τ_idx = $inds, δt = $δt")
+    println("Sample index range: $index_start - $index_end")
+    println("Total tasks: $(length(index_start:index_end))")
+    println("Number of workers: $(nworkers())")
+
+    taskslis = [(L, inds, i, δt) for i in index_start:index_end]
+
+    println("\nStarting parallel processing...")
+    results = pmap(process_task, taskslis; batch_size = 100)
+
+    failed_tasks = [
+        (L_res, inds, idx_res, error) for
+        (L_res, inds, idx_res, status, error) in results if
+        status != :success
+    ]
+
+    success_count = count(r -> r[4] == :success, results)
+    failed_count = length(failed_tasks)
+
+    println("\n=== Processing Complete ===")
+    println("Total tasks: $(length(taskslis))")
+    println("Successes: $success_count")
+    println("Failures: $failed_count")
+
+    if failed_count > 0
+        println("\n=== Failed Task Details ===")
+        for (i, (L_f, inds, idx_f, err)) in enumerate(failed_tasks)
+            println("Failed $i: L=$L_f, τ_idx=$inds, index=$idx_f")
+            println("  Error: $err")
+        end
+
+        failed_file = "failed_tasks_L$(L)_τidx$(inds)_δt$(δt)_batch$(index_start)_$(index_end).txt"
+        open(failed_file, "w") do io
+            println(io, "# Failed Task List")
+            println(io, "# Format: L τ_idx δt sample_index")
+            for (L_f, inds, idx_f, err) in failed_tasks
+                println(io, "$L_f $inds $δt $idx_f  # Error: $err")
+            end
+        end
+        println("\nFailed tasks saved to: $failed_file")
+    end
 end

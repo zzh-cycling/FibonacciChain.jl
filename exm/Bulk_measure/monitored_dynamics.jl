@@ -4,46 +4,47 @@ using JLD
 using JLD2
 using Statistics
 using Random
-using ClusterManagers
+# using ClusterManagers
 
-const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
-const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
-const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
-addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
+# const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
+# const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
+# const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
+# addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
 
 @everywhere begin
-using Pkg
-Pkg.activate($PROJECT_DIR; io=devnull)
-const num_workers = nworkers()
-@info("Number of workers: $num_workers")    
+    # using Pkg
+    # Pkg.activate($PROJECT_DIR; io=devnull)
+    # const num_workers = nworkers()
+    # @info("Number of workers: $num_workers")    
     using FibonacciChain
     using JLD
     using JLD2
     using Statistics
     using Random
-
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
+    
+    γlis = vcat([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1], collect(0.77:0.01:0.79), collect(0.81:0.01:0.82), [0.825], collect(0.83:0.01:0.84))
     τlis = atanh.(γlis)
-    τlis[end] = 1000.0
-    τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
+    τlis[7] = log(1 + √2)
+    τlis[12] = 1000.0
 
     function get_cfg_params_Born(ind, L)
         cfg = Dict(
             1 => (2500L, 1000, 750L),
-            2 => (500L, 100, 120L),
-            3 => (200L, 40, 80L),
-            4 => (100L, 40, 40L),
-            5 => (80L, 32, 20L),
-            6 => (45L, 20, 15L),
-            7 => (35L, 14, 10L),
-            8 => (25L, 10, 5L),
-            9 => (8L, 4, 2L),
-            10 => (8L, 4, 2L),
-            11 => (5L, 2, 1L),
+            2 => (500L,  100, 120L),
+            3 => (200L,  40, 80L),
+            4 => (100L,  40, 40L),
+            5 => (80L,   32, 20L),
+            6 => (45L,   20, 15L),
+            7 => (35L,   14, 10L),
+            8 => (25L,   10, 5L),
+            9 => (8L,    4, 2L),
+            10 => (8L,    4, 2L),
+            11 => (5L,    2, 1L),
+            12 => (5L, 2, L),
         )
-        D, step, start = get(cfg, ind, (5L, 2, L))
-        inds = collect(1:step:div(D, 2))
-        avg_range = start:(div(D, 2)-5)
+        D, step, start = get(cfg, ind, (24L, 10, 5L))
+        inds = collect(1:step:div(D,2))
+        avg_range = start:2:div(D,2)-5
         return D, inds, avg_range
     end
 
