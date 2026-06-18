@@ -344,22 +344,27 @@ end
 function corr_collect(arg::Tuple)
     L, τ, δt = arg
     D = get_system_params(τ, L)[1]
-    D = div(D, 2) # true circuits depth
+    t = div(D, 2) # true circuits depth
     D1 = D + get_correlation_dynamics_D(τ, L)
-    samples_num = 1000
+
+    dir_path = "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)"
+    existing_files = filter(
+            f -> startswith(f, "D$(div(D1,L))_Samples") && endswith(f, "jld"),
+            readdir(dir_path),
+        )
+    samples_num = length(existing_files)
     println("Sample number: ", samples_num)
 
     success=0
     temporal_corr_ensemble = zeros(samples_num)
     spatial_corr_ensemble = zeros(samples_num)
     S_ensemble = zeros(samples_num)
-    sample_free_energy_ensemble = zeros(samples_num, 2*(D1+δt+D))
+    sample_free_energy_ensemble = zeros(samples_num, 2*(D1+δt))
 
     for i = 1:samples_num
-        # @show i
         try
-            temporal_corr, spatial_corr, S, sample_free_energy = load(
-                "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)/D$(div(D1,L))_Samples$(i).jld",
+            temporal_corr, spatial_corr, S, sample_free_energy = load(joinpath(dir_path,
+                "D$(div(D1,L))_Samples$(i).jld"),
                 "temporal_corr",
                 "spatial_corr",
                 "S",
@@ -451,110 +456,6 @@ function alphalis_corr(τlis)
     return αlis, α_stderrlis
 end
 
-
-function plot_tc(inds::Int64)
-    # Llis = collect(6:2:14)
-    Llis = collect(6:2:14)
-    τ = τlis[inds]
-
-    plt = plot(
-        label = false,
-        legend_background_color = nothing,
-        legend_foreground_color = nothing,
-        xlabel = L"δt /L",
-        ylabel = L"g(0, \Delta t)/g_{space}",
-        title = latexstring("γ= $(round(tanh(τ), digits=3))"),
-        # ylim = (0.8, 1.2), 
-    )
-
-    c = cgrad(:blues, length(Llis), categorical = true)
-
-    test_lis = [
-        2.4,
-        1.1917091921566003,
-        0.783,
-        0.521,
-        0.45646685808273624,
-        0.3543349243759066,
-        0.282,
-        0.234,
-        0.196,
-        0.154,
-        0.12,
-        0.1,
-    ]
-
-    for (idx, L) in enumerate(Llis[1:(end-1)])
-        average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load(
-            "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/stc_L$(L)_τ$(τ).jld",
-            "average_spatial_corr",
-            "spatial_corr_stderr",
-            "δtlis",
-            "tcLlis",
-            "tcstderrlis",
-        )
-
-
-        scatter!(
-            plt,
-            δtlis ./ L,
-            tcLlis ./ average_spatial_corr,
-            yerror = tcstderrlis ./ average_spatial_corr,
-            label = "L=$(L)",
-            lw = 2,
-            marker = :circle,
-            ms = 6,
-            c = c[idx],
-        )
-    end
-    scatter!(plt, [test_lis[inds]], [1.0], ms = 8, label = false, mc = :red, m = :star5)
-
-    average_spatial_corr, spatial_corr_stderr, δtlis, tcLlis, tcstderrlis = load(
-        "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(Llis[end])/stc_L$(Llis[end])_τ$(τ).jld",
-        "average_spatial_corr",
-        "spatial_corr_stderr",
-        "δtlis",
-        "tcLlis",
-        "tcstderrlis",
-    )
-
-
-    plot!(
-        plt,
-        δtlis ./ Llis[end],
-        tcLlis ./ average_spatial_corr,
-        yerror = tcstderrlis ./ average_spatial_corr,
-        label = "L=$(Llis[end])",
-        lw = 2,
-        marker = :circle,
-        ms = 6,
-        c = c[end],
-    )
-
-    model(x, p) = @. p[1] .* exp.(-x ./ p[2]) + p[3]
-    fit = curve_fit(
-        model,
-        δtlis ./ Llis[end],
-        tcLlis ./ average_spatial_corr,
-        [1.0, 1.0, 1.0],
-    )
-    a, b, c = fit.param
-    plot!(
-        plt,
-        δtlis ./ Llis[end],
-        model(δtlis ./ Llis[end], fit.param),
-        lw = 2,
-        ls = :dash,
-        c = :black,
-        label = "$(round(a, digits=2))exp(-x/$(round(b, digits=2))) + $(round(c, digits=2))",
-    )
-    return plt
-end
-
-# αlis = [0.11689580257066254, 0.23541811040484406, 0.3583013105614177, 0.5384835435116891, 0.6146118194603724, 0.7917648159117402, 0.9948578942184046, 1.1989313084170514, 1.431377174334643, 1.8217527673350005, 2.337916051413251, 2.8054992616959007]
-
-# α_lis = [0.22996304034610712, 0.6025887408957163, 0.7737905089041682, 1.2185251168172877, 2.5759898698081787]
-# α_stderrlis = [0.03939320246529536, 0.03727317853604598, 0.03256489438182987, 0.03328157129222018, 0.07449016381263754] # by c_{ent}/c_{Casimir}
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
