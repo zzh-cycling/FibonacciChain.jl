@@ -4,7 +4,7 @@ using ITensorMPS, ITensors
 using JLD2
 using Statistics
 using Random
-using ClusterManagers
+# using ClusterManagers
 
 # const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
 # const NWORKERS = parse(Int, get(ENV, "SLURM_NTASKS", "512"))
