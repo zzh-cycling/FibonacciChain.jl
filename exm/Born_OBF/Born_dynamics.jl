@@ -22,12 +22,20 @@ using Random
             cfg = Dict(11.0 => (400, 14, 350))
             t, step, start = get(cfg, λ, (200, 14, 180))
         elseif ind == 7
-            cfg = Dict(12.0 => (10, 14, 10))
-            t, step, start = get(cfg, λ, (8, 14, 6))
+            cfg = Dict(11.0 => (18, 14, 4))
+            t, step, start = get(cfg, λ, (18, 14, 4))
         end
-        inds = collect(1:step:(t*step))
-        avg_range = start:t
+        inds = collect(step:step:(t*step))
+        avg_range = start*step:step:(t*step)-4
         return t, inds, avg_range
+    end
+
+    function obf_model(L::Int, λ::Float64)
+        if λ >= 10.0
+            return AnyonModel(OBFAnyon(), L; λI = 0.0, pbc = true)
+        else
+            return AnyonModel(OBFAnyon(), L; λ = λ, pbc = true)
+        end
     end
 
     function born_dynamics_samples_generate(L::Int64, λ::Float64, ind::Int64, index::Int64)
@@ -35,11 +43,7 @@ using Random
         try
             rng = MersenneTwister(index)
             t, _, _ = get_dynamics_params(ind, λ)
-            if λ >= 10.0
-                model = AnyonModel(OBFAnyon(), L; λI = 0.0, pbc = true)
-            else
-                model = AnyonModel(OBFAnyon(), L; λ = λ, pbc = true)
-            end
+            model = obf_model(L, λ)
             # NEED to set fermion parity sector here.
             st = ones(length(anyon_basis(model)))
             st ./= norm(st)
@@ -129,7 +133,7 @@ using Random
         )
     end
 
-    function data_process(L::Int, ind::Int64, λ::Float64)
+    function process_data(L::Int, ind::Int64, λ::Float64)
         t, _, timewindow = get_dynamics_params(ind, λ)  # Adjusted time window for averaging
         τ = τlis[ind]
         data = load(
@@ -149,10 +153,10 @@ using Random
         t1 = timewindow[1]
         t2 = timewindow[end]
         time_average_free_energy = mean(temp[collect((t1*L):(t2*L-4)), :], dims = 1)  # each sample's time-averaged free energy
-        bulk_FE = mean(time_average_free_energy) # average over samples
+        bulk_FE = mean(time_average_free_energy) # average over samples vs time; S/T
         bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-        time_FEstderr = (std(temp ./ 2, dims = 2) ./ sqrt(size(temp, 2)))[:]
-        time_FElis = mean(temp, dims = 2)[:] ./ 2 # average over samples vs time; S/2T
+        time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
+        time_FElis = mean(temp, dims = 2)[:]  # average over samples
 
         save(
             "exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/Observables_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2",
@@ -196,7 +200,7 @@ else
         println("\nStarting parallel processing...")
         results = pmap(samples_collect, tasklis; batch_size = 1)
         for (L, λ, ind) in tasklis
-            data_process(L, ind, λ)
+            process_data(L, ind, λ)
         end
 
     elseif mode == 2
