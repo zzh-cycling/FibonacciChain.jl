@@ -27,6 +27,16 @@ using Random
         end
     end
 
+    function get_default_chi_Born(ind, L)
+        chi_table = Dict(
+            32 => 96,
+            48 => 150,
+            64 => 128,
+        )
+        chi = get(chi_table, L, 128) 
+        return chi
+    end
+
     function get_dynamics_params(ind, λ)
         if ind == 1
             cfg = Dict(11.0 => (400, 14, 350))
@@ -84,10 +94,10 @@ using Random
         λ::Float64,
         index::Int;
         n_states::Int = 10,
-        χ::Int = 500,
         cutoff::Float64 = 1e-12,
     )
         τ = τlis[τ_idx]
+        χ = get_default_chi_Born(τ_idx, L) 
         t, _, _ = get_dynamics_params_mps(τ_idx, λ)
         model = obf_model(L, λ)
 

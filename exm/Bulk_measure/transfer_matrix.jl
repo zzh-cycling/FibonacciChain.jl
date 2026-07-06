@@ -90,6 +90,12 @@ using Statistics
         elseif L == 48
             chi48_table = Dict(1 => 150)
             return get(chi48_table, ind, 200)
+        elseif L == 30
+            return 150
+        elseif L == 34
+            return 180
+        elseif L == 36
+            return 200
         elseif L == 128 && ind == 10
             return 300
         elseif L == 64
@@ -104,6 +110,8 @@ using Statistics
                 10 => 250,
             )
             return get(chi64_table, ind, 110)
+        else
+            return 60
         end
     end
 
@@ -210,7 +218,7 @@ using Statistics
     )   
     
     
-        χ = (L==48) ? get_default_chi_Born(τ_idx, L) : 60
+        χ = get_default_chi_Born(τ_idx, L)
         τ = τlis[τ_idx]
         t, inds, avg_range = get_mps_params_Born(τ_idx, L)
         path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τ_idx)/chi$(χ)/t$(t)_samples$(index)_chi$(χ).jld2"
@@ -219,12 +227,12 @@ using Statistics
         sites = siteinds("Qubit", L)
         model = AnyonModel(FibonacciAnyon(), L; pbc = true)
         
-        χ = get_default_chi_Born(τ_idx, L)
         FElis = transfer_matrix_subspace_mps(
         model, sites, τ, sample; n_states = 10, cutoff = 1e-12, maxdim = χ)
-     
 
-        save("exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/FElis_L$(L)_index$(index).jld2", "FElis", FElis)
+        out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/chi$(χ)"
+        mkpath(out_dir)
+        save(joinpath(out_dir, "FElis_L$(L)_index$(index).jld2"), "FElis", FElis)
         return FElis
     end
 
@@ -232,27 +240,39 @@ using Statistics
         L::Int,
         τ_idx::Int;
         n_states::Int = 10,
+        χ::Union{Int, Nothing} = nothing,
     )
-        D, _, _ = get_cfg_params_Born(τ_idx, L)
-        t = div(D, 2)
-        dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)"
+        if isnothing(χ)
+            # Exact diagonalization spectra
+            D, _, _ = get_cfg_params_Born(τ_idx, L)
+            t = div(D, 2)
+            dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)"
+            out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx).jld2"
+        else
+            # MPS spectra
+            t, _, _ = get_mps_params_Born(τ_idx, L)
+            dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/chi$(χ)"
+            out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx)_chi$(χ).jld2"
+        end
 
+        mkpath(dir_path)
         existing_files = filter(
             f -> startswith(f, "FElis_L$(L)_") && endswith(f, ".jld2"),
             readdir(dir_path),
         )
         samples_num = length(existing_files)
-        println("collecting $(samples_num) sample files for L=$L, τ_idx=$τ_idx")
+        println("collecting $(samples_num) sample files for L=$L, τ_idx=$τ_idx, χ=$χ")
 
+        if samples_num == 0
+            println("No sample files found in $(dir_path); skipping ensemble collection.")
+            return nothing, nothing
+        end
 
         spectra = zeros(n_states, t, samples_num)
-        
 
         for (i, fname) in enumerate(existing_files)
             data = load(joinpath(dir_path, fname))
             FElis = data["FElis"]
-
-            # spectra[:, i] = real.(FElis)
             spectra[:, :, i] = FElis
         end
 
@@ -263,7 +283,7 @@ using Statistics
         # Save
         out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)"
         mkpath(out_dir)
-        out_path = joinpath(out_dir, "ensemble_spectrum_L$(L)_gammaind$(τ_idx).jld2")
+        out_path = joinpath(out_dir, out_name)
         save(
             out_path,
             "avg_spectrum",
@@ -271,12 +291,11 @@ using Statistics
             "stderr_spectrum",
             stderr_spectrum,
             "n_samples",
-            samples_num
+            samples_num,
         )
         println("Ensemble spectrum saved to: $out_path")
 
-        # return avg_spectrum, stderr_spectrum
-        # return spectra
+        return avg_spectrum, stderr_spectrum
     end
     # ---------------------------------------------------------------------------
     # Parallel task wrappers
@@ -332,9 +351,9 @@ if length(ARGS) == 0
     println("       Compute post-selection spectra for given L values.")
     println("       channel: true (AF) or false (FM).")
     println("")
-    println("  6  L τ_idx")
+    println("  6  L τ_idx [χ]")
     println("       Collect ensemble-averaged spectra from Born trajectories.")
-    println("       Scans monitored_dynamics data and saves avg/stderr.")
+    println("       If χ is omitted, collect exact spectra; otherwise collect MPS spectra.")
     println("")
     println("Examples:")
     println("  julia -p 16 transfer_matrix.jl 1 12 10 1 100")
@@ -510,12 +529,17 @@ else
         # -------------------------------------------------------------------
         L         = parse(Int64, ARGS[2])
         τ_idx     = parse(Int64, ARGS[3])
+        χ         = length(ARGS) >= 4 ? parse(Int64, ARGS[4]) : nothing
         println("=== Collecting Ensemble-Averaged Born Spectrum ===")
-        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx])")
-        avg, stderr = collect_transfer_matrix_Born(L, τ_idx)
-        println("\n=== Average Spectrum ===")
-        for (i, v) in enumerate(avg)
-            println("  λ_$i = $v ± $(stderr[i])")
+        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx]), χ = $χ")
+        avg, stderr = collect_transfer_matrix_Born(L, τ_idx; χ = χ)
+        if isnothing(avg)
+            println("\nNo sample files found; nothing to display.")
+        else
+            println("\n=== Average Spectrum (final time slice) ===")
+            for i in 1:size(avg, 1)
+                println("  λ_$i = $(avg[i, end]) ± $(stderr[i, end])")
+            end
         end
      elseif mode == 7
         # -------------------------------------------------------------------
@@ -535,7 +559,7 @@ else
 
         results = pmap(compute_tf_Born_task_mps, tasks; batch_size=1)
 
-        spectra  = Vector{Vector{Float64}}()
+        spectra  = Vector{Matrix{Float64}}()
         indices  = Vector{Int}()
         for (Lr, τr, ir, status, result) in results
             if status == :success
@@ -552,14 +576,16 @@ else
         println("Failures: $(length(failed))")
 
         if success_count > 0
-            out_dir = "exm/data/Bulk_measure/transfer_matrix/L$(L)/gammaind$(τ_idx)"
+            χ = get_default_chi_Born(τ_idx, L)
+            out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/chi$(χ)"
             mkpath(out_dir)
-            out_path = joinpath(out_dir, "spectrum_$(idx_start)_$(idx_end).jld")
+            out_path = joinpath(out_dir, "spectrum_$(idx_start)_$(idx_end).jld2")
             save(out_path,
                  "spectra", spectra,
                  "indices", indices,
                  "L", L,
-                 "τ_idx", τ_idx)
+                 "τ_idx", τ_idx,
+                 "χ", χ)
             println("Spectra saved to: $out_path")
         end
 
