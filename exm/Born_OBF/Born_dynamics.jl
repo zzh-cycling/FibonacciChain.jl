@@ -153,7 +153,7 @@ using Random
         
         time_FElis = mean(temp, dims = 2)[:]  # average over samples
         time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
-        reshaped_time_FElis = sum(reshape(time_FElis, 14, Lt), dims=1)[:]
+        reshaped_time_FElis = sum(reshape(time_FElis, 14, L*t), dims=1)[:]
         time_FElis_window = reshaped_time_FElis[timewindow]
         bulk_FE = mean(time_FElis_window) ./2 # average over samples vs time; S/2T
         bulk_FE_stderr = std(time_FElis_window ./2) / sqrt(length(time_FElis_window))
