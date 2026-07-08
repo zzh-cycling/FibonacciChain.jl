@@ -14,15 +14,15 @@ using Random
 
     function get_dynamics_params_mps(ind, λ)
         if ind == 1
-            cfg = Dict(11.0 => (400, 14, 350))
-            t, step, start = get(cfg, λ, (200, 14, 180))
+            cfg = Dict(11.0 => (250, 14, 40))
+            t, step, start = get(cfg, λ, (150, 14, 20))
         elseif ind == 7
             cfg = Dict(11.0 => (10, 14, 2))
             t, step, start = get(cfg, λ, (8, 14, 1))
         end
         inds = collect(step:step:(t*step))
-        avg_range = start*step:step:(t*step)-4
-        return t, inds, avg_range
+    
+        return t, inds, start
     end
 
     function obf_model(L::Int, λ::Float64)
@@ -145,7 +145,7 @@ using Random
     function process_data(L::Int64, τind::Int64, λ::Float64, χ::Int64 = 500)
         # timewindow, over t, need to times L
         τ = τlis[τind]
-        t, _, timewindow = get_dynamics_params_mps(τind, λ)
+        t, _, start = get_dynamics_params_mps(τind, λ)
         load_data_path = "exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2"
         data = load(load_data_path)
 
@@ -170,14 +170,14 @@ using Random
         # Check if there are duplicates in the ensemble_seed
         has_duplicates = check_duplicates(ensemble_seed)
 
-        t1 = timewindow[1]
-        t2 = timewindow[end]
+        timewindow = collect(start*L:L*t-2)
         temp = hcat(ensemble_free_energy...)
-        time_average_free_energy = mean(temp[collect((t1*L):(t2*L-4)), :], dims = 1)
-        bulk_FE = mean(time_average_free_energy)
-        bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-        time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
         time_FElis = mean(temp, dims = 2)[:]
+        time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
+        reshaped_time_FElis = sum(reshape(time_FElis, 14, Lt), dims=1)[:]
+        time_FElis_window = reshaped_time_FElis[timewindow]
+        bulk_FE = mean(time_FElis_window) ./2 # S/2T
+        bulk_FE_stderr = std(time_FElis_window ./2) / sqrt(length(time_FElis_window))
 
         save(
             "exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/monitored_EE_FEdynamics_λ$(λ)_t$(t)_chi$(χ).jld2",
@@ -189,8 +189,6 @@ using Random
             bulk_meanEElis,
             "ensemble_stderr_EElis",
             ensemble_stderr_EElis,
-            "time_average_free_energy",
-            time_average_free_energy,
             "bulk_FE",
             bulk_FE,
             "bulk_FE_stderr",

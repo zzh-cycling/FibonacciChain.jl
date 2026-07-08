@@ -168,7 +168,7 @@ using Statistics
             sample = channel ? BitMatrix(ones(Int8, 2, div(L, 2))) : BitMatrix(zeros(Int8, 2, div(L, 2)))
             T = transfer_matrix(model, τ, sample)
             energy = eigen(T).values
-            # eigen() does NOT guarantee ordering for non-symmetric matrices.
+            # eigen() does NOT guarantee ordering for non-symmetric matrices. (But only due to the ABAB trotterization pattern, if T = AB could be written as T = A^(1/2) B A^(1/2), then eigen() would guarantee ordering.)
             # We must sort by absolute value to get the dominant eigenvalues.
             sorted_energy = sort(energy, by=abs, rev=true)
             spectrum = -log.(abs.(sorted_energy[1:λlength]))

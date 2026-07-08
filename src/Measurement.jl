@@ -622,7 +622,7 @@ function _obtain_measurement_config(
     # Layer 6, 8:  √ZZX (sites 3,6,9...)
     # Layer 7:     X (all sites)
     # Final 14: ZZ
-    # theoretically we use √ZZ, √XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, √ZZ, it can be
+    # theoretically we use √ZZ, √XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, √ZZ, which is symmetricly trotterized and can be
     # √XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, ZZ
     # 1        2      3      4      5      6    7    8      9     10      11    12     13    14 
 
@@ -1384,32 +1384,24 @@ function transfer_matrix(
     τ::Float64,
     sample::BitMatrix,
 ) where {AT<:AbstractAnyonType}
-    # sample assumed to be only two layer
     basis = anyon_basis(model)
     l = length(basis)
     TM = zeros(Float64, l, l)
-
+    n_layers = layers_per_period(model.anyon_type)
+    
     for i = 1:l
         st = zeros(Float64, l)
         st[i] = 1.0
-
-        # First layer
-        col_indices1 = _get_sample_column_indices(model, 1)
-        layer1_sample = BitVector(sample[1, col_indices1])
-        out1 = _apply_measurement_layer(
-            model, τ, st, layer1_sample;
-            layer_idx = 1, normalized = false,
-        )
-
-        # Second layer
-        col_indices2 = _get_sample_column_indices(model, 2)
-        layer2_sample = BitVector(sample[2, col_indices2])
-        out2 = _apply_measurement_layer(
-            model, τ, out1.state, layer2_sample;
-            layer_idx = 2, normalized = false,
-        )
-
-        TM[:, i] = out2.state
+        for layer_idx in 1:n_layers
+            col_indices = _get_sample_column_indices(model, layer_idx)
+            layer_sample = BitVector(sample[layer_idx, col_indices])
+            out = _apply_measurement_layer(
+                model, τ, st, layer_sample;
+                layer_idx = layer_idx, normalized = false,
+            )
+            st = out.state
+        end
+        TM[:, i] = st
     end
 
     return TM

@@ -1,6 +1,6 @@
 using Distributed
 using FibonacciChain
-using LinearAlgebra
+using LinearAlgebra, Arpack
 using ITensorMPS, ITensors
 using JLD2
 using Statistics
@@ -29,8 +29,9 @@ using Random
 
     function get_default_chi_Born(ind, L)
         chi_table = Dict(
+            24 => 64,
             32 => 96,
-            48 => 150,
+            48 => 110,
             64 => 128,
         )
         chi = get(chi_table, L, 128) 
@@ -47,6 +48,7 @@ using Random
         end
         inds = collect(step:step:(t*step))
         avg_range = start*step:step:(t*step)-4
+        collect(div(L,8)*t*14:t*L*14-4)
         return t, inds, avg_range
     end
 
@@ -191,12 +193,31 @@ using Random
     end
 
     function compute_tf_OBF_mps_task(task)
-        L, τ_idx, λ, index, χ = task
+        L, τ_idx, λ, index = task
         try
-            result = scaling_dimension_Born_mps(L, τ_idx, λ, index; χ = χ)
+            result = scaling_dimension_Born_mps(L, τ_idx, λ, index;)
             return (L, τ_idx, λ, index, :success, result)
         catch e
             return (L, τ_idx, λ, index, :failed, e)
+        end
+    end
+
+    function compute_ps_spectrum_OBF_task(task)
+        L, τ_idx, λ, λlength = task
+        try
+            τ = τlis[τ_idx]
+            model = obf_model(L, λ)
+            n_layers = FibonacciChain.layers_per_period(model.anyon_type)
+            n_cols = FibonacciChain._samples_per_layer(model)
+            sample = BitMatrix(ones(Int8, n_layers, n_cols))
+            # It doesn't matter for the post-selection spectrum whether we choose all 1s or all 0s for Ising/OBF.
+            T = transfer_matrix(model, τ, sample)
+            energy, states = Arpack.eigs(T, nev = λlength, which = :SM, maxiter=10000)
+            sorted_energy = sort(energy, by=abs, rev=true)
+            spectrum = -log.(abs.(sorted_energy[1:λlength]))
+            return (L, τ_idx, λ, :success, spectrum)
+        catch e
+            return (L, τ_idx, λ, :failed, e)
         end
     end
 end
@@ -209,21 +230,26 @@ if length(ARGS) == 0
     println("Usage: julia -p N scaling_dimension.jl mode [args...]")
     println("")
     println("Modes:")
-    println("  2  L τ_idx λ index_start index_end")
+    println("  1  L τ_idx λ index_start index_end")
     println("       Compute exact OBF scaling dimensions in parallel.")
     println("")
-    println("  7  L τ_idx λ χ index_start index_end")
+    println("  2  L τ_idx λ χ index_start index_end")
     println("       Compute MPS OBF scaling dimensions in parallel.")
     println("")
-    println("  6  L τ_idx λ [χ]")
+    println("  3  L τ_idx λ [χ]")
     println("       Collect ensemble-averaged OBF spectra.")
     println("       If χ is omitted, collect exact spectra; otherwise collect MPS spectra.")
     println("")
+    println("  4  τ_idx channel λ L1 L2 ...")
+    println("       Compute post-selection spectra for given L values.")
+    println("       channel: true (all 1s) or false (all 0s).")
+    println("")
     println("Examples:")
-    println("  julia -p 16 scaling_dimension.jl 2 10 7 11.0 1 100")
-    println("  julia -p 16 scaling_dimension.jl 7 12 1 0.856 500 1 100")
-    println("  julia         scaling_dimension.jl 6 10 7 11.0")
-    println("  julia         scaling_dimension.jl 6 12 1 0.856 500")
+    println("  julia -p 16 scaling_dimension.jl 1 10 7 11.0 1 100")
+    println("  julia -p 16 scaling_dimension.jl 2 12 1 0.856 500 1 100")
+    println("  julia         scaling_dimension.jl 3 10 7 11.0")
+    println("  julia         scaling_dimension.jl 3 12 1 0.856 500")
+    println("  julia -p 4  scaling_dimension.jl 4 7 false 0.1 6 8 10 12")
 else
     mode = parse(Int64, ARGS[1])
 
@@ -300,13 +326,12 @@ else
         L         = parse(Int64, ARGS[2])
         τ_idx     = parse(Int64, ARGS[3])
         λ         = parse(Float64, ARGS[4])
-        χ         = parse(Int64, ARGS[5])
-        idx_start = parse(Int64, ARGS[6])
-        idx_end   = parse(Int64, ARGS[7])
-        tasks = [(L, τ_idx, λ, i, χ) for i in idx_start:idx_end]
+        idx_start = parse(Int64, ARGS[5])
+        idx_end  = parse(Int64, ARGS[6])
+        tasks = [(L, τ_idx, λ, i) for i in idx_start:idx_end]
 
         println("=== Parallel OBF Spectrum Computation (MPS) ===")
-        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx]), λ = $λ, χ = $χ")
+        println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx]), λ = $λ")
         println("Index range: $idx_start - $idx_end")
         println("Total tasks: $(length(tasks))")
         println("Number of workers: $(nworkers())")
@@ -331,6 +356,8 @@ else
         println("\n=== Complete ===")
         println("Successes: $success_count")
         println("Failures: $(length(failed))")
+        
+        χ = get_default_chi_Born(τ_idx, L) 
 
         if success_count > 0
             out_dir = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)/chi$(χ)"
@@ -374,5 +401,67 @@ else
         println("=== Collecting Ensemble-Averaged OBF Spectrum ===")
         println("L = $L, τ_idx = $τ_idx, τ = $(τlis[τ_idx]), λ = $λ, χ = $χ")
         collect_scaling_dimension_Born(L, τ_idx, λ; χ = χ)
+
+    elseif mode == 4
+        # -------------------------------------------------------------------
+        # Mode 4: post-selection spectra across L values
+        # -------------------------------------------------------------------
+        τ_idx   = parse(Int64, ARGS[2])
+        λ       = parse(Float64, ARGS[3])
+        Llis    = [parse(Int64, arg) for arg in ARGS[4:end]]
+        λlength = 10
+        tasks   = [(L, τ_idx, λ, λlength) for L in Llis]
+
+        println("=== Parallel Post-Selection Spectrum ===")
+        println("τ_idx = $τ_idx")
+        println("λ = $λ")
+        println("L values: $Llis")
+        println("Total tasks: $(length(tasks))")
+        println("Number of workers: $(nworkers())")
+
+        results = pmap(compute_ps_spectrum_OBF_task, tasks; batch_size = 1)
+
+        L_success       = Vector{Int}()
+        spectra_success = Vector{Vector{Float64}}()
+        for (Lr, τr, λr, status, result) in results
+            if status == :success
+                push!(L_success, Lr)
+                push!(spectra_success, result)
+            end
+        end
+
+        failed = [
+            (Lr, τr, λr, status, err)
+            for (Lr, τr, λr, status, err) in results if status != :success
+        ]
+        success_count = length(L_success)
+
+        println("\n=== Complete ===")
+        println("Successes: $success_count")
+        println("Failures: $(length(failed))")
+
+        if success_count > 0
+            out_name = "exm/data/OBF/tf_spectrum/post_selection_spectrum_λ$(λ).jld2"
+            save(
+                out_name,
+                "Llis", 
+                L_success,
+                "spectrum_lis",
+                spectra_success,
+                "τ_idx",
+                τ_idx,
+                "λ",
+                λ,
+            )
+            println("Saved to: $out_name")
+        end
+
+        if !isempty(failed)
+            println("\n=== Failed Tasks ===")
+            for (i, (Lf, τf, λf, status, err)) in enumerate(failed)
+                println("Failed $i: L=$Lf, τ_idx=$τf, λ=$λf")
+                println("  Error: $err")
+            end
+        end
     end
 end

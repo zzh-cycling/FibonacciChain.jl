@@ -19,15 +19,13 @@ using Random
 
     function get_dynamics_params(ind, λ)
         if ind == 1
-            cfg = Dict(11.0 => (400, 14, 350))
+            cfg = Dict(11.0 => (400, 14, 50))
             t, step, start = get(cfg, λ, (200, 14, 180))
         elseif ind == 7
-            cfg = Dict(11.0 => (18, 14, 4))
-            t, step, start = get(cfg, λ, (18, 14, 4))
+            cfg = Dict(11.0 => (18, 14, 2))
+            t, step, start = get(cfg, λ, (18, 14, 2))
         end
-        inds = collect(step:step:(t*step))
-        avg_range = start*step:step:(t*step)-4
-        return t, inds, avg_range
+        return t, start
     end
 
     function obf_model(L::Int, λ::Float64)
@@ -42,7 +40,7 @@ using Random
         τ = τlis[ind]
         try
             rng = MersenneTwister(index)
-            t, _, _ = get_dynamics_params(ind, λ)
+            t, _ = get_dynamics_params(ind, λ)
             model = obf_model(L, λ)
             # NEED to set fermion parity sector here.
             st = ones(length(anyon_basis(model)))
@@ -85,7 +83,7 @@ using Random
     function samples_collect(task)
         L, λ, ind = task
 
-        t, _, timewindow = get_dynamics_params(ind, λ)
+        t, _ = get_dynamics_params(ind, λ)
         τ = τlis[ind]
         samples_num = 30000
         measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
@@ -134,7 +132,7 @@ using Random
     end
 
     function process_data(L::Int, ind::Int64, λ::Float64)
-        t, _, timewindow = get_dynamics_params(ind, λ)  # Adjusted time window for averaging
+        t, start = get_dynamics_params(ind, λ)  # Adjusted time window for averaging
         τ = τlis[ind]
         data = load(
             "exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2",
@@ -150,13 +148,15 @@ using Random
         #  | -> sample
         #  | 
         #  ⬇️ time
-        t1 = timewindow[1]
-        t2 = timewindow[end]
-        time_average_free_energy = mean(temp[collect((t1*L):(t2*L-4)), :], dims = 1)  # each sample's time-averaged free energy
-        bulk_FE = mean(time_average_free_energy) # average over samples vs time; S/T
-        bulk_FE_stderr = std(time_average_free_energy) / sqrt(size(temp, 2))
-        time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
+        
+        timewindow = collect(start*L:L*t-2)
+        
         time_FElis = mean(temp, dims = 2)[:]  # average over samples
+        time_FEstderr = (std(temp, dims = 2) ./ sqrt(size(temp, 2)))[:]
+        reshaped_time_FElis = sum(reshape(time_FElis, 14, Lt), dims=1)[:]
+        time_FElis_window = reshaped_time_FElis[timewindow]
+        bulk_FE = mean(time_FElis_window) ./2 # average over samples vs time; S/2T
+        bulk_FE_stderr = std(time_FElis_window ./2) / sqrt(length(time_FElis_window))
 
         save(
             "exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/Observables_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2",
