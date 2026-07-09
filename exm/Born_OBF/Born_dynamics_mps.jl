@@ -12,16 +12,26 @@ using Random
     using Statistics
     using Random
 
-    function get_dynamics_params_mps(ind, λ)
-        if ind == 1
-            cfg = Dict(11.0 => (250, 14, 40))
-            t, step, start = get(cfg, λ, (150, 14, 20))
-        elseif ind == 7
-            cfg = Dict(11.0 => (10, 14, 2))
-            t, step, start = get(cfg, λ, (8, 14, 1))
+    function get_born_dynamics_params(ind, L, λ)
+        if L >= 18
+            if ind == 1
+                cfg = Dict(11.0 => (250, 14, 40))
+                t, step, start = get(cfg, λ, (150, 14, 20))
+            elseif ind == 7
+                cfg = Dict(11.0 => (10, 14, 2))
+                t, step, start = get(cfg, λ, (8, 14, 1))
+            end
+            # Default parameters for MPS
+        else
+            if ind == 1
+                cfg = Dict(11.0 => (400, 14, 50))
+                t, step, start = get(cfg, λ, (200, 14, 30))
+            elseif ind == 7
+                cfg = Dict(11.0 => (18, 14, 2))
+                t, step, start = get(cfg, λ, (18, 14, 2))
+            end
         end
-        inds = collect(step:step:(t*step))
-    
+        inds = collect(1:step:t*L)
         return t, inds, start
     end
 
@@ -42,7 +52,7 @@ using Random
     )
         τ = τlis[τind]
         try
-            t, _, _ = get_dynamics_params_mps(τind, λ)
+            t, _, _ = get_born_dynamics_params(τind, L, λ)
             rng = MersenneTwister(index)
 
             model = obf_model(L, λ)
@@ -83,7 +93,7 @@ using Random
     end
 
     function samples_collect(L::Int64, τind::Int64, λ::Float64, χ::Int64 = 500)
-        t, _, _ = get_dynamics_params_mps(τind, λ)
+        t, _, _ = get_born_dynamics_params(τind, L, λ)
         dir_path = "exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/chi$(χ)"
         samples_num = length(
             filter(
@@ -145,7 +155,7 @@ using Random
     function process_data(L::Int64, τind::Int64, λ::Float64, χ::Int64 = 500)
         # timewindow, over t, need to times L
         τ = τlis[τind]
-        t, _, start = get_dynamics_params_mps(τind, λ)
+        t, _, start = get_born_dynamics_params(τind, L, λ)
         load_data_path = "exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τind)/λ$(λ)/ensemble_λ$(λ)_t$(t)_chi$(χ).jld2"
         data = load(load_data_path)
 

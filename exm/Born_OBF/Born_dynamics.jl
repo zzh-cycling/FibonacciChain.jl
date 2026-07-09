@@ -17,15 +17,27 @@ using Random
     τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
     λlis = vcat(collect(0.0:0.1:1.5), [11.0])
 
-    function get_dynamics_params(ind, λ)
-        if ind == 1
-            cfg = Dict(11.0 => (400, 14, 50))
-            t, step, start = get(cfg, λ, (200, 14, 180))
-        elseif ind == 7
-            cfg = Dict(11.0 => (18, 14, 2))
-            t, step, start = get(cfg, λ, (18, 14, 2))
+    function get_born_dynamics_params(ind, L, λ)
+        if L >= 18
+            if ind == 1
+                cfg = Dict(11.0 => (250, 14, 40))
+                t, step, start = get(cfg, λ, (150, 14, 20))
+            elseif ind == 7
+                cfg = Dict(11.0 => (10, 14, 2))
+                t, step, start = get(cfg, λ, (8, 14, 1))
+            end
+            # Default parameters for MPS
+        else
+            if ind == 1
+                cfg = Dict(11.0 => (400, 14, 50))
+                t, step, start = get(cfg, λ, (200, 14, 30))
+            elseif ind == 7
+                cfg = Dict(11.0 => (18, 14, 2))
+                t, step, start = get(cfg, λ, (18, 14, 2))
+            end
         end
-        return t, start
+        inds = collect(1:step:t*L)
+        return t, inds, start
     end
 
     function obf_model(L::Int, λ::Float64)
@@ -40,7 +52,7 @@ using Random
         τ = τlis[ind]
         try
             rng = MersenneTwister(index)
-            t, _ = get_dynamics_params(ind, λ)
+            t, _, _ = get_born_dynamics_params(ind, L, λ)
             model = obf_model(L, λ)
             # NEED to set fermion parity sector here.
             st = ones(length(anyon_basis(model)))
@@ -79,21 +91,32 @@ using Random
         L, λ, ind, index = task
         return born_dynamics_samples_generate(L, λ, ind, index)
     end
-
+    
     function samples_collect(task)
         L, λ, ind = task
 
-        t, _ = get_dynamics_params(ind, λ)
+        t = get_born_dynamics_params(ind, L, λ)[1]
         τ = τlis[ind]
-        samples_num = 30000
+        dir_path = "exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)"
+        samples_num = length(
+            filter(
+                f -> startswith(f, "t$(t)_samples"),
+                readdir(dir_path),
+            ),
+        )
         measure_records_ensemble = Vector{BitMatrix}(undef, samples_num)
         ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
         ensemble_seed = zeros(samples_num)
         ensemble_EE_dynamics = zeros(samples_num, t*L)
         ensemble_final_EElis = zeros(samples_num, L-1)
-        for i = 1:samples_num
+        
+        existing_files = filter(
+            f -> startswith(f, "t$(t)_samples"),
+            readdir(dir_path),
+        )
+        for (i, fname) in enumerate(existing_files)
             sample, sample_free_energy, halfchain_EE_tlis, final_EElis = load(
-                "./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(i).jld2",
+                joinpath(dir_path, fname),
                 "sample",
                 "sample_free_energy",
                 "halfchain_EE_tlis",
@@ -132,7 +155,7 @@ using Random
     end
 
     function process_data(L::Int, ind::Int64, λ::Float64)
-        t, start = get_dynamics_params(ind, λ)  # Adjusted time window for averaging
+        t, _, start = get_born_dynamics_params(ind, L, λ)  # Adjusted time window for averaging
         τ = τlis[ind]
         data = load(
             "exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_λ$(λ)_t$(t).jld2",

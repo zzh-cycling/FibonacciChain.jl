@@ -38,33 +38,27 @@ using Random
         return chi
     end
 
-    function get_dynamics_params(ind, λ)
-        if ind == 1
-            cfg = Dict(11.0 => (400, 14, 350))
-            t, step, start = get(cfg, λ, (200, 14, 180))
-        elseif ind == 7
-            cfg = Dict(11.0 => (18, 14, 4))
-            t, step, start = get(cfg, λ, (18, 14, 4))
-        end
-        inds = collect(step:step:(t*step))
-        avg_range = start*step:step:(t*step)-4
-        collect(div(L,8)*t*14:t*L*14-4)
-        return t, inds, avg_range
-    end
-
-    function get_dynamics_params_mps(ind, λ)
-        if ind == 1
-            cfg = Dict(11.0 => (400, 14, 350))
-            t, step, start = get(cfg, λ, (200, 14, 180))
-        elseif ind == 7
-            cfg = Dict(11.0 => (10, 14, 10))
-            t, step, start = get(cfg, λ, (8, 14, 6))
+    function get_born_dynamics_params(ind, L, λ)
+        if L >= 18
+            if ind == 1
+                cfg = Dict(11.0 => (250, 14, 40))
+                t, step, start = get(cfg, λ, (150, 14, 20))
+            elseif ind == 7
+                cfg = Dict(11.0 => (10, 14, 2))
+                t, step, start = get(cfg, λ, (8, 14, 1))
+            end
+            # Default parameters for MPS
         else
-            error("get_dynamics_params not configured for τ_idx=$ind and λ=$λ")
+            if ind == 1
+                cfg = Dict(11.0 => (400, 14, 50))
+                t, step, start = get(cfg, λ, (200, 14, 30))
+            elseif ind == 7
+                cfg = Dict(11.0 => (18, 14, 2))
+                t, step, start = get(cfg, λ, (18, 14, 2))
+            end
         end
-        inds = collect(step:step:(t*step))
-        avg_range = start:t
-        return t, inds, avg_range
+        inds = collect(1:step:t*L)
+        return t, inds, start
     end
 
     function scaling_dimension_Born(
@@ -75,7 +69,7 @@ using Random
         n_states::Int = 10,
     )
         τ = τlis[τ_idx]
-        t, _, _ = get_dynamics_params(τ_idx, λ)
+        t, _, _ = get_born_dynamics_params(τ_idx, L, λ)
         model = obf_model(L, λ)
 
         path = "./exm/data/OBF/Born_dynamics_records/L$(L)/τ$(τ)/λ$(λ)/t$(t)_samples$(index).jld2"
@@ -100,7 +94,7 @@ using Random
     )
         τ = τlis[τ_idx]
         χ = get_default_chi_Born(τ_idx, L) 
-        t, _, _ = get_dynamics_params_mps(τ_idx, λ)
+        t, _, _ = get_born_dynamics_params(τ_idx, L, λ)
         model = obf_model(L, λ)
 
         path = "exm/data/OBF/Born_dynamics_records_mps/L$(L)/gammaind$(τ_idx)/λ$(λ)/chi$(χ)/t$(t)_samples$(index)_chi$(χ).jld2"
@@ -129,17 +123,15 @@ using Random
         χ::Union{Int, Nothing} = nothing,
     )
         
-        
+        t, _, _ = get_born_dynamics_params(τ_idx, L, λ)
         if isnothing(χ)
             dir_path = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)"
             prefix = "FElis_L$(L)_"
             out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx)_λ$(λ).jld2"
-            t, _, _ = get_dynamics_params(τ_idx, λ)
         else
             dir_path = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)/chi$(χ)"
             prefix = "FElis_L$(L)_"
             out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx)_λ$(λ)_chi$(χ).jld2"
-            t, _, _ = get_dynamics_params_mps(τ_idx, λ)
         end
 
         t_periods = t * L

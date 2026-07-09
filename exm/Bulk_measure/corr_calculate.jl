@@ -122,6 +122,7 @@ function get_δtL_Born(τ, L)
         δtlis = get(table, τ, collect(1:10))
     elseif L == 24
         table = Dict(
+            atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28))),
             atanh(0.6) => sort(vcat(collect(10:2:20), [17, 19])),
             atanh(1/√2) => (collect(1:15)),
         )
