@@ -51,6 +51,18 @@ end
 
 @testset "Fsymmetry_coef" begin
     ϕ = (1+√5)/2
+
+    N = 2
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
+    T = BitStr{N}
+    output1 = FibonacciChain.Fsymmetry_coef(model, T(bit"00"), T(bit"00"))
+    @test output1 ≈ 1/ϕ^2
+    output2 = FibonacciChain.Fsymmetry_coef(model, T(bit"01"), T(bit"00"))
+    output3 = FibonacciChain.Fsymmetry_coef(model, T(bit"10"), T(bit"00"))
+    @test output2 ≈ output3 ≈ 1/√ϕ
+    output4 = FibonacciChain.Fsymmetry_coef(model, T(bit"01"), T(bit"01"))
+    @test output4 ≈ 0
+
     N = 3
     model = AnyonModel(FibonacciAnyon(), N, pbc = true)
     T = BitStr{N}
@@ -70,30 +82,31 @@ end
     @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0000")) ≈
           [ϕ^(-4), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-5/2), ϕ^(-1), ϕ^(-5/2), ϕ^(-1)]
     @test FibonacciChain.topological_symmetry_basismap(model, T(bit"0100")) ≈
-          [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), ϕ^(-2), ϕ^(-1/2), -ϕ^(-2), ϕ^(-3/2)]
+          [ϕ^(-5/2), ϕ^(-1), -ϕ^(-2), 0, 0, -ϕ^(-2), ϕ^(-3/2)]
     @test FibonacciChain.topological_symmetry_basismap(model, T(bit"1010")) ≈
-          [ϕ^(-1), ϕ^(-3/2), ϕ^(-1/2), ϕ^(-3/2), ϕ^(-2), ϕ^(-1/2), 1]
+          [ϕ^(-1), ϕ^(-3/2), 0, ϕ^(-3/2), ϕ^(-2), 0, 0]
 end
 
 
 @testset "topological_charge_operator" begin
     ϕ = (1+√5)/2
-    N = 4
-    T = BitStr{N}
+    N = 2
     model = AnyonModel(FibonacciAnyon(), N, pbc = true)
-    Y = FibonacciChain.topological_charge_operator(model, T)
-    Y = (Y + Y') / 2
+    Y = FibonacciChain.topological_charge_operator(model)
+    @test Y ≈ Y'
     vals = eigvals(Y)
-    @test vals ≈ [
-        -1.0799610383969367,
-        -0.23606797749978994,
-        -0.23606797749978972,
-        -0.23606797749978964,
-        0.4778136965285674,
-        1.9041523147215358,
-        3.079961038396939,
-    ]
-    @test vals[end]/vals[end-1] ≈ ϕ atol = 1e-3
+    # Eigenvalues of the topological charge operator are S_{τQ}/S_{1Q}:
+    # ϕ (total charge 1 sector, 1 state) and -ϕ⁻¹ (total charge τ sector, 2 states).
+    @test vals ≈ sort(vcat(fill(ϕ, 1), fill(-ϕ^(-1), 2)))
+
+    N = 4
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
+    Y = FibonacciChain.topological_charge_operator(model)
+    @test Y ≈ Y'
+    vals = eigvals(Y)
+    # Eigenvalues of the topological charge operator are S_{τQ}/S_{1Q}:
+    # ϕ (total charge 1 sector, 2 states) and -ϕ⁻¹ (total charge τ sector, 5 states).
+    @test vals ≈ sort(vcat(fill(ϕ, 2), fill(-ϕ^(-1), 5)))
 end
 
 @testset "actingHampbc" begin

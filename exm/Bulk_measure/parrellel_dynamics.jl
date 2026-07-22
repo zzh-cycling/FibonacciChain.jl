@@ -126,7 +126,8 @@ end
 
 @everywhere function spatial_temporal_corr_varyingt(args::Tuple)
     try
-        L, τ, index, δt = args
+        L, τind, index, δt = args
+        τ = τlis[τind]
         D = get_system_params(τ, L)[1]
         # | ----> |____| ----> |
         # 0       D   D+δt   D+δt+t  
@@ -136,7 +137,7 @@ end
 
         # 1). First evolve to steady state with D time steps
         sample = load(
-            "exm/data/Bulk_measure/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld",
+            "exm/data/Bulk_measure/monitored_dynamics/L$L/gammaind$(τind)/t$(div(D,2L))_Samples$(index).jld",
             "sample",
         )
         println("Loaded sample for L=$(L), τ=$(τ), index=$(index)")

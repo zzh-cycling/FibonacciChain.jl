@@ -18,7 +18,9 @@ using Random
                 cfg = Dict(11.0 => (250, 14, 40))
                 t, step, start = get(cfg, λ, (150, 14, 20))
             elseif ind == 7
-                cfg = Dict(11.0 => (10, 14, 2))
+                cfg = Dict(
+                    11.0 => (10, 14, 2),
+                    atanh(0.999) => (10, 14, 2))
                 t, step, start = get(cfg, λ, (8, 14, 1))
             end
             # Default parameters for MPS

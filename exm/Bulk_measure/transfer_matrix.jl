@@ -268,7 +268,7 @@ using Statistics
             return nothing, nothing
         end
 
-        spectra = zeros(n_states, t, samples_num)
+        spectra = zeros(n_states, t*L, samples_num)
 
         for (i, fname) in enumerate(existing_files)
             data = load(joinpath(dir_path, fname))

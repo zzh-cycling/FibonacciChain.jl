@@ -7,6 +7,7 @@ using ITensorMPS, ITensors
 export FibonacciAnyon,
     IsingAnyon,
     OBFAnyon,
+    HeisenbergAnyon,
     AnyonModel,
     MeasureConfig,
     Measurement_outcome_bulk,

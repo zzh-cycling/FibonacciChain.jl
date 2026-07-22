@@ -67,7 +67,7 @@ function get_δtL_Born(τ, L)
         table = Dict(
             atanh(0.1) => (collect(50:25:550)),
             atanh(0.2) => (collect(120:2:146)),
-            atanh(0.3) => (collect(45:80)),
+            atanh(0.3) => (collect(40:2:70)),
             atanh(0.4) => (collect(25:39)),
             atanh(0.5) => (collect(5:24)),
             atanh(0.6) => (collect(1:28)),
@@ -79,7 +79,7 @@ function get_δtL_Born(τ, L)
         table = Dict(
             atanh(0.1) => sort(vcat(collect(80:100:780), [640, 740])),
             atanh(0.2) => (collect(135:2:160)),
-            atanh(0.3) => (vcat(collect(55:65), collect(67:2:75))),
+            atanh(0.3) => (vcat(collect(55:4:65), collect(67:2:75))),
             atanh(0.4) => (collect(32:42)),
             atanh(0.5) => (collect(4:22)),
             atanh(0.6) => (collect(1:16)),
@@ -89,8 +89,7 @@ function get_δtL_Born(τ, L)
         δtlis = get(table, τ, collect(1:8))
     elseif L == 18
         table = Dict(
-            atanh(0.1) =>
-                sort(vcat([630, 640, 650, 660, 680, 710, 720], collect(600:50:800))),
+            atanh(0.1) => atanh(0.1) => vcat(collect(500:50:650), [660, 670, 730, 800, 850]),
             atanh(0.2) => sort(vcat([130, 140, 158, 189, 190], collect(150:5:180))),
             atanh(0.3) => sort(vcat(collect(71:74), collect(60:5:90))),
             atanh(0.4) => sort(vcat([38, 39, 41, 42], collect(25:5:50))),
@@ -114,16 +113,16 @@ function get_δtL_Born(τ, L)
         δtlis = get(table, τ, collect(1:10))
     elseif L == 22
         table = Dict(
-            atanh(0.4) =>collect(35:2:49),
-            atanh(0.5) => sort(vcat(collect(16:2:30), [25, 27, 29])),
-            atanh(0.6) => sort(vcat(collect(5:2:9), collect(11:19))),
+            atanh(0.4) =>vcat([30, 35, 37], collect(41:2:49), collect(50:2:52)),
+            atanh(0.5) => sort(vcat(collect(16:2:36))),
+            atanh(0.6) => sort(vcat(collect(5:2:19), [20])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))
     elseif L == 24
         table = Dict(
-            atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28))),
-            atanh(0.6) => sort(vcat(collect(10:2:20), [17, 19])),
+            atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28), [15, 20])),
+            atanh(0.6) => sort(vcat(collect(10:2:20), [5, 25])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))
@@ -192,7 +191,7 @@ function get_system_params(τ, L)
     cfg = Dict(
         atanh(0.1) => (2500L, 1000, 1500L),
         atanh(0.2) => (500L, 100, 250L),
-        atanh(0.3) => (120L, 48, 100L),
+        atanh(0.3) => (200L, 48, 100L),
         atanh(0.4) => (100L, 40, 80L),
         atanh(0.5) => (80L, 32, 40L),
         atanh(0.6) => (45L, 20, 30L),
@@ -209,7 +208,7 @@ function get_system_params(τ, L)
 end
 
 function get_correlation_dynamics_D(τ, L)
-    cfg = Dict(atanh(0.3) => 25L, atanh(0.4) => 20L, atanh(0.5) => 15L, atanh(0.6) => 10L)
+    cfg = Dict(atanh(0.4) => 20L, atanh(0.5) => 15L, atanh(0.6) => 10L)
     t = get(cfg, τ, 0)
     return t
 end
@@ -390,10 +389,9 @@ function corr_collect(arg::Tuple)
     S_ensemble = zeros(samples_num)
     sample_free_energy_ensemble = zeros(samples_num, 2*(D1+δt))
 
-    for i = 1:samples_num
+    for (i, fname) in enumerate(existing_files)
         try
-            temporal_corr, spatial_corr, S, sample_free_energy = load(joinpath(dir_path,
-                "D$(div(D1,L))_Samples$(i).jld"),
+            temporal_corr, spatial_corr, S, sample_free_energy = load(joinpath(dir_path, fname),
                 "temporal_corr",
                 "spatial_corr",
                 "S",

@@ -20,21 +20,33 @@ function Fibonacci_chain_PBC(::Type{T}) where {N,T<:BitStr{N}}
 end
 
 abstract type AbstractAnyonType end
-struct FibonacciAnyon <: AbstractAnyonType end
-struct IsingAnyon <: AbstractAnyonType end
-struct OBFAnyon <: AbstractAnyonType end
+
+# Each model type carries its own (possibly constrained) Hilbert space, defined
+# once and for all by its `anyon_basis` method — this is the single extension
+# point when adding a new chain:
+struct FibonacciAnyon <: AbstractAnyonType end  # Fibonacci fusion space: bitstrings with no adjacent τ (1)s, dim ~ φ^N
+struct IsingAnyon <: AbstractAnyonType end      # transverse-field Ising *spin* chain: full 2^N product basis
+struct OBFAnyon <: AbstractAnyonType end        # O'Brien-Fendley spin-1/2 chain: full 2^N product basis
+struct HeisenbergAnyon <: AbstractAnyonType end # spin-1/2 Heisenberg (XXZ) chain: full 2^N product basis
 
 """
     AnyonModel(anyon_type::AbstractAnyonType, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
 
-Represents a 1D anyon chain model.
+Represents a 1D anyon/spin chain model.
+
+# Hilbert space
+Each anyon type defines its own (possibly constrained) Hilbert space via `anyon_basis`:
+- `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent τ (`1`)s, dimension ~ φ^N.
+- `IsingAnyon()`: transverse-field Ising *spin* chain — full 2^N product basis.
+- `OBFAnyon()`: O'Brien-Fendley spin-1/2 chain — full 2^N product basis.
+- `HeisenbergAnyon()`: spin-1/2 Heisenberg (XXZ) chain — full 2^N product basis.
 
 # Fields
 - `anyon_type::AbstractAnyonType`: The type of anyon, e.g., `FibonacciAnyon()` or `IsingAnyon()`.
 - `N::Int`: The number of sites in the chain.
 - `pbc::Bool`: A boolean indicating whether periodic boundary conditions are applied (`true`) or not (`false`).
 - `measure_operator::Symbol`: The operator type used for defining the Hamiltonian, e.g., `:Antiferro` or `:Ferro` for Fibonacci anyons.
-- `params::Dict{Symbol, Any}`: Additional model parameters (e.g., `J`, `h` for Ising model).
+- `params::Dict{Symbol, Any}`: Additional model parameters (e.g., `J`, `h` for Ising model, `J`, `Jz`, `h` for Heisenberg chain).
 
 # Examples
 ```julia
@@ -43,6 +55,9 @@ model_fibo = AnyonModel(FibonacciAnyon(), 6; pbc=true, measure_operator=:Antifer
 
 # Ising model with custom couplings
 model_ising = AnyonModel(IsingAnyon(), 10; pbc=true, measure_operator=:X, J=1.0, h=0.5)
+
+# Heisenberg (XXZ) chain
+model_heis = AnyonModel(HeisenbergAnyon(), 10; pbc=true, J=1.0, Jz=0.5, h=0.1)
 
 # Access parameters
 model_ising.params[:J]  # returns 1.0
@@ -89,6 +104,18 @@ struct AnyonModel{AT<:AbstractAnyonType}
         @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
         params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
         return new{OBFAnyon}(anyon_type, N, pbc, measure_operator, params)
+    end
+    function AnyonModel(
+        anyon_type::HeisenbergAnyon,
+        N::Int;
+        pbc::Bool = true,
+        measure_operator::Symbol = :X,
+        kwargs...,
+    )
+        @assert N > 0 "N is expected to be greater than 0, but got $N"
+        @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Heisenberg chain"
+        params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
+        return new{HeisenbergAnyon}(anyon_type, N, pbc, measure_operator, params)
     end
 end
 
@@ -168,7 +195,7 @@ function anyon_basis(
     pbc::Bool = true,
     symmetry_block = nothing,
 ) where {N,T<:BitStr{N}}
-    return [T(i) for i = 0:(2^N-1)]
+    return spin_half_basis(T)
 end
 
 function anyon_basis(
@@ -177,8 +204,20 @@ function anyon_basis(
     pbc::Bool = true,
     symmetry_block = nothing,
 ) where {N,T<:BitStr{N}}
-    return [T(i) for i = 0:(2^N-1)]
+    return spin_half_basis(T)
 end
+
+function anyon_basis(
+    ::HeisenbergAnyon,
+    ::Type{T};
+    pbc::Bool = true,
+    symmetry_block = nothing,
+) where {N,T<:BitStr{N}}
+    return spin_half_basis(T)
+end
+
+# Spin-1/2 chains (Ising, OBF, Heisenberg) share the full unconstrained product basis.
+spin_half_basis(::Type{T}) where {N,T<:BitStr{N}} = T[T(i) for i = 0:(2^N-1)]
 
 anyon_basis(model::AnyonModel; symmetry_block = nothing) = anyon_basis(
     model.anyon_type,
@@ -186,6 +225,29 @@ anyon_basis(model::AnyonModel; symmetry_block = nothing) = anyon_basis(
     pbc = model.pbc,
     symmetry_block = symmetry_block,
 )
+
+
+# Fibonacci F-symbol (F^{τστ}_δ)^μ_ν in the chain's bit convention:
+# bit 1 = vacuum label, bit 0 = τ (fusion paths have no adjacent vacuums,
+# i.e. no adjacent 1 bits). In the standard gauge the only nontrivial block is
+# F^{τττ}_τ = [[ϕ⁻¹, ϕ^(-1/2)], [ϕ^(-1/2), -ϕ⁻¹]] (rows/cols ordered (vacuum, τ));
+# all fusion-consistent symbols involving the vacuum equal 1, inconsistent ones vanish.
+function _Fibonacci_Fsymbol(bσ::Int, bδ::Int, bμ::Int, bν::Int)
+    ϕ = (1+√5)/2
+    if bσ == 1 || bδ == 1
+        # σ or δ is the vacuum: τ×vac = τ forces μ = ν = τ
+        return (bμ == 0 && bν == 0) ? 1.0 : 0.0
+    else
+        # σ = δ = τ: F^{τττ}_τ block
+        if bμ == 1 && bν == 1
+            return ϕ^(-1)
+        elseif bμ == bν
+            return -ϕ^(-1)
+        else
+            return ϕ^(-1/2)
+        end
+    end
+end
 
 """
     Fsymmetry_coef(::FibonacciAnyon, ::Type{T}, state::T, base::T; pbc::Bool=true) where {N, T <: BitStr{N}}
@@ -231,60 +293,23 @@ function Fsymmetry_coef(
     base::T;
     pbc::Bool = true,
 ) where {N,T<:BitStr{N}}
-    # Defined as, where idxin idxbond idxout ∈ state, idxbond' ∈ base, in Anyon basis, not in Fibonacci chain basis.
-    #  %%%%%%%%%%%% τ, idxin, τ         idxbond
-    #  %%
-    #  %% 
-    #  %%%%%%%%%%%%%
-    #  %%
-    #  %%
-    #  %%%          idxout              idxbond'
-    #  or effectively, the coefficient like: A_{x_1 x_2 x_2'}^{x_1'} 
-    ϕ = (1+√5)/2
-    prod=1
-
-    @assert pbc || site != N "For OBC, site must not be $N, but got $site"
-    for site = 1:(N-1)
-        # Identify {x_2}, if x_2' is 1, return 1, otherwise, check x_3', if x_3' is 1, return 1.
-        if state[N-site+1] == 1
-            prod *= 1
-        else
-            if base[N-site] == 1
-                prod *= 1
-            else
-                # check x_3, if x_3 is 1
-                if state[N-site] == 0
-                    # Determine coef according to x_2'
-                    prod *= (base[N-site+1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-                else
-                    prod *= (base[N-site+1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-                end
-            end
-        end
+    # ⟨x₁x₂⋯x_N|Y|x'₁x'₂⋯x'_N⟩ = ∏ᵢ (F^{τ xᵢ τ}_{x'ᵢ₊₁})^{xᵢ₊₁}_{x'ᵢ},
+    # where x (x') are the bits of `state` (`base`), read left to right,
+    # i.e. xᵢ = state[N-i+1], and x_{N+1} ≡ x₁ for PBC.
+    coef = 1.0
+    nfactor = pbc ? N : N - 1
+    for i = 1:nfactor
+        j = mod1(i + 1, N)
+        coef *= _Fibonacci_Fsymbol(
+            state[N-i+1],
+            base[N-j+1],
+            state[N-j+1],
+            base[N-i+1],
+        )
+        iszero(coef) && return 0.0
     end
 
-    if pbc
-        # Check x_N', if x_N' is 1, return 1, otherwise, check x_1', if x_1' is 1, return 1.
-        if state[1] == 1
-            prod *= 1
-        else
-            if base[N] == 1
-                prod *= 1
-            else
-                # check x_1, if x_1 is 1
-                if state[N] == 0
-                    # Determine coef according to x_N'
-                    prod *= (base[1] == 0) ? -ϕ^(-1) : ϕ^(-1/2)
-                else
-                    prod *= (base[1] == 0) ? ϕ^(-1/2) : ϕ^(-1)
-                end
-            end
-
-            prod *= 1
-        end
-    end
-
-    return prod
+    return coef
 end
 Fsymmetry_coef(
     model::AnyonModel{FibonacciAnyon},
@@ -338,13 +363,12 @@ function topological_symmetry_basismap(
 end
 
 """
-    topological_charge_operator(model::AnyonModel{FibonacciAnyon}, ::Type{T}) where {N, T <: BitStr{N}}
+    topological_charge_operator(model::AnyonModel{AT},) where {AT<:FibonacciAnyon}
 
 Compute the topological charge operator matrix for Fibonacci anyon model.
 
 # Arguments
 - `model::AnyonModel{FibonacciAnyon}`: Fibonacci anyon model
-- `T::Type`: BitStr type specifying chain length N
 
 # Returns
 - `Matrix{Float64}`: Topological charge operator matrix (Y matrix)
@@ -353,11 +377,11 @@ Compute the topological charge operator matrix for Fibonacci anyon model.
 ```jldoctest
 julia> using FibonacciChain, BitBasis
 
-julia> N = 4; T = BitStr{N, Int};
+julia> N = 4; 
 
 julia> model = AnyonModel(FibonacciAnyon(), N; pbc=true);
 
-julia> Y = topological_charge_operator(model, T);
+julia> Y = topological_charge_operator(model);
 
 julia> size(Y) == (length(anyon_basis(model)), length(anyon_basis(model)))
 true
@@ -365,12 +389,11 @@ true
 """
 function topological_charge_operator(
     model::AnyonModel{AT},
-    ::Type{T},
-) where {N,T<:BitStr{N},AT<:FibonacciAnyon}
+) where {AT<:FibonacciAnyon}
     # compute the topological charge operator Yl in the Fibonacci model. default l=0, for tau. l=1, for vacuum.
-
+    # Y[i, j] = ⟨basisᵢ|Y|basisⱼ⟩ = ∏ₖ (F^{τ xₖ τ}_{x'ₖ₊₁})^{xₖ₊₁}_{x'ₖ} with x = basisᵢ, x' = basisⱼ.
     basis=anyon_basis(model)
-    Ymatrix=hcat(topological_symmetry_basismap.(Ref(model), basis)...)
+    Ymatrix=[Fsymmetry_coef(model, bra, ket) for bra in basis, ket in basis]
 
     return Ymatrix
 end
@@ -446,307 +469,6 @@ end
 anyon_basis(model::AnyonModel, k::Int; symmetry_block = nothing) =
     anyon_basis(model.anyon_type, BitStr{model.N,Int}, k; symmetry_block = symmetry_block)
 
-"""
-    Fibomap(state::T, i::Int; ferro::Bool=false) where {N, T <: BitStr{N}}
-
-Apply Fibonacci anyon projection term at site i (Temperley-Lieb generator).
-
-# Fibonacci Hamiltonian structure:
-The Hamiltonian H = ∑_i π_i acts on the fusion tree with local terms.
-Each term π_i depends on the local fusion outcomes at sites i-1, i, i+1.
-
-# Fusion rules for Fibonacci anyons:
-- τ × τ = 1 + τ  (two τ's can fuse to vacuum 1 or τ)
-- τ × 1 = τ     (τ with vacuum gives τ)
-- 1 × 1 = 1     (two vacuums give vacuum)
-
-# Returns
-- `(state, X_state, diag_weight, off_diag_weight)`:
-  - `state`: original state (diagonal contribution)
-  - `X_state`: flipped state at site i (off-diagonal)
-  - `diag_weight`, `off_diag_weight`: matrix element weights
-"""
-function Fibomap(state::T, i::Int; ferro::Bool = false) where {N,T<:BitStr{N}}
-    ϕ = (1 + √5) / 2  # Golden ratio
-    fl = bmask(T, N)
-    X_state = flip(state, fl >> (i-1))
-
-    # Read bit at site i: 0 = vacuum (1), 1 = τ anyon
-    # BitStr indexing: bit at site i is at position N - i + 1
-    bit_i = readbit(state, N - i + 1)
-
-    # Weights depend on local fusion outcome
-    # Antiferro (ground state favors alternating): negative weights
-    # Ferro (ground state favors aligned): positive weights
-    sign = ferro ? 1 : -1
-
-    if bit_i == 0  # site i is vacuum
-        diag_weight = sign * ϕ^(-1)
-    else           # site i is τ
-        diag_weight = sign * ϕ^(-2)
-    end
-    off_diag_weight = sign * ϕ^(-3/2)
-
-    return state, X_state, diag_weight, off_diag_weight
-end
-
-# Legacy aliases for backward compatibility
-antimap(state::T, i::Int) where {N,T<:BitStr{N}} = Fibomap(state, i; ferro = false)
-ferromap(state::T, i::Int) where {N,T<:BitStr{N}} = Fibomap(state, i; ferro = true)
-
-function Isingmap(state::T, i::Int, pbc::Bool = true; kwargs...) where {N,T<:BitStr{N}}
-    # H = - J ∑ Z_i Z_{i+1} - h ∑ X_i
-    @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
-
-    fl = bmask(T, N)
-    X(state, i) = flip(state, fl >> (i-1))
-    J, h = get(kwargs, :J, 1.0), get(kwargs, :h, 1.0)
-
-    # OBC special case: last site has no ZZ term
-    if !pbc && i == N
-        return X(state, i), -h
-    end
-
-    # Get site indices with PBC wrapping
-    i1 = pbc ? mod1(i + 1, N) : i + 1
-
-    bit_i = readbit(state, N - i + 1)
-    bit_i1 = readbit(state, N - i1 + 1)
-
-    zz_i1i2 = (bit_i == bit_i1) ? -J : J
-
-    return state, X(state, i), zz_i1i2, -h
-end
-
-"""
-    OBFmap(state::T, i::Int, pbc::Bool=true) where {N, T <: BitStr{N}}
-
-Apply O'Brien-Fendley terms (X_i Z_{i} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) at site i.
-
-Returns (output_states, weights) for the XZZ + ZZX terms in the OBF Hamiltonian.
-For OBC, valid range is 1 ≤ i ≤ N-2.
-For PBC, valid range is 1 ≤ i ≤ N with periodic wrapping.
-"""
-function OBFmap(state::T, i::Int, pbc::Bool = true) where {N,T<:BitStr{N}}
-    fl = bmask(T, N)
-    X(state, j) = flip(state, fl >> (j-1))
-
-    # Get site indices with PBC wrapping
-    if pbc
-        i1 = mod1(i + 1, N)
-        i2 = mod1(i + 2, N)
-    else
-        @assert 1 <= i <= N - 2 "For OBC, i must be in [1, N-2], got $i"
-        i1 = i + 1
-        i2 = i + 2
-    end
-
-    # Read bits: note BitStr is 1-indexed from right, but we count from left
-    # bit at site j is at position N - j + 1 in BitStr indexing
-    bit_i = readbit(state, N - i + 1)
-    bit_i1 = readbit(state, N - i1 + 1)
-    bit_i2 = readbit(state, N - i2 + 1)
-
-    # XZZ term: X_i Z_{i+1} Z_{i+2}
-    # Z_{i+1} Z_{i+2} eigenvalue: +1 if same, -1 if different
-    zz_i1i2 = (bit_i1 == bit_i2) ? 1 : -1
-    xzz_state = X(state, i)
-    xzz_weight = zz_i1i2  # λ for Hamiltonian (energy lowering)
-
-    # ZZX term: Z_i Z_{i+1} X_{i+2}
-    zz_ii1 = (bit_i == bit_i1) ? 1 : -1
-    zzx_state = X(state, i2)
-    zzx_weight = zz_ii1
-
-    return xzz_state, zzx_state, xzz_weight, zzx_weight
-end
-
-function count_subBitStr(state::T) where {N,T<:BitStr{N}}
-    n = length(state)
-    n < 3 && return 0
-
-    str100, str101, str001 = T(4), T(5), T(1) # 100, 101, 001
-    num=0
-
-    mask=bmask(T, 1, 2, 3)
-    for i = 1:(n-2) # start from string right to left
-        substr = state & (mask << (i-1))
-        if substr == str101
-            num += 1
-        end
-        str101 <<= 1
-    end
-
-    return num
-end
-
-"""
-    actingHam(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
-
-Act the Fibonacci anyon Hamiltonian on a given state.
-
-# Physics
-The Fibonacci anyon chain Hamiltonian consists of Temperley-Lieb generators e_i:
-- H = -∑_i e_i (ferromagnetic) or H = +∑_i e_i (antiferromagnetic)
-- Each e_i acts on the fusion space at site i with constraints from neighbors
-
-# Fusion Rules
-For Fibonacci anyons: τ × τ = 1 + τ
-- Configuration 0x0 (neighbors are trivial): allows Fibomap operation
-- Configuration 101, 100, 001: contributes diagonal energy from fusion constraints
-- Configuration 111 (three consecutive τ): additional fusion contribution (PBC only)
-
-# Returns
-Dict{T, Float64}: mapping from output states to their coefficients
-"""
-function actingHam(model::AnyonModel{FibonacciAnyon}, state::T) where {N,T<:BitStr{N}}
-    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
-
-    pbc = model.pbc
-    ferro = (model.measure_operator == :Ferro)
-    sign = ferro ? 1 : -1
-
-    # Helper to apply Fibomap and accumulate results
-    function apply_fibomap!(output::Dict{T,Float64}, i::Int)
-        state1, state2, weight1, weight2 = Fibomap(state, i; ferro = ferro)
-        output[state1] = get(output, state1, 0.0) + weight1
-        output[state2] = get(output, state2, 0.0) + weight2
-    end
-
-    output = Dict{T,Float64}()
-
-    # Diagonal contribution from 101, 100, 001 patterns
-    # Sign depends on ferro/antiferro: H = sign * ∑ (fusion constraints)
-    output[state] = get(output, state, 0.0) + sign * count_subBitStr(state)
-
-    # Bulk terms: sites 2 to N-1, apply Fibomap where 0x0 pattern exists
-    mask = bmask(T, N, N-2)  # Mask to check neighbors
-    for i = 2:(N-1)
-        if state & (mask >> (i-2)) == 0  # Check 0x0 pattern
-            apply_fibomap!(output, i)
-        end
-    end
-
-    # Periodic boundary condition terms
-    if pbc
-        # Site 1: check if neighbors (site N-1 and site 2) form 0x0
-        if state[1] == 0 && state[N-1] == 0
-            apply_fibomap!(output, 1)
-        end
-        # Site N: check if neighbors (site 2 and site N) form 0x0
-        if state[2] == 0 && state[N] == 0
-            apply_fibomap!(output, N)
-        end
-
-        # 111 fusion contributions at boundaries
-        mask1 = bmask(T, N, 2)      # Check pattern 1xxxx01
-        mask2 = bmask(T, N-1, 1)    # Check pattern 01xxxx1
-        if state & mask1 == mask1
-            output[state] = get(output, state, 0.0) + sign
-        end
-        if state & mask2 == mask2
-            output[state] = get(output, state, 0.0) + sign
-        end
-    end
-
-    return output
-end
-
-function actingHam(model::AnyonModel{IsingAnyon}, state::T) where {N,T<:BitStr{N}}
-    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
-
-    pbc = model.pbc
-    J = get_interaction_param(model, :J, 1.0)
-    h = get_interaction_param(model, :h, 1.0)
-    fl = bmask(T, N)
-    X(st, j) = flip(st, fl >> (j-1))
-
-    output = Dict{T,Float64}()
-
-    # ZZ terms: -J ∑ Z_i Z_{i+1}
-    n_bonds = pbc ? N : N - 1
-    for i = 1:n_bonds
-        i1 = mod1(i + 1, N)
-        zz_val = (readbit(state, N-i+1) == readbit(state, N-i1+1)) ? -J : J
-        output[state] = get(output, state, 0.0) + zz_val
-    end
-
-    # X terms: -h ∑ X_i
-    for i = 1:N
-        output[X(state, i)] = get(output, X(state, i), 0.0) - h
-    end
-
-    return output
-end
-
-function actingHam(model::AnyonModel{OBFAnyon}, state::T) where {N,T<:BitStr{N}}
-    @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
-
-    pbc = model.pbc
-    λ = get_interaction_param(model, :λ, 1.0)  # OBF coupling strength
-    λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
-
-    # Generate OBF model Hamiltonian: H = λ ∑ (X_i Z_{i+1} Z_{i+2} + Z_i Z_{i+1} X_{i+2}) - X - ZZ
-    output = Dict{T,Float64}()
-    for i = 1:N
-        s1, s2, w1, w2 = Isingmap(state, i, pbc)
-        output[s1] = get(output, s1, 0.0) + λI * w1
-        output[s2] = get(output, s2, 0.0) + λI * w2
-        state1, state2, weight1, weight2 = OBFmap(state, i, pbc)
-        output[state1] = get(output, state1, 0.0) + λ/2 * weight1
-        output[state2] = get(output, state2, 0.0) + λ/2 * weight2
-    end
-
-    return output
-end
-
-"""
-    anyon_ham(model::AnyonModel)
-
-Construct the Hamiltonian matrix for a 1D anyon chain.
-
-# Arguments
-- `model::AnyonModel`: An `AnyonModel` object specifying the anyon type, system size, 
-  boundary conditions, interaction type, and model parameters (J, h, λ, etc.).
-
-# Returns
-- `Matrix{Float64}`: The Hamiltonian matrix constructed in the chosen basis.
-
-# Supported Models
-- **Fibonacci Anyons**: Supports `:Antiferro` and `:Ferro` interaction terms.
-- **Ising Anyons**: Transverse field Ising model with parameters `J` and `h`.
-- **OBF Anyons**: O'Brien-Fendley model with parameter `λ`.
-
-# Examples
-```jldoctest
-julia> using FibonacciChain, BitBasis
-
-julia> N = 4; model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=:Antiferro);
-
-julia> H_fibo = anyon_ham(model_fibo); size(H_fibo)
-(7, 7)
-
-julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true, J=1.0, h=1.0); H_ising = anyon_ham(model_ising); size(H_ising)
-(16, 16)
-```
-"""
-function anyon_ham(model::AnyonModel{AT}) where {AT<:AbstractAnyonType}
-    basis = anyon_basis(model)
-    l = length(basis)
-    H = zeros(Float64, (l, l))
-
-    for i = 1:l
-        output = actingHam(model, basis[i])
-        for (m, weight) in output
-            j = searchsortedfirst(basis, m)
-            H[i, j] += weight
-        end
-    end
-
-    return H
-end
-# Another method to write Fibonacci Hamiltonian is using the Measurement operator sum. For example, H = -∑ X_i, where X_i is the Temperley-Lieb generator acting on site i-1, i, and i+1. Pilis = [FibonacciChain.measure_matrix(BitStr{16, Int}, 1000.0, idx, 0) for idx in 1:N]. H = -sum(Pilis). This two Hamiltonian difference is not a constant, but like a arc in conformal energy spectrum below arc, but they have the same eigenstates.
-
 function cyclebits(state::T) where {N,T<:BitStr{N}}
     #params: t is an integer, N is the length of the binary string
     #We also use this order: system size, state, circular shift bitstring 1 bit.
@@ -773,75 +495,6 @@ function get_representative(state::T) where {N,T<:BitStr{N}}
 
     return representative, translation
 end
-
-"""
-    anyon_ham(model::AnyonModel, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
-    anyon_ham(model::AnyonModel, k::Int; symmetry_block=nothing)
-
-Construct Hamiltonian matrix in specific momentum sector for 1D anyon chain.
-    
-# Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (including J, h, λ, etc.)
-- `T::Type`: BitStr type specifying chain length N (optional)
-- `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
-- `symmetry_block`: Topological charge sector (optional)
-
-# Returns
-- `Matrix`: Hamiltonian matrix in chosen momentum sector (ComplexF64, or real if k=0 or k=N/2)
-
-# Examples
-```jldoctest
-julia> using FibonacciChain
-
-julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
-
-julia> H_k0 = anyon_ham(model, 0);
-
-julia> size(H_k0)[1] > 0
-true
-```
-"""
-function anyon_ham(
-    model::AnyonModel{AT},
-    ::Type{T},
-    k::Int;
-    symmetry_block = nothing,
-) where {N,T<:BitStr{N},AT<:AbstractAnyonType}
-    @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
-    @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
-
-    basisK, basis_dic = anyon_basis(model, k, symmetry_block = symmetry_block)
-    l = length(basisK)
-    omegak = exp(2im * π * k / N)
-    H = zeros(ComplexF64, (l, l))
-
-    for i = 1:l
-        n = basisK[i]
-        output = actingHam(model, n)
-        for (m, weight) in output
-            mbar, d = get_representative(m)
-            if mbar ∈ basisK
-                j = searchsortedfirst(basisK, mbar)
-                Yn = sqrt(length(basis_dic[n])) / N
-                Ym = sqrt(length(basis_dic[mbar])) / N
-                H[i, j] += Yn/Ym * omegak^d * weight
-            end
-        end
-    end
-
-    if k == 0 || k == div(N, 2)
-        H = real(H)
-    end
-    H = (H + H') / 2
-    return H
-end
-
-anyon_ham(
-    model::AnyonModel{AT},
-    k::Int;
-    symmetry_block = nothing,
-) where {AT<:AbstractAnyonType} =
-    anyon_ham(model, BitStr{model.N,Int}, k; symmetry_block = symmetry_block)
 
 # join two lists of basis by make a product of two lists, b is placed after a (counts from left to right)
 function process_join(a, b)

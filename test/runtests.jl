@@ -36,3 +36,7 @@ end
 @testset "OBFAnyon" begin
     include("./test_OBF.jl")
 end
+
+@testset "HeisenbergAnyon" begin
+    include("./test_Heisenberg.jl")
+end
