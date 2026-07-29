@@ -27,7 +27,20 @@ function get_cfg_params_Born(ind, L)
     return D, inds, avg_range
 end
 
-function check_commute_state(
+function check_commute_Hamiltonian(
+    L::Int,
+    )   
+    
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    H = anyon_ham(model)
+    
+    Y = topological_charge_operator(model)
+    
+    
+    return norm(H*Y - Y*H)
+end
+
+function check_commute_tf_Born(
     L::Int,
     τ_idx::Int,
     index::Int;
@@ -47,14 +60,132 @@ function check_commute_state(
     for i in 1:l
         st = zeros(length(anyon_basis(model)))
         st[i] = 1.0
-        config = MeasureConfig(τ = τ, mode = :sample, t₂ = t*L)
-        outcome = bulk_evolution(model, st, config, sample)
+        config = MeasureConfig(τ = τ, mode = :sample, t₂ = t*L, enable_τ_eff=false)
+        outcome = bulk_evolution(model, st, config, sample, false)
         final_state = outcome.state
         M[i, :] = final_state
     end
     
     Y = topological_charge_operator(model)
     
+    M_normalized = M ./ minimum(abs.(M))
+    return norm(M_normalized*Y - Y*M_normalized)
+end
+
+function check_commute_tf_ps(
+    L::Int,
+    τ_idx::Int,
+    )   
+    τ = τlis[τ_idx]
+    D, inds, avg_range = get_cfg_params_Born(τ_idx, L)
+    t = div(D, 2L)
     
-    return M, Y
+    sample = BitMatrix(ones(D, div(L,2)))
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    
+    l = length(anyon_basis(model))
+    M = zeros(l, l)
+
+    for i in 1:l
+        st = zeros(length(anyon_basis(model)))
+        st[i] = 1.0
+        config = MeasureConfig(τ = τ, mode = :sample, t₂ = t*L, enable_τ_eff=false)
+        outcome = bulk_evolution(model, st, config, sample, false)
+        final_state = outcome.state
+        M[i, :] = final_state
+    end
+    
+    Y = topological_charge_operator(model)
+    
+    M_normalized = M ./ minimum(abs.(M))
+    return norm(M_normalized*Y - Y*M_normalized)
+end
+
+function compute_state_components(L)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    Y = topological_charge_operator(model)
+    stp  = (Y*st .+ st ./ ϕ) ./ sqrt(5)   # P₊|0000⟩
+    stm  = (ϕ .* st .- Y*st) ./ sqrt(5)   # P₊|0000⟩
+    w₊, w₋ = norm(stp)^2, norm(stm)^2
+    return w₊, w₋
+    
+    # vals= eigvals(Y)
+    # ϕ = (1 + √5)/2
+    # ϕ_count= count(x->isapprox(x, ϕ), vals)
+    # mϕ_count= count(x->isapprox(x, 1-ϕ), vals)
+    # @show ϕ_count/mϕ_count
+end
+
+function local_measure_commute(L)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    Y = topological_charge_operator(model)
+    
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+    Πplis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, true) for idx = 1:L] # s=1
+
+    Πmlis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, false) for idx = 1:L] # s=1
+    
+    return norm(Πplis[1]*Y - Y*Πplis[1]), norm(Πmlis[1]*Y - Y*Πmlis[1])
+end
+
+function measure_eigenvalues(L)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    Y = topological_charge_operator(model)
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+    Πplis = [FibonacciChain.measure_matrix(model, τ, idx, true) for idx = 1:1] # s=1
+
+    Πmlis = [FibonacciChain.measure_matrix(model, τ, idx, false) for idx = 1:1] # s=τ
+    
+    energy, states = eigen((Y+Y')/2)
+    y1_index = findall(x -> isapprox(x, ϕ), energy)
+    yτ_index = findall(x -> isapprox(x, 1-ϕ), energy)
+    Πp = Πplis[1]
+    Πm = Πmlis[1]
+    GS = states[:, 1]
+    Πp_GS = GS' * (Πp * GS)
+    Πm_GS = GS' * (Πm * GS)
+
+    projector_y1 = sum([states[:, i] * states[:, i]' for i in y1_index])
+    projector_yτ = sum([states[:, i] * states[:, i]' for i in yτ_index])
+    # return Πp_GS, Πm_GS
+
+    return tr(Πp * projector_y1)/ length(y1_index), tr(Πp*projector_yτ)/ length(yτ_index), tr(Πm * projector_y1)/ length(y1_index), tr(Πm*projector_yτ)/ length(yτ_index)
+Y
+    y = (-1/ϕ)^L
+    theoretical_Πm = (y+ϕ)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))/ϕ + y/ϕ^2)/Fibonacci_number(L-1) + 
+    (ϕ-y)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))*ϕ - y/ϕ^2)/Fibonacci_number(L+1)
+end
+
+function Fibonacci_number(L)
+    return (1/sqrt(5)) * (((1+sqrt(5))/2)^L - ((1-sqrt(5))/2)^L)
+end
+
+
+function check_dynamics(L::Int, τ_idx::Int, index::Int)
+    τ = τlis[τ_idx]
+    D, inds, avg_range = get_cfg_params_Born(τ_idx, L)
+    t = div(D, 2L)
+    path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index).jld"
+    data = load(path)
+    sample = data["sample"]
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+    config = MeasureConfig(τ = τ, mode = :sample, t₂ = t*L, enable_τ_eff=false)
+    outcome = bulk_evolution(model, st, config, sample, false)
+    final_state = outcome.state
+
+    normalized_final_state = final_state ./ norm(final_state)
+    Y = topological_charge_operator(model)
+    initial_y = st' * (Y * st)
+    final_y = normalized_final_state' * (Y * normalized_final_state)
+
+    ϕ = (1 + √5) / 2
+    return (initial_y+1/ϕ)/(ϕ+1/ϕ), (final_y+1/ϕ)/(ϕ+1/ϕ)
 end

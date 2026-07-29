@@ -80,7 +80,7 @@ function get_δtL_Born(τ, L)
             atanh(0.1) => sort(vcat(collect(80:100:780), [640, 740])),
             atanh(0.2) => (collect(135:2:160)),
             atanh(0.3) => (vcat(collect(55:4:65), collect(67:2:75))),
-            atanh(0.4) => (collect(32:42)),
+            atanh(0.4) => vcat([20], (collect(32:42)), [50]),
             atanh(0.5) => (collect(4:22)),
             atanh(0.6) => (collect(1:16)),
             atanh(1/√2) => (collect(1:8)),
@@ -106,7 +106,7 @@ function get_δtL_Born(τ, L)
             atanh(0.2) => collect(173:2:193),
             atanh(0.3) => (collect(68:4:88)),
             atanh(0.4) => (collect(38:48)),
-            atanh(0.5) => (collect(24:34)),
+            atanh(0.5) => vcat([15, 20], collect(24:34)),
             atanh(0.6) => (collect(12:20)),
             atanh(1/√2) => (collect(1:12)),
         )

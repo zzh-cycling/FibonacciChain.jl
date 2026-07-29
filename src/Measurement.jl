@@ -535,7 +535,7 @@ function _apply_result(
         return (s1 = state, s2 = state, w1 = value, w2 = 0.0)
     else
         if τ >= 1e2
-            # true is 1, false is 0
+            # true is 1/vaccuum, false is 0/τ, Fibonacci anyon
             cstτ = 0.5
             coef = sign ? -0.5 : 0.5
         else
