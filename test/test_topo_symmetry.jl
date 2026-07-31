@@ -1,6 +1,7 @@
 using FibonacciChain
 using LinearAlgebra
 using JLD
+using Test
 
 γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
 τlis = atanh.(γlis)
@@ -27,18 +28,6 @@ function get_cfg_params_Born(ind, L)
     return D, inds, avg_range
 end
 
-function check_commute_Hamiltonian(
-    L::Int,
-    )   
-    
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-    H = anyon_ham(model)
-    
-    Y = topological_charge_operator(model)
-    
-    
-    return norm(H*Y - Y*H)
-end
 
 function check_commute_tf_Born(
     L::Int,
@@ -118,20 +107,6 @@ function compute_state_components(L)
     # @show ϕ_count/mϕ_count
 end
 
-function local_measure_commute(L)
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-    st = zeros(length(anyon_basis(model)))
-    st[1] = 1.0
-    Y = topological_charge_operator(model)
-    
-    τ = 1000.0
-    ϕ = (1 + √5) / 2
-    Πplis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, true) for idx = 1:L] # s=1
-
-    Πmlis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, false) for idx = 1:L] # s=1
-    
-    return norm(Πplis[1]*Y - Y*Πplis[1]), norm(Πmlis[1]*Y - Y*Πmlis[1])
-end
 
 function measure_eigenvalues(L)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
@@ -156,16 +131,75 @@ function measure_eigenvalues(L)
     # return Πp_GS, Πm_GS
 
     return tr(Πp * projector_y1)/ length(y1_index), tr(Πp*projector_yτ)/ length(yτ_index), tr(Πm * projector_y1)/ length(y1_index), tr(Πm*projector_yτ)/ length(yτ_index)
-Y
+
     y = (-1/ϕ)^L
-    theoretical_Πm = (y+ϕ)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))/ϕ + y/ϕ^2)/Fibonacci_number(L-1) + 
-    (ϕ-y)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))*ϕ - y/ϕ^2)/Fibonacci_number(L+1)
+    theoretical_Πm = (y+1/ϕ)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))/ϕ -y*ϕ)/Fibonacci_number(L-1) + 
+    (ϕ-y)/(ϕ+1/ϕ)^2*((Fibonacci_number(L)+Fibonacci_number(L-2))*ϕ + y*ϕ)/Fibonacci_number(L+1)
+end
+
+@testset "Temperley Lieb algebra" begin
+    N = 8
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+    model = AnyonModel(FibonacciAnyon(), N)
+    Xlis = ϕ .* [FibonacciChain.measure_matrix(model, τ, idx, true) for idx = 1:N] # s=1
+
+    # X_i ^2 = d X_i
+    @test all(Xlis[i] * Xlis[i] ≈ ϕ .* Xlis[i] for i = 1:N)
+    # X_i * X_{i+1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i+1] * Xlis[i] ≈ Xlis[i] for i = 1:(N-1))
+    # X_i * X_{i-1} * X_i = X_i
+    @test all(Xlis[i] * Xlis[i-1] * Xlis[i] ≈ Xlis[i] for i = 2:N)
+    # [X_i, X_{j}] = 0, |i-j|>=2
+    @test all(Xlis[i] * Xlis[j] ≈ Xlis[j] * Xlis[i] for i = 1:N for j = (i+2):(N-1))
+end
+
+@testset begin
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    Y = topological_charge_operator(model)
+    τ = 1000.0
+    ϕ = (1 + √5) / 2
+
+    H = anyon_ham(model)
+    @test norm(H*Y - Y*H) ≈ 0.0 atol=1e-10 # Check that the Hamiltonian commutes with the topological charge operator
+
+    Πplis = [FibonacciChain.measure_matrix(model, τ, idx, true) for idx = 1:1] # s=1
+    Πmlis = [FibonacciChain.measure_matrix(model, τ, idx, false) for idx = 1:1] # s=τ
+    Πp = Πplis[1]
+    Πm = Πmlis[1]
+    
+    @test norm(Πp*Y - Y*Πp) ≈ 0.0 atol=1e-10 # local measurement operator commutes with the topological charge operator
+    @test norm(Πm*Y - Y*Πm) ≈ 0.0 atol=1e-10
+    
+    energy, states = eigen((Y+Y')/2)
+    y1_index = findall(x -> isapprox(x, ϕ), energy)
+    yτ_index = findall(x -> isapprox(x, 1-ϕ), energy)
+    
+    projector_y1 = sum([states[:, i] * states[:, i]' for i in y1_index])
+    projector_yτ = sum([states[:, i] * states[:, i]' for i in yτ_index])
+
+    y = (-1/ϕ)^L
+    
+    @test tr(Πp) ≈ Lucas_number(L-2)
+    @test tr(Πm) ≈ Lucas_number(L-1)
+    @test tr(Πp*Y) ≈ y*ϕ^2
+    @test tr(Πm*Y) ≈ -y*ϕ
+
+    theoretical_Πm = (y+1/ϕ)/(ϕ+1/ϕ)^2*(Lucas_number(L-1)/ϕ -y*ϕ)/Fibonacci_number(L-1) + 
+    (ϕ-y)/(ϕ+1/ϕ)^2*(Lucas_number(L-1)*ϕ + y*ϕ)/Fibonacci_number(L+1)
+    theoretical_Πp = (y+1/ϕ)/(ϕ+1/ϕ)^2*(Lucas_number(L-2)/ϕ -y*ϕ)/Fibonacci_number(L-1) + 
+    (ϕ-y)/(ϕ+1/ϕ)^2*(Lucas_number(L-2)*ϕ + y*ϕ)/Fibonacci_number(L+1)
+    @test theoretical_Πm ≈ tr(Πm*projector_y1)/ length(y1_index) *(y+1/ϕ)/(ϕ+1/ϕ) + tr(Πm*projector_yτ)/ length(yτ_index) *(ϕ - y)/(ϕ+1/ϕ)
+    @test theoretical_Πp ≈ tr(Πp*projector_y1)/ length(y1_index) *(y+1/ϕ)/(ϕ+1/ϕ) + tr(Πp*projector_yτ)/ length(yτ_index) *(ϕ - y)/(ϕ+1/ϕ) atol=1e-6
 end
 
 function Fibonacci_number(L)
     return (1/sqrt(5)) * (((1+sqrt(5))/2)^L - ((1-sqrt(5))/2)^L)
 end
 
+function Lucas_number(L)
+    return Fibonacci_number(L+1) + Fibonacci_number(L-1)
+end
 
 function check_dynamics(L::Int, τ_idx::Int, index::Int)
     τ = τlis[τ_idx]

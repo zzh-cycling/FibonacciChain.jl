@@ -40,3 +40,7 @@ end
 @testset "HeisenbergAnyon" begin
     include("./test_Heisenberg.jl")
 end
+
+@testset "SWSSB.jl" begin
+    include("./SWSSB.jl")
+end
