@@ -41,6 +41,6 @@ end
     include("./test_Heisenberg.jl")
 end
 
-@testset "SWSSB.jl" begin
-    include("./SWSSB.jl")
+@testset "test_topo_symmetry.jl" begin
+    include("./test_topo_symmetry.jl")
 end
