@@ -490,7 +490,7 @@ function boundary_evolution(
     truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
     if measure_config.mode == :sample
         N = anyon_model.N
-        size(sample, 1) == measurement_num(anyon_model.basis)*(N ÷ 2) ||
+        size(sample, 1) == _samples_per_layer(anyon_model) ||
             error("sample size mismatch with anyon_model $(N)")
         return _apply_measurement_layer_mps(
             anyon_model,
@@ -1071,7 +1071,9 @@ function add_reference_qubits(
         ψ_new[i+1] = ψ[i]
     end
 
-    # Move reference qubit next to target site for applying copy gate
+    # Move reference qubit next to target site for applying copy gate.
+    # NOTE: `apply` restores positional site indices after each gate, so `new_sites`
+    # stays fixed — the swaps move the qubit *content*, not the indices.
     target_pos = site_idx + 1  # +1 because we added reference at position 1
 
     # Swap reference qubit (at pos 1) towards target position
@@ -1086,7 +1088,6 @@ function add_reference_qubits(
             SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
         end
         ψ_new = apply(SWAP, ψ_new; cutoff = 1e-15)
-        new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
 
     # Now reference is adjacent to target (at position target_pos - 1)
@@ -1119,7 +1120,6 @@ function add_reference_qubits(
             SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
         end
         ψ_new = apply(SWAP, ψ_new; cutoff = 1e-15)
-        new_sites[i], new_sites[i+1] = new_sites[i+1], new_sites[i]
     end
 
     verbose && @info "Added reference qubit at position 1, entangled with site $site_idx"
@@ -1192,11 +1192,18 @@ function add_reference_qubits_reset(
 
     N = length(sites)
 
-    # Step 1: Measure the system qubit at site_idx in Z basis
-    # Calculate probabilities for |0⟩ and |1⟩ outcomes
+    # Step 1: Measure/reset the system qubit at site_idx.
+    # The reset basis follows reset_type(model), matching the vector version:
+    # :X for Ising models with measure_operator = :X (rotate with H, project in Z,
+    # rotate back), otherwise a plain Z-basis projection.
+    rt = applicable(reset_type, model) ? reset_type(model) : :reset
+
     ψ_orth = orthogonalize(ψ, site_idx)
-    site_tensor = ψ_orth[site_idx]
     s = sites[site_idx]
+    if rt == :X
+        ψ_orth = apply(op("H", s), ψ_orth; cutoff = 1e-15)
+    end
+    site_tensor = ψ_orth[site_idx]
 
     # Project onto |0⟩
     proj0 = ITensor(s)
@@ -1214,6 +1221,11 @@ function add_reference_qubits_reset(
     ψ0_proj[site_idx] = noprime(site_tensor * proj0 * dag(prime(proj0, s)))
     ψ1_proj[site_idx] = noprime(site_tensor * proj1 * dag(prime(proj1, s)))
 
+    if rt == :X
+        ψ0_proj = apply(op("H", s), ψ0_proj; cutoff = 1e-15)
+        ψ1_proj = apply(op("H", s), ψ1_proj; cutoff = 1e-15)
+    end
+
     prob0 = real(inner(ψ0_proj, ψ0_proj))
     prob1 = real(inner(ψ1_proj, ψ1_proj))
 
@@ -1228,52 +1240,73 @@ function add_reference_qubits_reset(
     normalize!(ψ0_proj)
     normalize!(ψ1_proj)
 
-    # Step 2: Add reference qubit and create Bell pair for each branch
-    # Create reference site
+    # Step 2: Add reference qubit and create a Bell pair with the reset qubit.
+    # Mirrors the vector version (concat_bell_pair): for both branches the result is
+    # (|0⟩_ref|0⟩_tgt + |1⟩_ref|1⟩_tgt)/√2 ⊗ |ψ_rest⟩; the branches differ only in the
+    # collapsed ψ_rest and their probabilities. Follows the swap-to-adjacency pattern of
+    # add_reference_qubits.
     ref_site = Index(2, "Qubit,Site,n=ref")
     new_sites = vcat([ref_site], sites)
 
-    # Helper function to add ref and create Bell pair
-    function create_bell_pair_state(ψ_collapsed::MPS, measured_val::Int)
+    function create_bell_pair_state(ψ_collapsed::MPS)
         ψ_bell = MPS(N + 1)
 
-        # Create Bell pair: (|00⟩ + |11⟩)/√2 for measured 0
-        #                   (|01⟩ + |10⟩)/√2 for measured 1
-        link_idx = Index(2, "Link,l=0")
-
+        # Reference qubit starts in |0⟩, inserted at position 1
+        link_idx = Index(1, "Link,l=0")
         ref_tensor = ITensor(ref_site, link_idx)
-        if measured_val == 0
-            # |Φ+⟩ = (|0⟩|0⟩ + |1⟩|1⟩)/√2
-            ref_tensor[ref_site=>1, link_idx=>1] = 1/sqrt(2)  # |0⟩ paired with sys |0⟩
-            ref_tensor[ref_site=>2, link_idx=>2] = 1/sqrt(2)  # |1⟩ paired with sys |1⟩
-        else
-            # |Ψ+⟩ = (|0⟩|1⟩ + |1⟩|0⟩)/√2
-            ref_tensor[ref_site=>1, link_idx=>2] = 1/sqrt(2)  # |0⟩ paired with sys |1⟩
-            ref_tensor[ref_site=>2, link_idx=>1] = 1/sqrt(2)  # |1⟩ paired with sys |0⟩
-        end
+        ref_tensor[ref_site=>1, link_idx=>1] = 1.0
         ψ_bell[1] = ref_tensor
-
-        # Connect to rest of MPS
-        first_tensor = ψ_collapsed[1]
-        # Add link index to first tensor
-        entangle_tensor = ITensor(link_idx, sites[1], sites[1]')
-        # link=1 -> |0⟩, link=2 -> |1⟩
-        entangle_tensor[link_idx=>1, sites[1]=>1, sites[1]'=>1] = 1.0
-        entangle_tensor[link_idx=>2, sites[1]=>2, sites[1]'=>2] = 1.0
-
-        new_first = noprime(first_tensor * entangle_tensor)
-        ψ_bell[2] = new_first
-
+        ψ_bell[2] = ψ_collapsed[1] * ITensor([1.0], link_idx)
         for i = 2:N
             ψ_bell[i+1] = ψ_collapsed[i]
+        end
+
+        # Swap reference qubit next to the target site.
+        # NOTE: `apply` restores positional site indices after each gate, so
+        # `new_sites` stays fixed — the swaps move the qubit *content*, not the indices.
+        target_pos = site_idx + 1  # +1 because the reference was added at position 1
+        for i = 1:(target_pos-2)
+            orthogonalize!(ψ_bell, i)
+            s_i = new_sites[i]
+            s_ip1 = new_sites[i+1]
+            SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
+            for a = 1:dim(s_i), b = 1:dim(s_ip1)
+                SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
+            end
+            ψ_bell = apply(SWAP, ψ_bell; cutoff = 1e-15)
+        end
+
+        ref_pos = target_pos - 1
+        s_ref = new_sites[ref_pos]
+        s_tgt = new_sites[target_pos]
+
+        # Bell gate: |0⟩_ref|m⟩_tgt → (|0⟩_ref|0⟩_tgt + |1⟩_ref|1⟩_tgt)/√2 for m = 0, 1
+        Bell = ITensor(s_ref, s_ref', s_tgt, s_tgt')
+        for m = 1:2
+            Bell[s_ref=>1, s_ref'=>1, s_tgt=>m, s_tgt'=>1] = 1/sqrt(2)
+            Bell[s_ref=>1, s_ref'=>2, s_tgt=>m, s_tgt'=>2] = 1/sqrt(2)
+        end
+        orthogonalize!(ψ_bell, ref_pos)
+        ψ_bell = apply(Bell, ψ_bell; cutoff = 1e-15)
+
+        # Swap reference qubit back to position 1
+        for i = (ref_pos-1):-1:1
+            orthogonalize!(ψ_bell, i+1)
+            s_i = new_sites[i]
+            s_ip1 = new_sites[i+1]
+            SWAP = ITensor(s_i, s_i', s_ip1, s_ip1')
+            for a = 1:dim(s_i), b = 1:dim(s_ip1)
+                SWAP[s_i=>a, s_i'=>b, s_ip1=>b, s_ip1'=>a] = 1.0
+            end
+            ψ_bell = apply(SWAP, ψ_bell; cutoff = 1e-15)
         end
 
         normalize!(ψ_bell)
         return ψ_bell
     end
 
-    ψ0_bell = create_bell_pair_state(ψ0_proj, 0)
-    ψ1_bell = create_bell_pair_state(ψ1_proj, 1)
+    ψ0_bell = create_bell_pair_state(ψ0_proj)
+    ψ1_bell = create_bell_pair_state(ψ1_proj)
 
     verbose && @info "Created Bell pairs for both measurement branches"
     verbose && @show maxlinkdim(ψ0_bell), maxlinkdim(ψ1_bell)
@@ -1607,7 +1640,7 @@ function reference_evolution(
     rng = measure_config.rng
     verbose = measure_config.verbose
     mode = measure_config.mode
-    n_measure = measurement_num(model.basis)*(N÷2)
+    n_measure = _samples_per_layer(model)
     Δt = size(sample, 1) ÷ 2
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
 
