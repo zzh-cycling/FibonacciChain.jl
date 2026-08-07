@@ -23,6 +23,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function ps_prob_evolution(params)
         L, τind, seed = params
         D, _, _ = get_cfg_params_Born(τind, L)
+        τ = τlis[τind]
         model = fib_model(L)
         problis = collect(0.1:0.1:0.9)
         ee_plis = Vector{Vector{Float64}}(undef, length(problis))
@@ -99,7 +100,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         Llis = collect(8:2:20)
         problis = collect(0.1:0.1:0.9)
         ixs = [1, 3, 4, 7, 9, 10, 12]
-        for (inds, τ) in enumerate(τlis[ixs])
+        for τind in ixs
+            τ = τlis[τind]
             cent_Lplis = zeros(length(Llis), length(problis))
             cent_stderrlis = zeros(length(Llis), length(problis))
             for (id, L) in enumerate(Llis)
@@ -133,16 +135,16 @@ if length(ARGS) == 0
 else
     L_start = parse(Int64, ARGS[1])
     L_end = parse(Int64, ARGS[2])
-    inds = parse(Int64, ARGS[3])
+    τind = parse(Int64, ARGS[3])
     seed_start = parse(Int64, ARGS[4])
     seed_end = parse(Int64, ARGS[5])
 
-    τ = τlis[inds]
+    τ = τlis[τind]
     Llis = collect(L_start:2:L_end)
     seeds = collect(seed_start:seed_end)
 
     # Generate all (L, τind, seed)
-    tasks = [(L, inds, seed) for L in Llis for seed in seeds]
+    tasks = [(L, τind, seed) for L in Llis for seed in seeds]
     println(
         "Running $(length(tasks)) tasks: L=$Llis, τ=$τ, seeds=$seed_start:$seed_end on $(nprocs()) workers",
     )

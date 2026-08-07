@@ -22,32 +22,6 @@ function obf_model(L::Int, λ::Float64)
 end
 
 function get_born_dynamics_params(ind, L, λ)
-    if L >= 18
-        if ind == 1
-            cfg = Dict(11.0 => (250, 14, 40))
-            t, step, start = get(cfg, λ, (150, 14, 20))
-        elseif ind == 7
-            cfg = Dict(
-                atanh(0.999) => (5, 14, 1),
-                11.0 => (10, 14, 2),
-            )
-            t, step, start = get(cfg, λ, (8, 14, 1))
-        end
-        # Default parameters for MPS
-    else
-        if ind == 1
-            cfg = Dict(11.0 => (400, 14, 50))
-            t, step, start = get(cfg, λ, (200, 14, 30))
-        elseif ind == 7
-            cfg = Dict(11.0 => (18, 14, 2))
-            t, step, start = get(cfg, λ, (18, 14, 2))
-        end
-    end
-    inds = collect(1:step:t*L)
-    return t, inds, start
-end
-
-function get_born_dynamics_params(ind, L, λ)
     if L < 18
         if ind == 1
             cfg = Dict(11.0 => (400, 14, 50))

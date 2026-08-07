@@ -51,8 +51,8 @@ else
     N = parse(Int64, ARGS[1])
     τ_idx = parse(Int64, ARGS[2])
 
-    λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02), [11.0])))
-    tasks = [(λ, N) for λ in λlis] |> vec
+    λlis_sel = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02), [11.0])))
+    tasks = [(λ, N) for λ in λlis_sel] |> vec
 
     results = pmap(tasks) do params
         run_task_GS_ed(params)
@@ -75,7 +75,7 @@ else
     save(
         "exm/data/OBF/GS/L$(N)/GS_cc_ensemble.jld2",
         "λlis",
-        λlis,
+        λlis_sel,
         "cc_ensemble",
         cc_ensemble,
         "cc_err_ensemble",

@@ -144,11 +144,11 @@ else
     τ_idx = parse(Int64, ARGS[2])
 
     if τ_idx == 1
-        λlis = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02), [11.0])))
+        λlis_sel = unique!(sort(vcat(collect(0.0:0.1:2), collect(0.816:0.04:1.02), [11.0])))
     elseif τ_idx == 7
-        λlis = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02), [11.0])))
+        λlis_sel = unique!(sort(vcat(collect(0.0:0.1:1.5), collect(0.616:0.02:1.02), [11.0])))
     end
-    tasks = [(λ, N) for λ in λlis] |> vec
+    tasks = [(λ, N) for λ in λlis_sel] |> vec
 
     results = pmap(tasks) do params
         run_task_exact(params, τ_idx)
@@ -171,7 +171,7 @@ else
     save(
         "exm/data/OBF/Post_selection/gammaind$(τ_idx)/ee_ensemble_L$(N).jld2",
         "λlis",
-        λlis,
+        λlis_sel,
         "cc_ensemble",
         cc_ensemble,
         "cc_err_ensemble",

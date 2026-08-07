@@ -47,8 +47,7 @@ export measure_basismap,
     transfer_matrix_subspace,
     transfer_matrix_dynamics,
     boundary_evolution,
-    bulk_evolution,
-    sample_evolution_unnormalized
+    bulk_evolution
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,
@@ -58,7 +57,6 @@ export anyon_mps_gst,
     evenparity_mps,
     mps_measurement_enumeration,
     ee_mps,
-    sample_evolution_unnormalized_mps,
     transfer_matrix_subspace_mps
 # Reference qubits functions
 export add_reference_qubits,

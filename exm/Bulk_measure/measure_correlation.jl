@@ -18,10 +18,10 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function data_path(inds, L, index)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(τ, L)
+            D, _, _ = get_cfg_params_Born(inds, L)
             DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(D,2L))_samples$(index).jld2"
         else
-            t, _, _ = get_mps_params_Born(τ, L)
+            t, _, _ = get_mps_params_Born(inds, L)
             DATA_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(inds)/t$(div(t,L))_samples$(index).jld2"
         end
         return DATA_path
@@ -30,7 +30,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function save_data_filename(L, inds)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(τ, L)
+            D, _, _ = get_cfg_params_Born(inds, L)
             t = div(D, 2L)
         else
             t, _, _ = get_mps_params_Born(inds, L)
@@ -93,7 +93,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         end
 
         sample_data = load(data_path, "sample")  # (time_steps, L) matrix
-        _, _, avg_range = get_cfg_params_Born(τlis[inds], L)
+        _, _, avg_range = get_cfg_params_Born(inds, L)
 
         max_d = L ÷ 4
         corr_time_avg_odd = zeros(max_d)
@@ -301,7 +301,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             return nothing
         end
 
-        _, _, avg_range = get_cfg_params_Born(τlis[inds], L)
+        _, _, avg_range = get_cfg_params_Born(inds, L)
         sample_data = load(data_path, "sample")
 
         # Extract odd/even time slices and convert to ±1
@@ -337,7 +337,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function save_data_filename_temporal(L, inds)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(τ, L)
+            D, _, _ = get_cfg_params_Born(inds, L)
             t = div(D, 2L)
         else
             t, _, _ = get_mps_params_Born(inds, L)
@@ -362,7 +362,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function average_temporal_corr(inds, L; max_k = -1)
         if L <= 32
             τ = τlis[inds]
-            D, _, avg_range = get_cfg_params_Born(τ, L)
+            D, _, avg_range = get_cfg_params_Born(inds, L)
             t = div(D, 2L)
             dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)"
             sample_num = length(
@@ -580,7 +580,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
         # Save with consistent key names
         τ = τlis[inds]
-        D, _, _ = get_cfg_params_Born(τ, L)
+        D, _, _ = get_cfg_params_Born(inds, L)
         save_path = "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(D,L)).jld2"
         mkpath(dirname(save_path))
         save(
