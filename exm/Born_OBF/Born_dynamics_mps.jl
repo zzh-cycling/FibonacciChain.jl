@@ -5,45 +5,15 @@ using JLD2
 using Statistics
 using Random
 
+const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BORN_OBF_CONFIG)
+
 @everywhere begin
     using FibonacciChain
     using ITensorMPS, ITensors
     using JLD2
     using Statistics
     using Random
-
-    function get_born_dynamics_params(ind, L, λ)
-        if L >= 18
-            if ind == 1
-                cfg = Dict(11.0 => (250, 14, 40))
-                t, step, start = get(cfg, λ, (150, 14, 20))
-            elseif ind == 7
-                cfg = Dict(
-                    11.0 => (10, 14, 2),
-                    atanh(0.999) => (10, 14, 2))
-                t, step, start = get(cfg, λ, (8, 14, 1))
-            end
-            # Default parameters for MPS
-        else
-            if ind == 1
-                cfg = Dict(11.0 => (400, 14, 50))
-                t, step, start = get(cfg, λ, (200, 14, 30))
-            elseif ind == 7
-                cfg = Dict(11.0 => (18, 14, 2))
-                t, step, start = get(cfg, λ, (18, 14, 2))
-            end
-        end
-        inds = collect(1:step:t*L)
-        return t, inds, start
-    end
-
-    function obf_model(L::Int, λ::Float64)
-        if λ >= 10.0
-            return AnyonModel(OBFAnyon(), L; λI = 0.0, pbc = true)
-        else
-            return AnyonModel(OBFAnyon(), L; λ = λ, pbc = true)
-        end
-    end
 
     function samples_generate_OBF(
         L::Int64,
@@ -214,10 +184,6 @@ using Random
         )
     end
 
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-    τlis = atanh.(γlis)
-    τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
-
     # define a wrapper function for pmap
     function process_task(task)
         L, τ_idx, λ, index, χ = task
@@ -238,8 +204,6 @@ else
         L = parse(Int64, ARGS[2])
         τ_idx = parse(Int64, ARGS[3])
         χ = parse(Int64, ARGS[4])
-
-        λlis = vcat(collect(0.0:0.1:1.5), [11.0])
 
         tasklis = [(L, λ, τ_idx, χ) for λ in λlis]
 

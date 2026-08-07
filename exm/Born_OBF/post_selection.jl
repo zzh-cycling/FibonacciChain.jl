@@ -9,16 +9,16 @@ if nprocs() == 1
     addprocs()
 end
 
+const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BORN_OBF_CONFIG)
+
 @everywhere begin
     using FibonacciChain
     using Plots
     using Arpack
     using LinearAlgebra
     include("../FitEntEntScal.jl")
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-    τlis = atanh.(γlis)
-    τlis[end] = 1000.0
-    τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
+
     function get_dynamics_params(ind, λ)
         if ind == 1
             cfg = Dict(
@@ -57,11 +57,7 @@ end
     function run_task_mps((λ, N), ind)
         try
             τ = τlis[ind]
-            if λ >= 10.0
-                model = AnyonModel(OBFAnyon(), N; λI = 0.0, pbc = true)
-            else
-                model = AnyonModel(OBFAnyon(), N; λ = λ, pbc = true)
-            end
+            model = obf_model(N, λ)
             ψ, sites = initial_mps(N)
             t = get_dynamics_params(ind, λ)[1]
             measure_config = MeasureConfig(
@@ -100,11 +96,7 @@ end
     function run_task_exact((λ, N), ind)
         try
             τ = τlis[ind]
-            if λ >= 10.0
-                model = AnyonModel(OBFAnyon(), N; λI = 0.0, pbc = true)
-            else
-                model = AnyonModel(OBFAnyon(), N; λ = λ, pbc = true)
-            end
+            model = obf_model(N, λ)
             #  Using even parity state will converge faster.
             st = ones(length(anyon_basis(model)))
             st ./= norm(st)

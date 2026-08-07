@@ -6,6 +6,9 @@ using JLD2
 using Statistics
 using Random
 
+const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BORN_OBF_CONFIG)
+
 @everywhere begin
     using FibonacciChain
     using LinearAlgebra
@@ -13,53 +16,6 @@ using Random
     using JLD2
     using Statistics
     using Random
-
-    γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-    τlis = atanh.(γlis)
-    τlis[end] = 1000.0
-    τlis[findfirst(γlis .== 1/√2)] = log(1 + √2)
-
-    function obf_model(L::Int, λ::Float64)
-        if λ >= 10.0
-            return AnyonModel(OBFAnyon(), L; λI = 0.0, pbc = true)
-        else
-            return AnyonModel(OBFAnyon(), L; λ = λ, pbc = true)
-        end
-    end
-
-    function get_default_chi_Born(ind, L)
-        chi_table = Dict(
-            24 => 64,
-            32 => 96,
-            48 => 110,
-            64 => 128,
-        )
-        chi = get(chi_table, L, 128) 
-        return chi
-    end
-
-    function get_born_dynamics_params(ind, L, λ)
-        if L >= 18
-            if ind == 1
-                cfg = Dict(11.0 => (250, 14, 40))
-                t, step, start = get(cfg, λ, (150, 14, 20))
-            elseif ind == 7
-                cfg = Dict(11.0 => (10, 14, 2))
-                t, step, start = get(cfg, λ, (8, 14, 1))
-            end
-            # Default parameters for MPS
-        else
-            if ind == 1
-                cfg = Dict(11.0 => (400, 14, 50))
-                t, step, start = get(cfg, λ, (200, 14, 30))
-            elseif ind == 7
-                cfg = Dict(11.0 => (18, 14, 2))
-                t, step, start = get(cfg, λ, (18, 14, 2))
-            end
-        end
-        inds = collect(1:step:t*L)
-        return t, inds, start
-    end
 
     function scaling_dimension_Born(
         L::Int,
@@ -93,7 +49,7 @@ using Random
         cutoff::Float64 = 1e-12,
     )
         τ = τlis[τ_idx]
-        χ = get_default_chi_Born(τ_idx, L) 
+        χ = chi_table(τ_idx, L, λ) 
         t, _, _ = get_born_dynamics_params(τ_idx, L, λ)
         model = obf_model(L, λ)
 
@@ -349,7 +305,7 @@ else
         println("Successes: $success_count")
         println("Failures: $(length(failed))")
         
-        χ = get_default_chi_Born(τ_idx, L) 
+        χ = chi_table(τ_idx, L, λ) 
 
         if success_count > 0
             out_dir = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)/chi$(χ)"
