@@ -227,7 +227,7 @@ using FibonacciChain, LinearAlgebra
 N = 10
 
 # Create Ising model
-model = AnyonModel(IsingAnyon(), N; pbc=true)
+model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc=true)
 basis = anyon_basis(model)
 println("Ising chain Hilbert space dimension: $(length(basis))")
 

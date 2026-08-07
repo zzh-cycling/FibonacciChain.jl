@@ -11,7 +11,7 @@ simulation of large anyon chains with measurement protocols.
 Find ground state of anyon chain Hamiltonian using DMRG.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `sweep_times=5`: Number of DMRG sweeps
 - `maxdim=5`: Maximum bond dimension
 - `cutoff=1e-10`: Truncation cutoff
@@ -78,7 +78,7 @@ function anyon_mps_gst(
     maxdim = 5,
     cutoff = 1e-10,
     outputlevel = 1,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Create sites for anyons (using S=1/2 fermions to approximate)
     N = model.N
     sites = siteinds("Qubit", N)
@@ -187,7 +187,7 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
 
 end
 
-function anyon_ham(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index})
+function anyon_ham(model::AnyonModel{SpinHalf,:Ising}, sites::Vector{<:Index})
     J = get_interaction_param(model, :J, 1.0)
     h = get_interaction_param(model, :h, 1.0)
     N = length(sites)
@@ -208,7 +208,7 @@ function anyon_ham(model::AnyonModel{IsingAnyon}, sites::Vector{<:Index})
     return MPO(os, sites)
 end
 
-function anyon_ham(model::AnyonModel{OBFAnyon}, sites::Vector{<:Index})
+function anyon_ham(model::AnyonModel{SpinHalf,:OBF}, sites::Vector{<:Index})
     λ = get_interaction_param(model, :λ, 1.0)
     λI = get_interaction_param(model, :λI, 1.0)  # Ising coupling strength
 
@@ -325,7 +325,7 @@ function measurement_operator_mps(
 end
 
 function measurement_operator_mps(
-    model::AnyonModel{IsingAnyon},
+    model::AnyonModel{SpinHalf,:Ising},
     sites::Vector{<:Index},
     i::Int,
     τ::Float64,
@@ -362,7 +362,7 @@ function measurement_operator_mps(
 end
 
 function measurement_operator_mps(
-    model::AnyonModel{OBFAnyon},
+    model::AnyonModel{SpinHalf,:OBF},
     sites::Vector{<:Index},
     i::Int,
     τ::Float64,
@@ -447,7 +447,7 @@ function measuremap(
     sign::Bool;
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Create measurement operator
     M = measurement_operator_mps(model, sites, i, τ, sign)
     return _measuremap_with_operator(ψ, M; cutoff = cutoff, maxdim = maxdim)
@@ -480,7 +480,7 @@ function boundary_evolution(
     measure_config::MeasureConfig,
     sample::Union{Nothing,BitVector} = nothing;
     layer_idx::Int = 1,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
@@ -490,7 +490,7 @@ function boundary_evolution(
     truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
     if measure_config.mode == :sample
         N = anyon_model.N
-        size(sample, 1) == measurement_num(anyon_model.anyon_type)*(N ÷ 2) ||
+        size(sample, 1) == measurement_num(anyon_model.basis)*(N ÷ 2) ||
             error("sample size mismatch with anyon_model $(N)")
         return _apply_measurement_layer_mps(
             anyon_model,
@@ -530,7 +530,7 @@ function _apply_measurement_layer_mps(
     maxdim::Int = 100,
     truncate_every_events::Int = 1,
     normalized::Bool = true,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Helper function to apply measurements to a layer
     measurement_sites, measure_anyon_model, measurement_strength =
         _obtain_measurement_config(model, layer_idx, τ)
@@ -615,7 +615,7 @@ function _stochastic_measurement_layer_mps_mps(
     maxdim::Int = 100,
     verbose::Bool = false,
     truncate_every_events::Int = 1,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     measurement_sites, measure_anyon_model, measurement_strength =
         _obtain_measurement_config(model, layer_idx, τ)
@@ -745,7 +745,7 @@ factors are recorded as the spectrum.
 - `sites::Vector{<:Index}`: ITensor site indices
 - `τ::Float64`: Measurement strength parameter
 - `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
-  The number of rows must be divisible by `layers_per_period(model.anyon_type)`.
+  The number of rows must be divisible by `layers_per_period(model)`.
 - `n_states::Int=10`: Number of initial basis vectors to propagate
 - `cutoff::Float64=1e-10`: MPS truncation cutoff
 - `maxdim::Int=100`: Maximum bond dimension for MPS operations
@@ -781,11 +781,11 @@ function transfer_matrix_subspace_mps(
     n_states::Int = 10,
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Here the transfer matrix is not hermitian, thus the Schur vector is not eigenvectors.
     # We need to do a QR-like projection via Gram-matrix Cholesky. When the non-hermitian
     # matrix is too ill-conditioned, the eigen fallback is used.
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D_layers, n_cols = size(sample)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
     t = D_layers ÷ n_layers
@@ -912,7 +912,7 @@ function mps_measurement_enumeration(
     τ::Float64;
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Initialize with single initial state
     current_level_trajectories = [Bool[]]
     current_level_probabilities = [1.0]
@@ -1038,7 +1038,7 @@ function add_reference_qubits(
     site_idx::Int = 1;
     k_new::Int = 1,
     verbose::Bool = false,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     1 ≤ site_idx ≤ length(ψ) ||
         error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
     0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
@@ -1180,7 +1180,7 @@ function add_reference_qubits_reset(
     site_idx::Int = 1;
     k_new::Int = 1,
     verbose::Bool = false,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     1 ≤ site_idx ≤ length(ψ) ||
         error("site_idx must be in range [1, $(length(ψ))], got $site_idx")
     0 ≤ k_new ≤ 1 || error("k_new must be 0 or 1, got $k_new")
@@ -1310,7 +1310,7 @@ function bulk_evolution(
     measure_config::MeasureConfig,
     samples::Union{Nothing,BitMatrix} = nothing;
     normalized::Bool = true,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
@@ -1371,7 +1371,7 @@ function _born_measure_mps(
     measure_config::MeasureConfig;
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -1384,7 +1384,7 @@ function _born_measure_mps(
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
 
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
     N = length(sites)
 
@@ -1463,7 +1463,7 @@ function _sample_measure_mps(
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
     normalized::Bool = true,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
     τ = measure_config.τ
@@ -1474,7 +1474,7 @@ function _sample_measure_mps(
     Δt = t₂ - t₁ + 1
     Δt >= 0 || error("t₂ must be >= t₁")
 
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
 
     sample_free_energy = zeros(Float32, D)
@@ -1540,7 +1540,7 @@ end
 """
     reference_evolution(N::Int, τ::Float64, forward::Vector{ET}, sample::Matrix{Bool}, 
                         x₂::Int, t₁, t₂; x₁::Int=1, rng=MersenneTwister(), pbc=true, 
-                        anyon_type::Symbol=:Fibo, verbose=false, mode::Symbol=:sample)
+                        verbose=false, mode::Symbol=:sample)
     reference_evolution(model::AnyonModel, sites, forward::Vector{MPS}, sample::Matrix{Bool},
                         x₂::Int, t₁, t₂, measure_config::MeasureConfig; x₁::Int=1, verbose=false)
 
@@ -1564,7 +1564,6 @@ Compute correlation using state vectors.
 - `x₁::Int=1`: Spatial site index for first reference qubit
 - `rng::MersenneTwister=MersenneTwister()`: Random number generator
 - `pbc::Bool=true`: Periodic boundary conditions
-- `anyon_type::Symbol=:Fibo`: Anyon type (`:Fibo` or `:Ising`)
 - `verbose::Bool=false`: Enable verbose output
 - `mode::Symbol=:sample`: Evolution mode (`:sample` or `:Born`)
 
@@ -1597,7 +1596,7 @@ function reference_evolution(
     forward::MPS,
     measure_config::MeasureConfig,
     sample::BitMatrix,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     N = model.N
     τ = measure_config.τ
@@ -1608,7 +1607,7 @@ function reference_evolution(
     rng = measure_config.rng
     verbose = measure_config.verbose
     mode = measure_config.mode
-    n_measure = measurement_num(model.anyon_type)*(N÷2)
+    n_measure = measurement_num(model.basis)*(N÷2)
     Δt = size(sample, 1) ÷ 2
     D = size(sample, 1)   # D is the number of layers, while Δt is the true time(# period)
 

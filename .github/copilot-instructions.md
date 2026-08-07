@@ -27,7 +27,7 @@ There are currently no dedicated lint/formatter commands in `Makefile` or GitHub
 `src/FibonacciChain.jl` is the API entrypoint: it exports the public surface and composes the package by including focused modules.
 
 - `src/Basis.jl`
-  - Core anyon types (`FibonacciAnyon`, `IsingAnyon`, `OBFAnyon`) and `AnyonModel`.
+  - Basis types (`FibonacciAnyon`, `SpinHalf`) subtyping `AbstractAnyonBasis`, and `AnyonModel{B, M}` (the `model_type` Symbol type parameter `M` selects `:Fibonacci`/`:Ising`/`:OBF`/`:Heisenberg` physics; spin-1/2 models are built as `AnyonModel(SpinHalf(), N; model_type=:Ising, ...)`).
   - Basis construction (`anyon_basis`), Hamiltonian construction (`anyon_ham`), reduced density matrices, and topological-symmetry operators.
 - `src/FiboSparse.jl`
   - Sparse Hamiltonian path (`anyon_ham_sparse`) for larger systems.
@@ -60,4 +60,4 @@ Typical flow across files:
 
 ## Project context from README/docs
 
-- The package models interacting anyons with currently supported families corresponding to `SU(2)_2` (Ising), `SU(2)_3` (Fibonacci), and `SU(2)_∞` (ordinary spin-1/2 basis via `OBFAnyon`).
+- The package models interacting anyons with currently supported families corresponding to `SU(2)_2` (Ising), `SU(2)_3` (Fibonacci), and `SU(2)_∞` (ordinary spin-1/2 basis via `SpinHalf`, e.g. `model_type=:OBF`).

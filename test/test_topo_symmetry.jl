@@ -3,6 +3,14 @@ using LinearAlgebra
 using Random
 using Test
 
+function Fibonacci_number(L)
+    return (1/sqrt(5)) * (((1+sqrt(5))/2)^L - ((1-sqrt(5))/2)^L)
+end
+
+function Lucas_number(L)
+    return Fibonacci_number(L+1) + Fibonacci_number(L-1)
+end
+
 @testset "Topological symmetry of Fibonacci-chain dynamics" begin
     L = 6
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
@@ -95,6 +103,7 @@ end
 end
 
 @testset "Y and projector trace" begin
+    L = 12  # finite-size deviations from the trace formulas are ~4e-5 at L=8, ~1e-7 at L=12
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     Y = topological_charge_operator(model)
     τ = 1000.0
@@ -131,12 +140,4 @@ end
     (ϕ-y)/(ϕ+1/ϕ)^2*(Lucas_number(L-2)*ϕ + y*ϕ)/Fibonacci_number(L+1)
     @test theoretical_Πm ≈ tr(Πm*projector_y1)/ length(y1_index) *(y+1/ϕ)/(ϕ+1/ϕ) + tr(Πm*projector_yτ)/ length(yτ_index) *(ϕ - y)/(ϕ+1/ϕ)
     @test theoretical_Πp ≈ tr(Πp*projector_y1)/ length(y1_index) *(y+1/ϕ)/(ϕ+1/ϕ) + tr(Πp*projector_yτ)/ length(yτ_index) *(ϕ - y)/(ϕ+1/ϕ) atol=1e-6
-end
-
-function Fibonacci_number(L)
-    return (1/sqrt(5)) * (((1+sqrt(5))/2)^L - ((1-sqrt(5))/2)^L)
-end
-
-function Lucas_number(L)
-    return Fibonacci_number(L+1) + Fibonacci_number(L-1)
 end

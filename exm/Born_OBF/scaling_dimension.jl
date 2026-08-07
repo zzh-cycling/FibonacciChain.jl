@@ -155,7 +155,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
         try
             τ = τlis[τ_idx]
             model = obf_model(L, λ)
-            n_layers = FibonacciChain.layers_per_period(model.anyon_type)
+            n_layers = FibonacciChain.layers_per_period(model)
             n_cols = FibonacciChain._samples_per_layer(model)
             sample = BitMatrix(ones(Int8, n_layers, n_cols))
             # It doesn't matter for the post-selection spectrum whether we choose all 1s or all 0s for Ising/OBF.

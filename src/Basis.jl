@@ -19,34 +19,36 @@ function Fibonacci_chain_PBC(::Type{T}) where {N,T<:BitStr{N}}
     return filter(c -> iszero((c >> (N-1)) & (c & 1)), Fibonacci_chain_OBC(T))
 end
 
-abstract type AbstractAnyonType end
+abstract type AbstractAnyonBasis end
 
-# Each model type carries its own (possibly constrained) Hilbert space, defined
+# Each basis type carries its own (possibly constrained) Hilbert space, defined
 # once and for all by its `anyon_basis` method — this is the single extension
 # point when adding a new chain:
-struct FibonacciAnyon <: AbstractAnyonType end  # Fibonacci fusion space: bitstrings with no adjacent τ (1)s, dim ~ φ^N
-struct IsingAnyon <: AbstractAnyonType end      # transverse-field Ising *spin* chain: full 2^N product basis
-struct OBFAnyon <: AbstractAnyonType end        # O'Brien-Fendley spin-1/2 chain: full 2^N product basis
-struct HeisenbergAnyon <: AbstractAnyonType end # spin-1/2 Heisenberg (XXZ) chain: full 2^N product basis
+struct FibonacciAnyon <: AbstractAnyonBasis end  # Fibonacci fusion space: bitstrings with no adjacent τ (1)s, dim ~ φ^N
+struct SpinHalf <: AbstractAnyonBasis end        # spin-1/2 chains (Ising, OBF, Heisenberg): full 2^N product basis
 
 """
-    AnyonModel(anyon_type::AbstractAnyonType, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
+    AnyonModel(basis::FibonacciAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
+    AnyonModel(basis::SpinHalf, N::Int; model_type::Symbol, pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
 
 Represents a 1D anyon/spin chain model.
 
+The type is parameterized as `AnyonModel{B, M}` by the basis type `B <: AbstractAnyonBasis`
+and a model tag `M::Symbol` (`:Fibonacci`, `:Ising`, `:OBF` or `:Heisenberg`); the tag of a
+model can be retrieved with `model_type(model)`.
+
 # Hilbert space
-Each anyon type defines its own (possibly constrained) Hilbert space via `anyon_basis`:
-- `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent τ (`1`)s, dimension ~ φ^N.
-- `IsingAnyon()`: transverse-field Ising *spin* chain — full 2^N product basis.
-- `OBFAnyon()`: O'Brien-Fendley spin-1/2 chain — full 2^N product basis.
-- `HeisenbergAnyon()`: spin-1/2 Heisenberg (XXZ) chain — full 2^N product basis.
+Each basis type defines its own (possibly constrained) Hilbert space via `anyon_basis`:
+- `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent τ (`1`)s, dimension ~ φ^N (model tag `:Fibonacci`).
+- `SpinHalf()`: spin-1/2 chains with the full 2^N product basis; the Hamiltonian is selected by `model_type`:
+  `:Ising` (transverse-field Ising chain), `:OBF` (O'Brien-Fendley chain) or `:Heisenberg` (XXZ chain).
 
 # Fields
-- `anyon_type::AbstractAnyonType`: The type of anyon, e.g., `FibonacciAnyon()` or `IsingAnyon()`.
+- `basis::AbstractAnyonBasis`: The basis instance, e.g., `FibonacciAnyon()` or `SpinHalf()`.
 - `N::Int`: The number of sites in the chain.
 - `pbc::Bool`: A boolean indicating whether periodic boundary conditions are applied (`true`) or not (`false`).
 - `measure_operator::Symbol`: The operator type used for defining the Hamiltonian, e.g., `:Antiferro` or `:Ferro` for Fibonacci anyons.
-- `params::Dict{Symbol, Any}`: Additional model parameters (e.g., `J`, `h` for Ising model, `J`, `Jz`, `h` for Heisenberg chain).
+- `params::Dict{Symbol,Float64}`: Additional model parameters (e.g., `J`, `h` for the Ising chain, `J`, `Jz`, `h` for the Heisenberg chain, `λ`, `λI` for the OBF chain).
 
 # Examples
 ```julia
@@ -54,23 +56,23 @@ Each anyon type defines its own (possibly constrained) Hilbert space via `anyon_
 model_fibo = AnyonModel(FibonacciAnyon(), 6; pbc=true, measure_operator=:Antiferro)
 
 # Ising model with custom couplings
-model_ising = AnyonModel(IsingAnyon(), 10; pbc=true, measure_operator=:X, J=1.0, h=0.5)
+model_ising = AnyonModel(SpinHalf(), 10; model_type=:Ising, pbc=true, measure_operator=:X, J=1.0, h=0.5)
 
 # Heisenberg (XXZ) chain
-model_heis = AnyonModel(HeisenbergAnyon(), 10; pbc=true, J=1.0, Jz=0.5, h=0.1)
+model_heis = AnyonModel(SpinHalf(), 10; model_type=:Heisenberg, pbc=true, J=1.0, Jz=0.5, h=0.1)
 
 # Access parameters
 model_ising.params[:J]  # returns 1.0
 ```
 """
-struct AnyonModel{AT<:AbstractAnyonType}
-    anyon_type::AT
+struct AnyonModel{B<:AbstractAnyonBasis,M}
+    basis::B
     N::Int
     pbc::Bool
     measure_operator::Symbol
     params::Dict{Symbol,Float64}
     function AnyonModel(
-        anyon_type::FibonacciAnyon,
+        basis::FibonacciAnyon,
         N::Int;
         pbc::Bool = true,
         measure_operator::Symbol = :Antiferro,
@@ -79,45 +81,32 @@ struct AnyonModel{AT<:AbstractAnyonType}
         @assert N > 0 "N is expected to be greater than 0, but got $N"
         @assert measure_operator ∈ [:Ferro, :Antiferro, :reset] "measure_operator must be :Ferro, :Antiferro, :reset for Fibonacci anyons"
         params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
-        return new{FibonacciAnyon}(anyon_type, N, pbc, measure_operator, params)
+        return new{FibonacciAnyon,:Fibonacci}(basis, N, pbc, measure_operator, params)
     end
     function AnyonModel(
-        anyon_type::IsingAnyon,
+        basis::SpinHalf,
         N::Int;
+        model_type::Symbol,
         pbc::Bool = true,
         measure_operator::Symbol = :X,
         kwargs...,
     )
+        @assert model_type ∈ (:Ising, :OBF, :Heisenberg) "model_type must be one of :Ising, :OBF, :Heisenberg, but got $model_type"
         @assert N > 0 "N is expected to be greater than 0, but got $N"
-        @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
+        if model_type === :OBF
+            @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
+        elseif model_type === :Heisenberg
+            @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Heisenberg chain"
+        else # :Ising
+            @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
+        end
         params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
-        return new{IsingAnyon}(anyon_type, N, pbc, measure_operator, params)
-    end
-    function AnyonModel(
-        anyon_type::OBFAnyon,
-        N::Int;
-        pbc::Bool = true,
-        measure_operator::Symbol = :X,
-        kwargs...,
-    )
-        @assert N > 0 "N is expected to be greater than 0, but got $N"
-        @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
-        params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
-        return new{OBFAnyon}(anyon_type, N, pbc, measure_operator, params)
-    end
-    function AnyonModel(
-        anyon_type::HeisenbergAnyon,
-        N::Int;
-        pbc::Bool = true,
-        measure_operator::Symbol = :X,
-        kwargs...,
-    )
-        @assert N > 0 "N is expected to be greater than 0, but got $N"
-        @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Heisenberg chain"
-        params = Dict{Symbol,Float64}(k => Float64(v) for (k, v) in kwargs)
-        return new{HeisenbergAnyon}(anyon_type, N, pbc, measure_operator, params)
+        return new{SpinHalf,model_type}(basis, N, pbc, measure_operator, params)
     end
 end
+
+# Model tag accessor: returns :Fibonacci, :Ising, :OBF or :Heisenberg.
+model_type(::AnyonModel{B,M}) where {B,M} = M
 
 # Helper function to get parameter with default value
 get_interaction_param(model::AnyonModel, key::Symbol, default) =
@@ -125,7 +114,7 @@ get_interaction_param(model::AnyonModel, key::Symbol, default) =
 
 """
     anyon_basis(model::AnyonModel; symmetry_block=nothing)
-    anyon_basis(anyon_type::AbstractAnyonType, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_basis(basis::AbstractAnyonBasis, ::Type{T}; pbc::Bool=true, symmetry_block=nothing) where {N, T <: BitStr{N}}
 
 Generate basis states for an anyon chain model.
 
@@ -133,11 +122,11 @@ This function provides two interfaces: a high-level one that takes an `AnyonMode
 
 # Arguments
 ## High-level interface
-- `model::AnyonModel`: An `AnyonModel` object containing the system parameters (anyon type, size, and boundary conditions).
+- `model::AnyonModel`: An `AnyonModel` object containing the system parameters (basis type, size, and boundary conditions).
 - `symmetry_block`: Optional. The topological charge sector to filter the basis. Not yet implemented.
 
 ## Low-level interface
-- `anyon_type::AbstractAnyonType`: The type of anyon, e.g., `FibonacciAnyon()` or `IsingAnyon()`.
+- `basis::AbstractAnyonBasis`: The basis instance, e.g., `FibonacciAnyon()` or `SpinHalf()`.
 - `T::Type`: The `BitStr` type specifying the chain length `N`.
 - `pbc::Bool=true`: Specifies whether to use periodic (`true`) or open (`false`) boundary conditions.
 - `symmetry_block`: Optional. The topological charge sector.
@@ -155,7 +144,7 @@ julia> model = AnyonModel(FibonacciAnyon(), 4; pbc=true); basis = anyon_basis(mo
 julia> basis_fibo = anyon_basis(FibonacciAnyon(), BitStr{4, Int}; pbc=true); length(basis_fibo)
 7
 
-julia> model_ising = AnyonModel(IsingAnyon(), 4; pbc=true); basis_ising = anyon_basis(model_ising); length(basis_ising)
+julia> model_ising = AnyonModel(SpinHalf(), 4; model_type=:Ising, pbc=true); basis_ising = anyon_basis(model_ising); length(basis_ising)
 16
 ```
 """
@@ -190,25 +179,7 @@ function anyon_basis(
 end
 
 function anyon_basis(
-    ::IsingAnyon,
-    ::Type{T};
-    pbc::Bool = true,
-    symmetry_block = nothing,
-) where {N,T<:BitStr{N}}
-    return spin_half_basis(T)
-end
-
-function anyon_basis(
-    ::OBFAnyon,
-    ::Type{T};
-    pbc::Bool = true,
-    symmetry_block = nothing,
-) where {N,T<:BitStr{N}}
-    return spin_half_basis(T)
-end
-
-function anyon_basis(
-    ::HeisenbergAnyon,
+    ::SpinHalf,
     ::Type{T};
     pbc::Bool = true,
     symmetry_block = nothing,
@@ -220,7 +191,7 @@ end
 spin_half_basis(::Type{T}) where {N,T<:BitStr{N}} = T[T(i) for i = 0:(2^N-1)]
 
 anyon_basis(model::AnyonModel; symmetry_block = nothing) = anyon_basis(
-    model.anyon_type,
+    model.basis,
     BitStr{model.N,Int};
     pbc = model.pbc,
     symmetry_block = symmetry_block,
@@ -315,7 +286,7 @@ Fsymmetry_coef(
     model::AnyonModel{FibonacciAnyon},
     state::T,
     base::T,
-) where {N,T<:BitStr{N}} = Fsymmetry_coef(model.anyon_type, state, base; pbc = model.pbc)
+) where {N,T<:BitStr{N}} = Fsymmetry_coef(model.basis, state, base; pbc = model.pbc)
 
 """
     topological_symmetry_basismap(model::AnyonModel{FibonacciAnyon}, state::T) where {N, T <: BitStr{N}}
@@ -399,14 +370,14 @@ function topological_charge_operator(
 end
 
 """
-    anyon_basis(AT::AbstractAnyonType, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
+    anyon_basis(AT::AbstractAnyonBasis, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
     anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing)
 
 Generate basis states in specific momentum sector `k` and topological sector `symmetry_block`.
 
 # Arguments
 ## Low-level interface
-- `AT::AbstractAnyonType`: Anyon type instance (e.g., `FibonacciAnyon()`, `IsingAnyon()`)
+- `AT::AbstractAnyonBasis`: Basis type instance (e.g., `FibonacciAnyon()`, `SpinHalf()`)
 - `T::Type`: BitStr type specifying chain length N
 - `k::Int`: Momentum sector (0 ≤ k ≤ N-1)
 - `symmetry_block`: Topological charge sector (optional)
@@ -433,7 +404,7 @@ true
 ```
 """
 function anyon_basis(
-    AT::AbstractAnyonType,
+    AT::AbstractAnyonBasis,
     ::Type{T},
     k::Int;
     symmetry_block = nothing,
@@ -467,7 +438,7 @@ function anyon_basis(
     return basisK, basis_dic
 end
 anyon_basis(model::AnyonModel, k::Int; symmetry_block = nothing) =
-    anyon_basis(model.anyon_type, BitStr{model.N,Int}, k; symmetry_block = symmetry_block)
+    anyon_basis(model.basis, BitStr{model.N,Int}, k; symmetry_block = symmetry_block)
 
 function cyclebits(state::T) where {N,T<:BitStr{N}}
     #params: t is an integer, N is the length of the binary string
@@ -503,7 +474,7 @@ function process_join(a, b)
 end
 
 # create Fibonacci basis composed of multiple disjoint sub-chains
-function joint_basis(AT::AbstractAnyonType, lengthlis::Vector{Int}, pbc::Bool = false;)
+function joint_basis(AT::AbstractAnyonBasis, lengthlis::Vector{Int}, pbc::Bool = false;)
     # The element order in lengthlis doesn't matter, i.e., [2, 3] is only different with [3, 2] in basis order. Only your input state must consistent with the basis order.
     if isempty(lengthlis)
         return BitStr{0,Int}[]
@@ -558,8 +529,8 @@ takeenviron(x, mask::BitStr{l}) where {l} = x & (~mask)
 takesystem(x, mask::BitStr{l}) where {l} = (x & mask)
 
 """
-    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
-    anyon_rdm(AT::AbstractAnyonType, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonBasis, ::Type{T}, subsystems::Vector{Int64}, state::Vector{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    anyon_rdm(AT::AbstractAnyonBasis, ::Type{T}, subsystems::Vector{Int64}, state::Matrix{ET}; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Union{Vector{ET}, Matrix{ET}})
 
 Compute the reduced density matrix (RDM) for a specified subsystem.
@@ -573,7 +544,7 @@ This function can operate on both state vectors and density matrices.
 - `state::Union{Vector{ET}, Matrix{ET}}`: The quantum state, either as a state vector or a full density matrix.
 
 ## Low-level interface
-- `AT::AbstractAnyonType`: The anyon type, e.g., `FibonacciAnyon()`.
+- `AT::AbstractAnyonBasis`: The anyon type, e.g., `FibonacciAnyon()`.
 - `T::Type`: The `BitStr` type specifying the total chain length `N`.
 - `subsystems::Vector{Int64}`: The indices of the subsystem sites.
 - `state::Union{Vector{ET}, Matrix{ET}}`: The quantum state vector or density matrix.
@@ -604,7 +575,7 @@ true
 ```
 """
 function anyon_rdm(
-    AT::AbstractAnyonType,
+    AT::AbstractAnyonBasis,
     ::Type{T},
     subsystems::Vector{Int64},
     state::Vector{ET},
@@ -613,7 +584,7 @@ function anyon_rdm(
     # Usually subsystem indices count from the right of binary string.
     # The function is to take common environment parts of the total basis, get the index of system parts in reduced basis, and then calculate the reduced density matrix.
 
-    unsorted_basis = anyon_basis(AT, T, pbc = pbc) # Input like: FibonacciAnyon(), IsingAnyon(), not the type, the instance. 
+    unsorted_basis = anyon_basis(AT, T, pbc = pbc) # Input like: FibonacciAnyon(), SpinHalf(), not the type, but the instance. 
     subsystems=connected_components(subsystems)
     lengthlis=length.(subsystems)
     subsystems=vcat(subsystems...)
@@ -666,10 +637,10 @@ function anyon_rdm(
     return reduced_dm
 end
 anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vector{ET}) where {ET} =
-    anyon_rdm(model.anyon_type, BitStr{model.N,Int}, subsystems, state, model.pbc;)
+    anyon_rdm(model.basis, BitStr{model.N,Int}, subsystems, state, model.pbc;)
 
 function anyon_rdm(
-    AT::AbstractAnyonType,
+    AT::AbstractAnyonBasis,
     ::Type{T},
     subsystems::Vector{Int64},
     state::Matrix{ET},
@@ -730,10 +701,10 @@ function anyon_rdm(
     return reduced_dm
 end
 anyon_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Matrix{ET}) where {ET} =
-    anyon_rdm(model.anyon_type, BitStr{model.N,Int}, subsystems, state, model.pbc;)
+    anyon_rdm(model.basis, BitStr{model.N,Int}, subsystems, state, model.pbc;)
 
 """
-    mapst_sec2tot(AT::AbstractAnyonType, ::Type{T}, state::Vector{ET}, k::Int; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
+    mapst_sec2tot(AT::AbstractAnyonBasis, ::Type{T}, state::Vector{ET}, k::Int; pbc::Bool=true) where {N, T <: BitStr{N}, ET}
     mapst_sec2tot(model::AnyonModel, state::Vector{ET}, k::Int)
 
 Map state in momentum sector to total Hilbert space.
@@ -745,7 +716,7 @@ Map state in momentum sector to total Hilbert space.
 - `k::Int`: The momentum sector index (0 ≤ k ≤ N-1)
 
 ## Low-level interface
-- `AT::AbstractAnyonType`: The anyon type.
+- `AT::AbstractAnyonBasis`: The anyon type.
 - `T::Type`: The `BitStr` type specifying the chain length `N`.
 - `state::Vector{ET}`: The state vector in the momentum sector.
 - `k::Int`: The momentum sector index.
@@ -767,7 +738,7 @@ true
 ```
 """
 function mapst_sec2tot(
-    AT::AbstractAnyonType,
+    AT::AbstractAnyonBasis,
     ::Type{T},
     state::Vector{ET},
     k::Int;
@@ -808,7 +779,7 @@ function mapst_sec2tot(
 end
 # High-level wrapper for mapst_sec2tot
 mapst_sec2tot(model::AnyonModel, state::Vector{ET}, k::Int) where {ET} =
-    mapst_sec2tot(model.anyon_type, BitStr{model.N,Int}, state, k; pbc = model.pbc)
+    mapst_sec2tot(model.basis, BitStr{model.N,Int}, state, k; pbc = model.pbc)
 
 """
     anyon_rdm_sec(model::AnyonModel, subsystems::Vector{Int64}, kstate::Vector{ET}, k::Int) where {ET}
@@ -847,7 +818,7 @@ function anyon_rdm_sec(
     subsystems::Vector{Int64},
     kstate::Vector{ET},
     k::Int;
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     l = length(anyon_basis(model, k)[1])
     @assert length(kstate) == l "state length is expected to be $(l), but got $(length(kstate))"
     state = mapst_sec2tot(model, kstate, k)
@@ -857,8 +828,8 @@ end
 
 # create Fibonacci basis composed of multiple disjoint chains with different basis type
 function joint_basis(
-    AT1::AbstractAnyonType,
-    AT2::AbstractAnyonType,
+    AT1::AbstractAnyonBasis,
+    AT2::AbstractAnyonBasis,
     lengthlisA::Vector{Int},
     lengthlisB::Vector{Int};
     subApbc::Bool = false,
@@ -883,15 +854,15 @@ function joint_basis(
 end
 
 """
-    disjoint_rdm(AT1::AbstractAnyonType, AT2::AbstractAnyonType, ::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {N1, N2, T1 <: BitStr{N1}, T2 <: BitStr{N2}, ET}
+    disjoint_rdm(AT1::AbstractAnyonBasis, AT2::AbstractAnyonBasis, ::Type{T1}, ::Type{T2}, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET}; totalsubApbc::Bool=false, totalsubBpbc::Bool=false) where {N1, N2, T1 <: BitStr{N1}, T2 <: BitStr{N2}, ET}
     disjoint_rdm(model1::AnyonModel, model2::AnyonModel, subsystemsA::Vector{Int64}, subsystemsB::Vector{Int64}, state::Vector{ET})
 
 Compute reduced density matrix for two joint different systems, or two parallel chains.
 
 # Arguments
 ## Low-level interface
-- `AT1::AbstractAnyonType`: Anyon type for subsystem A
-- `AT2::AbstractAnyonType`: Anyon type for subsystem B
+- `AT1::AbstractAnyonBasis`: Anyon type for subsystem A
+- `AT2::AbstractAnyonBasis`: Anyon type for subsystem B
 - `T1::Type`: BitStr type specifying chain length N1
 - `T2::Type`: BitStr type specifying chain length N2
 - `subsystemsA::Vector{Int64}`: Indices of subsystem A sites to keep
@@ -998,7 +969,7 @@ function disjoint_rdm(
         reduced_basis = sort(
             move_subsystem.(
                 newT,
-                joint_basis(model2.anyon_type, lengthlisB_orig, totalsubBpbc),
+                joint_basis(model2.basis, lengthlisB_orig, totalsubBpbc),
                 Ref(subsystemsB_flat),
             ),
         )
@@ -1007,7 +978,7 @@ function disjoint_rdm(
         reduced_basis = sort(
             move_subsystem.(
                 newT,
-                joint_basis(model1.anyon_type, lengthlisA, totalsubApbc),
+                joint_basis(model1.basis, lengthlisA, totalsubApbc),
                 Ref(subsystemsA_flat),
             ),
         )
@@ -1017,8 +988,8 @@ function disjoint_rdm(
             move_subsystem.(
                 newT,
                 joint_basis(
-                    model1.anyon_type,
-                    model2.anyon_type,
+                    model1.basis,
+                    model2.basis,
                     lengthlisA,
                     lengthlisB,
                     subApbc = totalsubApbc,

@@ -6,28 +6,28 @@ using Arpack
 using Random
 using LsqFit
 
-@testset "OBFAnyon basis" begin
+@testset "OBF basis" begin
     N = 4
-    model = AnyonModel(OBFAnyon(), N, pbc = false)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, pbc = false)
     basis = anyon_basis(model)
     @test length(basis) == 2^(N)
     @test basis[1] == BitStr{N}(0b0000)
     @test basis[end] == BitStr{N}(0b1111)
 end
 
-@testset "OBFAnyon Hamiltonian" begin
+@testset "OBF Hamiltonian" begin
     N = 4
     λ = 0.0
-    model = AnyonModel(OBFAnyon(), N, λ = λ, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = λ, pbc = true)
     H = anyon_ham(model)
     # Test equivalence to Ising model at λ=0
-    model_Ising = AnyonModel(IsingAnyon(), N, pbc = true)
+    model_Ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     H_Ising = anyon_ham(model_Ising)
     @test H ≈ H_Ising
 
     N = 8
     λ = 0.1
-    model = AnyonModel(OBFAnyon(), N, λ = λ, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = λ, pbc = true)
     H = anyon_ham_sparse(model)
     # Test ground state energy against known results
     energy, states = Arpack.eigs(H, nev = 1, which = :SR)
@@ -38,7 +38,7 @@ end
 
     N = 10
     λ = 0.856
-    model = AnyonModel(OBFAnyon(), N, λ = λ, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = λ, pbc = true)
     H = anyon_ham_sparse(model)
     energy, states = Arpack.eigs(H, nev = 1, which = :SR)
     GS = states[:, 1]
@@ -47,7 +47,7 @@ end
     @test isapprox(cent, 0.73; atol = 1e-2)
 
     λ = 1.0
-    model = AnyonModel(OBFAnyon(), N, λ = λ, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = λ, pbc = true)
     H = anyon_ham_sparse(model)
     energy, states = Arpack.eigs(H, nev = 1, which = :SR)
     @test isapprox(energy[1], -N; atol = 1e-7)
@@ -65,7 +65,7 @@ end
     τ = 1.0
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-    model_XZZ = AnyonModel(OBFAnyon(), N, pbc = true, measure_operator = :XZZ)
+    model_XZZ = AnyonModel(SpinHalf(), N; model_type=:OBF, pbc = true, measure_operator = :XZZ)
     # At idx=1: X_1 Z_2 Z_3
     expected_matrix = cstτ * I(8) - coef * σx ⊗ σz ⊗ σz
     Mpobc = FibonacciChain.measure_matrix(model_XZZ, τ, 1, false)
@@ -79,7 +79,7 @@ end
 
     # measuring ZZX (Z_i Z_{i+1} X_{i+2})
     coef = sinh(τ/2) / √(2cosh(τ))
-    model_ZZX = AnyonModel(OBFAnyon(), N, pbc = true, measure_operator = :ZZX)
+    model_ZZX = AnyonModel(SpinHalf(), N; model_type=:OBF, pbc = true, measure_operator = :ZZX)
     # At idx=1: Z_1 Z_2 X_3
     expected_matrix = cstτ * I(8) - coef * σz ⊗ σz ⊗ σx
     Mpobc = FibonacciChain.measure_matrix(model_ZZX, τ, 1, false)
@@ -93,8 +93,8 @@ end
 
     # Test XZZ/ZZX with larger system and different index
     N4 = 4
-    model_XZZ4 = AnyonModel(OBFAnyon(), N4, pbc = true, measure_operator = :XZZ)
-    model_ZZX4 = AnyonModel(OBFAnyon(), N4, pbc = true, measure_operator = :ZZX)
+    model_XZZ4 = AnyonModel(SpinHalf(), N4; model_type=:OBF, pbc = true, measure_operator = :XZZ)
+    model_ZZX4 = AnyonModel(SpinHalf(), N4; model_type=:OBF, pbc = true, measure_operator = :ZZX)
     # At idx=2: X_2 Z_3 Z_4
     expected_XZZ = cstτ * I(16) - sinh(τ/2) / √(2cosh(τ)) * I(2) ⊗ σx ⊗ σz ⊗ σz
     @test FibonacciChain.measure_matrix(model_XZZ4, τ, 2, false) ≈ expected_XZZ
@@ -103,8 +103,8 @@ end
     @test FibonacciChain.measure_matrix(model_ZZX4, τ, 2, false) ≈ expected_ZZX
 end
 
-@testset "measuremap OBFAnyon" begin
-    # Test OBFAnyon measuremap with :XZZ, :ZZX, and :OBF operators
+@testset "measuremap OBF" begin
+    # Test OBF measuremap with :XZZ, :ZZX, and :OBF operators
     N = 4
     τ = 1.0
     sign = false
@@ -114,7 +114,7 @@ end
     coef = sinh(τ/2) / √(2cosh(τ))
 
     # Test :XZZ operator
-    model_xzz = AnyonModel(OBFAnyon(), N; pbc = false, measure_operator = :XZZ)
+    model_xzz = AnyonModel(SpinHalf(), N; model_type=:OBF, pbc = false, measure_operator = :XZZ)
     state = ones(2^N)
     idx = 1
     output_xzz = measuremap(model_xzz, τ, state, idx, sign)
@@ -126,7 +126,7 @@ end
     @test sum(output_xzz) > 0  # State should be non-trivial
 
     # Test :ZZX operator
-    model_zzx = AnyonModel(OBFAnyon(), N; pbc = false, measure_operator = :ZZX)
+    model_zzx = AnyonModel(SpinHalf(), N; model_type=:OBF, pbc = false, measure_operator = :ZZX)
     output_zzx = measuremap(model_zzx, τ, state, idx, sign)
 
     # ZZX flips site 3 (idx+2), with coefficient depending on ZZ eigenvalue of sites 1,2
@@ -168,7 +168,7 @@ end
     N = 10
     τ = atanh(1/√2) # critical point for IsingX
 
-    model = AnyonModel(OBFAnyon(), N, λ = 0.001, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.001, pbc = true)
     ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
@@ -198,7 +198,7 @@ end
     # τ = atanh(1/√2)
     τ = 0.1 # small τ have more accurate c
 
-    model = AnyonModel(OBFAnyon(), N, λ = 0.856, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.856, pbc = true)
     ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
@@ -229,7 +229,7 @@ end
     N = 10
     τ = atanh(1/√2)
 
-    model = AnyonModel(OBFAnyon(), N, λ = 0.65, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.65, pbc = true)
     ψ, sites = initial_mps(N)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0

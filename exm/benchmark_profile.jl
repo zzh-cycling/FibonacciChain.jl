@@ -3,10 +3,10 @@ using BenchmarkTools
 using Profile
 using Random
 
-model_X = AnyonModel(OBFAnyon(), 12, pbc = true, measure_operator = :X)
+model_X = AnyonModel(SpinHalf(), 12, model_type = :OBF, pbc = true, measure_operator = :X)
 @btime measuremap(model_X, 0.5, ones(2^12), 1, false)
 
-model_XZZ = AnyonModel(OBFAnyon(), 12, pbc = true, measure_operator = :XZZ)
+model_XZZ = AnyonModel(SpinHalf(), 12, model_type = :OBF, pbc = true, measure_operator = :XZZ)
 @btime measuremap(model_XZZ, 0.5, ones(2^12), 1, false)
 @profile for _ = 1:1000
     measuremap(model_XZZ, 0.5, ones(2^12), 1, false)
@@ -18,7 +18,7 @@ end
 t = 10
 measure_config = MeasureConfig(τ = 0.5, t₂ = t, mode = :sample)
 samples = BitMatrix(zeros(Int8, 14t, 10))
-model = AnyonModel(OBFAnyon(), 10, λ = 0.5, pbc = true)
+model = AnyonModel(SpinHalf(), 10, model_type = :OBF, λ = 0.5, pbc = true)
 st = zeros(length(anyon_basis(model)))
 st[1] = 1.0
 @btime bulk_evolution(model, st, measure_config, samples)

@@ -5,7 +5,7 @@
 [![Build Status](https://github.com/zzh-cycling/FibonacciChain.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zzh-cycling/FibonacciChain.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl)
 
-This package is designed to simulate interacting anyons based on the idea that, like in the Heisenberg model where singlet states have lower energy, here we choose the trivial fusion outcome as the lower energy state. Currently we support three types of anyons: $SU(2)_2$, $SU(2)_3$, and $SU(2)_\infty$, corresponding to Ising anyons / Majorana fermions, Fibonacci anyons, and normal spin-$1/2$ basis, respectively.
+This package is designed to simulate interacting anyons. Like in the Heisenberg model where singlet states have lower energy, we could design the trivial fusion outcome as the lower energy state. Currently we support two types of basis: Fibonacci constraint basis and normal spin-$1/2$ basis, for simulating Ising anyon/Majorana fermions chain $SU(2)_2$, Fibonacci anyon chain $SU(2)_3$, and Heisenberg chain $SU(2)_\infty$.
 
 Ref: Phys. Rev. Lett. 98, 160409 [DOI](https://doi.org/10.1103/PhysRevLett.98.160409)
 
@@ -49,14 +49,8 @@ For more examples and API details, see the [documentation](https://zzh-cycling.g
 
 ## Features
 
-- **Exact Diagonalization**: Full quantum many-body calculations for small systems.
+- **Exact Diagonalization**: Full quantum many-body calculations for small systems utilizing constraint Hilbert space.
 - **Matrix Product States (MPS)**: Efficient simulation of larger systems using [ITensors.jl](https://itensor.github.io/ITensors.jl/stable/).
-- **Measurement Protocols**: Quantum measurement and post-selection dynamics.
-- **Topological Properties**: Topological symmetry sector analysis.
+- **Measurement dynamics**: Both for Born random sampling and post selection clean trajectory.
 - **Anyon Operations**: Anyonic braiding, exchange statistics, and fusion operations.
-
-## Citation
-
-If you use this package in your research, please cite the original reference:
-
-> Levin, M., & Wen, X. G. (2007). Phys. Rev. Lett. 98, 160409.
+- **Topological symmetry**: Topological symmetry sector analysis.

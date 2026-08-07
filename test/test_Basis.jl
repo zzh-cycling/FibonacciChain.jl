@@ -204,17 +204,17 @@ end
         join(l1, l2) for l1 in anyon_basis(AnyonModel(FibonacciAnyon(), 1, pbc = false)) for
         l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))
     ]
-    res = FibonacciChain.joint_basis(IsingAnyon(), IsingAnyon(), [1], [2])
+    res = FibonacciChain.joint_basis(SpinHalf(), SpinHalf(), [1], [2])
     @test res == vec([
-        join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc = false)) for
-        l2 in anyon_basis(AnyonModel(IsingAnyon(), 2, pbc = false))
+        join(l1, l2) for l1 in anyon_basis(AnyonModel(SpinHalf(), 1; model_type=:Ising, pbc = false)) for
+        l2 in anyon_basis(AnyonModel(SpinHalf(), 2; model_type=:Ising, pbc = false))
     ])
-    res = FibonacciChain.joint_basis(IsingAnyon(), FibonacciAnyon(), [1], [2])
+    res = FibonacciChain.joint_basis(SpinHalf(), FibonacciAnyon(), [1], [2])
     @test res == vec([
-        join(l1, l2) for l1 in anyon_basis(AnyonModel(IsingAnyon(), 1, pbc = false)) for
+        join(l1, l2) for l1 in anyon_basis(AnyonModel(SpinHalf(), 1; model_type=:Ising, pbc = false)) for
         l2 in anyon_basis(AnyonModel(FibonacciAnyon(), 2, pbc = false))
     ])
-    res = FibonacciChain.joint_basis(FibonacciAnyon(), IsingAnyon(), [1], [2])
+    res = FibonacciChain.joint_basis(FibonacciAnyon(), SpinHalf(), [1], [2])
 
     # move_subsystem
     res = FibonacciChain.move_subsystem(BitStr{5,Int}, bit"111", [1, 2, 5])
@@ -257,7 +257,7 @@ end
     st[1]=1;
     st[end]=1;
     st /= norm(st)  # Normalize the state
-    model = AnyonModel(IsingAnyon(), N)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising)
     rdm = anyon_rdm(model, Int[], st)
     @test rdm ≈ ones(Float64, 1, 1)
 
@@ -281,7 +281,7 @@ end
     rdm = anyon_rdm(model, collect(1:N), st*st')
     @test rdm ≈ st*st'
 
-    model2 = AnyonModel(IsingAnyon(), N)
+    model2 = AnyonModel(SpinHalf(), N; model_type=:Ising)
     st = zeros(2^N);
     st[1]=1;
     st[end]=1;
@@ -293,7 +293,7 @@ end
     st[1]=1;
     st[end]=1;
     st /= norm(st)  # Normalize the state
-    rdm = anyon_rdm(AnyonModel(IsingAnyon(), 2), [1], st*st') ≈ 0.5 * I(2)
+    rdm = anyon_rdm(AnyonModel(SpinHalf(), 2; model_type=:Ising), [1], st*st') ≈ 0.5 * I(2)
 end
 
 @testset "anyon_basis_K" begin
@@ -360,8 +360,8 @@ end
 @testset "disjoint_rdm_Ising" begin
     N1 = 4
     N2 = 4
-    model1 = AnyonModel(IsingAnyon(), N1)
-    model2 = AnyonModel(IsingAnyon(), N2)
+    model1 = AnyonModel(SpinHalf(), N1; model_type=:Ising)
+    model2 = AnyonModel(SpinHalf(), N2; model_type=:Ising)
     state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2)));
     state[1] = 1;
     state[end] = 1
@@ -385,7 +385,7 @@ end
     N1 = 4
     N2 = 4
     model1 = AnyonModel(FibonacciAnyon(), N1)
-    model2 = AnyonModel(IsingAnyon(), N2)
+    model2 = AnyonModel(SpinHalf(), N2; model_type=:Ising)
     state = zeros(length(anyon_basis(model1)) * length(anyon_basis(model2)));
     state[1] = 1;
     state[end] = 1
@@ -415,7 +415,7 @@ end
 
 @testset "disjoint_rdm and ref qubit" begin
     L=6
-    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, pbc = true, measure_operator = :X)
     t₂ = 10
     sample = BitMatrix(ones(Int, 2t₂, L))
     τ = log(1 + √2)
@@ -426,7 +426,7 @@ end
     mo = bulk_evolution(model, initial_state, config, sample)
     final_state = mo.state
 
-    ref_model = AnyonModel(IsingAnyon(), 2, pbc = false, measure_operator = :X)
+    ref_model = AnyonModel(SpinHalf(), 2; model_type=:Ising, pbc = false, measure_operator = :X)
     ref_config = MeasureConfig(
         τ = τ,
         t₂ = 8,

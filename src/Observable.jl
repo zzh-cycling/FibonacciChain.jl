@@ -49,7 +49,7 @@ end
 Calculate entanglement entropy profile along the chain for given quantum state or density matrix.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix in anyon basis
 
 # Returns
@@ -120,7 +120,7 @@ end
 Generate translation operator matrix for anyon basis states.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 
 # Returns
 - `Matrix{Float64}`: Translation matrix mapping each basis state to its translated version
@@ -144,7 +144,7 @@ end
 Generate spatial inversion operator matrix for anyon basis states.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 
 # Returns
 - `Matrix{Float64}`: Inversion matrix mapping each basis state to its spatially reflected version
@@ -330,7 +330,7 @@ end
 Calculate mutual information between two sites as spatial correlation measure.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `state::Union{Vector{ET}, Matrix{ET}}`: Quantum state vector or density matrix
 - `site1::Int64`: First site index (1 ≤ site1 ≤ N)
 - `site2::Int64`: Second site index (1 ≤ site2 ≤ N, site2 ≠ site1)
@@ -367,7 +367,7 @@ end
 Calculate temporal correlation using state with two reference qubits.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `state_addref2::Vector{ET}`: Quantum state with two reference qubits added
 
 # Returns
@@ -392,7 +392,7 @@ end
 Calculate spatio-temporal correlation using state with three reference qubits.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `state_addref3::Vector{ET}`: Quantum state with three reference qubits added
 - `spatial::Bool=false`: If true, calculate only spatial correlation
 - `temporal::Bool=false`: If true, calculate only temporal correlation
@@ -478,7 +478,7 @@ end
 function anti_ferro_order(
     model::AnyonModel{AT},
     ::Type{T},
-) where {N,T<:BitStr{N},AT<:AbstractAnyonType}
+) where {N,T<:BitStr{N},AT<:AbstractAnyonBasis}
     #param N: Number of sites
     #return:  antiferromagnetic order diagonal elements
     #The eigenvectors of this operator are going from -N to N, increasing by 2, totally N+1 eigenvectors. Number of each eigenvalues is N choose k, 
@@ -496,7 +496,7 @@ function anti_ferro_order(
 
     return anti_ferro
 end
-anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonType} =
+anti_ferro_order(model::AnyonModel{AT}) where {AT<:AbstractAnyonBasis} =
     anti_ferro_order(model, BitStr{model.N,Int})
 
 
@@ -509,7 +509,7 @@ Computes I(A:B) = S_A + S_B - S_AB where S represents the Von Neumann entropy.
 Mutual information quantifies the total correlation between subsystems A and B.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `subsystems::Tuple{Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites)
 - `state::Vector{ET}`: Quantum state vector
 
@@ -556,7 +556,7 @@ Computes I(A:B:C) = S_A + S_B + S_C - S_AB - S_BC - S_AC + S_ABC.
 This measures genuine three-partie quantum correlations.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `subsystems::Tuple{Vector{Int64}, Vector{Int64}, Vector{Int64}}`: Tuple of (A_sites, B_sites, C_sites)
 - `state::Vector{ET}`: Quantum state vector
 

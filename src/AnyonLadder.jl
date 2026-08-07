@@ -130,7 +130,7 @@ end
 Compute reduced density matrix for specified subsystem from vectorized density matrix.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `subsystems::Vector{Int64}`: Indices of subsystem sites to trace out
 - `state::Vector{ET}`: Full density matrix state in vectorized form
 
@@ -158,7 +158,7 @@ end
 Apply translation operator to vectorized density matrix state.
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `state::Vector{ET}`: Density matrix state in vectorized form
 
 # Returns

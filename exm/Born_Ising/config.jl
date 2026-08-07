@@ -10,7 +10,7 @@ const τlis = let τ = atanh.(γlis)
     τ
 end
 
-ising_model(L::Int) = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
+ising_model(L::Int) = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true, measure_operator = :X)
 
 # Shared (D, inds, avg_range) table keyed by τ index
 function get_cfg_params_Born(ind, L)

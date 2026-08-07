@@ -140,7 +140,7 @@ function reference_measuremap(
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
     else
-        error("Unknown measure class: $(model.anyon_type)")
+        error("Unknown measure class: $(model.basis)")
     end
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
     @assert num_digits(newT) == N + k_old "The output basis should be with length $(N + k_old), but got $(num_digits(newT))"
@@ -435,12 +435,7 @@ function add_reference_qubits_reset(
     verbose && @info "Using reset way to add reference qubit"
     # NEED to do RESET qubit to 0 or +!!! then concat with the new reference qubit. 
 
-    reset_model = AnyonModel(
-        model.anyon_type,
-        model.N,
-        measure_operator = reset_type(model),
-        pbc = model.pbc,
-    )
+    reset_model = _with_measure_operator(model, reset_type(model))
     state_after_0 = reference_measuremap(
         reset_model,
         1000.0,
@@ -491,7 +486,13 @@ function add_reference_qubits_reset(
 end
 
 reset_type(model::AnyonModel{FibonacciAnyon}) = :reset
-reset_type(model::AnyonModel{IsingAnyon}) = (model.measure_operator == :X) ? :X : :reset
+reset_type(model::AnyonModel{SpinHalf,:Ising}) = (model.measure_operator == :X) ? :X : :reset
+
+# Internal helper: rebuild a model of the same kind with a different measure_operator.
+_with_measure_operator(model::AnyonModel{FibonacciAnyon}, measure_operator::Symbol) =
+    AnyonModel(model.basis, model.N; pbc = model.pbc, measure_operator = measure_operator)
+_with_measure_operator(model::AnyonModel{SpinHalf,M}, measure_operator::Symbol) where {M} =
+    AnyonModel(model.basis, model.N; model_type = M, pbc = model.pbc, measure_operator = measure_operator)
 
 """
     reference_rdm(model::AnyonModel, subsystems::Vector{Int64}, state::Vector{ET}; traceref::Bool=true)
@@ -533,10 +534,10 @@ function reference_rdm(
 
     if traceref
         # If traceref is true, we need to trace out the reference qubit. otherwise, we trace out system.
-        ref_model = AnyonModel(IsingAnyon(), k_old, pbc = false)
+        ref_model = AnyonModel(SpinHalf(), k_old; model_type = :Ising, pbc = false)
         return disjoint_rdm(ref_model, model, subsystems, Int[], state;)
     else
-        ref_model = AnyonModel(IsingAnyon(), k_old, pbc = false)
+        ref_model = AnyonModel(SpinHalf(), k_old; model_type = :Ising, pbc = false)
         totalsubBpbc = (length(subsystems) == model.N) ? true : false
         return disjoint_rdm(ref_model, model, Int[], subsystems, state; pbcB = totalsubBpbc)
     end
@@ -1047,7 +1048,7 @@ This function avoids recomputing the forward evolution up to time `t₁` by usin
 ```
 
 # Arguments
-- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, anyon_type, etc.)
+- `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis, etc.)
 - `forward::ET`: Cached forward state from a previous `bulk_evolution` run
 - `measure_config::MeasureConfig`: Configuration struct containing:
   - `τ::Float64`: Measurement strength parameter
@@ -1117,7 +1118,7 @@ function reference_evolution(
     @assert 1 <= x₁ <= x₂ <= N "Site index x₁ must be smaller than site index x₂, both must be in the range [1, $(N)]"
     @assert mode ∈ [:sample, :Born] "mode must be one of :sample, :Born" # It will only evolve according to the mode, even if sample is given.
 
-    # Build model based on anyon_type
+    # Correlation type is determined by the spacetime separation (δt, δx)
     δt = t₂ - t₁ # if δt = 0, pure spatial correlation
     δx = abs(x₂ - x₁) # if δx = 0, pure temporal correlation
 

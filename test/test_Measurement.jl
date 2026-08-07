@@ -239,7 +239,7 @@ end
     @test Mmpbc == expected_matrix
     @test Mppbc^2+Mmpbc^2 ≈ I(4)
 
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :reset)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :reset)
     Mppbc = FibonacciChain.measure_matrix(model, 1000.0, idx, false)
     @test diag(Mppbc) ≈ [1.0, 1.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0]
     Mmpbc = FibonacciChain.measure_matrix(model, 1000.0, idx, true) # pbc
@@ -408,7 +408,7 @@ end
 
 @testset "_sample_measure" begin
     N = 6
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     t = 10
     measure_config =
         MeasureConfig(τ = 1000.0, t₂ = t, rng = MersenneTwister(42), mode = :sample)

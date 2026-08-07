@@ -763,7 +763,7 @@ end
     @test sclis ≈ log(2)*ones(12*11)
 
     N=6
-    model_ising = AnyonModel(IsingAnyon(), N, pbc = true)
+    model_ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     mes = zeros(length(anyon_basis(model_ising)))
     mes[22] = 1/√2
     mes[43] = 1/√2
@@ -774,7 +774,7 @@ end
 @testset "temporal_correlation" begin
     # N=12
     # τ = 1000.0
-    # mes = zeros(length(anyon_basis(N, true, anyon_type=:Fibo)))
+    # mes = zeros(length(anyon_basis(AnyonModel(FibonacciAnyon(), N))))
     # mes[233] = 1/√2 
     # mes[end] = 1/√2 # set the last two qubits to be in the Bell state
 
@@ -788,7 +788,7 @@ end
 
     N=4
     τ = 1000.0
-    model = AnyonModel(IsingAnyon(), N, pbc = true)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     mes = zeros(length(anyon_basis(model)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
 
@@ -813,7 +813,7 @@ end
     ref_mo = reference_evolution(model, measure_outcome.state, ref_config, sample)
     final_st = ref_mo.state
     tc = temporal_correlation(model, final_st)
-    # tclis = [temporal_correlation(τ, mes, sample, div(N,2), i, j, anyon_type=:IsingX) for i in 1:D-1 for j in i+1:D]
+    # tclis = [temporal_correlation(model, final_st) for i in 1:D-1 for j in i+1:D]
     @test isapprox(tc, 0.0, atol = 1e-6)
 end
 
@@ -826,7 +826,7 @@ end
     mi = mutual_information(model, ([2], [5]), mes)
     @test mi ≈ 0.0
 
-    model_ising = AnyonModel(IsingAnyon(), N, pbc = true)
+    model_ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     mes = zeros(length(anyon_basis(model_ising)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
 
@@ -843,7 +843,7 @@ end
     tmi = tri_mutual_information(model, ([1], [3], [5]), mes)
     @test tmi ≈ 0.0
 
-    model_ising = AnyonModel(IsingAnyon(), N, pbc = true)
+    model_ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     mes = zeros(length(anyon_basis(model_ising)))
     mes[1]=1.0 # set the last two qubits to be in the Bell state
 

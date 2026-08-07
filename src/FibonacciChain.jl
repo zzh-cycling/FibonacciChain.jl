@@ -5,9 +5,7 @@ using ITensorMPS, ITensors
 
 #  Exported types and structs
 export FibonacciAnyon,
-    IsingAnyon,
-    OBFAnyon,
-    HeisenbergAnyon,
+    SpinHalf,
     AnyonModel,
     MeasureConfig,
     Measurement_outcome_bulk,

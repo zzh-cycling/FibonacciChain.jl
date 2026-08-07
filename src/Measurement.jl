@@ -209,7 +209,7 @@ function actingHam(model::AnyonModel{FibonacciAnyon}, state::T) where {N,T<:BitS
     return output
 end
 
-function actingHam(model::AnyonModel{IsingAnyon}, state::T) where {N,T<:BitStr{N}}
+function actingHam(model::AnyonModel{SpinHalf,:Ising}, state::T) where {N,T<:BitStr{N}}
     @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
 
     pbc = model.pbc
@@ -236,7 +236,7 @@ function actingHam(model::AnyonModel{IsingAnyon}, state::T) where {N,T<:BitStr{N
     return output
 end
 
-function actingHam(model::AnyonModel{OBFAnyon}, state::T) where {N,T<:BitStr{N}}
+function actingHam(model::AnyonModel{SpinHalf,:OBF}, state::T) where {N,T<:BitStr{N}}
     @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
 
     pbc = model.pbc
@@ -284,11 +284,11 @@ julia> N = 4; model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_ope
 julia> H_fibo = anyon_ham(model_fibo); size(H_fibo)
 (7, 7)
 
-julia> model_ising = AnyonModel(IsingAnyon(), N; pbc=true, J=1.0, h=1.0); H_ising = anyon_ham(model_ising); size(H_ising)
+julia> model_ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc=true, J=1.0, h=1.0); H_ising = anyon_ham(model_ising); size(H_ising)
 (16, 16)
 ```
 """
-function anyon_ham(model::AnyonModel{AT}) where {AT<:AbstractAnyonType}
+function anyon_ham(model::AnyonModel{AT}) where {AT<:AbstractAnyonBasis}
     basis = anyon_basis(model)
     l = length(basis)
     H = zeros(Float64, (l, l))
@@ -337,7 +337,7 @@ function anyon_ham(
     ::Type{T},
     k::Int;
     symmetry_block = nothing,
-) where {N,T<:BitStr{N},AT<:AbstractAnyonType}
+) where {N,T<:BitStr{N},AT<:AbstractAnyonBasis}
     @assert 0<=k<=N-1 "k is expected to be in [0, $(N-1)], but got $k"
     @assert symmetry_block === nothing || symmetry_block in [0, 1, :tau, :trivial] "symmetry_block is expected to be nothing or 1 or 0 or :trivial or :nontrivial, but got $symmetry_block"
 
@@ -371,7 +371,7 @@ anyon_ham(
     model::AnyonModel{AT},
     k::Int;
     symmetry_block = nothing,
-) where {AT<:AbstractAnyonType} =
+) where {AT<:AbstractAnyonBasis} =
     anyon_ham(model, BitStr{model.N,Int}, k; symmetry_block = symmetry_block)
 
 # ============================================================================
@@ -429,7 +429,7 @@ function Heisenbergmap(
 end
 
 """
-    actingHam(model::AnyonModel{HeisenbergAnyon}, state::T) where {N, T <: BitStr{N}}
+    actingHam(model::AnyonModel{SpinHalf,:Heisenberg}, state::T) where {N, T <: BitStr{N}}
 
 Act the spin-1/2 Heisenberg (XXZ) Hamiltonian on a given state:
 
@@ -443,7 +443,7 @@ Act the spin-1/2 Heisenberg (XXZ) Hamiltonian on a given state:
 # Returns
 `Dict{T, Float64}`: mapping from output states to their coefficients
 """
-function actingHam(model::AnyonModel{HeisenbergAnyon}, state::T) where {N,T<:BitStr{N}}
+function actingHam(model::AnyonModel{SpinHalf,:Heisenberg}, state::T) where {N,T<:BitStr{N}}
     @assert num_digits(T) == N "The length of system is expected to be $N, but got $(num_digits(T))"
 
     pbc = model.pbc
@@ -508,7 +508,7 @@ function measure_basismap(
     state::T,
     i::Int,
     sign::Bool,
-) where {T,AT<:AbstractAnyonType}
+) where {T,AT<:AbstractAnyonBasis}
     # default for PBC system, map basis (not state!!!), and index count from the left.
     @assert num_digits(T) == model.N "State length mismatch: expected $(model.N), got $(num_digits(T))"
     return _apply_result(model, τ, state, i, sign)
@@ -675,7 +675,7 @@ function _apply_result_ising(
 end
 
 function _apply_result(
-    model::AnyonModel{IsingAnyon},
+    model::AnyonModel{SpinHalf,:Ising},
     τ::Float64,
     state::T,
     i::Int,
@@ -693,7 +693,7 @@ function _apply_result(
 end
 
 function _apply_result(
-    model::AnyonModel{HeisenbergAnyon},
+    model::AnyonModel{SpinHalf,:Heisenberg},
     τ::Float64,
     state::T,
     i::Int,
@@ -713,7 +713,7 @@ function _apply_result(
 end
 
 function _apply_result(
-    model::AnyonModel{OBFAnyon},
+    model::AnyonModel{SpinHalf,:OBF},
     τ::Float64,
     state::T,
     i::Int,
@@ -760,7 +760,7 @@ function measure_matrix(
     τ::Float64,
     idx::Int,
     sign::Bool,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
     if model.measure_operator ∈ [:Ferro, :Antiferro]
         @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in [2, N-1] for open BC (Fibonacci)"
@@ -771,7 +771,7 @@ function measure_matrix(
     elseif model.measure_operator ∈ (:XZZ, :ZZX)
         @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
     else
-        error("Unknown measure class: $(model.anyon_type)")
+        error("Unknown measure class: $(model.basis)")
     end
 
     basis = anyon_basis(model)
@@ -838,7 +838,7 @@ function measuremap(
     state::Vector{ET},
     idx::Int,
     sign::Bool,
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     basis = anyon_basis(model)
     mapped_state = zeros(ET, length(basis))
     return _measuremap_impl!(mapped_state, basis, model, τ, state, idx, sign)
@@ -858,7 +858,7 @@ function measuremap!(
     idx::Int,
     sign::Bool,
     basis,
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     fill!(mapped_state, zero(ET))
     return _measuremap_impl!(mapped_state, basis, model, τ, state, idx, sign)
 end
@@ -873,7 +873,7 @@ function _measuremap_impl!(
     state::Vector{ET},
     idx::Int,
     sign::Bool,
-) where {ET,BT,AT<:AbstractAnyonType}
+) where {ET,BT,AT<:AbstractAnyonBasis}
     l = length(basis)
     @assert length(state) == l "state length is expected to be $l, but got $(length(state))"
 
@@ -895,7 +895,7 @@ function laddermeasuremap(
     state::Vector{ET},
     idx::Int,
     sign::Bool,
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     # input a superposition state, and output the braided state
     @assert model.pbc || (2 <= idx <= model.N-1) "Index idx must be in the range [2, N-1] for open boundary conditions"
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
@@ -977,7 +977,7 @@ function measurement_enumeration(
     τ::Float64,
     initial_state::Vector{ET},
     measurement_sites::Vector{Int},
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     @assert ET != Int "The state should be a Float or Complex list, not an integer list"
 
     # Initialize, only one initial state
@@ -1081,15 +1081,16 @@ function _obtain_measurement_config(
 end
 
 function _obtain_measurement_config(
-    model::AnyonModel{IsingAnyon},
+    model::AnyonModel{SpinHalf,:Ising},
     layer_idx::Int,
     τ::Float64 = 1.0,
 )
     measurement_sites = collect(1:model.N)
     measure_operator = iseven(layer_idx) ? :ZZ : :X
     measure_anyon_model = AnyonModel(
-        IsingAnyon(),
+        model.basis,
         model.N;
+        model_type = :Ising,
         pbc = model.pbc,
         measure_operator = measure_operator,
     )
@@ -1098,7 +1099,7 @@ function _obtain_measurement_config(
 end
 
 function _obtain_measurement_config(
-    model::AnyonModel{HeisenbergAnyon},
+    model::AnyonModel{SpinHalf,:Heisenberg},
     layer_idx::Int,
     τ::Float64 = 1.0,
 )
@@ -1107,8 +1108,9 @@ function _obtain_measurement_config(
     measurement_sites = collect(1:model.N)
     measure_operator = iseven(layer_idx) ? :ZZ : :X
     measure_anyon_model = AnyonModel(
-        HeisenbergAnyon(),
+        model.basis,
         model.N;
+        model_type = :Heisenberg,
         pbc = model.pbc,
         measure_operator = measure_operator,
     )
@@ -1117,7 +1119,7 @@ function _obtain_measurement_config(
 end
 
 function _obtain_measurement_config(
-    model::AnyonModel{OBFAnyon},
+    model::AnyonModel{SpinHalf,:OBF},
     layer_idx::Int,
     τ::Float64 = 1.0,
 )
@@ -1182,8 +1184,9 @@ function _obtain_measurement_config(
     end
 
     measure_anyon_model = AnyonModel(
-        OBFAnyon(),
+        model.basis,
         N;
+        model_type = :OBF,
         pbc = model.pbc,
         measure_operator = measure_operator,
         λ = λ,
@@ -1209,17 +1212,17 @@ function _get_sample_column_indices(model::AnyonModel{FibonacciAnyon}, layer_idx
     return collect(1:(model.N÷2))
 end
 
-function _get_sample_column_indices(model::AnyonModel{IsingAnyon}, layer_idx::Int)
+function _get_sample_column_indices(model::AnyonModel{SpinHalf,:Ising}, layer_idx::Int)
     # Ising: all N sites measured each layer
     return collect(1:model.N)
 end
 
-function _get_sample_column_indices(model::AnyonModel{HeisenbergAnyon}, layer_idx::Int)
+function _get_sample_column_indices(model::AnyonModel{SpinHalf,:Heisenberg}, layer_idx::Int)
     # Heisenberg: all N sites measured each layer (same layout as Ising)
     return collect(1:model.N)
 end
 
-function _get_sample_column_indices(model::AnyonModel{OBFAnyon}, layer_idx::Int)
+function _get_sample_column_indices(model::AnyonModel{SpinHalf,:OBF}, layer_idx::Int)
     # OBF: different layers measure different sites, but all map to columns 1:N
     # The column index equals the site index being measured
     phase = mod1(layer_idx, 14)
@@ -1258,9 +1261,9 @@ end
 Return the number of sample columns needed per layer (maximum across all layer types).
 """
 _samples_per_layer(model::AnyonModel{FibonacciAnyon}) = model.N ÷ 2
-_samples_per_layer(model::AnyonModel{IsingAnyon}) = model.N
-_samples_per_layer(model::AnyonModel{OBFAnyon}) = model.N  # Max of all layer types
-_samples_per_layer(model::AnyonModel{HeisenbergAnyon}) = model.N
+_samples_per_layer(model::AnyonModel{SpinHalf,:Ising}) = model.N
+_samples_per_layer(model::AnyonModel{SpinHalf,:OBF}) = model.N  # Max of all layer types
+_samples_per_layer(model::AnyonModel{SpinHalf,:Heisenberg}) = model.N
 
 
 struct Measurement_outcome_bulk{ET}
@@ -1305,7 +1308,7 @@ Base.@kwdef struct MeasureConfig
 end
 
 """
-    layers_per_period(anyon_type) -> Int
+    layers_per_period(model::AnyonModel) -> Int
 
 Return the number of measurement layers per evolution period.
 - Fibonacci: 2 layers
@@ -1313,10 +1316,10 @@ Return the number of measurement layers per evolution period.
 - OBF: 14 layers (√XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, ZZ), here OBF represents XZZ + ZZX. At the end plus a final √ZZ layer.
 - Heisenberg: 2 layers (X, ZZ), same layout as Ising
 """
-layers_per_period(::FibonacciAnyon) = 2
-layers_per_period(::IsingAnyon) = 2
-layers_per_period(::OBFAnyon) = 14
-layers_per_period(::HeisenbergAnyon) = 2
+layers_per_period(model::AnyonModel{FibonacciAnyon}) = 2
+layers_per_period(model::AnyonModel{SpinHalf,:Ising}) = 2
+layers_per_period(model::AnyonModel{SpinHalf,:OBF}) = 14
+layers_per_period(model::AnyonModel{SpinHalf,:Heisenberg}) = 2
 
 """
     boundary_evolution(model::AnyonModel, state::Vector{T}, measure_config::MeasureConfig, 
@@ -1367,7 +1370,7 @@ function boundary_evolution(
     measure_config::MeasureConfig,
     sample::Union{Nothing,BitVector} = nothing;
     layer_idx::Int = 1,
-) where {T,AT<:AbstractAnyonType}
+) where {T,AT<:AbstractAnyonBasis}
 
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
@@ -1419,7 +1422,7 @@ function _apply_measurement_layer(
     layer_sample::BitVector;
     layer_idx::Int64 = 1,
     normalized::Bool = true,
-) where {T,AT<:AbstractAnyonType}
+) where {T,AT<:AbstractAnyonBasis}
     # Helper function to apply deterministic measurements to a layer, connect measure on each site together.
 
     measurement_sites, measure_anyon_model, measurement_strength =
@@ -1518,7 +1521,7 @@ function _stochastic_measurement_layer(
     layer_idx::Int64 = 1,
     rng::MersenneTwister = MersenneTwister(),
     verbose::Bool = false,
-) where {T,AT<:AbstractAnyonType}
+) where {T,AT<:AbstractAnyonBasis}
 
     measurement_sites, measure_anyon_model, measurement_strength =
         _obtain_measurement_config(anyon_model, layer_idx, τ)
@@ -1649,7 +1652,7 @@ function bulk_evolution(
     measure_config::MeasureConfig,
     samples::Union{Nothing,BitMatrix} = nothing,
     normalized::Bool = true,
-) where {ET,AT<:AbstractAnyonType}
+) where {ET,AT<:AbstractAnyonBasis}
     # ---------- Sample decided according to mode ----------
     mode = measure_config.mode
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
@@ -1676,7 +1679,7 @@ function _born_measure(
     verbose = measure_config.verbose
     Δt >= 0 || error("t₂ must be >= t₁")
 
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
 
     # 1. Initialize sample matrix with max columns per layer
@@ -1734,7 +1737,7 @@ function _sample_measure(
     enable_τ_eff = measure_config.enable_τ_eff
     Δt >= 0 || error("t₂ must be >= t₁")
 
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
 
     sample_free_energy = zeros(Float32, D)
@@ -1899,11 +1902,11 @@ function transfer_matrix(
     model::AnyonModel{AT},
     τ::Float64,
     sample::BitMatrix,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     basis = anyon_basis(model)
     l = length(basis)
     TM = zeros(Float64, l, l)
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     
     for i = 1:l
         st = zeros(Float64, l)
@@ -1950,9 +1953,9 @@ function transfer_matrix_dynamics(
     τ::Float64,
     sample::BitMatrix;
     n_spectrums::Int = 10,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
 
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D_layers, n_cols = size(sample)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
     t = D_layers ÷ n_layers
@@ -2014,7 +2017,7 @@ the true eigenvalues.
 - `model::AnyonModel`: Anyon model containing system parameters
 - `τ::Float64`: Measurement strength parameter
 - `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
-  The number of rows must be divisible by `layers_per_period(model.anyon_type)`.
+  The number of rows must be divisible by `layers_per_period(model)`.
 - `n_states::Int=10`: Number of initial basis vectors to propagate (and Ritz values to compute)
 
 # Returns
@@ -2041,9 +2044,9 @@ function transfer_matrix_subspace(
     τ::Float64,
     sample::BitMatrix;
     n_states::Int = 10,
-) where {AT<:AbstractAnyonType}
+) where {AT<:AbstractAnyonBasis}
     # Here the transfer matrix is not hermitian, thus the Schur vector is not eigenvectors. We need to do Rayleigh-Ritz projection. But when the non-hermitian matrix is too ill-conditioned, this method fails.
-    n_layers = layers_per_period(model.anyon_type)
+    n_layers = layers_per_period(model)
     D_layers, n_cols = size(sample)
     @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
     t = D_layers ÷ n_layers

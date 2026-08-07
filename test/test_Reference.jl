@@ -28,16 +28,16 @@ using Random
     @test extended_basis == basis
 
     # Test for Ising basis
-    model_Ising = AnyonModel(IsingAnyon(), N, pbc = true)
+    model_Ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true)
     basis_ising = anyon_basis(model_Ising)
     extended_basis_ising = FibonacciChain.build_extended_basis(0, basis_ising)
     @testset extended_basis_ising == basis_ising
 
     extended_basis_ising1 = FibonacciChain.build_extended_basis(1, basis_ising)
-    @test extended_basis_ising1 == anyon_basis(AnyonModel(IsingAnyon(), N+1, pbc = true))
+    @test extended_basis_ising1 == anyon_basis(AnyonModel(SpinHalf(), N+1; model_type=:Ising, pbc = true))
 
     extended_basis_ising2 = FibonacciChain.build_extended_basis(2, basis_ising)
-    @test extended_basis_ising2 == anyon_basis(AnyonModel(IsingAnyon(), N+2, pbc = true))
+    @test extended_basis_ising2 == anyon_basis(AnyonModel(SpinHalf(), N+2; model_type=:Ising, pbc = true))
 end
 
 @testset "reference_measure_basismap" begin
@@ -165,7 +165,7 @@ end
     N = 3
     τ = 1000.0
     sign = false
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     k_old = 1
     T = BitStr{N,Int}
     basislis = anyon_basis(model)
@@ -281,7 +281,7 @@ end
     @test all([all([all(output34[i+j*l] == output32[i]) for i = 1:l]) for j = 0:3])
 
     # Test the IsingZZ
-    model_ZZ = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :ZZ)
+    model_ZZ = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     output12zz = FibonacciChain.measure_basismap.(Ref(model_ZZ), τ, basislis, 1, sign)
     output22zz = FibonacciChain.measure_basismap.(Ref(model_ZZ), τ, basislis, 2, sign)
     output32zz = FibonacciChain.measure_basismap.(Ref(model_ZZ), τ, basislis, 3, sign)
@@ -402,7 +402,7 @@ end
     N = 3
     τ = 1000.0
     sign = false
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     k_old = 1
     T = BitStr{N,Int}
     st = zeros(2^N);
@@ -429,7 +429,7 @@ end
         extended_basis = ext_basis,
     )
 
-    model2 = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :ZZ)
+    model2 = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     output33 = FibonacciChain.reference_measuremap(
         model2,
         τ,
@@ -491,7 +491,7 @@ end
     st_ising = zeros(2^N);
     st_ising[1] = 1/√2;
     st_ising[end] = 1/√2; # set the GHZ state.
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :Z)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :Z)
     add_st_ising1 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 1)[3]
     add_st_ising2 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 2)[3]
     add_st_ising3 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 3)[3]
@@ -502,7 +502,7 @@ end
     st_ising = zeros(2^N);
     st_ising[1] = 1/√2;
     st_ising[end] = 1/√2; # set the last two qubits to be in the Bell state
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     add_st_ising1 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 1)[3]
     add_st_ising2 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 2)[3]
     add_st_ising3 = FibonacciChain.add_reference_qubits_reset(model, st_ising, 3)[3]
@@ -517,7 +517,7 @@ end
     st_ising = zeros(2^N);
     st_ising[1] = 1/√2;
     st_ising[end] = 1/√2; # set the GHZ state.
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :Z)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :Z)
     add_st_ising1 = FibonacciChain.add_reference_qubits(model, st_ising, 1) # For copy way to entangle, the result is irrelevant to measurement outcome.
     add_st_ising2 = FibonacciChain.add_reference_qubits(model, st_ising, 2)
     add_st_ising3 = FibonacciChain.add_reference_qubits(model, st_ising, 3)
@@ -526,7 +526,7 @@ end
 
     st_ising = ones(2^N);
     st_ising /= norm(st_ising); # set to be plus state
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     add_st_ising1 = FibonacciChain.add_reference_qubits(model, st_ising, 1)
     add_st_ising2 = FibonacciChain.add_reference_qubits(model, st_ising, 2)
     add_st_ising3 = FibonacciChain.add_reference_qubits(model, st_ising, 3)
@@ -550,7 +550,7 @@ end
     @test length(output1) == 2*length(anyon_basis(model))
     @test free_energy ≈ 1.9248473002384139 atol = 1e-7
 
-    model_Ising = AnyonModel(IsingAnyon(), 4, pbc = true, measure_operator = :X)
+    model_Ising = AnyonModel(SpinHalf(), 4; model_type=:Ising, pbc = true, measure_operator = :X)
     st = zeros(length(anyon_basis(model_Ising)));
     st[1] = 1
 
@@ -561,7 +561,7 @@ end
     @test output1[1:16] == 1/4 .* ones(16) # |0++++⟩
     @test free_energy ≈ 2.7725887222397816 atol = 1e-7 # log(16) = 4log(2)
 
-    model_Ising = AnyonModel(IsingAnyon(), 2, pbc = true, measure_operator = :ZZ)
+    model_Ising = AnyonModel(SpinHalf(), 2; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     st = zeros(length(anyon_basis(model_Ising)));
     st[1] = 1
 
@@ -604,7 +604,7 @@ end
     N = 6
     τ = 1000.0
     sign = false
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     k_old = 1
     st = zeros(2^N);
     st[1] = 1
@@ -673,7 +673,7 @@ end
 
 @testset "_reference_sample_measure" begin
     N = 6
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     t = 10
     measure_config =
         MeasureConfig(τ = 1000.0, t₂ = t, rng = MersenneTwister(42), mode = :sample)
@@ -706,8 +706,8 @@ end
     rdm = reference_rdm(model, [1], add_site1)
     @test rdm == [0.75 0.0; 0.0 0.25]
 
-    # Trace the first ref qubit with IsingAnyon
-    model_Ising = AnyonModel(IsingAnyon(), 4, pbc = true, measure_operator = :X)
+    # Trace the first ref qubit with the Ising model
+    model_Ising = AnyonModel(SpinHalf(), 4; model_type=:Ising, pbc = true, measure_operator = :X)
     full_st = zeros(2^(N+1));
     inds = [1, 3, 5, 10]
     full_st[inds] .= 0.5
@@ -725,7 +725,7 @@ end
 
     # add a ref qubit to a Bell state, the entanglement entropy should not change
     N=4
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :Z)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :Z)
     st = zeros(2^N);
     st[1] = 1;
     st[end] = 1;
@@ -742,7 +742,7 @@ end
     st = ones(2^N);
     st /= norm(st)  # Normalize the state
     site = 1
-    model_Ising = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model_Ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     add_site1 = FibonacciChain.add_reference_qubits_reset(model_Ising, st, site)[3]
 
     # Trace out ref of bell pair, the rdm should be maximally mixed
@@ -770,7 +770,7 @@ end
     st[end] = 1;
     st ./= norm(st)  # Bell state
     site = 1
-    model_IsingX = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model_IsingX = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     add_site1 = FibonacciChain.add_reference_qubits_reset(model_IsingX, st, site)[3]
 
     # Trace out ref of bell pair, the rdm should be maximally mixed, no matter IsingX or IsingZ
@@ -781,20 +781,20 @@ end
     rdm_system = reference_rdm(model_IsingX, [2, 3], add_site1, traceref = false)
     @test rdm_system ≈ [0.5 0.0 0.0 0.5; 0.0 0.0 0.0 0.0; 0.0 0.0 0.0 0.0; 0.5 0.0 0.0 0.5]
 
-    # add_st2 = FibonacciChain.add_reference_qubits(N, add_site1, site, anyon_type = anyon_type, entangle_way = :reset)[3]
-    # rdm2 = reference_rdm(N, [1], add_st2, anyon_type = anyon_type)
-    # rdm3 = reference_rdm(N, [2], add_st2, anyon_type = anyon_type)
+    # add_st2 = FibonacciChain.add_reference_qubits(model, add_site1, site, entangle_way = :reset)[3]
+    # rdm2 = reference_rdm(model, [1], add_st2)
+    # rdm3 = reference_rdm(model, [2], add_st2)
     # @test rdm ≈ rdm2 
     # @test rdm3 ≈ [0.5 0.5; 0.5 0.5]
 
-    # rdm4 = reference_rdm(N, [1, 2], add_st2, anyon_type = anyon_type)
+    # rdm4 = reference_rdm(model, [1, 2], add_st2)
     # @test rdm4 ≈ [0.24999999999999994 0.24999999999999994 0.0 0.0; 0.24999999999999994 0.24999999999999994 0.0 0.0; 0.0 0.0 0.24999999999999994 0.24999999999999994; 0.0 0.0 0.24999999999999994 0.24999999999999994]
 end
 
 @testset "spatial_corr_matrix and reference rdm" begin
     # The spatial correlation should be the same after adding reference qubits
     N=6
-    model_IsingZ = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :Z)
+    model_IsingZ = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :Z)
     mes = zeros(length(anyon_basis(model_IsingZ)));
     mes[1] = 1/√2
     mes[end] = 1/√2
@@ -872,7 +872,7 @@ end
     # Adding a reference qubit via :copy should not change the 
     # spatial correlations in the original system
     N_ref = 4
-    model_ref = AnyonModel(IsingAnyon(), N_ref, pbc = true, measure_operator = :Z)
+    model_ref = AnyonModel(SpinHalf(), N_ref; model_type=:Ising, pbc = true, measure_operator = :Z)
     test_state = zeros(2^N_ref)
     test_state[1] = 1/√2
     test_state[end] = 1/√2  # GHZ state
@@ -895,7 +895,7 @@ end
     # the two reference qubits form a Bell pair themselves
     # Mutual information I(ref1:ref2) = 2log(2)
     N_temp = 4
-    model_temp = AnyonModel(IsingAnyon(), N_temp, pbc = true, measure_operator = :Z)
+    model_temp = AnyonModel(SpinHalf(), N_temp; model_type=:Ising, pbc = true, measure_operator = :Z)
     bell_st = zeros(2^N_temp)
     bell_st[1] = 1/√2
     bell_st[end] = 1/√2  # GHZ state
@@ -918,7 +918,7 @@ end
     # For a product state, reference qubits at the same site should
     # have zero mutual information (no temporal correlation)
     N_prod2 = 4
-    model_prod2 = AnyonModel(IsingAnyon(), N_prod2, pbc = true, measure_operator = :X)
+    model_prod2 = AnyonModel(SpinHalf(), N_prod2; model_type=:Ising, pbc = true, measure_operator = :X)
     prod_st = zeros(2^N_prod2)
     prod_st[1] = 1.0  # |0000⟩ in Z basis = product state in X basis
 
@@ -939,7 +939,7 @@ end
     # ==========================================================
     # A maximally mixed state has I(i:j) = 0 for all pairs
     N_mix = 12
-    model_mix = AnyonModel(IsingAnyon(), N_mix, pbc = true, measure_operator = :Z)
+    model_mix = AnyonModel(SpinHalf(), N_mix; model_type=:Ising, pbc = true, measure_operator = :Z)
     # Create maximally mixed pure state approximation via density matrix
     # We test that a random superposition has bounded correlations
     Random.seed!(42)
@@ -959,7 +959,7 @@ function compute_post_selection_Ising(
     δt::Int = 2;
     sign::Bool = false,
 )
-    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, pbc = true, measure_operator = :X)
     sample = sign ? BitMatrix(ones(Int, 2t, L)) : BitMatrix(zeros(Int, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
@@ -991,7 +991,7 @@ function compute_Born_Ising(
     δt::Int = 2;
     sign::Bool = false,
 )
-    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, pbc = true, measure_operator = :X)
     sample = sign ? BitMatrix(ones(Int, 2t, L)) : BitMatrix(zeros(Int, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
@@ -1036,7 +1036,7 @@ end
     τ = atanh(γ)
     t = 5L
     t_star = log(1+√2)/π
-    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, pbc = true, measure_operator = :X)
     ref2st = compute_post_selection_Ising(L, τ, t, 0, sign = true)
     spatial_corr, _ = ref_correlation(model, ref2st, spatial = true)
     ref2st = compute_post_selection_Ising(L, τ, t, round(Int, t_star*L), sign = true)

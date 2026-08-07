@@ -15,9 +15,9 @@ const λlis = vcat(collect(0.0:0.1:1.5), [atanh(0.999), 11.0])
 
 function obf_model(L::Int, λ::Float64)
     if λ >= 10.0
-        return AnyonModel(OBFAnyon(), L; λI = 0.0, pbc = true)
+        return AnyonModel(SpinHalf(), L; model_type = :OBF, λI = 0.0, pbc = true)
     else
-        return AnyonModel(OBFAnyon(), L; λ = λ, pbc = true)
+        return AnyonModel(SpinHalf(), L; model_type = :OBF, λ = λ, pbc = true)
     end
 end
 

@@ -18,7 +18,7 @@ end
 
 fib_model(L::Int) = AnyonModel(FibonacciAnyon(), L; pbc = true)
 
-ising_model(L::Int) = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
+ising_model(L::Int) = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true, measure_operator = :X)
 
 # Shared δt lists for the spatial-temporal correlation runs
 # (identical in parrellel.jl and parrellel_collect.jl).

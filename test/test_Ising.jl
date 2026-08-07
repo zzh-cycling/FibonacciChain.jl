@@ -39,7 +39,7 @@ end
 
 @testset "actingHamobc" begin
     N = 3
-    model = AnyonModel(IsingAnyon(), N, pbc = false, J = 2.0, h = 1.0)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = false, J = 2.0, h = 1.0)
     T = BitStr{N,Int}
 
     output1 = FibonacciChain.actingHam(model, bit"000")
@@ -95,7 +95,7 @@ end
 @testset "actingHampbc" begin
     N = 3
     T = BitStr{N,Int}
-    model = AnyonModel(IsingAnyon(), N, pbc = true, J = 2.0, h = 1.0)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, J = 2.0, h = 1.0)
 
     output1 = FibonacciChain.actingHam(model, bit"000")
     expected1 = Dict(
@@ -139,7 +139,7 @@ end
 
     T10 = BitStr{10}
     output =
-        FibonacciChain.actingHam(AnyonModel(IsingAnyon(), 10, pbc = true), bit"1000010000")
+        FibonacciChain.actingHam(AnyonModel(SpinHalf(), 10; model_type=:Ising, pbc = true), bit"1000010000")
     expected = Dict(
         T10(16) => -1.0,
         T10(560) => -1.0,
@@ -158,12 +158,12 @@ end
 
 @testset "basis.jl" begin
     # Test the Ising basis creation
-    fib_basis = anyon_basis(AnyonModel(IsingAnyon(), 5, pbc = false))
+    fib_basis = anyon_basis(AnyonModel(SpinHalf(), 5; model_type=:Ising, pbc = false))
     @test length(fib_basis) == 32
-    fib_basis = anyon_basis(AnyonModel(IsingAnyon(), 5, pbc = true))
+    fib_basis = anyon_basis(AnyonModel(SpinHalf(), 5; model_type=:Ising, pbc = true))
     @test length(fib_basis) == 32
     # Test the Ising Hamiltonian
-    fib_ham = anyon_ham(AnyonModel(IsingAnyon(), 5, pbc = true))
+    fib_ham = anyon_ham(AnyonModel(SpinHalf(), 5; model_type=:Ising, pbc = true))
     @test size(fib_ham) == (32, 32)
     @test ishermitian(fib_ham)
     # Test the ground state energy
@@ -177,14 +177,14 @@ end
     ⊗(A::AbstractArray, B::AbstractArray) = kron(A, B)
     H_temp = - (Z ⊗ Z ⊗ Id + Id ⊗ Z ⊗ Z + X ⊗ Id ⊗ Id + Id ⊗ Id ⊗ X + Id ⊗ X ⊗ Id)
 
-    @test anyon_ham(AnyonModel(IsingAnyon(), 3, pbc = false)) == H_temp
+    @test anyon_ham(AnyonModel(SpinHalf(), 3; model_type=:Ising, pbc = false)) == H_temp
 
-    H = anyon_ham(AnyonModel(IsingAnyon(), 3, pbc = true))
+    H = anyon_ham(AnyonModel(SpinHalf(), 3; model_type=:Ising, pbc = true))
     @test H == H_temp - Z ⊗ Id ⊗ Z
 
     gs = eigvecs(fib_ham)[:, 1]
     # Test the reduced density matrix function
-    rdm = anyon_rdm(AnyonModel(IsingAnyon(), 5, pbc = true), collect(1:1), gs)
+    rdm = anyon_rdm(AnyonModel(SpinHalf(), 5; model_type=:Ising, pbc = true), collect(1:1), gs)
     @test size(rdm) == (2, 2)
     @test rdm ≈
           [0.49999999999995276 0.3236067977499789; 0.3236067977499789 0.5000000000000473]
@@ -199,7 +199,7 @@ end
     cstτ = cosh(τ/2) / √(2cosh(τ))
     sign = false
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
-    model = AnyonModel(IsingAnyon(), N, pbc = pbc, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = pbc, measure_operator = :X)
 
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
@@ -249,7 +249,7 @@ end
 
     idx = 3
     output = measure_basismap.(
-        Ref(AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)),
+        Ref(AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)),
         τ,
         basis0,
         idx,
@@ -273,7 +273,7 @@ end
     cstτ = cosh(τ/2) / √(2cosh(τ))
     sign = false
     basis0 = [T(0b000), T(0b001), T(0b010), T(0b100), T(0b101)]
-    model = AnyonModel(IsingAnyon(), N, pbc = pbc, measure_operator = :ZZ)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = pbc, measure_operator = :ZZ)
 
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
@@ -314,7 +314,7 @@ end
     sign = false
     cstτ = 1/2
     coef = 1/2
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :ZZ)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     output = measure_basismap.(Ref(model), τ, basis0, idx, sign)
     @test length(output) == length(basis0)
     @test output[1] == (s1 = T(bit"000"), s2 = T(bit"000"), w1 = 1.0, w2 = 0.0)
@@ -348,7 +348,7 @@ end
     # measuring X
     expected_matrix = cstτ * I(8) + coef * I(2) ⊗ σx ⊗ I(2)
 
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     Mpobc = FibonacciChain.measure_matrix(model, τ, idx, false)
     @test Mpobc == expected_matrix
 
@@ -360,7 +360,7 @@ end
 
     # measuring ZZ
     coef = sinh(τ/2) / √(2cosh(τ))
-    model_ZZ = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :ZZ)
+    model_ZZ = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     expected_matrix = cstτ * I(8) + coef * I(2) ⊗ σz ⊗ σz
     Mpobc = FibonacciChain.measure_matrix(model_ZZ, τ, idx, false)
     @test Mpobc == expected_matrix
@@ -394,7 +394,7 @@ end
     sign = false
     cstτ = cosh(τ/2) / √(2cosh(τ))
     coef = sinh(τ/2) / √(2cosh(τ))
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     state = fill(1.0, 2^N)
     output = measuremap(model, τ, state, idx, sign)
     @test output == (cstτ+coef) .* ones(2^N)
@@ -407,7 +407,7 @@ end
 
 @testset "measuremap_IsingZZ" begin
     N = 3
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :ZZ)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :ZZ)
     τ = 1.0
     idx = 2
     sign = false
@@ -451,7 +451,7 @@ end
 
 @testset "measurement_enumeration" begin
     N=6
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     τ = 0.0
@@ -469,7 +469,7 @@ end
     @test probabilities ≈ 1/8 .* ones(2^length(measurement_sites))
     @test sum(map(x->-x*log(x)/length(measurement_sites), probabilities)) ≈ log(2) # Shannon entropy non-measurement state
 
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :ZZ)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :ZZ)
     final_states, trajectories, probabilities =
         measurement_enumeration(model, τ, st, measurement_sites)
 
@@ -484,7 +484,7 @@ end
 
 @testset "Boundary_Born" begin
     N=6
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     τ = 3.802
@@ -500,7 +500,7 @@ end
 @testset "Boundary_post_selection" begin
     N = 10
     τ = 1e3
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
@@ -514,7 +514,7 @@ end
     # all final states should be equally probable, will give Nlog(2) free energy
     @test total_free_energy_p[1] / length(measurement_sites) ≈ log(2) atol = 1e-6
 
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :ZZ)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :ZZ)
     samples = BitVector(zeros(Int8, length(measurement_sites)))
     measure_outcome =
         boundary_evolution(model, final_state_p, config, samples, layer_idx = 2)
@@ -530,7 +530,7 @@ end
     L = 6
     D = 2L
     τ = 1e3
-    model = AnyonModel(IsingAnyon(), L, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, measure_operator = :X)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
@@ -546,7 +546,7 @@ end
     L = 6
     τ = 1000.0
     D = 10L
-    model = AnyonModel(IsingAnyon(), L, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), L; model_type=:Ising, pbc = true, measure_operator = :X)
     st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
     average_EElis=zeros(L-1)
@@ -565,7 +565,7 @@ end
 @testset "_apply_measurement_layer" begin
     N = 6
     τ = 1e3
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
@@ -592,7 +592,7 @@ end
 @testset "boundary_evolution, bulk_evolution" begin
     N = 6
     τ = 1e3
-    model = AnyonModel(IsingAnyon(), N, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, measure_operator = :X)
     st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
 
@@ -649,7 +649,7 @@ end
 @testset "central_charge" begin
     N = 12
     τ = log(1+√2) # critical point for IsingX
-    model = AnyonModel(IsingAnyon(), N, pbc = true, measure_operator = :X)
+    model = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc = true, measure_operator = :X)
     st=zeros(length(anyon_basis(model)))
     st[1] = 1.0
 

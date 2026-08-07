@@ -33,11 +33,11 @@ end
     include("./test_Reference.jl")
 end
 
-@testset "OBFAnyon" begin
+@testset "OBF" begin
     include("./test_OBF.jl")
 end
 
-@testset "HeisenbergAnyon" begin
+@testset "Heisenberg" begin
     include("./test_Heisenberg.jl")
 end
 
