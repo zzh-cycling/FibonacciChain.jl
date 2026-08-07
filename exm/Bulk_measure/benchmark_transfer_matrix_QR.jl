@@ -2,10 +2,7 @@ using FibonacciChain
 using LinearAlgebra
 using KrylovKit
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[7] = log(1 + √2)  # atanh(1/√2) = log(1 + √2)
-τlis[end] = 1000.0     # Last value is for γ=1
+include(joinpath(@__DIR__, "config.jl"))
 
 # Only for ps
 # function ps_spectrum()
@@ -33,7 +30,7 @@ function transfer_matrix_ED(
     D = 64
     t = div(D, 2)
     
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    model = fib_model(L)
     basis = anyon_basis(model)
     l = length(basis)
 
@@ -61,7 +58,7 @@ function transfer_matrix_QR(
     D = 64
     t = div(D, 2)
     
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    model = fib_model(L)
     basis = anyon_basis(model)
     l = length(basis)
     k = min(10, l)

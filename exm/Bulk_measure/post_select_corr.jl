@@ -8,6 +8,8 @@ using Plots
 using Random
 using LsqFit
 
+include(joinpath(@__DIR__, "config.jl"))
+
 function get_δtL(τ, sign::Int64 = 1)
     if sign == 0
         table = Dict(
@@ -58,7 +60,7 @@ function organize(τ::Float64, sign::Int64 = 1)
     )
 end
 
-function get_system_params(τ, L)
+function get_system_params_corr(τ, L)
     table = Dict(
         atanh(0.1) => (300L, 1000, 1500L),
         atanh(0.2) => (60L, 100, 250L),
@@ -85,7 +87,7 @@ function compute_post_selection(
     sign::Bool = false,
     entangle_way::Symbol = :copy,
 )
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    model = fib_model(L)
     sample =
         sign ? BitMatrix(ones(Int, 2t, length(2:2:L))) :
         BitMatrix(zeros(Int, 2t, length(2:2:L)))
@@ -159,7 +161,7 @@ function spatial_temporal_corr_varyingt(
     # | ----> |____| ----> |
     # 0       t   t+δt   t+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    model = fib_model(L)
 
     # 1). First evolve to steady state with D time steps
     sample =
@@ -513,10 +515,6 @@ end
 
 # error = [2.7330430701558868, 2.0451491174598737, 2.5762720937165486, 1.7192265271295484, 1.9050739241818382, 2.1930220033566306, 3.11060266197238, 2.011001355938974, 0.05371690873624521] * 100%
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
-
 
 if length(ARGS) == 0
     println("No arguments provided.")
@@ -525,7 +523,7 @@ else
     inds = parse(Int64, ARGS[2])
     δt = parse(Int, ARGS[3])
     τ = τlis[inds]
-    D, _, _ = get_system_params(τ, L)
+    D, _, _ = get_system_params_corr(τ, L)
     println("Computed spatial_temporal_corr_varyingt for L=$L, τ=$τ, D=$D, δt=$δt")
     # spatial_temporal_corr_varyingt(L, τ, D, δt, sign=1)
     compute_post_selection(L, τ, D, δt, sign = 0)

@@ -7,7 +7,9 @@ using LaTeXStrings
 using Plots
 using Random
 
-function get_system_params(τ, L)
+include(joinpath(@__DIR__, "config.jl"))
+
+function get_system_params_corr(τ, L)
     table = Dict(
         atanh(0.1) => (1200L, 1000, 1500L),
         atanh(0.2) => (250L, 100, 250L),
@@ -35,7 +37,7 @@ function compute_post_selection_Ising(
     sign::Bool = false,
     entangle_way::Symbol = :copy,
 )
-    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
+    model = ising_model(L)
     sample = sign ? BitMatrix(ones(Bool, 2t, L)) : BitMatrix(zeros(Bool, 2t, L))
 
     initial_state = ones(length(anyon_basis(model)))
@@ -106,7 +108,7 @@ function spatial_temporal_corr_varyingt(
     # | ----> |____| ----> |
     # 0       t   t+δt   t+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. block_size is the time interval δt between two ref qubits divided by L
-    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X) # Reset to |+> state, if IsingZ, reset to |0>; If copy entangle, irrelevant.
+    model = ising_model(L) # Reset to |+> state, if IsingZ, reset to |0>; If copy entangle, irrelevant.
 
     # 1). First evolve to steady state with D time steps
     sample = sign ? BitMatrix(ones(Bool, 2t, L)) : BitMatrix(zeros(Bool, 2t, L))
@@ -499,10 +501,6 @@ function alphalis_corr(γlis)
     return αlis
 end
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
-
 
 # fig_corr = plot_stc_tlis(10, anyon_type= :IsingZ, sign=0)
 # fig= plot_tc(11, anyon_type= :IsingX)
@@ -515,7 +513,7 @@ else
     δt = parse(Int, ARGS[3])
     println("Received argument: $L, $inds, $δt")
     τ = τlis[inds]
-    # D, _, _ = get_system_params(τ, L)
+    # D, _, _ = get_system_params_corr(τ, L)
     compute_post_selection_Ising(L, τ, 5L, δt, sign = 1)
     # spatial_temporal_corr_varyingt(L, τ, 10L, δt, sign=1)
 end

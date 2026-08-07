@@ -1,4 +1,7 @@
 using Distributed
+
+const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BULK_MEASURE_CONFIG)
 # using ClusterManagers
 
 # const PROJECT_DIR = something(dirname(Base.active_project()), pwd())
@@ -19,131 +22,6 @@ using Distributed
     using LinearAlgebra
     using Measurements
 
-function get_δtL_Born(τ, L)
-    if L == 6
-        table = Dict(
-            atanh(0.1) => vcat(collect(1:150), collect(152:2:620)),
-            atanh(0.2) => (collect(50:2:120)),
-            atanh(0.3) => (collect(1:45)),
-            atanh(0.4) => (collect(1:35)),
-            atanh(0.5) => (collect(1:25)),
-            atanh(0.6) => (collect(1:10)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 8
-        table = Dict(
-            atanh(0.1) => collect(50:25:500),
-            atanh(0.2) => (collect(65:2:145)),
-            atanh(0.3) => (collect(1:54)),
-            atanh(0.4) => (collect(1:45)),
-            atanh(0.5) => (collect(1:30)),
-            atanh(0.6) => (collect(1:16)),
-            atanh(1/√2) => (collect(1:12)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 10
-        table = Dict(
-            atanh(0.1) => collect(100:25:500),
-            atanh(0.2) => (collect(80:2:130)),
-            atanh(0.3) => (collect(30:60)),
-            atanh(0.4) => (collect(1:35)),
-            atanh(0.5) => (collect(1:24)),
-            atanh(0.6) => (collect(1:22)),
-            atanh(1/√2) => (collect(1:16)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 12
-        table = Dict(
-            atanh(0.1) => collect(300:25:600),
-            atanh(0.2) => (collect(100:2:136)),
-            atanh(0.3) => vcat([10, 20, 30], collect(40:2:64), collect(70:10:90)),
-            atanh(0.4) => vcat([4, 8, 12], collect(15:35), [40, 45]),
-            atanh(0.5) => (collect(1:20)),
-            atanh(0.6) => (collect(1:25)),
-            atanh(1/√2) => (collect(1:18)),
-        )
-        δtlis = get(table, τ, collect(1:15))
-    elseif L == 14
-        table = Dict(
-            atanh(0.1) => (collect(50:25:550)),
-            atanh(0.2) => (collect(120:2:146)),
-            atanh(0.3) => vcat([10, 20, 30], collect(40:2:70), collect(80:10:90)),
-            atanh(0.4) => vcat([5, 10, 15, 20], collect(25:39), [45, 50]),
-            atanh(0.5) => (collect(5:24)),
-            atanh(0.6) => (collect(1:28)),
-            atanh(1/√2) => (collect(1:8)),
-            atanh(0.8) => (collect(1:15)),
-        )
-        δtlis = get(table, τ, collect(1:8))
-    elseif L == 16
-        table = Dict(
-            atanh(0.1) => sort(vcat(collect(80:100:780), [640, 740])),
-            atanh(0.2) => vcat([100, 110, 120], collect(135:2:160), [170, 180, 190, 200]),
-            atanh(0.3) => sort(vcat(collect(10:10:50), collect(55:4:65), collect(67:2:75), collect(80:10:90))),
-            atanh(0.4) => vcat([5, 10, 15, 20, 25, 30], (collect(32:42)), [45, 50]),
-            atanh(0.5) => (collect(4:22)),
-            atanh(0.6) => vcat(collect(1:16), [20, 25]),
-            atanh(1/√2) => (collect(1:8)),
-            atanh(0.8) => (collect(1:16)),
-        )
-        δtlis = get(table, τ, collect(1:8))
-    elseif L == 18
-        table = Dict(
-            atanh(0.1) => atanh(0.1) => vcat(collect(500:50:650), [660, 670, 730, 800, 850]),
-            atanh(0.2) => sort(vcat([130, 140, 158, 189, 190], collect(150:5:180))),
-            atanh(0.3) => sort(vcat([10, 20, 30, 40, 50], collect(71:74), collect(60:5:90))),
-            atanh(0.4) => sort(vcat([5, 15], [38, 39, 41, 42], collect(25:5:50))),
-            atanh(0.5) => vcat([5, 10], collect(20:28)),
-            atanh(0.6) => vcat([2], collect(5:15), [20, 25]),
-            atanh(1/√2) => (collect(1:10)),
-            atanh(0.8) => (collect(1:10)),
-            atanh(0.9) => (collect(1:10)),
-        )
-        δtlis = get(table, τ, collect(1:8))
-    elseif L == 20
-        table = Dict(
-            atanh(0.1) => collect(650:10:750),
-            atanh(0.2) => vcat([150, 160, 170], collect(173:2:193), [220, 210, 220]),
-            atanh(0.3) => vcat([10, 30, 50], collect(68:4:88), [95, 100]),
-            atanh(0.4) => vcat([10, 20], collect(38:48), [60]),
-            atanh(0.5) => vcat([5, 15, 20], collect(24:34), [40]),
-            atanh(0.6) => vcat([4,8], collect(12:20)),
-            atanh(1/√2) => (collect(1:12)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 22
-        table = Dict(
-            atanh(0.4) =>vcat([10, 20, 30, 35, 37], collect(41:2:49), collect(50:2:52), [60, 65, 80]),
-            atanh(0.5) => sort(vcat([5, 10], collect(16:2:36), [40])),
-            atanh(0.6) => sort(vcat(collect(5:2:19), [20])),
-            atanh(1/√2) => (collect(1:15)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 24
-        table = Dict(
-            atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28), [5, 10, 15, 20])),
-            atanh(0.6) => sort(vcat(collect(10:2:20), [5, 25])),
-            atanh(1/√2) => (collect(1:15)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 26
-        table = Dict(
-            atanh(1/√2) => (collect(1:15)),
-            atanh(0.999) => (collect(1:8)),
-            1000.0 => (collect(1:8)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    elseif L == 28
-        table = Dict(
-            atanh(0.999) => (collect(1:8)),
-            1000.0 => (collect(1:8)),
-        )
-        δtlis = get(table, τ, collect(1:10))
-    else
-        δtlis = collect(1:10)
-    end
-    return δtlis
-end
 
 function organize(args::Tuple)
     L, τ = args
@@ -187,26 +65,6 @@ function organize(args::Tuple)
     )
 end
 
-function get_system_params(τ, L)
-    cfg = Dict(
-        atanh(0.1) => (2500L, 1000, 1500L),
-        atanh(0.2) => (500L, 100, 250L),
-        atanh(0.3) => (200L, 48, 100L),
-        atanh(0.4) => (100L, 40, 80L),
-        atanh(0.5) => (80L, 32, 40L),
-        atanh(0.6) => (45L, 20, 30L),
-        log(1 + √2) => (35L, 14, 20L),
-        atanh(0.8) => (25L, 10, 10L),
-        atanh(0.9) => (8L, 4, 4L),
-        atanh(0.95) => (8L, 4, 4L),
-        atanh(0.999) => (5L, 2, 2L),
-    )
-    D, step, start = get(cfg, τ, (5L, 2, 2L))
-    inds = collect(1:step:D)
-    avg_range = start:(D-5)
-    return D, inds, avg_range
-end
-
 function get_correlation_dynamics_D(τ, L)
     cfg = Dict(atanh(0.4) => 20L, atanh(0.5) => 15L, atanh(0.6) => 10L)
     t = get(cfg, τ, 0)
@@ -215,8 +73,8 @@ end
 
 function compute_ratio(L::Int64, τ_idx::Int64, index::Int64, δt::Int64 = 2)
     τ = τlis[τ_idx]
-    D, _, _ = get_system_params(τ, L)
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    D, _, _ = get_cfg_params_Born(τ_idx, L)
+    model = fib_model(L)
     t = div(D, 2)
     sample = load(
         "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(div(t,L))_samples$(index).jld",
@@ -294,7 +152,7 @@ function spatial_temporal_corr_varyingt(
     # | ----> |____| ----> |
     # 0       D   D+δt   D+δt+t  
     # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
-    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    model = fib_model(L)
 
     # 1). First evolve to steady state with D time steps
     sample = load(
@@ -371,7 +229,7 @@ end
 
 function corr_collect(arg::Tuple)
     L, τ, δt = arg
-    D = get_system_params(τ, L)[1]
+    D = get_cfg_params_Born(τ_idx, L)[1]
     t = div(D, 2) # true circuits depth
     D1 = D + get_correlation_dynamics_D(τ, L)
 
@@ -484,9 +342,6 @@ function alphalis_corr(τlis)
 end
 
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 1/√2, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[end] = 1000.0  # Last value is for γ=1, and atanh(1/√2) = log(1 + √2)
 seed_interval_lis = collect(1:100:2000)
 
 function process_task(task)

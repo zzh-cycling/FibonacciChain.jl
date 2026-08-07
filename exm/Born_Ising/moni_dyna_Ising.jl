@@ -3,15 +3,12 @@ using JLD
 using Statistics
 using Random
 
-γlis = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1]
-τlis = atanh.(γlis)
-τlis[7] = log(1 + √2)  # atanh(1/√2) = log(1 + √2)
-τlis[end] = 1000.0  
+include(joinpath(@__DIR__, "config.jl"))
 
 function samples_generate(L::Int64, τ_idx::Int, index::Int64, D::Int64 = 8L)
     rng = MersenneTwister(index)
 
-    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
+    model = ising_model(L)
     st = ones(length(anyon_basis(model)))
     st ./= norm(st)
     τ = τlis[τ_idx]

@@ -3,6 +3,8 @@ using JLD
 using Statistics
 using BitBasis
 
+include(joinpath(@__DIR__, "config.jl"))
+
 
 τ = log(1+sqrt(2))
 
@@ -19,7 +21,7 @@ function compute_ratio(
     D::Int64 = 20L,
     start_point::Int64 = 5L,
 )
-    model = AnyonModel(IsingAnyon(), L; pbc = true, measure_operator = :X)
+    model = ising_model(L)
     sample = load(
         "exm/data/Bulk_measure/Ising/Samples_monitored_dynamics/L$L/τ$(τ)/D$(div(D,L))_Samples$(index).jld",
         "sample",

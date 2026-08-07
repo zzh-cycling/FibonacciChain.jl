@@ -11,6 +11,9 @@ using Random
 # const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
 # addprocs(SlurmManager(NWORKERS), exeflags = "--project=$(PROJECT_DIR) --threads=1")
 
+const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BULK_MEASURE_CONFIG)
+
 @everywhere begin
     # using Pkg
     # Pkg.activate($PROJECT_DIR; io = devnull)
@@ -23,12 +26,12 @@ using Random
     using Random
 
     function samples_generate_Fibo(L::Int64, τind::Int64, index::Int64, χ::Int64 = 500)
-        τ = τlis[τind]
+        τ = τlis_ext[τind]
         try
             t, _, _ = get_mps_params_Born(τind, L)
             rng = MersenneTwister(index)
 
-            model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+            model = fib_model(L)
             ψ, sites = initial_mps(L)
             config = MeasureConfig(
                 τ = τ,
@@ -143,58 +146,6 @@ using Random
         )
     end
 
-    function check_duplicates(seeds)
-        if length(seeds) != length(unique(seeds))
-            duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
-            duplicate_values = unique(seeds)[duplicates]
-            println("WARNING: Found duplicate seeds: $duplicate_values")
-            return true
-        else
-            println("No duplicate seeds found in $(length(seeds)) seeds.")
-            return false
-        end
-    end
-
-
-    function get_mps_params_Born(τind, L)
-        cfg = if L <= 32
-            Dict(
-                1 => (1250, 1000, 600),
-                2 => (250, 100, 150),
-                3 => (40, 48, 30),
-                4 => (28, 40, 30),
-                5 => (40, 32, 24),
-                6 => (22, 20, 15),
-                7 => (10, 14, 7),
-                8 => (12, 10, 8),
-                9 => (3, 4, 3),
-                10 => (4, 4, 2.5),
-                11 => (3, 2, 2),
-                12 => (2, 2, 1)
-            )
-        else
-            Dict(
-                1 => (700, 1000, 500),
-                2 => (150, 100, 100),
-                3 => (40, 48, 30),
-                4 => (28, 40, 22),
-                5 => (20, 32, 16),
-                6 => (12, 20, 10),
-                7 => (10, 14, 7),
-                8 => (7, 10, 5.5),
-                9 => (3, 4, 2.5),
-                10 => (2, 4, 1.5),
-                11 => (2, 2, 1.5),
-                12 => (2, 2, 1)
-            )
-        end
-        t, step, start = get(cfg, τind, (8, 2, 2))
-        inds = collect(1:step:(t*L))
-        avg_range = Int(start*L):2:(Int(t*L)-4)
-        return t, inds, avg_range
-    end
-
-
     function get_FE_avg_range(τind, L)
         # avoid Int(x) on non-integer Float64 (e.g. 1.2*48 = 57.6)
         toidx(x) = floor(Int, x * L)
@@ -231,36 +182,6 @@ using Random
 
         default_range = toidx(0.4):(2*L-10)
         return get(avg_table, τind, default_range)
-    end
-
-
-    γlis = vcat([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1], collect(0.77:0.01:0.79), collect(0.81:0.01:0.82), [0.825], collect(0.83:0.01:0.84))
-    τlis = atanh.(γlis)
-    τlis[7] = log(1 + √2)
-    τlis[12] = 1000.0
-
-    function get_default_chi_Born(ind, L)
-        if L == 32
-            chi64_table = Dict(3 => 150, 4 => 150, 7 => 150, 9 => 200)
-            return get(chi64_table, ind, 80)
-        elseif L == 48
-            chi48_table = Dict(1 => 150)
-            return get(chi48_table, ind, 200)
-        elseif L == 128 && ind == 10
-            return 300
-        elseif L == 64
-            chi64_table = Dict(
-                3 => 250,
-                4 => 250,
-                5 => 300,
-                6 => 175,
-                7 => 250,
-                8 => 300,
-                9 => 200,
-                10 => 250,
-            )
-            return get(chi64_table, ind, 110)
-        end
     end
 
     function process_merge_task(task)

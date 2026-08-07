@@ -11,6 +11,9 @@ using Random
 # const CPUS_PER_TASK = parse(Int, get(ENV, "SLURM_CPUS_PER_TASK", "1"))
 # addprocs(SlurmManager(NWORKERS), exeflags="--project=$(PROJECT_DIR) --threads=1")
 
+const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
+@everywhere include($BULK_MEASURE_CONFIG)
+
 @everywhere begin
     # using Pkg
     # Pkg.activate($PROJECT_DIR; io=devnull)
@@ -21,33 +24,6 @@ using Random
     using JLD2
     using Statistics
     using Random
-    
-    ϕ = (1+sqrt(5))/2
-    γlis = vcat([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.707, 0.8, 0.9, 0.95, 0.999, 1], collect(0.77:0.01:0.79), collect(0.81:0.01:0.82), [0.825, tanh(log(2ϕ))], collect(0.83:0.01:0.84))
-    τlis = atanh.(γlis)
-    τlis[7] = log(1 + √2)
-    τlis[12] = 1000.0
-
-    function get_cfg_params_Born(ind, L)
-        cfg = Dict(
-            1 => (2500L, 1000, 750L),
-            2 => (500L,  100, 120L),
-            3 => (200L,  40, 80L),
-            4 => (100L,  40, 40L),
-            5 => (80L,   32, 20L),
-            6 => (45L,   20, 15L),
-            7 => (35L,   14, 10L),
-            8 => (25L,   10, 5L),
-            9 => (8L,    4, 2L),
-            10 => (8L,    4, 2L),
-            11 => (5L,    2, 1L),
-            12 => (5L, 2, L),
-        )
-        D, step, start = get(cfg, ind, (24L, 10, 5L))
-        inds = collect(1:step:div(D,2))
-        avg_range = start:2:div(D,2)-5
-        return D, inds, avg_range
-    end
 
     function process_merge_task(task)
         Lr, τr_idx = task
@@ -56,18 +32,6 @@ using Random
             return (Lr, τr_idx, :success, nothing)
         catch e
             return (Lr, τr_idx, :failed, e)
-        end
-    end
-
-    function check_duplicates(seeds)
-        if length(seeds) != length(unique(seeds))
-            duplicates = findall(x -> count(==(x), seeds) > 1, unique(seeds))
-            duplicate_values = unique(seeds)[duplicates]
-            println("WARNING: Found duplicate seeds: $duplicate_values")
-            return true
-        else
-            println("No duplicate seeds found in $(length(seeds)) seeds.")
-            return false
         end
     end
 
@@ -94,11 +58,11 @@ using Random
 
     function samples_generate(L::Int64, τ_idx::Int64, index::Int64)
         try
-            τ = τlis[τ_idx]
+            τ = τlis_ext[τ_idx]
             rng = MersenneTwister(index)
             D, _, _ = get_cfg_params_Born(τ_idx, L)
             t = div(D, 2)
-            model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+            model = fib_model(L)
             st = zeros(length(anyon_basis(model)))
             st[1] = 1.0
 
