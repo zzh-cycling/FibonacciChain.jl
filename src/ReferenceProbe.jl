@@ -139,6 +139,8 @@ function reference_measuremap(
         @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (ZZ)"
     elseif model.measure_operator ∈ (:X, :Z, :reset, :resetFibo)
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (X)"
+    elseif model.measure_operator == :SWAP
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (SWAP)"
     else
         error("Unknown measure class: $(model.basis)")
     end

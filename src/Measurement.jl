@@ -273,7 +273,7 @@ Construct the Hamiltonian matrix for a 1D anyon chain.
 - **Fibonacci Anyons**: Supports `:Antiferro` and `:Ferro` interaction terms.
 - **Ising Anyons**: Transverse field Ising model with parameters `J` and `h`.
 - **OBF Anyons**: O'Brien-Fendley model with parameter `λ`.
-- **Heisenberg chain**: Spin-1/2 XXZ chain `H = ∑ J(XX + YY) + Jz ZZ - h Z` with parameters `J`, `Jz` (defaults to `J`) and `h`.
+- **Heisenberg chain**: Spin-1/2 XXZ chain `H = J ∑ (XX + YY + Δ ZZ)` (J = +1 AFM, J = -1 FM) with parameters `J` and `Δ`.
 
 # Examples
 ```jldoctest
@@ -376,22 +376,23 @@ anyon_ham(
 
 # ============================================================================
 # Spin-1/2 Heisenberg (XXZ) chain
-# H = ∑_i [J (X_i X_{i+1} + Y_i Y_{i+1}) + Jz Z_i Z_{i+1}] - h ∑_i Z_i
+# H = J ∑_i (X_i X_{i+1} + Y_i Y_{i+1} + Δ Z_i Z_{i+1}), J = +1 AFM (default), J = -1 FM
 # It lives on the full 2^N spin-1/2 product basis (see `spin_half_basis` in Basis.jl),
 # shared with the Ising and OBF chains.
 # ============================================================================
 
 """
-    Heisenbergmap(state::T, i::Int, pbc::Bool=true; J::Float64=1.0, Jz::Float64=J, h::Float64=0.0) where {N, T <: BitStr{N}}
+    Heisenbergmap(state::T, i::Int, pbc::Bool=true; J::Float64=1.0, Δ::Float64=1.0) where {N, T <: BitStr{N}}
 
-Apply the Heisenberg (XXZ) bond term on sites `(i, i+1)` plus the longitudinal field on site `i`.
+Apply the Heisenberg (XXZ) bond term on sites `(i, i+1)`.
 
-The Hamiltonian is H = ∑_i [J (X_i X_{i+1} + Y_i Y_{i+1}) + Jz Z_i Z_{i+1}] - h ∑_i Z_i.
-For OBC the last site carries no bond, so only the field term `-h Z_N` is returned at `i == N`.
+The Hamiltonian is H = J ∑_i (X_i X_{i+1} + Y_i Y_{i+1} + Δ Z_i Z_{i+1}),
+with J = +1 antiferromagnetic (default) and J = -1 ferromagnetic. There is no field term.
+For OBC the last site carries no bond, so zero weights are returned at `i == N`.
 
 # Returns
 - `(state, swapped_state, diag_weight, off_diag_weight)`:
-  - `state`: original state (diagonal contribution `±Jz - h Z_i`)
+  - `state`: original state (diagonal contribution `±J Δ`)
   - `swapped_state`: state with the anti-aligned pair `(i, i+1)` exchanged (from `J(XX + YY)`);
     equals `state` when the pair is aligned, since `XX + YY` annihilates `|00⟩` and `|11⟩`
   - `diag_weight`, `off_diag_weight`: matrix element weights (`2J` for the exchange)
@@ -401,17 +402,13 @@ function Heisenbergmap(
     i::Int,
     pbc::Bool = true;
     J::Float64 = 1.0,
-    Jz::Float64 = J,
-    h::Float64 = 0.0,
+    Δ::Float64 = 1.0,
 ) where {N,T<:BitStr{N}}
     @assert 1 <= i <= N "i is expected to be in [1, $N], but got $i"
 
-    # Z eigenvalue at site i: +1 for bit 0, -1 for bit 1
-    z_i = readbit(state, N - i + 1) == 0 ? 1.0 : -1.0
-
-    # OBC special case: last site has no bond, only the field term
+    # OBC special case: last site has no bond
     if !pbc && i == N
-        return state, state, -h * z_i, 0.0
+        return state, state, 0.0, 0.0
     end
 
     i1 = pbc ? mod1(i + 1, N) : i + 1
@@ -419,12 +416,12 @@ function Heisenbergmap(
     bit_i1 = readbit(state, N - i1 + 1)
 
     if bit_i == bit_i1
-        # Aligned pair: ZZ contributes +Jz, XX + YY vanishes
-        return state, state, Jz - h * z_i, 0.0
+        # Aligned pair: ZZ contributes +JΔ, XX + YY vanishes
+        return state, state, J * Δ, 0.0
     else
-        # Anti-aligned pair: ZZ contributes -Jz, XX + YY exchanges the pair with amplitude 2J
+        # Anti-aligned pair: ZZ contributes -JΔ, XX + YY exchanges the pair with amplitude 2J
         swapped = flip(state, bmask(T, N - i + 1, N - i1 + 1))
-        return state, swapped, -Jz - h * z_i, 2J
+        return state, swapped, -J * Δ, 2J
     end
 end
 
@@ -433,12 +430,13 @@ end
 
 Act the spin-1/2 Heisenberg (XXZ) Hamiltonian on a given state:
 
-    H = ∑_i [J (X_i X_{i+1} + Y_i Y_{i+1}) + Jz Z_i Z_{i+1}] - h ∑_i Z_i
+    H = J ∑_i (X_i X_{i+1} + Y_i Y_{i+1} + Δ Z_i Z_{i+1})
+
+with J = +1 antiferromagnetic (default) and J = -1 ferromagnetic. There is no field term.
 
 # Parameters (passed as `kwargs` to `AnyonModel`)
-- `J`: XY coupling strength (default 1.0)
-- `Jz`: Ising (Z) coupling strength (defaults to `J`, i.e. the isotropic XXX chain)
-- `h`: longitudinal field strength (default 0.0)
+- `J`: overall coupling strength (default 1.0)
+- `Δ`: Ising (Z) anisotropy (default 1.0, i.e. the isotropic XXX chain)
 
 # Returns
 `Dict{T, Float64}`: mapping from output states to their coefficients
@@ -448,20 +446,14 @@ function actingHam(model::AnyonModel{SpinHalf,:Heisenberg}, state::T) where {N,T
 
     pbc = model.pbc
     J = get_interaction_param(model, :J, 1.0)
-    Jz = get_interaction_param(model, :Jz, J)
-    h = get_interaction_param(model, :h, 0.0)
+    Δ = get_interaction_param(model, :Δ, 1.0)
 
     output = Dict{T,Float64}()
     n_bonds = pbc ? N : N - 1
     for i = 1:n_bonds
-        s1, s2, w1, w2 = Heisenbergmap(state, i, pbc; J = J, Jz = Jz, h = h)
+        s1, s2, w1, w2 = Heisenbergmap(state, i, pbc; J = J, Δ = Δ)
         output[s1] = get(output, s1, 0.0) + w1
         w2 == 0 || (output[s2] = get(output, s2, 0.0) + w2)
-    end
-    if !pbc && h != 0
-        # OBC: field on the last site, from which no bond emanates
-        z_N = readbit(state, 1) == 0 ? 1.0 : -1.0
-        output[state] = get(output, state, 0.0) - h * z_N
     end
 
     return output
@@ -699,17 +691,39 @@ function _apply_result(
     i::Int,
     sign::Bool,
 )::@NamedTuple{s1::T, s2::T, w1::Float64, w2::Float64} where {T}
-    # The Heisenberg chain shares the spin-1/2 basis with the Ising chain,
-    # so it reuses the same measurement operators (:X, :Z, :ZZ, :reset).
-    return _apply_result_ising(
-        model.measure_operator,
-        model.N,
-        model.pbc,
-        τ,
-        state,
-        i,
-        sign,
-    )
+    # SWAP-bond measurement: the layer applies exp(s·τ·h_bond) on bond (i, i+1),
+    # with s = +1 (sign = false) / -1 (sign = true) and h_bond = J (XX + YY + Δ ZZ).
+    measure_operator = model.measure_operator
+    @assert measure_operator == :SWAP "measure_operator must be :SWAP for Heisenberg chain, but got $measure_operator"
+
+    N = model.N
+    pbc = model.pbc
+    J = get_interaction_param(model, :J, 1.0)
+    Δ = get_interaction_param(model, :Δ, 1.0)
+
+    # OBC: the last site has no bond (same OBC convention as _apply_result_ising)
+    @assert pbc || 1 <= i <= N - 1 "Index i must be in [1, N-1] for open BC (SWAP)"
+
+    i1 = pbc ? mod1(i + 1, N) : i + 1
+    bit_i = readbit(state, N - i + 1)
+    bit_i1 = readbit(state, N - i1 + 1)
+
+    s = sign ? -1.0 : 1.0
+
+    if bit_i == bit_i1
+        # Aligned pair: h_bond is diagonal with eigenvalue JΔ
+        return (s1 = state, s2 = state, w1 = exp(s * τ * J * Δ), w2 = 0.0)
+    else
+        # Anti-aligned pair: on the {|01⟩, |10⟩} block h_bond = -JΔ·I + 2J·σ_x,
+        # so exp(s·τ·h_bond) = exp(-sτJΔ) [cosh(2τJ)·I + s·sinh(2τJ)·σ_x]
+        swapped = flip(state, bmask(T, N - i + 1, N - i1 + 1))
+        return (
+            s1 = state,
+            s2 = swapped,
+            w1 = exp(-s * τ * J * Δ) * cosh(2τ * J),
+            w2 = s * exp(-s * τ * J * Δ) * sinh(2τ * J),
+        )
+    end
 end
 
 function _apply_result(
@@ -770,6 +784,8 @@ function measure_matrix(
         @assert model.pbc || (1 <= idx <= model.N) "Index idx must be in [1, N] for open BC (IsingX)"
     elseif model.measure_operator ∈ (:XZZ, :ZZX)
         @assert model.pbc || (1 <= idx <= model.N-2) "Index idx must be in [1, N-2] for open BC (OBF)"
+    elseif model.measure_operator == :SWAP
+        @assert model.pbc || (1 <= idx <= model.N-1) "Index idx must be in [1, N-1] for open BC (SWAP)"
     else
         error("Unknown measure class: $(model.basis)")
     end
@@ -1103,16 +1119,27 @@ function _obtain_measurement_config(
     layer_idx::Int,
     τ::Float64 = 1.0,
 )
-    # Same weak-measurement circuit layout as the Ising chain:
-    # odd layers measure X on all sites, even layers measure ZZ on all bonds.
-    measurement_sites = collect(1:model.N)
-    measure_operator = iseven(layer_idx) ? :ZZ : :X
+    # SWAP-bond measurement-only circuit: each layer applies exp(s·τ·h_bond) on a
+    # staggered set of bonds, with h_bond = J (XX + YY + Δ ZZ).
+    # Odd layers act on bonds (1,2), (3,4), ..., even layers on (2,3), (4,5), ...
+    # (the last bond wraps around to site 1 for PBC).
+    N = model.N
+    J = get_interaction_param(model, :J, 1.0)
+    Δ = get_interaction_param(model, :Δ, 1.0)
+
+    measurement_sites = isodd(layer_idx) ? collect(1:2:N) : collect(2:2:N)
+    if !model.pbc
+        # OBC: bond (i, i+1) requires i <= N-1, so the dangling bond start i = N is excluded
+        filter!(<(N), measurement_sites)
+    end
     measure_anyon_model = AnyonModel(
         model.basis,
-        model.N;
+        N;
         model_type = :Heisenberg,
         pbc = model.pbc,
-        measure_operator = measure_operator,
+        measure_operator = :SWAP,
+        J = J,
+        Δ = Δ,
     )
     measure_strength = τ
     return measurement_sites, measure_anyon_model, measure_strength
@@ -1218,8 +1245,12 @@ function _get_sample_column_indices(model::AnyonModel{SpinHalf,:Ising}, layer_id
 end
 
 function _get_sample_column_indices(model::AnyonModel{SpinHalf,:Heisenberg}, layer_idx::Int)
-    # Heisenberg: all N sites measured each layer (same layout as Ising)
-    return collect(1:model.N)
+    # Heisenberg: SWAP-bond layers carry one sample per measured bond. Odd layers
+    # measure bonds (1,2), (3,4), ..., even layers (2,3), (4,5), ...; for OBC the
+    # even layer skips the dangling bond start i = N, so it holds one sample fewer.
+    n_bonds = model.N ÷ 2
+    (!model.pbc && iseven(layer_idx)) && (n_bonds -= 1)
+    return collect(1:n_bonds)
 end
 
 function _get_sample_column_indices(model::AnyonModel{SpinHalf,:OBF}, layer_idx::Int)
@@ -1263,7 +1294,7 @@ Return the number of sample columns needed per layer (maximum across all layer t
 _samples_per_layer(model::AnyonModel{FibonacciAnyon}) = model.N ÷ 2
 _samples_per_layer(model::AnyonModel{SpinHalf,:Ising}) = model.N
 _samples_per_layer(model::AnyonModel{SpinHalf,:OBF}) = model.N  # Max of all layer types
-_samples_per_layer(model::AnyonModel{SpinHalf,:Heisenberg}) = model.N
+_samples_per_layer(model::AnyonModel{SpinHalf,:Heisenberg}) = model.N ÷ 2  # One sample per measured bond
 
 
 struct Measurement_outcome_bulk{ET}
@@ -1314,7 +1345,7 @@ Return the number of measurement layers per evolution period.
 - Fibonacci: 2 layers
 - Ising: 2 layers (X, ZZ)
 - OBF: 14 layers (√XZZ₁, √ZZX₁, √XZZ₂, √ZZX₂, √XZZ₃, √ZZX₃, X, √ZZX₃, √XZZ₃, √ZZX₂, √XZZ₂, √ZZX₁, √XZZ₁, ZZ), here OBF represents XZZ + ZZX. At the end plus a final √ZZ layer.
-- Heisenberg: 2 layers (X, ZZ), same layout as Ising
+- Heisenberg: 2 layers of SWAP-bond gates, staggered even/odd bonds
 """
 layers_per_period(model::AnyonModel{FibonacciAnyon}) = 2
 layers_per_period(model::AnyonModel{SpinHalf,:Ising}) = 2

@@ -48,7 +48,7 @@ Each basis type defines its own (possibly constrained) Hilbert space via `anyon_
 - `N::Int`: The number of sites in the chain.
 - `pbc::Bool`: A boolean indicating whether periodic boundary conditions are applied (`true`) or not (`false`).
 - `measure_operator::Symbol`: The operator type used for defining the Hamiltonian, e.g., `:Antiferro` or `:Ferro` for Fibonacci anyons.
-- `params::Dict{Symbol,Float64}`: Additional model parameters (e.g., `J`, `h` for the Ising chain, `J`, `Jz`, `h` for the Heisenberg chain, `λ`, `λI` for the OBF chain).
+- `params::Dict{Symbol,Float64}`: Additional model parameters (e.g., `J`, `h` for the Ising chain, `J`, `Δ` for the Heisenberg chain, `λ`, `λI` for the OBF chain).
 
 # Examples
 ```julia
@@ -58,8 +58,8 @@ model_fibo = AnyonModel(FibonacciAnyon(), 6; pbc=true, measure_operator=:Antifer
 # Ising model with custom couplings
 model_ising = AnyonModel(SpinHalf(), 10; model_type=:Ising, pbc=true, measure_operator=:X, J=1.0, h=0.5)
 
-# Heisenberg (XXZ) chain
-model_heis = AnyonModel(SpinHalf(), 10; model_type=:Heisenberg, pbc=true, J=1.0, Jz=0.5, h=0.1)
+# Heisenberg (XXZ) chain with SWAP-bond measurement layers
+model_heis = AnyonModel(SpinHalf(), 10; model_type=:Heisenberg, pbc=true, J=1.0, Δ=0.5)
 
 # Access parameters
 model_ising.params[:J]  # returns 1.0
@@ -88,7 +88,7 @@ struct AnyonModel{B<:AbstractAnyonBasis,M}
         N::Int;
         model_type::Symbol,
         pbc::Bool = true,
-        measure_operator::Symbol = :X,
+        measure_operator::Symbol = model_type === :Heisenberg ? :SWAP : :X,
         kwargs...,
     )
         @assert model_type ∈ (:Ising, :OBF, :Heisenberg) "model_type must be one of :Ising, :OBF, :Heisenberg, but got $model_type"
@@ -96,7 +96,7 @@ struct AnyonModel{B<:AbstractAnyonBasis,M}
         if model_type === :OBF
             @assert measure_operator in [:XZZ, :ZZX, :ZZ, :X] "measure_operator must be :XZZ, :ZZX, :ZZ, :X for OBF anyons"
         elseif model_type === :Heisenberg
-            @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Heisenberg chain"
+            @assert measure_operator in [:SWAP] "measure_operator must be :SWAP for Heisenberg chain"
         else # :Ising
             @assert measure_operator in [:X, :ZZ, :Z, :reset] "measure_operator must be either :X, :ZZ, :Z, :reset for Ising anyons"
         end
