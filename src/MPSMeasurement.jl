@@ -253,7 +253,7 @@ Create local measurement operator at site i as ITensor.
 - `sites::Vector{<:Index}`: ITensor site indices
 - `i::Int`: Measurement site
 - `τ::Float64`: Measurement strength parameter
-- `sign::Bool`: Measurement outcome (false for +, true for -)
+- `sign::Bool`: Measurement outcome (false for τ, true for 1)
 
 # Returns
 - `ITensor`: Local measurement operator incorporating neighboring site correlations
