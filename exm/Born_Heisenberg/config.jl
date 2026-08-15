@@ -24,6 +24,13 @@ function get_born_dynamics_params(ind, L, Δ)
         elseif ind == 7
             cfg = Dict(2.0 => (18, 2, 2))
             t, step, start = get(cfg, Δ, (18, 2, 2))
+        elseif ind == 10
+            # γ = 0.95: strong measurement, fast saturation. Measured on
+            # L=8..14 (see check_saturation.jl): EE/FE reach steady state
+            # within ≲ 1L periods for all Δ except Δ = 0.9, where the EE
+            # needs ≈ 2.5L. Δ = 2.0 saturates immediately; no extra time.
+            cfg = Dict(0.9 => (6, 2, 3))
+            t, step, start = get(cfg, Δ, (4, 2, 2))
         end
     elseif L >= 18
         if ind == 1
@@ -32,6 +39,9 @@ function get_born_dynamics_params(ind, L, Δ)
         elseif ind == 7
             cfg = Dict(2.0 => (10, 2, 2))
             t, step, start = get(cfg, Δ, (8, 2, 1))
+        elseif ind == 10
+            cfg = Dict(0.9 => (6, 2, 3))
+            t, step, start = get(cfg, Δ, (4, 2, 2))
         end
     end
     inds = collect(1:step:t*L)

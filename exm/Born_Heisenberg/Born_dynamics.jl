@@ -34,6 +34,7 @@ const BORN_HEISENBERG_CONFIG = joinpath(@__DIR__, "config.jl")
             final_EElis = anyon_eelis(model, final_state)
 
             # Assume seed is the index
+            mkpath("./exm/data/Heisenberg/Born_dynamics_records/L$(L)/τ$(τ)/Δ$(Δ)")
             save(
                 "./exm/data/Heisenberg/Born_dynamics_records/L$(L)/τ$(τ)/Δ$(Δ)/t$(t)_samples$(index).jld2",
                 "halfchain_EE_tlis",
@@ -101,6 +102,7 @@ const BORN_HEISENBERG_CONFIG = joinpath(@__DIR__, "config.jl")
             (std(ensemble_final_EElis, dims = 1) ./ sqrt(samples_num))[:]
         stderr_EE_tlis = (std(ensemble_EE_dynamics, dims = 1) ./ sqrt(samples_num))[:]
 
+        mkpath("exm/data/Heisenberg/Born_dynamics_records/L$(L)/τ$(τ)")
         save(
             "exm/data/Heisenberg/Born_dynamics_records/L$(L)/τ$(τ)/ensemble_L$(L)_τ$(τ)_Δ$(Δ)_t$(t).jld2",
             "measure_records_ensemble",

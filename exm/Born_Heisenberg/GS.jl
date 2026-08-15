@@ -53,7 +53,7 @@ else
 
     # Refined around the Δ = ±1 critical points of the XXZ chain; J = +1 (AFM side).
     Δlis_sel =
-        unique!(sort(vcat(collect(-2.0:0.1:2.0), collect(-1.02:0.02:-0.78), collect(0.78:0.02:1.02))))
+        unique!(sort(vcat(collect(-1.0:0.2:1.0), collect(-1.04:0.02:-0.96), collect(0.96:0.02:1.04))))
     tasks = [(Δ, N) for Δ in Δlis_sel] |> vec
 
     results = pmap(tasks) do params

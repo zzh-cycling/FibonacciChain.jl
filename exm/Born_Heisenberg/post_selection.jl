@@ -26,6 +26,10 @@ const BORN_HEISENBERG_CONFIG = joinpath(@__DIR__, "config.jl")
         elseif ind == 7
             cfg = Dict(2.0 => (25, 2, 6))
             t, step, start = get(cfg, Δ, (10, 2, 6))
+        elseif ind == 10
+            # γ = 0.95: strong measurement, converges faster than ind 7
+            cfg = Dict(2.0 => (15, 2, 4))
+            t, step, start = get(cfg, Δ, (8, 2, 4))
         end
         inds = collect(1:step:2t)
         avg_range = start:2
@@ -55,12 +59,14 @@ const BORN_HEISENBERG_CONFIG = joinpath(@__DIR__, "config.jl")
             S_tlis = measure_outcome.entanglement_entropys
             final_st = measure_outcome.state
             Slis = anyon_eelis(model, final_st)
-            mctable = Dict(8 => 2, 10 => 3)
-            mc = get(mctable, N, 4)
-            (cent, cent_err), fig = fitCCEntEntScal(Slis, mincut = mc, pbc = true)
-            path = "exm/data/Heisenberg/Post_selection/eescaling_figs/gammaind$(ind)/L$(N)/Heisenberg_EntScal_Δ=$(round(Δ, digits=4))_N=$(N).pdf"
+           
+            path = "exm/data/Heisenberg/Post_selection/gammaind$(ind)/L$(N)/Δ=$(round(Δ, digits=4))_N=$(N).jld"
             mkpath(dirname(path))
-            savefig(fig, path)
+            save(path,
+                 "Slis", Slis, 
+                 "S_tlis", S_tlis,
+                 "F", F,
+            )
             return (
                 Δ = Δ,
                 N = N,
@@ -68,6 +74,7 @@ const BORN_HEISENBERG_CONFIG = joinpath(@__DIR__, "config.jl")
                 c_err = cent_err,
                 Slis = Slis,
                 S_t = S_tlis,
+                F = F,
                 status = :success,
                 error = nothing,
             )
@@ -106,6 +113,7 @@ else
     cc_err_ensemble = collect([r[4] for r in success_tasks])
     Slis_ensemble = collect([r[5] for r in success_tasks])
     S_t_ensemble = collect([r[6] for r in success_tasks])
+    mkpath("exm/data/Heisenberg/Post_selection/gammaind$(τ_idx)")
     save(
         "exm/data/Heisenberg/Post_selection/gammaind$(τ_idx)/ee_ensemble_L$(N).jld2",
         "Δlis",
