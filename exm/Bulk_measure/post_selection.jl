@@ -37,6 +37,83 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         return average_EElis, EE_tlis, sample_free_energy
     end
 
+    function post_selection_mps(L::Int64, τ::Float64, χ::Int64, sign::Bool = true)
+        model = fib_model(L)
+        t, _, _ = get_mps_ps(τ, L, sign)
+        average_EElis=zeros(L-1)
+        ψ, sites = initial_mps(L)
+            
+        sample =
+            sign ? BitMatrix(ones(Bool, 2t, length(2:2:L))) :
+            BitMatrix(zeros(Bool, 2t, length(2:2:L)))
+        config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, cutoff = 1e-12, maxdim = χ,)
+
+        try
+            @time mps_mo = bulk_evolution(model, sites, ψ, config, sample)
+            sample, sample_free_energy = mps_mo.samples, mps_mo.free_energys
+            EE_tlis = mps_mo.entanglement_entropys
+    
+            # Compute final state EE profile
+            average_EElis = anyon_eelis(model, mps_mo.state)
+            
+            branch = sign ? "AFM" : "FM"
+            filepath = "exm/data/post_selection$(branch)/τ$(τ)/L$(L)_t$(div(t, L))_χ$(χ).jld"
+            mkpath(dirname(filepath))
+            save(
+                filepath,
+                "average_EElis",
+                average_EElis,
+                "EE_tlis",
+                EE_tlis,
+                "sample_free_energy",
+                sample_free_energy,
+            )
+            return (L, τ, χ, :success, nothing)
+        catch e
+            return (L, τ, χ, :failed, e)
+        end
+    end
+
+    function get_mps_ps(τ, L, sign)
+        if sign == true
+            table = Dict(
+                atanh(0.1) => (2500L, 1000, 750L),
+                atanh(0.2) => (500L, 100, 120L),
+                atanh(0.3) => (120L, 48, 50L),
+                atanh(0.4) => (100L, 40, 40L),
+                atanh(0.5) => (80L, 32, 20L),
+                atanh(0.6) => (45L, 20, 15L),
+                log(1 + √2) => (35L, 14, 10L),
+                atanh(0.8) => (25L, 10, 5L),
+                atanh(0.9) => (8L, 4, 2L),
+                atanh(0.95) => (L, 4, 2L),
+                atanh(0.999) => (L, 2, 1L),
+            )
+            # No idea why it will drop after L+δt, maybe because exact dynamics preserve the Fibonacci constraint algebraically, but ordinary SVD truncation does not explicitly enforce it
+            t, step, start = get(table, τ, (L, 2, L))
+            inds = collect(1:step:div(t, 2))
+            avg_range = start:(t-4)
+            return t, inds, avg_range
+        else
+            table = Dict(
+                atanh(0.1) => (300L, 1000, 1500L),
+                atanh(0.2) => (60L, 100, 250L),
+                atanh(0.3) => (25L, 48, 100L),
+                atanh(0.4) => (20L, 40, 80L),
+                atanh(0.5) => (20L, 32, 40L),
+                atanh(0.6) => (15L, 20, 30L),
+                log(1 + √2) => (10L, 14, 20L),
+                atanh(0.8) => (8L, 10, 10L),
+                atanh(0.9) => (5L, 4, 4L),
+                atanh(0.95) => (2L, 4, 2L),
+            )
+            t, step, start = get(table, τ, (2L, 2, 2L))
+            inds = collect(1:step:t)
+            avg_range = start:(t-4)
+            return t, inds, avg_range
+        end
+    end
+
     function get_system_params_ps(τ, L, sign)
         if sign == true
             table = Dict(
@@ -87,7 +164,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         average_EElis, EE_tlis, sample_free_energy = post_selection(L, τ, D, sign)
 
         # Save results
-        filepath = "exm/data/post_selection$(sign)/τ$(τ)/L$(L)_D$(div(D,L)).jld"
+        branch = sign ? "AFM" : "FM"
+        filepath = "exm/data/post_selection$(branch)/τ$(τ)/L$(L)_D$(div(D,L)).jld"
         mkpath(dirname(filepath))
         save(
             filepath,
