@@ -77,17 +77,16 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function get_mps_ps(τ, L, sign)
         if sign == true
             table = Dict(
-                atanh(0.1) => (2500L, 1000, 750L),
-                atanh(0.2) => (500L, 100, 120L),
-                atanh(0.3) => (120L, 48, 50L),
-                atanh(0.4) => (100L, 40, 40L),
-                atanh(0.5) => (80L, 32, 20L),
-                atanh(0.6) => (45L, 20, 15L),
-                log(1 + √2) => (35L, 14, 10L),
-                atanh(0.8) => (25L, 10, 5L),
-                atanh(0.9) => (8L, 4, 2L),
-                atanh(0.95) => (L, 4, 2L),
-                atanh(0.999) => (L, 2, 1L),
+                atanh(0.1) => (50L, 1000, 7L),
+                atanh(0.2) => (40L, 100, 12L),
+                atanh(0.3) => (30L, 48, 5L),
+                atanh(0.4) => (20L, 40, 4L),
+                atanh(0.5) => (15L, 32, 3L),
+                atanh(0.6) => (12L, 20, 2L),
+                log(1 + √2) => (8L, 14, L),
+                atanh(0.8) => (6L, 10, L),
+                atanh(0.9) => (2L, 4, L),
+                atanh(0.95) => (L, 4, L),
             )
             # No idea why it will drop after L+δt, maybe because exact dynamics preserve the Fibonacci constraint algebraically, but ordinary SVD truncation does not explicitly enforce it
             t, step, start = get(table, τ, (L, 2, L))
@@ -96,18 +95,18 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             return t, inds, avg_range
         else
             table = Dict(
-                atanh(0.1) => (300L, 1000, 1500L),
-                atanh(0.2) => (60L, 100, 250L),
-                atanh(0.3) => (25L, 48, 100L),
-                atanh(0.4) => (20L, 40, 80L),
-                atanh(0.5) => (20L, 32, 40L),
-                atanh(0.6) => (15L, 20, 30L),
-                log(1 + √2) => (10L, 14, 20L),
-                atanh(0.8) => (8L, 10, 10L),
-                atanh(0.9) => (5L, 4, 4L),
-                atanh(0.95) => (2L, 4, 2L),
+                atanh(0.1) => (100L, 1000, 15L),
+                atanh(0.2) => (40L, 100, 5L),
+                atanh(0.3) => (30L, 48, 4L),
+                atanh(0.4) => (25L, 40, 3L),
+                atanh(0.5) => (20L, 32, 3L),
+                atanh(0.6) => (12L, 20, 2L),
+                log(1 + √2) => (8L, 14, 2L),
+                atanh(0.8) => (4L, 10, 1L),
+                atanh(0.9) => (2L, 4, L),
+                atanh(0.95) => (L, 4, L),
             )
-            t, step, start = get(table, τ, (2L, 2, 2L))
+            t, step, start = get(table, τ, (L, 2, 2L))
             inds = collect(1:step:t)
             avg_range = start:(t-4)
             return t, inds, avg_range
