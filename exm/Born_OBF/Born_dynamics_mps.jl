@@ -223,7 +223,7 @@ else
         indexlis = collect(index_start:index_end)
 
 
-        λlis = vcat([11.0])
+        λlis_local = [0.0]
         println("=== Parallel Sample Generation (MPS) ===")
         println("L = $L, τ_idx = $τ_idx, χ = $χ")
         println("Sample index range: $(indexlis[1]) - $(indexlis[end])")
@@ -232,7 +232,7 @@ else
 
         # create task list
         taskslis =
-            [(L, τ_idx, λ, indexlis[i], χ) for λ in λlis for i in eachindex(indexlis)]
+            [(L, τ_idx, λ, indexlis[i], χ) for λ in λlis_local for i in eachindex(indexlis)]
 
         # use pmap for parallel processing
         println("\nStarting parallel processing...")
