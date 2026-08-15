@@ -24,7 +24,7 @@ abstract type AbstractAnyonBasis end
 # Each basis type carries its own (possibly constrained) Hilbert space, defined
 # once and for all by its `anyon_basis` method — this is the single extension
 # point when adding a new chain:
-struct FibonacciAnyon <: AbstractAnyonBasis end  # Fibonacci fusion space: bitstrings with no adjacent τ (1)s, dim ~ φ^N
+struct FibonacciAnyon <: AbstractAnyonBasis end  # Fibonacci fusion space: bitstrings with no adjacent 1 s, dim ~ φ^N
 struct SpinHalf <: AbstractAnyonBasis end        # spin-1/2 chains (Ising, OBF, Heisenberg): full 2^N product basis
 
 """
@@ -39,7 +39,7 @@ model can be retrieved with `model_type(model)`.
 
 # Hilbert space
 Each basis type defines its own (possibly constrained) Hilbert space via `anyon_basis`:
-- `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent τ (`1`)s, dimension ~ φ^N (model tag `:Fibonacci`).
+- `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent 1 (`1`)s, dimension ~ φ^N (model tag `:Fibonacci`).
 - `SpinHalf()`: spin-1/2 chains with the full 2^N product basis; the Hamiltonian is selected by `model_type`:
   `:Ising` (transverse-field Ising chain), `:OBF` (O'Brien-Fendley chain) or `:Heisenberg` (XXZ chain).
 

@@ -28,7 +28,7 @@ function Fibomap(state::T, i::Int; ferro::Bool = false) where {N,T<:BitStr{N}}
     fl = bmask(T, N)
     X_state = flip(state, fl >> (i-1))
 
-    # Read bit at site i: 0 = vacuum (1), 1 = τ anyon
+    # Read bit at site i: 0 = τ anyon
     # BitStr indexing: bit at site i is at position N - i + 1
     bit_i = readbit(state, N - i + 1)
 
@@ -469,7 +469,7 @@ Map single basis state under measurement operation at site i.
 - `τ::Float64`: Measurement strength parameter
 - `state::T`: Input basis state
 - `i::Int`: Measurement site index (1 ≤ i ≤ N)
-- `sign::Bool`: Measurement outcome (false for +, true for -)
+- `sign::Bool`: Measurement outcome (false for τ, true for 1)
 
 # Returns
 - `Tuple`: Either `(basis1, basis2, coeff1, coeff2)` for superposition output or `(basis, coeff)` for single output
@@ -826,7 +826,7 @@ Apply measurement to a state vector.
 - `τ::Float64`: Measurement strength parameter
 - `state::Vector{ET}`: Input quantum state vector
 - `idx::Int`: Measurement site index
-- `sign::Bool`: Measurement outcome (false for +, true for -)
+- `sign::Bool`: Measurement outcome (false for τ, true for 1)
 
 ### Returns
 - `Vector{ET}`: Post-measurement quantum state (unnormalized)
@@ -840,7 +840,7 @@ Apply measurement to an MPS state.
 - `sites`: ITensor site indices
 - `i::Int`: Measurement site
 - `τ::Float64`: Measurement strength parameter
-- `sign::Bool`: Measurement outcome (false for +, true for -)
+- `sign::Bool`: Measurement outcome (false for τ, true for 1)
 - `cutoff::Float64=1e-10`: MPS truncation cutoff
 - `maxdim::Int=100`: Maximum bond dimension
 
