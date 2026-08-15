@@ -710,6 +710,29 @@ function _apply_result(
 
     s = sign ? -1.0 : 1.0
 
+    if τ >= 1e2
+        # Projective limit (γ = 1): exp(s·τ·h_bond), up to its operator norm, becomes
+        # the projector onto the extremal-eigenvalue sector of h_bond (lowest for
+        # s = -1, highest for s = +1). Bond eigenvalues: aligned |00⟩/|11⟩ have
+        # E_al = JΔ; the anti-aligned block has E_lo = -JΔ - 2J (singlet) and
+        # E_hi = -JΔ + 2J (triplet0). At Δ = ∓1 the aligned sector is degenerate
+        # with the winning anti-aligned eigenstate, so both are kept.
+        E_al = J * Δ
+        E_lo = -J * Δ - 2J
+        E_hi = -J * Δ + 2J
+        if bit_i == bit_i1
+            keep = sign ? (E_al <= E_lo) : (E_al >= E_hi)
+            return (s1 = state, s2 = state, w1 = keep ? 1.0 : 0.0, w2 = 0.0)
+        elseif sign ? (E_lo <= E_al) : (E_hi >= E_al)
+            # anti-aligned pair: project onto the singlet (s = -1) or triplet0 (s = +1)
+            swapped = flip(state, bmask(T, N - i + 1, N - i1 + 1))
+            return (s1 = state, s2 = swapped, w1 = 0.5, w2 = sign ? -0.5 : 0.5)
+        else
+            # whole anti-aligned block is not extremal (e.g. s = -1 with Δ < -1): killed
+            return (s1 = state, s2 = state, w1 = 0.0, w2 = 0.0)
+        end
+    end
+
     if bit_i == bit_i1
         # Aligned pair: h_bond is diagonal with eigenvalue JΔ
         return (s1 = state, s2 = state, w1 = exp(s * τ * J * Δ), w2 = 0.0)
