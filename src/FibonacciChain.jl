@@ -64,6 +64,7 @@ export add_reference_qubits,
     reference_boundary_evolution,
     reference_rdm,
     reference_evolution,
+    topological_charge_sharpening,
     build_extended_basis
 
 include("Basis.jl")

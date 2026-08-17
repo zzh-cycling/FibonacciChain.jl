@@ -547,7 +547,6 @@ function reference_rdm(
 
 end
 
-
 """
     reference_boundary_evolution(model::AnyonModel, state::Vector{T}, measure_config::MeasureConfig,
                                  sample::Union{Nothing, BitVector}=nothing; layer_idx::Int64=1)
@@ -869,6 +868,8 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
 - `measure_config::MeasureConfig`: Configuration containing `τ`, `t₁`, `t₂`, `rng`, etc.
 - `extended_basis::Vector{newT}`: Extended basis with reference qubits.
 - `k_old::Int64=1`: Number of reference qubits in the state.
+- `track_reference_entropy::Bool=false`: Record the entropy of a single reference
+  qubit after each period.
 
 # Returns
 - `Measurement_outcome_bulk`: A struct containing:
@@ -882,6 +883,7 @@ function _reference_born_measure(
     measure_config::MeasureConfig;
     extended_basis::Vector{newT},
     k_old::Int64 = 1,
+    track_reference_entropy::Bool = false,
 ) where {AT,ET,newT}
     n_measure = _samples_per_layer(model)
     τ = measure_config.τ
@@ -930,6 +932,11 @@ function _reference_born_measure(
         current_state = outcome2.state
         samples[2*period, :] = outcome2.sample
         sample_free_energy[2*period] = outcome2.free_energy
+
+        if track_reference_entropy
+            reference_density_matrix = reference_rdm(model, collect(1:k_old), current_state)
+            entanglement_entropys[period] = Float32(ee(reference_density_matrix))
+        end
     end
 
     return Measurement_outcome_bulk(
@@ -937,6 +944,98 @@ function _reference_born_measure(
         samples,
         sample_free_energy,
         entanglement_entropys,
+    )
+end
+
+"""
+    topological_charge_sharpening(model::AnyonModel{FibonacciAnyon},
+                                  state::Vector,
+                                  measure_config::MeasureConfig,
+                                  samples::Union{Nothing,BitMatrix}=nothing)
+
+Entangle the total topological charge of a Fibonacci chain with an ancilla qubit and
+evolve the joint state with Born-rule or fixed-sample measurement dynamics.
+
+For the two eigenvalues of the topological charge operator `Y`,
+`y₁ = ϕ` and `yτ = -1/ϕ`, the input state is decomposed as
+
+```
+    |ψ⟩ = P₁|ψ⟩ + Pτ|ψ⟩,
+```
+
+and the joint state is prepared as
+
+```
+    |0⟩ₐ Pτ|ψ⟩ + |1⟩ₐ P₁|ψ⟩.
+```
+
+The returned `Measurement_outcome_bulk.entanglement_entropys` contains the
+von Neumann entropy of the ancilla after every full measurement period. This
+entropy is the charge-sharpening diagnostic: it vanishes when the trajectory has
+learned the total topological charge.
+
+# Arguments
+- `model`: Periodic Fibonacci anyon model.
+- `state`: State vector in the system anyon basis, without reference qubits.
+- `measure_config`: Evolution parameters. Its mode must be `:Born` or `:sample`.
+- `samples`: Fixed measurement record required when `mode = :sample`. Its size must
+  be `(2Δt, model.N ÷ 2)`, where `Δt = t₂ - t₁ + 1`.
+
+# Returns
+- `Measurement_outcome_bulk`: Final joint state, measurement record, free energies,
+  and the ancilla entropy trajectory.
+"""
+function topological_charge_sharpening(
+    model::AnyonModel{FibonacciAnyon},
+    state::Vector{ET},
+    measure_config::MeasureConfig,
+    samples::Union{Nothing,BitMatrix} = nothing,
+) where {ET}
+    model.pbc || error("topological charge sharpening requires periodic boundary conditions")
+    mode = measure_config.mode
+    mode ∈ (:Born, :sample) || error("mode must be one of :Born, :sample")
+
+    basis = anyon_basis(model)
+    length(state) == length(basis) || error(
+        "state length must equal the Fibonacci anyon basis dimension $(length(basis)), got $(length(state))",
+    )
+
+    state_norm = norm(state)
+    iszero(state_norm) && error("state must have nonzero norm")
+    normalized_state = state ./ state_norm
+
+    ϕ = (1 + √5) / 2
+    y₁ = ϕ
+    yτ = -inv(ϕ)
+    Ystate = topological_charge_operator(model) * normalized_state
+    state_y₁ = (Ystate .- yτ .* normalized_state) ./ (y₁ - yτ)
+    state_yτ = (y₁ .* normalized_state .- Ystate) ./ (y₁ - yτ)
+
+    # build_extended_basis orders the ancilla-|0⟩ block before the ancilla-|1⟩ block.
+    joint_state = vcat(state_yτ, state_y₁)
+    joint_state ./= norm(joint_state)
+    extended_basis = build_extended_basis(1, basis)
+
+    if mode == :Born
+        return _reference_born_measure(
+            model,
+            joint_state,
+            measure_config;
+            extended_basis = extended_basis,
+            k_old = 1,
+            track_reference_entropy = true,
+        )
+    end
+
+    isnothing(samples) && error("When mode=:sample, samples must be provided as BitMatrix")
+    return _reference_sample_measure(
+        model,
+        joint_state,
+        samples,
+        measure_config;
+        extended_basis = extended_basis,
+        k_old = 1,
+        track_reference_entropy = true,
     )
 end
 
@@ -956,6 +1055,8 @@ This internal helper function is called by `reference_bulk_evolution` when `mode
 - `measure_config::MeasureConfig`: Configuration containing `τ`, `t₁`, `t₂`, etc.
 - `extended_basis::Vector{newT}`: Extended basis with reference qubits.
 - `k_old::Int64=1`: Number of reference qubits in the state.
+- `track_reference_entropy::Bool=false`: Record the entropy of a single reference
+  qubit after each period.
 
 # Returns
 - `Measurement_outcome_bulk`: A struct containing:
@@ -970,6 +1071,7 @@ function _reference_sample_measure(
     measure_config::MeasureConfig;
     extended_basis::Vector{newT},
     k_old::Int64 = 1,
+    track_reference_entropy::Bool = false,
 ) where {AT,ET,newT}
     n_measure = _samples_per_layer(model)
     τ = measure_config.τ
@@ -1015,6 +1117,11 @@ function _reference_sample_measure(
         )
         current_state = outcome2.state
         sample_free_energy[2*period] = outcome2.free_energy
+
+        if track_reference_entropy
+            reference_density_matrix = reference_rdm(model, collect(1:k_old), current_state)
+            entanglement_entropys[period] = Float32(ee(reference_density_matrix))
+        end
     end
 
     return Measurement_outcome_bulk(
