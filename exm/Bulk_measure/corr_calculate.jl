@@ -228,7 +228,8 @@ function spatial_temporal_corr_varyingt(
 end
 
 function corr_collect(arg::Tuple)
-    L, τ, δt = arg
+    L, τ_idx, δt = arg
+    τ = τlis[τ_idx]
     D = get_cfg_params_Born(τ_idx, L)[1]
     t = div(D, 2) # true circuits depth
     D1 = D + get_correlation_dynamics_D(τ, L)

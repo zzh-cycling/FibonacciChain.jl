@@ -85,7 +85,7 @@ function get_δtL_Born(τ, L)
             atanh(0.3) => sort(vcat(collect(10:10:50), collect(55:4:65), collect(67:2:75), collect(80:10:90))),
             atanh(0.4) => vcat([5, 10, 15, 20, 25, 30], (collect(32:42)), [45, 50]),
             atanh(0.5) => (collect(4:22)),
-            atanh(0.6) => vcat(collect(1:16), [20, 25]),
+            atanh(0.6) => vcat(collect(1:25)),
             atanh(1/√2) => (collect(1:8)),
             atanh(0.8) => (collect(1:16)),
         )
@@ -97,7 +97,7 @@ function get_δtL_Born(τ, L)
             atanh(0.3) => sort(vcat([10, 20, 30, 40, 50], collect(71:74), collect(60:5:90))),
             atanh(0.4) => sort(vcat([5, 15], [38, 39, 41, 42], collect(25:5:50))),
             atanh(0.5) => vcat([5, 10], collect(20:28)),
-            atanh(0.6) => vcat([2], collect(5:15), [20, 25]),
+            atanh(0.6) => vcat([2], collect(5:20), [25]),
             atanh(1/√2) => (collect(1:10)),
             atanh(0.8) => (collect(1:10)),
             atanh(0.9) => (collect(1:10)),
@@ -118,14 +118,14 @@ function get_δtL_Born(τ, L)
         table = Dict(
             atanh(0.4) =>vcat([10, 20, 30, 35, 37], collect(41:2:49), collect(50:2:52), [60, 65, 80]),
             atanh(0.5) => sort(vcat([5, 10], collect(16:2:36), [40])),
-            atanh(0.6) => sort(vcat(collect(5:2:19), [20])),
+            atanh(0.6) => sort(vcat(collect(5:2:19), [2, 20, 22])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))
     elseif L == 24
         table = Dict(
             atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28), [5, 10, 15, 20])),
-            atanh(0.6) => sort(vcat(collect(10:2:20), [5, 25])),
+            atanh(0.6) => sort(vcat(collect(10:2:20), [2, 5, 22, 25])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))
