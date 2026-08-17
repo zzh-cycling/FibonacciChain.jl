@@ -231,6 +231,88 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         )
         return output_path, average_charge_entropy, stderr_charge_entropy
     end
+
+    """
+        reference_density_matrix_to_bloch_vector(ρ)
+
+    Convert a normalized `2×2` reference density matrix to the Bloch vector
+    `(tr(ρσₓ), tr(ρσᵧ), tr(ρσ_z))`. The returned vector is ordered as
+    `[x, y, z]`.
+    """
+    function reference_density_matrix_to_bloch_vector(ρ::AbstractMatrix)
+        size(ρ) == (2, 2) || error(
+            "reference density matrix must be 2×2, got size $(size(ρ))",
+        )
+        isapprox(ρ, ρ'; atol = 1e-10, rtol = 1e-10) ||
+            error("reference density matrix is not Hermitian")
+
+        trace_ρ = tr(ρ)
+        abs(imag(trace_ρ)) <= 1e-10 || error("density-matrix trace is not real: $trace_ρ")
+        real(trace_ρ) > 0 || error("density-matrix trace must be positive: $trace_ρ")
+        ρ_normalized = ρ ./ trace_ρ
+
+        bloch_vector = Float64[
+            2real(ρ_normalized[1, 2]),
+            -2imag(ρ_normalized[1, 2]),
+            real(ρ_normalized[1, 1] - ρ_normalized[2, 2]),
+        ]
+        norm(bloch_vector) <= 1 + 1e-8 || error(
+            "unphysical Bloch-vector norm $(norm(bloch_vector)); expected norm ≤ 1",
+        )
+        return bloch_vector
+    end
+
+    """
+        collect_charge_sharpening_bloch_vectors(L, τ_idx, t)
+
+    Load the final reference density matrix of every saved Born trajectory,
+    convert it to a Bloch vector, sort the rows by trajectory seed, and save the
+    result as `reference_bloch_vectors.jld2` in the trajectory data directory.
+    """
+    function collect_charge_sharpening_bloch_vectors(
+        L::Integer,
+        τ_idx::Integer,
+        t::Integer,
+    )
+        data_dir = charge_sharpening_data_dir(:Born, L, τ_idx, t)
+        files = filter(
+            path -> startswith(path, "trajectory_seed") && endswith(path, ".jld2"),
+            readdir(data_dir),
+        )
+        isempty(files) && error("No Born trajectory files found in $data_dir")
+
+        samples_num = length(files)
+        seeds = zeros(Int, samples_num)
+        bloch_vectors = zeros(Float64, samples_num, 3)
+
+        for (i, filename) in enumerate(files)
+            data = JLD2.load(joinpath(data_dir, filename))
+            haskey(data, "reference_density_matrix") ||
+                error("reference_density_matrix is missing from $filename")
+            seeds[i] = Int(data["seed"])
+            bloch_vectors[i, :] = reference_density_matrix_to_bloch_vector(
+                data["reference_density_matrix"],
+            )
+        end
+        length(unique(seeds)) == samples_num || error("duplicate trajectory seeds found")
+
+        permutation = sortperm(seeds)
+        seeds = seeds[permutation]
+        bloch_vectors = bloch_vectors[permutation, :]
+
+        output_path = joinpath(data_dir, "reference_bloch_vectors.jld2")
+        JLD2.jldsave(
+            output_path;
+            L = Int(L),
+            τ_idx = Int(τ_idx),
+            τ = τlis[τ_idx],
+            t = Int(t),
+            seeds = seeds,
+            samples_num = samples_num,
+            bloch_vectors = bloch_vectors,
+        )
+        return output_path, bloch_vectors, seeds
+    end
 end
 
 function print_usage()
@@ -243,6 +325,9 @@ function print_usage()
     )
     println(
         "  julia exm/Bulk_measure/topological_charge_sharpening.jl collect L τ_idx t",
+    )
+    println(
+        "  julia exm/Bulk_measure/topological_charge_sharpening.jl collect_bloch L τ_idx t",
     )
     println("Here sign=1 post-selects the AFM outcome and sign=0 the FM outcome.")
 end
@@ -298,6 +383,17 @@ else
             t;
         )
         println("Saved Born ensemble statistics to $output_path")
+    elseif action == "collect_bloch"
+        length(ARGS) >= 4 || error("collect_bloch mode requires L τ_idx t")
+        L = parse(Int, ARGS[2])
+        τ_idx = parse(Int, ARGS[3])
+        t = parse(Int, ARGS[4])
+        output_path, bloch_vectors, _ = collect_charge_sharpening_bloch_vectors(
+            L,
+            τ_idx,
+            t,
+        )
+        println("Saved $(size(bloch_vectors, 1)) reference Bloch vectors to $output_path")
     else
         print_usage()
         error("Unknown action: $(ARGS[1])")

@@ -152,6 +152,48 @@ end
     state_y₁ = vectors[:, findfirst(x -> isapprox(x, ϕ), values)] # A y=1 eigenstate of the topological charge operator.
     state_yτ = vectors[:, findfirst(x -> isapprox(x, -inv(ϕ)), values)] # A y=τ eigenstate of the topological charge operator.
 
+    @testset "bulk evolution Y expectation" begin
+        born_config = MeasureConfig(
+            τ = 0.7,
+            t₂ = 3,
+            rng = MersenneTwister(2026),
+            mode = :Born,
+            enable_τ_eff = false,
+            track_y_expectation = true,
+        )
+        born_outcome = bulk_evolution(model, state_y₁, born_config)
+
+        @test length(born_outcome.y_expectation_values) == born_config.t₂
+        @test born_outcome.y_expectation_values ≈ fill(ϕ, born_config.t₂) atol = 1e-6
+
+        sample_config = MeasureConfig(
+            τ = born_config.τ,
+            t₂ = born_config.t₂,
+            mode = :sample,
+            enable_τ_eff = false,
+            track_y_expectation = true,
+        )
+        sample_outcome =
+            bulk_evolution(model, state_y₁, sample_config, born_outcome.samples)
+        unnormalized_outcome =
+            bulk_evolution(model, state_y₁, sample_config, born_outcome.samples, false)
+
+        @test sample_outcome.y_expectation_values ≈
+              born_outcome.y_expectation_values atol = 1e-6
+        @test unnormalized_outcome.y_expectation_values ≈
+              born_outcome.y_expectation_values atol = 1e-6
+
+        tracking_off_config = MeasureConfig(
+            τ = born_config.τ,
+            t₂ = born_config.t₂,
+            mode = :sample,
+            enable_τ_eff = false,
+        )
+        tracking_off_outcome =
+            bulk_evolution(model, state_y₁, tracking_off_config, born_outcome.samples)
+        @test isempty(tracking_off_outcome.y_expectation_values)
+    end
+
     config = MeasureConfig(
         # At τ = 0 every local Kraus operator is proportional to the identity.
         # A Born record therefore has identical likelihood in the y = 1 and

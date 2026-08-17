@@ -1325,7 +1325,19 @@ struct Measurement_outcome_bulk{ET}
     samples::BitMatrix
     free_energys::Vector{Float32}
     entanglement_entropys::Vector{Float32}
+    y_expectation_values::Vector{Float32}
 end
+
+# Keep the previous four-argument constructor available for callers (such as the
+# reference-probe routines) that do not measure the topological Y charge.
+Measurement_outcome_bulk(state, samples, free_energys, entanglement_entropys) =
+    Measurement_outcome_bulk(
+        state,
+        samples,
+        free_energys,
+        entanglement_entropys,
+        Float32[],
+    )
 
 struct Measurement_outcome_boundary{T}
     state::Vector{T}
@@ -1344,7 +1356,12 @@ Configuration struct for measurement evolution parameters.
 - `t₁::Int`: Starting layer index for evolution (default: 1)
 - `verbose::Bool`: Verbosity flag for detailed output (default: false)
 - `enable_τ_eff::Bool`: Whether to enable half-strength measurement for the last layer (default: true)
-- `λ::Float64`: O'Brien-Fendley coupling strength (default: 0.0, pure Ising when λ=0)
+- `track_y_expectation::Bool`: Record the Fibonacci topological-symmetry expectation
+  value after every complete period (default: false)
+- `cutoff::Float64`: MPS truncation cutoff (default: `1e-12`)
+- `maxdim::Int`: Maximum MPS bond dimension (default: 1000)
+- `truncate_every_events::Int`: Number of measurement events between MPS truncations
+  (default: 1)
 """
 Base.@kwdef struct MeasureConfig
     τ::Float64
@@ -1354,6 +1371,7 @@ Base.@kwdef struct MeasureConfig
     t₁::Int = 1
     verbose::Bool = false
     enable_τ_eff::Bool = true
+    track_y_expectation::Bool = false
     x₂::Int = 1
     x₁::Int = 1
     cutoff::Float64 = 1e-12
@@ -1675,6 +1693,8 @@ Evolve a state vector under bulk measurements.
   - `samples::BitMatrix`: Measurement outcome sequences
   - `free_energys::Vector{Float32}`: Free energy for each layer
   - `entanglement_entropys::Vector{Float32}`: Half-chain EE at each period
+  - `y_expectation_values::Vector{Float32}`: Normalized `Y` expectation after each
+    period, or an empty vector when `track_y_expectation=false`
 
 ## MPS version (from `MPSMeasurement.jl`)
 Evolve an MPS state under bulk measurements.
@@ -1698,6 +1718,9 @@ Evolve an MPS state under bulk measurements.
 # Notes
 - In `:Born` mode, samples are generated probabilistically via Born rule
 - In `:sample` mode, `samples` must be provided as input
+- `track_y_expectation=true` is currently supported by the exact-state Fibonacci
+  evolution. The operator is constructed once per call and is not constructed when
+  tracking is disabled.
 - (2N+1) layers of measurements correspond to N time steps of evolution
 """
 function bulk_evolution(
@@ -1717,6 +1740,24 @@ function bulk_evolution(
     else  # mode == :sample
         return _sample_measure(anyon_model, current_state, samples, measure_config, normalized)
     end
+end
+
+function _tracked_y_operator(model::AnyonModel, enabled::Bool)
+    enabled || return nothing
+    return _tracked_y_operator(model)
+end
+
+_tracked_y_operator(model::AnyonModel{FibonacciAnyon}) =
+    topological_charge_operator(model)
+
+function _tracked_y_operator(model::AnyonModel)
+    error("Y expectation tracking is only supported for Fibonacci anyon models")
+end
+
+function _normalized_y_expectation(Y, state::AbstractVector)
+    state_norm_squared = real(dot(state, state))
+    state_norm_squared > 0 || error("cannot evaluate Y expectation for a zero-norm state")
+    return Float32(real(dot(state, Y * state)) / state_norm_squared)
 end
 
 function _born_measure(
@@ -1741,6 +1782,9 @@ function _born_measure(
     sample_free_energy = zeros(Float32, D)
     N = model.N
     entanglement_entropys = zeros(Float32, Δt)
+    Y = _tracked_y_operator(model, measure_config.track_y_expectation)
+    y_expectation_values =
+        measure_config.track_y_expectation ? zeros(Float32, Δt) : Float32[]
 
     for period = 1:Δt
         # Apply all layers in this period
@@ -1767,6 +1811,9 @@ function _born_measure(
         # Compute half-chain EE on-the-fly
         entanglement_entropys[period] =
             Float32(ee(anyon_rdm(model, collect(1:div(N, 2)), current_state)))
+        if Y !== nothing
+            y_expectation_values[period] = _normalized_y_expectation(Y, current_state)
+        end
     end
 
     return Measurement_outcome_bulk(
@@ -1774,6 +1821,7 @@ function _born_measure(
         samples,
         sample_free_energy,
         entanglement_entropys,
+        y_expectation_values,
     )
 end
 
@@ -1797,6 +1845,9 @@ function _sample_measure(
     sample_free_energy = zeros(Float32, D)
     N = model.N
     entanglement_entropys = zeros(Float32, Δt)
+    Y = _tracked_y_operator(model, measure_config.track_y_expectation)
+    y_expectation_values =
+        measure_config.track_y_expectation ? zeros(Float32, Δt) : Float32[]
 
     # 2. Validate sample matrix dimensions
     size(samples) == (D, n_cols) ||
@@ -1859,12 +1910,16 @@ function _sample_measure(
         # Compute half-chain EE on-the-fly
         entanglement_entropys[period] =
             Float32(ee(anyon_rdm(model, collect(1:div(N, 2)), current_state)))
+        if Y !== nothing
+            y_expectation_values[period] = _normalized_y_expectation(Y, current_state)
+        end
     end
     return Measurement_outcome_bulk(
         current_state,
         samples,
         sample_free_energy,
         entanglement_entropys,
+        y_expectation_values,
     )
 end
 
