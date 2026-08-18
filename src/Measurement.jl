@@ -1359,7 +1359,11 @@ Configuration struct for measurement evolution parameters.
 - `track_y_expectation::Bool`: Record the Fibonacci topological-symmetry expectation
   value after every complete period (default: false)
 - `cutoff::Float64`: MPS truncation cutoff (default: `1e-12`)
+- `mindim::Int`: Minimum MPS bond dimension retained during truncation
+  (default: 1)
 - `maxdim::Int`: Maximum MPS bond dimension (default: 1000)
+- `enforce_fibonacci_constraint::Bool`: Reproject an MPS onto the legal periodic
+  Fibonacci fusion paths after every measurement layer (default: false)
 - `truncate_every_events::Int`: Number of measurement events between MPS truncations
   (default: 1)
 """
@@ -1375,7 +1379,9 @@ Base.@kwdef struct MeasureConfig
     x₂::Int = 1
     x₁::Int = 1
     cutoff::Float64 = 1e-12
+    mindim::Int = 1
     maxdim::Int = 1000
+    enforce_fibonacci_constraint::Bool = false
     truncate_every_events::Int = 1
 end
 

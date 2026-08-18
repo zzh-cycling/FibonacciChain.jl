@@ -50,6 +50,86 @@ function initial_mps(N::Int)
 end
 
 """
+    fibonacci_constraint_projector_mpo(sites)
+
+Return the PBC projector onto Fibonacci fusion paths. In the qubit encoding the
+only forbidden local pattern is a pair of adjacent `1` labels, including the
+bond between the last and first sites. The MPO carries `(first_bit, previous_bit)`
+as a four-state automaton, so its bond dimension is four independent of `N`.
+"""
+function fibonacci_constraint_projector_mpo(sites::Vector{<:Index})
+    N = length(sites)
+    N >= 2 || error("The PBC Fibonacci constraint projector requires N >= 2")
+    links = [Index(4, "Link,FibonacciConstraint,l=$i") for i = 1:(N-1)]
+    automaton_state(first_bit, previous_bit) = 2 * first_bit + previous_bit + 1
+    allowed(left_bit, right_bit) = !(left_bit == 1 && right_bit == 1)
+
+    tensors = Vector{ITensor}(undef, N)
+    first_tensor = ITensor(prime(sites[1]), dag(sites[1]), links[1])
+    for first_bit in 0:1
+        first_tensor[
+            prime(sites[1]) => first_bit + 1,
+            dag(sites[1]) => first_bit + 1,
+            links[1] => automaton_state(first_bit, first_bit),
+        ] = 1.0
+    end
+    tensors[1] = first_tensor
+
+    for site in 2:(N-1)
+        tensor = ITensor(
+            links[site-1],
+            prime(sites[site]),
+            dag(sites[site]),
+            links[site],
+        )
+        for first_bit in 0:1, previous_bit in 0:1, bit in 0:1
+            allowed(previous_bit, bit) || continue
+            tensor[
+                links[site-1] => automaton_state(first_bit, previous_bit),
+                prime(sites[site]) => bit + 1,
+                dag(sites[site]) => bit + 1,
+                links[site] => automaton_state(first_bit, bit),
+            ] = 1.0
+        end
+        tensors[site] = tensor
+    end
+
+    last_tensor = ITensor(links[end], prime(sites[end]), dag(sites[end]))
+    for first_bit in 0:1, previous_bit in 0:1, bit in 0:1
+        allowed(previous_bit, bit) && allowed(bit, first_bit) || continue
+        last_tensor[
+            links[end] => automaton_state(first_bit, previous_bit),
+            prime(sites[end]) => bit + 1,
+            dag(sites[end]) => bit + 1,
+        ] = 1.0
+    end
+    tensors[end] = last_tensor
+    return MPO(tensors)
+end
+
+function _project_fibonacci_constraint(
+    projector::MPO,
+    ψ::MPS;
+    cutoff::Float64,
+    mindim::Int,
+    maxdim::Int,
+)
+    projected = apply(
+        projector,
+        ψ;
+        cutoff = cutoff,
+        mindim = mindim,
+        maxdim = maxdim,
+    )
+    projected_norm = norm(projected)
+    projected_norm > 1e-14 || error(
+        "MPS truncation removed all weight from the Fibonacci constraint space",
+    )
+    projected[1] ./= projected_norm
+    return projected
+end
+
+"""
     evenparity_mps(N::Int)
 
 Create an MPS for the even-parity state in the Z basis, i.e. the equal-weight
@@ -324,6 +404,75 @@ function measurement_operator_mps(
     return M_local
 end
 
+"""
+    measurement_operator_mpo(model::AnyonModel{FibonacciAnyon}, sites, i, τ, sign)
+
+Construct a Fibonacci measurement operator as an MPO. This is used for the two
+PBC terms centered at sites `1` and `N`. Applying those terms as a single ITensor
+gate makes ITensorMPS move the noncontiguous sites together with SWAPs and then
+move them back. The MPO representation applies the same operator without
+permuting the physical sites.
+"""
+function measurement_operator_mpo(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool,
+)
+    @assert model.pbc "The MPO path is only needed for periodic boundary terms"
+    @assert model.measure_operator ∈ [:Ferro, :Antiferro]
+    N = length(sites)
+    @assert 1 <= i <= N "Index i must be in the range [1, N]"
+
+    ϕ = (1 + √5) / 2
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? -0.5 : 0.5
+    else
+        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+        coef =
+            sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) :
+            (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
+    end
+
+    im1, ip1 = mod1(i - 1, N), mod1(i + 1, N)
+    os = OpSum()
+    # An operator on one site is implicitly tensored with identities elsewhere.
+    os += cstτ, "I", 1
+
+    if model.measure_operator == :Antiferro
+        os += coef, "Proj0", im1, "Z", i, "Proj1", ip1
+        os += coef, "Proj1", im1, "Z", i, "Proj0", ip1
+        os += -coef, "Proj1", im1, "Z", i, "Proj1", ip1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", im1, "Z", i, "Proj0", ip1
+        os += coef * (-2 * ϕ^(-3 / 2)), "Proj0", im1, "X", i, "Proj0", ip1
+    else
+        os += -coef, "Proj0", im1, "Z", i, "Proj1", ip1
+        os += -coef, "Proj1", im1, "Z", i, "Proj0", ip1
+        os += coef, "Proj1", im1, "Z", i, "Proj1", ip1
+        os += coef * (2 * ϕ^(-1) - 1), "Proj0", im1, "Z", i, "Proj0", ip1
+        os += coef * (2 * ϕ^(-3 / 2)), "Proj0", im1, "X", i, "Proj0", ip1
+    end
+
+    return MPO(os, sites)
+end
+
+function _measurement_operator_mps_application(
+    model::AnyonModel{AT},
+    sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool,
+) where {AT<:AbstractAnyonBasis}
+    if model isa AnyonModel{FibonacciAnyon} &&
+       model.pbc &&
+       (i == 1 || i == length(sites))
+        return measurement_operator_mpo(model, sites, i, τ, sign)
+    end
+    return measurement_operator_mps(model, sites, i, τ, sign)
+end
+
 function measurement_operator_mps(
     model::AnyonModel{SpinHalf,:Ising},
     sites::Vector{<:Index},
@@ -446,23 +595,31 @@ function measuremap(
     τ::Float64,
     sign::Bool;
     cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
     maxdim::Int = 100,
 ) where {AT<:AbstractAnyonBasis}
-    # Create measurement operator
-    M = measurement_operator_mps(model, sites, i, τ, sign)
-    return _measuremap_with_operator(ψ, M; cutoff = cutoff, maxdim = maxdim)
+    M = _measurement_operator_mps_application(model, sites, i, τ, sign)
+    return _measuremap_with_operator(
+        ψ,
+        M;
+        cutoff = cutoff,
+        mindim = mindim,
+        maxdim = maxdim,
+    )
 end
 
 function _measuremap_with_operator(
     ψ::MPS,
-    M::ITensor;
+    M;
     cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
     maxdim::Int = 100,
     truncate_per_event::Bool = true,
 )
     # Apply measurement operator, initial state ψ should be normalized
-    ψ_measured =
-        truncate_per_event ? apply(M, ψ; cutoff = cutoff, maxdim = maxdim) : apply(M, ψ)
+    ψ_measured = truncate_per_event ?
+                 apply(M, ψ; cutoff = cutoff, mindim = mindim, maxdim = maxdim) :
+                 apply(M, ψ; cutoff = 0.0)
 
     # Calculate probability (norm squared)
     prob = real(inner(ψ_measured, ψ_measured))
@@ -485,6 +642,7 @@ function boundary_evolution(
     mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
 
     cutoff = measure_config.cutoff
+    mindim = measure_config.mindim
     maxdim = measure_config.maxdim
     truncate_every_events = measure_config.truncate_every_events
     truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
@@ -500,6 +658,7 @@ function boundary_evolution(
             sample,
             layer_idx;
             cutoff = cutoff,
+            mindim = mindim,
             maxdim = maxdim,
             truncate_every_events = truncate_every_events,
         )
@@ -513,6 +672,7 @@ function boundary_evolution(
             layer_idx,
             verbose = measure_config.verbose,
             cutoff = cutoff,
+            mindim = mindim,
             maxdim = maxdim,
             truncate_every_events = truncate_every_events,
         )
@@ -527,6 +687,7 @@ function _apply_measurement_layer_mps(
     layer_sample::BitVector,
     layer_idx::Int64;
     cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
     maxdim::Int = 100,
     truncate_every_events::Int = 1,
     normalized::Bool = true,
@@ -536,20 +697,28 @@ function _apply_measurement_layer_mps(
         _obtain_measurement_config(model, layer_idx, τ)
     F_layer = 0.0
     n = length(measurement_sites)
-    operators = Vector{ITensor}(undef, n)
-
-    # Cache layer operators to avoid rebuilding them in each apply.
-    @inbounds for k = 1:n
-        operators[k] = measurement_operator_mps(
-            measure_anyon_model,
-            sites,
-            measurement_sites[k],
-            measurement_strength,
-            layer_sample[k],
-        )
-    end
-
     do_per_event_truncate = (truncate_every_events == 1)
+    operators = if normalized && do_per_event_truncate
+        nothing
+    else
+        [
+            normalized ?
+            _measurement_operator_mps_application(
+                measure_anyon_model,
+                sites,
+                measurement_sites[k],
+                measurement_strength,
+                layer_sample[k],
+            ) :
+            measurement_operator_mps(
+                measure_anyon_model,
+                sites,
+                measurement_sites[k],
+                measurement_strength,
+                layer_sample[k],
+            ) for k = 1:n
+        ]
+    end
 
     if normalized
         if do_per_event_truncate
@@ -563,26 +732,35 @@ function _apply_measurement_layer_mps(
                     measurement_strength,
                     layer_sample[idx];
                     cutoff = cutoff,
+                    mindim = mindim,
                     maxdim = maxdim,
                 )
                 F_layer += -log(prob)
             end
         else
-            # If truncating less frequently, we apply all operators first and then truncate at the end    
+            # Apply each Kraus operator without bond truncation. At the requested
+            # event boundary, compress the *whole* MPS and renormalize it. Merely
+            # passing maxdim to the last local/noncontiguous gate does not enforce
+            # maxdim on bonds that gate did not visit.
             @inbounds for idx = 1:n
-                if idx % truncate_every_events == 0
-                    truncate_signal=true
-                else
-                    truncate_signal=false
-                end
                 ψ, prob = _measuremap_with_operator(
                     ψ,
                     operators[idx];
                     cutoff = cutoff,
+                    mindim = mindim,
                     maxdim = maxdim,
-                    truncate_per_event = truncate_signal,
+                    truncate_per_event = false,
                 )
                 F_layer += -log(prob)
+                if idx % truncate_every_events == 0 || idx == n
+                    ψ = truncate(
+                        ψ;
+                        cutoff = cutoff,
+                        mindim = mindim,
+                        maxdim = maxdim,
+                    )
+                    normalize!(ψ)
+                end
             end
         end
     else
@@ -593,10 +771,14 @@ function _apply_measurement_layer_mps(
             end
         else
             @inbounds for idx = 1:n
-                if idx % truncate_every_events == 0
-                    ψ = apply(operators[idx], ψ; cutoff = cutoff, maxdim = maxdim)
-                else
-                    ψ = apply(operators[idx], ψ)
+                ψ = apply(operators[idx], ψ; cutoff = 0.0)
+                if idx % truncate_every_events == 0 || idx == n
+                    ψ = truncate(
+                        ψ;
+                        cutoff = cutoff,
+                        mindim = mindim,
+                        maxdim = maxdim,
+                    )
                 end
             end
         end
@@ -612,6 +794,7 @@ function _stochastic_measurement_layer_mps_mps(
     rng::MersenneTwister = MersenneTwister(),
     layer_idx::Int64 = 1;
     cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
     maxdim::Int = 100,
     verbose::Bool = false,
     truncate_every_events::Int = 1,
@@ -622,29 +805,31 @@ function _stochastic_measurement_layer_mps_mps(
     n = length(measurement_sites)
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
-    operators_false = Vector{ITensor}(undef, n)
-    operators_true = Vector{ITensor}(undef, n)
-
-    # Build local operators once per layer and reuse for branch evaluations.
-    @inbounds for i = 1:n
-        site = measurement_sites[i]
-        operators_false[i] = measurement_operator_mps(
-            measure_anyon_model,
-            sites,
-            site,
-            measurement_strength,
-            false,
-        )
-        operators_true[i] = measurement_operator_mps(
-            measure_anyon_model,
-            sites,
-            site,
-            measurement_strength,
-            true,
+    do_per_event_truncate = (truncate_every_events == 1)
+    operators_false, operators_true = if do_per_event_truncate
+        nothing, nothing
+    else
+        (
+            [
+                _measurement_operator_mps_application(
+                    measure_anyon_model,
+                    sites,
+                    measurement_sites[i],
+                    measurement_strength,
+                    false,
+                ) for i = 1:n
+            ],
+            [
+                _measurement_operator_mps_application(
+                    measure_anyon_model,
+                    sites,
+                    measurement_sites[i],
+                    measurement_strength,
+                    true,
+                ) for i = 1:n
+            ],
         )
     end
-
-    do_per_event_truncate = (truncate_every_events == 1)
 
     if do_per_event_truncate
         # Preserve legacy behavior for exact RNG trajectory compatibility.
@@ -658,6 +843,7 @@ function _stochastic_measurement_layer_mps_mps(
                 measurement_strength,
                 false;
                 cutoff = cutoff,
+                mindim = mindim,
                 maxdim = maxdim,
             )
             p1 = 1 - p0
@@ -677,6 +863,7 @@ function _stochastic_measurement_layer_mps_mps(
                     measurement_strength,
                     true;
                     cutoff = cutoff,
+                    mindim = mindim,
                     maxdim = maxdim,
                 )
                 sample_layer[idx] = 1
@@ -685,18 +872,14 @@ function _stochastic_measurement_layer_mps_mps(
         end
     else
         @inbounds for i = 1:n
-            if i % truncate_every_events == 0
-                truncate_signal=true
-            else
-                truncate_signal=false
-            end
             # Compute probability of outcome 0 via measuremap
             ψ0, p0 = _measuremap_with_operator(
                 ψ,
                 operators_false[i];
                 cutoff = cutoff,
+                mindim = mindim,
                 maxdim = maxdim,
-                truncate_per_event = truncate_signal,
+                truncate_per_event = false,
             )
             p1 = 1 - p0
 
@@ -714,13 +897,23 @@ function _stochastic_measurement_layer_mps_mps(
                     ψ,
                     operators_true[i];
                     cutoff = cutoff,
+                    mindim = mindim,
                     maxdim = maxdim,
-                    truncate_per_event = truncate_signal,
+                    truncate_per_event = false,
                 )
                 sample_layer[i] = 1
                 ψ = ψ1
                 F_layer += -log(p1)
                 verbose && @show -log(p1)
+            end
+            if i % truncate_every_events == 0 || i == n
+                ψ = truncate(
+                    ψ;
+                    cutoff = cutoff,
+                    mindim = mindim,
+                    maxdim = maxdim,
+                )
+                normalize!(ψ)
             end
         end
     end
@@ -1420,6 +1613,17 @@ function _born_measure_mps(
     n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
     N = length(sites)
+    constraint_projector = if measure_config.enforce_fibonacci_constraint
+        model isa AnyonModel{FibonacciAnyon} || error(
+            "enforce_fibonacci_constraint is only valid for Fibonacci models",
+        )
+        model.pbc || error(
+            "enforce_fibonacci_constraint currently requires periodic boundaries",
+        )
+        fibonacci_constraint_projector_mpo(sites)
+    else
+        nothing
+    end
 
     # 1. Initialize sample matrix with max columns per layer
     samples = BitMatrix(zeros(Bool, D, n_cols))
@@ -1441,11 +1645,21 @@ function _born_measure_mps(
                 rng,
                 global_layer_idx;
                 cutoff = cutoff,
+                mindim = measure_config.mindim,
                 maxdim = maxdim,
                 verbose = verbose,
                 truncate_every_events = measure_config.truncate_every_events,
             )
             current_state = outcome.state
+            if constraint_projector !== nothing
+                current_state = _project_fibonacci_constraint(
+                    constraint_projector,
+                    current_state;
+                    cutoff = cutoff,
+                    mindim = measure_config.mindim,
+                    maxdim = maxdim,
+                )
+            end
 
             # Write samples to correct column indices for this layer
             col_indices = _get_sample_column_indices(model, global_layer_idx)
@@ -1509,6 +1723,17 @@ function _sample_measure_mps(
 
     n_layers = layers_per_period(model)
     D = Δt * n_layers  # total number of layers
+    constraint_projector = if measure_config.enforce_fibonacci_constraint
+        model isa AnyonModel{FibonacciAnyon} || error(
+            "enforce_fibonacci_constraint is only valid for Fibonacci models",
+        )
+        model.pbc || error(
+            "enforce_fibonacci_constraint currently requires periodic boundaries",
+        )
+        fibonacci_constraint_projector_mpo(sites)
+    else
+        nothing
+    end
 
     sample_free_energy = zeros(Float32, D)
     N = length(sites)
@@ -1538,11 +1763,21 @@ function _sample_measure_mps(
                 layer_sample,
                 global_layer_idx;
                 cutoff = cutoff,
+                mindim = measure_config.mindim,
                 maxdim = maxdim,
                 truncate_every_events = measure_config.truncate_every_events,
                 normalized = normalized,
             )
             current_state = outcome.state
+            if constraint_projector !== nothing
+                current_state = _project_fibonacci_constraint(
+                    constraint_projector,
+                    current_state;
+                    cutoff = cutoff,
+                    mindim = measure_config.mindim,
+                    maxdim = maxdim,
+                )
+            end
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
         # Compute half-chain EE on-the-fly

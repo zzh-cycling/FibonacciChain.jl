@@ -77,6 +77,87 @@ end
     @test_throws AssertionError measurement_operator_mps(model, sites, N+1, τ, false)
 end
 
+@testset "Fibonacci PBC boundary MPO" begin
+    N = 6
+    τ = 1.0
+    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+    ψ, sites = initial_mps(N)
+
+    # The MPO boundary path must reproduce the former noncontiguous-gate path
+    # without moving the boundary sites through the MPS with SWAP gates.
+    for i in (1, N), sign in (false, true)
+        gate = measurement_operator_mps(model, sites, i, τ, sign)
+        ψ_gate, p_gate = FibonacciChain._measuremap_with_operator(
+            ψ,
+            gate;
+            cutoff = 1e-14,
+            maxdim = 1000,
+        )
+        ψ_mpo, p_mpo = measuremap(
+            model,
+            ψ,
+            sites,
+            i,
+            τ,
+            sign;
+            cutoff = 1e-14,
+            maxdim = 1000,
+        )
+
+        @test p_mpo ≈ p_gate atol = 1e-13
+        @test abs(inner(ψ_mpo, ψ_gate))^2 ≈ 1 atol = 1e-13
+    end
+end
+
+@testset "Fibonacci constraint projector MPO" begin
+    N = 4
+    sites = siteinds("Qubit", N)
+    projector = FibonacciChain.fibonacci_constraint_projector_mpo(sites)
+
+    for bits in Iterators.product(fill(0:1, N)...)
+        state = productMPS(sites, collect(string.(bits)))
+        projected = apply(projector, state; cutoff = 0.0)
+        is_allowed = all(bits[i] == 0 || bits[mod1(i + 1, N)] == 0 for i = 1:N)
+        @test norm(projected) ≈ (is_allowed ? 1.0 : 0.0) atol = 1e-13
+    end
+end
+
+@testset "Constraint-preserving post-selection MPS" begin
+    N = 8
+    periods = 2N
+    τ = atanh(0.95)
+    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+    samples = BitMatrix(ones(Bool, 2periods, N ÷ 2))
+
+    exact_state = zeros(length(anyon_basis(model)))
+    exact_state[1] = 1.0
+    exact = bulk_evolution(
+        model,
+        exact_state,
+        MeasureConfig(τ = τ, mode = :sample, t₂ = periods),
+        samples,
+    )
+
+    ψ, sites = initial_mps(N)
+    mps = bulk_evolution(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(
+            τ = τ,
+            mode = :sample,
+            t₂ = periods,
+            cutoff = 1e-12,
+            maxdim = 100,
+            enforce_fibonacci_constraint = true,
+        ),
+        samples,
+    )
+
+    @test mps.entanglement_entropys ≈ exact.entanglement_entropys atol = 2e-6
+    @test anyon_eelis(model, mps.state) ≈ anyon_eelis(model, exact.state) atol = 2e-6
+end
+
 @testset "Single Measurement Application" begin
     N = 4
     model = AnyonModel(FibonacciAnyon(), N; pbc = true)

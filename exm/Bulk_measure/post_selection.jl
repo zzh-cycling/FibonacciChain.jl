@@ -46,7 +46,14 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         sample =
             sign ? BitMatrix(ones(Bool, 2t, length(2:2:L))) :
             BitMatrix(zeros(Bool, 2t, length(2:2:L)))
-        config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, cutoff = 1e-12, maxdim = χ,)
+        config = MeasureConfig(
+            τ = τ,
+            mode = :sample,
+            t₂ = t,
+            cutoff = 1e-12,
+            maxdim = χ,
+            enforce_fibonacci_constraint = true,
+        )
 
         try
             @time mps_mo = bulk_evolution(model, sites, ψ, config, sample)
