@@ -6,16 +6,20 @@ simulation of large anyon chains with measurement protocols.
 """
 
 """
-    anyon_mps_gst(model::AnyonModel; sweep_times=5, maxdim=5, cutoff=1e-10, outputlevel=1)
+    anyon_mps_gst(model::AnyonModel; sweep_times, maxdim, cutoff, outputlevel, seed)
 
-Find ground state of anyon chain Hamiltonian using DMRG.
+Find the ground state of an anyon-chain Hamiltonian using DMRG. For Fibonacci
+models, the variational state is projected into the fusion-path Hilbert space
+and a penalty for forbidden adjacent `11` labels is included during DMRG.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
-- `sweep_times=5`: Number of DMRG sweeps
-- `maxdim=5`: Maximum bond dimension
+- `sweep_times`: Number of DMRG sweeps (10 for spin models, 20 for Fibonacci)
+- `maxdim=100`: Maximum bond dimension
 - `cutoff=1e-10`: Truncation cutoff
 - `outputlevel=1`: Verbosity level
+- `seed=1234`: Seed for the random initial MPS
+- `constraint_penalty=20.0`: Fibonacci-only energy penalty per forbidden pair
 
 # Returns
 - `MPS`: Ground state as Matrix Product State
@@ -50,16 +54,66 @@ function initial_mps(N::Int)
 end
 
 """
-    fibonacci_constraint_projector_mpo(sites)
+    fibonacci_constraint_projector_mpo(sites; pbc=true)
 
-Return the PBC projector onto Fibonacci fusion paths. In the qubit encoding the
-only forbidden local pattern is a pair of adjacent `1` labels, including the
-bond between the last and first sites. The MPO carries `(first_bit, previous_bit)`
-as a four-state automaton, so its bond dimension is four independent of `N`.
+Return the projector onto Fibonacci fusion paths. In the qubit encoding the
+only forbidden local pattern is a pair of adjacent `1` labels. For PBC, the
+four-state automaton also checks the bond between the last and first sites; for
+OBC, a two-state automaton carries only the previous bit.
 """
-function fibonacci_constraint_projector_mpo(sites::Vector{<:Index})
+function fibonacci_constraint_projector_mpo(
+    sites::Vector{<:Index};
+    pbc::Bool = true,
+)
     N = length(sites)
-    N >= 2 || error("The PBC Fibonacci constraint projector requires N >= 2")
+    N >= 2 || error("The Fibonacci constraint projector requires N >= 2")
+
+    if !pbc
+        links = [Index(2, "Link,FibonacciConstraint,l=$i") for i = 1:(N-1)]
+        tensors = Vector{ITensor}(undef, N)
+
+        first_tensor = ITensor(prime(sites[1]), dag(sites[1]), links[1])
+        for bit in 0:1
+            first_tensor[
+                prime(sites[1]) => bit + 1,
+                dag(sites[1]) => bit + 1,
+                links[1] => bit + 1,
+            ] = 1.0
+        end
+        tensors[1] = first_tensor
+
+        for site in 2:(N - 1)
+            tensor = ITensor(
+                links[site-1],
+                prime(sites[site]),
+                dag(sites[site]),
+                links[site],
+            )
+            for previous_bit in 0:1, bit in 0:1
+                previous_bit == 1 && bit == 1 && continue
+                tensor[
+                    links[site-1] => previous_bit + 1,
+                    prime(sites[site]) => bit + 1,
+                    dag(sites[site]) => bit + 1,
+                    links[site] => bit + 1,
+                ] = 1.0
+            end
+            tensors[site] = tensor
+        end
+
+        last_tensor = ITensor(links[end], prime(sites[end]), dag(sites[end]))
+        for previous_bit in 0:1, bit in 0:1
+            previous_bit == 1 && bit == 1 && continue
+            last_tensor[
+                links[end] => previous_bit + 1,
+                prime(sites[end]) => bit + 1,
+                dag(sites[end]) => bit + 1,
+            ] = 1.0
+        end
+        tensors[end] = last_tensor
+        return MPO(tensors)
+    end
+
     links = [Index(4, "Link,FibonacciConstraint,l=$i") for i = 1:(N-1)]
     automaton_state(first_bit, previous_bit) = 2 * first_bit + previous_bit + 1
     allowed(left_bit, right_bit) = !(left_bit == 1 && right_bit == 1)
@@ -107,6 +161,34 @@ function fibonacci_constraint_projector_mpo(sites::Vector{<:Index})
     return MPO(tensors)
 end
 
+"""Return the MPO counting forbidden adjacent `11` pairs."""
+function fibonacci_constraint_violation_mpo(
+    sites::Vector{<:Index};
+    pbc::Bool = true,
+)
+    N = length(sites)
+    N >= 2 || error("The Fibonacci constraint violation MPO requires N >= 2")
+    os = OpSum()
+    for i = 1:(N - 1)
+        os += 1.0, "Proj1", i, "Proj1", i + 1
+    end
+    if pbc
+        os += 1.0, "Proj1", N, "Proj1", 1
+    end
+    return MPO(os, sites)
+end
+
+"""Expectation value of the number of forbidden adjacent `11` pairs."""
+function fibonacci_constraint_violation(
+    state::MPS;
+    pbc::Bool = true,
+)
+    violation_mpo = fibonacci_constraint_violation_mpo(siteinds(state); pbc = pbc)
+    norm_squared = real(inner(state, state))
+    norm_squared > 0 || error("Cannot evaluate constraint violation for a zero MPS")
+    return real(inner(prime(state), violation_mpo, state)) / norm_squared
+end
+
 function _project_fibonacci_constraint(
     projector::MPO,
     ψ::MPS;
@@ -152,34 +234,84 @@ function evenparity_mps(N::Int)
     return ψ0, sites
 end
 
+function _dmrg_sweeps(sweep_times::Int, maxdim::Int, cutoff::Float64)
+    sweep_times >= 1 || error("sweep_times must be positive")
+    maxdim >= 1 || error("maxdim must be positive")
+    cutoff >= 0 || error("cutoff must be nonnegative")
+    sweeps = Sweeps(sweep_times)
+    setmaxdim!(sweeps, min(16, maxdim), min(32, maxdim), maxdim)
+    setcutoff!(sweeps, cutoff)
+    setnoise!(sweeps, 1e-5, 1e-6, 1e-8, 0.0)
+    return sweeps
+end
+
 function anyon_mps_gst(
     model::AnyonModel{AT};
-    sweep_times = 5,
-    maxdim = 5,
-    cutoff = 1e-10,
-    outputlevel = 1,
+    sweep_times::Int = 10,
+    maxdim::Int = 100,
+    cutoff::Float64 = 1e-10,
+    outputlevel::Int = 1,
+    seed::Int = 1234,
+    initial_linkdim::Int = min(8, maxdim),
 ) where {AT<:AbstractAnyonBasis}
-    # Create sites for anyons (using S=1/2 fermions to approximate)
-    N = model.N
-    sites = siteinds("Qubit", N)
-
-    # Create initial product state (vacuum state)
-    state = ["0" for _ = 1:N]
-
-    # Create MPS from product state
-    ψ0 = random_mps(sites, state)
-
-    # Create anyon Hamiltonian
+    1 <= initial_linkdim <= maxdim ||
+        error("initial_linkdim must lie between 1 and maxdim")
+    sites = siteinds("Qubit", model.N)
+    rng = MersenneTwister(seed)
+    state = random_mps(rng, sites; linkdims = initial_linkdim)
     H = anyon_ham(model, sites)
+    energy, state = dmrg(
+        H,
+        state,
+        _dmrg_sweeps(sweep_times, maxdim, cutoff);
+        outputlevel = outputlevel,
+    )
+    normalize!(state)
+    return state, real(energy)
+end
 
-    # Find ground state using DMRG
-    sweeps = Sweeps(sweep_times)
-    setmaxdim!(sweeps, maxdim)
-    setcutoff!(sweeps, cutoff)
+function anyon_mps_gst(
+    model::AnyonModel{FibonacciAnyon};
+    sweep_times::Int = 20,
+    maxdim::Int = 100,
+    cutoff::Float64 = 1e-10,
+    outputlevel::Int = 1,
+    seed::Int = 1234,
+    initial_linkdim::Int = min(8, maxdim),
+    constraint_penalty::Float64 = 20.0,
+    constraint_tolerance::Float64 = 1e-6,
+)
+    constraint_penalty > 0 || error("constraint_penalty must be positive")
+    1 <= initial_linkdim <= maxdim ||
+        error("initial_linkdim must lie between 1 and maxdim")
+    sites = siteinds("Qubit", model.N)
+    H = anyon_ham(model, sites)
+    violation_mpo = fibonacci_constraint_violation_mpo(sites; pbc = model.pbc)
+    penalty_mpo = copy(violation_mpo)
+    penalty_mpo[1] *= constraint_penalty
+    constrained_H = add(H, penalty_mpo; cutoff = min(cutoff, 1e-14))
 
-    energy, ψ = dmrg(H, ψ0, sweeps, outputlevel = outputlevel)
+    rng = MersenneTwister(seed)
+    state = random_mps(rng, sites; linkdims = initial_linkdim)
+    projector = fibonacci_constraint_projector_mpo(sites; pbc = model.pbc)
+    state = apply(projector, state; cutoff = min(cutoff, 1e-14), maxdim = maxdim)
+    normalize!(state)
 
-    return ψ, energy
+    _, state = dmrg(
+        constrained_H,
+        state,
+        _dmrg_sweeps(sweep_times, maxdim, cutoff);
+        outputlevel = outputlevel,
+    )
+    normalize!(state)
+    violation = fibonacci_constraint_violation(state; pbc = model.pbc)
+    violation <= constraint_tolerance || error(
+        "DMRG state has Fibonacci-constraint violation $violation; " *
+        "increase maxdim/sweeps or constraint_penalty",
+    )
+
+    energy = real(inner(prime(state), H, state))
+    return state, energy
 end
 
 """
@@ -262,6 +394,14 @@ function anyon_ham(model::AnyonModel{FibonacciAnyon}, sites::Vector{<:Index}; kw
             os += coef * (2 * ϕ^(-3/2)), "Proj0", N-1, "X", N, "Proj0", 1
         end
     end
+
+    # Match the convention of the dense Hamiltonian `anyon_ham(model)`.
+    # The local Pauli decomposition otherwise contains +1/2 (AFM) or -1/2
+    # (FM) per term.
+    number_of_terms = pbc ? N : max(N - 2, 0)
+    constant_shift = measure_operator == :Antiferro ? -number_of_terms / 2 :
+                     measure_operator == :Ferro ? number_of_terms / 2 : 0.0
+    os += constant_shift, "Id", 1
 
     return MPO(os, sites)
 

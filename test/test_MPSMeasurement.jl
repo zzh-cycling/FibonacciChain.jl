@@ -3,6 +3,7 @@ using FibonacciChain
 using ITensorMPS, ITensors
 using LinearAlgebra
 using Random
+using Arpack
 
 @testset "initial_mps" begin
     N = 6
@@ -17,25 +18,59 @@ using Random
     @test abs(inner(ψ, ψ) - 1.0) < 1e-10
 end
 
-@testset "MPS Ground State Generation" begin
-    N = 6
-    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+@testset "Fibonacci DMRG ground state and TCI central charge" begin
+    L = 16
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    ψ, energy = anyon_mps_gst(
+        model;
+        sweep_times = 20,
+        maxdim = 128,
+        cutoff = 1e-12,
+        outputlevel = 0,
+        seed = 1234,
+    )
 
-    # Test ground state generation
-    ψ, energy = anyon_mps_gst(model)
-
+    exact_energy = real(Arpack.eigs(anyon_ham_sparse(model); nev = 1, which = :SR)[1][1])
+    violation = fibonacci_constraint_violation(ψ; pbc = true)
     @test ψ isa MPS
-    @test length(ψ) == N
-    @test energy isa Real
-    @test energy < 0  # Ground state should have negative energy
+    @test length(ψ) == L
+    @test inner(ψ, ψ) ≈ 1 atol = 1e-10
+    @test energy ≈ exact_energy atol = 5e-4
+    @test violation < 1e-6
 
-    # Test normalization
-    @test abs(inner(ψ, ψ) - 1.0) < 1e-10
+    # For a periodic critical ground state,
+    # S(l) = (c/3) log[(L/pi) sin(pi*l/L)] + constant.
+    cuts = collect(4:(L - 4))
+    chord = log.(L / π .* sin.(π .* cuts ./ L)) ./ 3
+    entropy = anyon_eelis(model, ψ)[cuts]
+    central_charge = (hcat(ones(length(cuts)), chord) \ entropy)[2]
+    @test central_charge ≈ 0.7 atol = 0.04
+end
 
-    # Test that bond dimensions are reasonable
-    max_bond_dim = maximum(linkdims(ψ))
-    @test max_bond_dim >= 1
-    @test max_bond_dim <= 200  # Should not exceed our DMRG settings
+@testset "Fibonacci dense/MPO Hamiltonian convention" begin
+    L = 4
+    sites = siteinds("Qubit", L)
+    for pbc in (false, true), measure_operator in (:Antiferro, :Ferro)
+        model = AnyonModel(
+            FibonacciAnyon(),
+            L;
+            pbc = pbc,
+            measure_operator = measure_operator,
+        )
+        basis = anyon_basis(model)
+        product_states = [
+            productMPS(
+                sites,
+                [string((state.buf >> (L - site)) & 1) for site = 1:L],
+            ) for state in basis
+        ]
+        H_mpo = anyon_ham(model, sites)
+        H_from_mpo = [
+            real(inner(prime(bra), H_mpo, ket)) for bra in product_states,
+            ket in product_states
+        ]
+        @test H_from_mpo ≈ anyon_ham(model) atol = 1e-13
+    end
 end
 
 @testset "Measurement Operators" begin
@@ -112,13 +147,15 @@ end
 @testset "Fibonacci constraint projector MPO" begin
     N = 4
     sites = siteinds("Qubit", N)
-    projector = FibonacciChain.fibonacci_constraint_projector_mpo(sites)
-
-    for bits in Iterators.product(fill(0:1, N)...)
-        state = productMPS(sites, collect(string.(bits)))
-        projected = apply(projector, state; cutoff = 0.0)
-        is_allowed = all(bits[i] == 0 || bits[mod1(i + 1, N)] == 0 for i = 1:N)
-        @test norm(projected) ≈ (is_allowed ? 1.0 : 0.0) atol = 1e-13
+    for pbc in (false, true)
+        projector = FibonacciChain.fibonacci_constraint_projector_mpo(sites; pbc = pbc)
+        for bits in Iterators.product(fill(0:1, N)...)
+            state = productMPS(sites, collect(string.(bits)))
+            projected = apply(projector, state; cutoff = 0.0)
+            is_allowed = all(bits[i] == 0 || bits[i + 1] == 0 for i = 1:(N - 1))
+            is_allowed &= !pbc || bits[N] == 0 || bits[1] == 0
+            @test norm(projected) ≈ (is_allowed ? 1.0 : 0.0) atol = 1e-13
+        end
     end
 end
 

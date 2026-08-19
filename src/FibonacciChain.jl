@@ -49,6 +49,7 @@ export measure_basismap,
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,
+    fibonacci_constraint_violation,
     measurement_operator_mps,
     apply_measurement_mps,
     initial_mps,

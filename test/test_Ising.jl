@@ -5,6 +5,7 @@ using BitBasis
 using Arpack
 using Random
 using LsqFit
+using ITensorMPS, ITensors
 
 @testset "Isingmap" begin
     N = 6
@@ -188,6 +189,31 @@ end
     @test size(rdm) == (2, 2)
     @test rdm ≈
           [0.49999999999995276 0.3236067977499789; 0.3236067977499789 0.5000000000000473]
+end
+
+@testset "Ising DMRG ground state" begin
+    L = 12
+    model = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true)
+    ψ, energy = anyon_mps_gst(
+        model;
+        sweep_times = 10,
+        maxdim = 64,
+        cutoff = 1e-11,
+        outputlevel = 0,
+        seed = 1234,
+    )
+
+    # Exact finite-size energy at J=h=1 in the even-parity ground-state sector.
+    exact_energy = -2 / sin(π / (2L))
+    @test ψ isa MPS
+    @test inner(ψ, ψ) ≈ 1 atol = 1e-10
+    @test energy ≈ exact_energy atol = 1e-7
+
+    cuts = collect(3:(L - 3))
+    chord = log.(L / π .* sin.(π .* cuts ./ L)) ./ 3
+    entropy = anyon_eelis(model, ψ)[cuts]
+    central_charge = (hcat(ones(length(cuts)), chord) \ entropy)[2]
+    @test central_charge ≈ 0.5 atol = 0.02
 end
 
 @testset "measure_basismap_IsingX" begin
