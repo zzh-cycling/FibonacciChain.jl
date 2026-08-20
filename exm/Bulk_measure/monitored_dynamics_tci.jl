@@ -24,15 +24,18 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     const TCI_DYNAMICS_DATA_ROOT =
         joinpath("exm", "data", "Bulk_measure", "monitored_dynamics_tci")
-    const TCI_DMRG_SWEEPS = 20
     const TCI_DMRG_CUTOFF = 1e-12
     const TCI_CONSTRAINT_PENALTY = 20.0
     const TCI_DMRG_SEED = 271828
+    const TCI_EXPECTED_CENTRAL_CHARGE = 0.7
+    const TCI_CENTRAL_CHARGE_ATOL = 0.02
 
     # Ground states are identical for all trajectories with the same parameters.
     # Cache one copy per worker instead of repeating diagonalization/DMRG per seed.
     const TCI_EXACT_GS_CACHE = Dict{Int,Any}()
     const TCI_MPS_GS_CACHE = Dict{Tuple{Int,Int,Int,Float64,Float64,Int},Any}()
+
+    tci_dmrg_sweeps(L::Integer) = 3L
 
     """Return the TCI ground state obtained from the dense anyon Hamiltonian."""
     function initial_tci_exact(model)
@@ -51,7 +54,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function initial_tci_mps(
         model;
         maxdim::Int,
-        sweep_times::Int = TCI_DMRG_SWEEPS,
+        sweep_times::Int = tci_dmrg_sweeps(model.N),
         cutoff::Float64 = TCI_DMRG_CUTOFF,
         constraint_penalty::Float64 = TCI_CONSTRAINT_PENALTY,
         dmrg_seed::Int = TCI_DMRG_SEED,
@@ -75,14 +78,35 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
                 outputlevel = 0,
             )
             violation = fibonacci_constraint_violation(state; pbc = model.pbc)
-            (; state, sites = siteinds(state), energy, violation)
+            eelis = Float64.(anyon_eelis(model, state))
+            c = fit_central_charge_pbc(eelis)
+            abs(c - TCI_EXPECTED_CENTRAL_CHARGE) <= TCI_CENTRAL_CHARGE_ATOL || error(
+                "TCI DMRG ground state has fitted central charge c=$c, " *
+                "outside |c - $(TCI_EXPECTED_CENTRAL_CHARGE)| <= $(TCI_CENTRAL_CHARGE_ATOL); " *
+                "increase maxdim/sweeps or constraint_penalty",
+            )
+            (; state, sites = siteinds(state), energy, violation, eelis, c)
         end
         return (
             copy(cached.state),
             copy(cached.sites),
             cached.energy,
             cached.violation,
+            cached.eelis,
+            cached.c,
         )
+    end
+
+    """Fit the central charge from a PBC entanglement profile via
+    S(l) = (c/3) ln sin(pi l / L) + const, dropping `mincut` edge sites."""
+    function fit_central_charge_pbc(eelis::Vector{Float64}; mincut::Int = 1)
+        L = length(eelis) + 1
+        x = [log(sin(pi * l / L)) / 6 for l in 1:L-1]
+        idx = collect(mincut:L-mincut)
+        xs, ys = x[idx], eelis[idx]
+        xm, ym = sum(xs) / length(xs), sum(ys) / length(ys)
+        slope = sum((xs .- xm) .* (ys .- ym)) / sum((xs .- xm) .^ 2)
+        return slope / 2
     end
 
     function tci_trajectory_dir(
@@ -154,7 +178,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         iseven(L) || error("L must be even, got $L")
         τ = τlis_ext[tau_idx]
         model = fib_model(L)
-        initial_state, sites, initial_energy, violation =
+        initial_state, sites, initial_energy, violation, initial_eelis, initial_c =
             initial_tci_mps(model; maxdim = chi)
         initial_bond_dimension = maxlinkdim(initial_state)
         config = MeasureConfig(
@@ -176,6 +200,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             initial_mpo_energy = initial_energy,
             initial_constraint_violation = violation,
             initial_bond_dimension = initial_bond_dimension,
+            initial_eelis = initial_eelis,
+            initial_central_charge = initial_c,
         )
     end
 
@@ -204,7 +230,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             chi = isnothing(chi) ? 0 : Int(chi),
             seed = Int(seed),
             periods = periods,
-            dmrg_sweeps = backend == :mps ? TCI_DMRG_SWEEPS : 0,
+            dmrg_sweeps = backend == :mps ? tci_dmrg_sweeps(L) : 0,
             dmrg_cutoff = backend == :mps ? TCI_DMRG_CUTOFF : 0.0,
             dmrg_seed = backend == :mps ? TCI_DMRG_SEED : 0,
             constraint_penalty = backend == :mps ? TCI_CONSTRAINT_PENALTY : 0.0,
@@ -212,6 +238,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             initial_mpo_energy = result.initial_mpo_energy,
             initial_constraint_violation = result.initial_constraint_violation,
             initial_bond_dimension = result.initial_bond_dimension,
+            initial_eelis = get(result, :initial_eelis, Float64[]),
+            initial_central_charge = get(result, :initial_central_charge, NaN),
             sample = result.samples,
             sample_free_energy = result.free_energy,
             halfchain_EE_tlis = result.halfchain_entropy,
@@ -283,7 +311,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             backend == :mps && Int(data["chi"]) != chi &&
                 error("Inconsistent chi in $file")
             if backend == :mps
-                Int(data["dmrg_sweeps"]) == TCI_DMRG_SWEEPS ||
+                Int(data["dmrg_sweeps"]) == tci_dmrg_sweeps(L) ||
                     error("Inconsistent DMRG sweep count in $file")
                 Float64(data["dmrg_cutoff"]) == TCI_DMRG_CUTOFF ||
                     error("Inconsistent DMRG cutoff in $file")
@@ -392,7 +420,7 @@ else
         println("=== TCI-ground-state monitored dynamics ($(action)) ===")
         println("L=$L, tau_idx=$tau_idx, periods=$periods, trajectories=$(length(tasks))")
         action == :mps && println(
-            "chi=$chi, DMRG sweeps=$TCI_DMRG_SWEEPS, constraint penalty=$TCI_CONSTRAINT_PENALTY",
+            "chi=$chi, DMRG sweeps=$(tci_dmrg_sweeps(L)), constraint penalty=$TCI_CONSTRAINT_PENALTY",
         )
         println("workers=$(nworkers())")
         results = pmap(run_tci_task, tasks; batch_size = 1)
