@@ -135,7 +135,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         data = load(path)
         sample = data["sample"]
         model = fib_model(L)
-        FElis = transfer_matrix_subspace(model, τ, sample)
+        FElis = lyapunov_spectrum(model, τ, sample)
         # basis = anyon_basis(model)
         # l = length(basis)
         # function Tmap(v)        
@@ -169,7 +169,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         sites = siteinds("Qubit", L)
         model = fib_model(L)
         
-        FElis = transfer_matrix_subspace_mps(
+        FElis = lyapunov_spectrum_mps(
         model, sites, τ, sample; n_states = 10, cutoff = 1e-12, maxdim = χ)
 
         out_dir = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/chi$(χ)"

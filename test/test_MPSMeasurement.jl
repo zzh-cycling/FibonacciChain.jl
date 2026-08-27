@@ -530,7 +530,7 @@ end
     @test halfchain_EE_tlis ≈ halfchain_EE_tlis_mps
 end
 
-@testset "transfer_matrix_subspace_mps" begin
+@testset "lyapunov_spectrum_mps" begin
     L = 8
     τ = atanh(0.95)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
@@ -546,7 +546,7 @@ end
     # Multi-period sample: subspace iteration should converge for dominant eigenvalues
     D = 50
     sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
-    spectrum_sub = transfer_matrix_subspace_mps(
+    spectrum_sub = lyapunov_spectrum_mps(
         model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 100
     )
     @test size(spectrum_sub) == (10, div(D, 2))
@@ -555,7 +555,7 @@ end
     @test spectrum_sub[1:3, end] ≈ spectrum_ref[1:3] atol = 1e-5
 end
 
-@testset "transfer_matrix_subspace_mps" begin
+@testset "lyapunov_spectrum_mps" begin
     L = 8
     τ = atanh(0.95)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
@@ -567,13 +567,13 @@ end
     rng = MersenneTwister(42)
     sample_ref = BitMatrix(
                 reshape([binary_distribution(0.4, rng) for _ = 1:D*div(L, 2)], D, div(L, 2)))
-    spectrum_ref = transfer_matrix_subspace(model, τ, sample_ref)
+    spectrum_ref = lyapunov_spectrum(model, τ, sample_ref)
 
     # Multi-period sample: subspace iteration should converge for dominant eigenvalues
     rng = MersenneTwister(42)
     sample_long = BitMatrix(
                 reshape([binary_distribution(0.4, rng) for _ = 1:D*div(L, 2)], D, div(L, 2)))
-    spectrum_sub = transfer_matrix_subspace_mps(
+    spectrum_sub = lyapunov_spectrum_mps(
         model, sites, τ, sample_long; n_states = 10, cutoff = 1e-12, maxdim = 100
     )
     @test size(spectrum_sub) == (10, div(D, 2))

@@ -21,6 +21,10 @@ end
     include("./test_MPSMeasurement.jl")
 end
 
+@testset "HybridEvolution.jl" begin
+    include("./test_HybridEvolution.jl")
+end
+
 @testset "FiboSparse.jl" begin
     include("./test_FiboSparse.jl")
 end

@@ -32,7 +32,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
         data = load(path)
         sample = data["sample"]
 
-        FElis = transfer_matrix_subspace(model, τ, sample; n_states = n_states)
+        FElis = lyapunov_spectrum(model, τ, sample; n_states = n_states)
 
         out_dir = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)"
         mkpath(out_dir)
@@ -58,7 +58,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
         sample = data["sample"]
 
         sites = siteinds("Qubit", L)
-        FElis = transfer_matrix_subspace_mps(
+        FElis = lyapunov_spectrum_mps(
             model, sites, τ, sample;
             n_states = n_states,
             cutoff = cutoff,

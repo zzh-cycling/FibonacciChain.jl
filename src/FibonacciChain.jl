@@ -8,6 +8,9 @@ export FibonacciAnyon,
     SpinHalf,
     AnyonModel,
     MeasureConfig,
+    HybridConfig,
+    HybridGateSchedule,
+    HybridMeasurementOutcome,
     Measurement_outcome_bulk,
     Measurement_outcome_boundary,
     Measurement_outcome_mps
@@ -42,7 +45,8 @@ export measure_basismap,
     measurement_enumeration,
     measurement_tree_visualization,
     transfer_matrix,
-    transfer_matrix_subspace,
+    lyapunov_spectrum,
+    lyapunov_spectrum_topological_sector,
     transfer_matrix_dynamics,
     boundary_evolution,
     bulk_evolution
@@ -56,7 +60,7 @@ export anyon_mps_gst,
     evenparity_mps,
     mps_measurement_enumeration,
     ee_mps,
-    transfer_matrix_subspace_mps
+    lyapunov_spectrum_mps
 # Reference qubits functions
 export add_reference_qubits,
     add_reference_qubits_reset,
@@ -74,6 +78,7 @@ include("AnyonLadder.jl")
 include("Measurement.jl")
 include("FiboSparse.jl")
 include("MPSMeasurement.jl")
+include("HybridEvolution.jl")
 include("ReferenceProbe.jl")
 
 end

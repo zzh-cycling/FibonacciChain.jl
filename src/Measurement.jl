@@ -2117,7 +2117,7 @@ end
 
 
 """
-    transfer_matrix_subspace(model::AnyonModel, τ::Float64, sample::BitMatrix; n_states::Int=10)
+    lyapunov_spectrum(model::AnyonModel, τ::Float64, sample::BitMatrix; n_states::Int=10)
 
 Compute the dominant spectrum of the transfer matrix via subspace iteration.
 
@@ -2148,13 +2148,13 @@ julia> model = AnyonModel(FibonacciAnyon(), L; pbc = true);
 
 julia> sample = BitMatrix(ones(Int8, 2, div(L, 2)));
 
-julia> spectrum = transfer_matrix_subspace(model, τ, sample; n_states = 5);
+julia> spectrum = lyapunov_spectrum(model, τ, sample; n_states = 5);
 
 julia> length(spectrum) == 5
 true
 ```
 """
-function transfer_matrix_subspace(
+function lyapunov_spectrum(
     model::AnyonModel{AT},
     τ::Float64,
     sample::BitMatrix;
@@ -2200,4 +2200,133 @@ function transfer_matrix_subspace(
     end
 
     return spectrum_tlis
+end
+
+"""
+    lyapunov_spectrum_topological_sector(model::AnyonModel{FibonacciAnyon}, τ::Float64, sample::BitMatrix;
+                      sector::Symbol=:trivial, n_states::Int=10)
+
+Compute the finite-time Lyapunov spectrum of the transfer-matrix product
+restricted to a topological charge sector along a fixed measurement
+trajectory. In the repository normalization the `y=1` sector (`:trivial`) has
+topological charge eigenvalue `ϕ = (1+√5)/2`, while the `y=τ` sector (`:tau`)
+has eigenvalue `-1/ϕ`; since `Y` has only these two eigenvalues, the sector
+projector is
+
+    P = (Y - ȳ I) / (y - ȳ),
+
+with `y` the selected eigenvalue and `ȳ` the other one.
+
+The initial frame consists of the first `n_states` basis vectors projected
+into the sector and orthonormalized. Every period (two staggered measurement
+layers) the frame is propagated with the unnormalized transfer matrix and
+QR-orthogonalized:
+
+    T_t Q_{t-1} = Q_t R_t.
+
+The local logarithmic stretches are `log(abs(diag(R_t)))`, and the finite-time
+Lyapunov exponents are
+
+    λ_a(t) = (1/t) Σ_{s=1}^t log(abs((R_s)_{aa})).
+
+No per-step sorting is performed, since that would mix Oseledec directions.
+Roundoff leakage out of the sector is removed by an explicit `P` projection
+after each period; this is exact because every Fibonacci measurement transfer
+matrix commutes with `Y`.
+
+# Arguments
+- `model::AnyonModel{FibonacciAnyon}`: Fibonacci model (must have `pbc=true`)
+- `τ::Float64`: Measurement strength parameter
+- `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
+  The number of rows must be divisible by `layers_per_period(model)`.
+- `sector::Symbol=:trivial`: Topological sector, `:trivial` (y=1) or `:tau` (y=τ)
+- `n_states::Int=10`: Number of frame vectors (and exponents) to compute
+
+# Returns
+A named tuple with fields:
+- `local_log_stretches`: `log(abs(diag(R_t)))`, shape `(k, periods)`
+- `lyapunov_exponents`: finite-time exponents `λ_a(t)`, shape `(k, periods)`
+- `free_energy_spectrum`: `-lyapunov_exponents`, matching the sign convention
+  of `lyapunov_spectrum`
+- `sector_leakage`: relative leakage of the frame out of the sector after each period
+- `sector_dimension`: dimension of the sector
+- `final_frame`: the orthonormal frame after the last period
+"""
+function lyapunov_spectrum_topological_sector(
+    model::AnyonModel{FibonacciAnyon},
+    τ::Float64,
+    sample::BitMatrix;
+    sector::Symbol = :trivial,
+    n_states::Int = 10,
+)
+    model.pbc || error("A topological charge sector requires periodic boundaries")
+    sector in (:trivial, :tau) ||
+        throw(ArgumentError("sector must be :trivial (y=1) or :tau (y=τ), got $sector"))
+    n_layers = layers_per_period(model)
+    D_layers, n_cols = size(sample)
+    @assert D_layers % n_layers == 0 "Number of layers $D_layers must be divisible by $n_layers"
+    n_cols == _samples_per_layer(model) ||
+        error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
+    periods = D_layers ÷ n_layers
+
+    ϕ = (1 + √5) / 2
+    y_eigenvalue = sector == :trivial ? ϕ : -inv(ϕ)
+    y_other = sector == :trivial ? -inv(ϕ) : ϕ
+    Y = topological_charge_operator(model)
+    l = size(Y, 1)
+    P = Symmetric((Y - y_other * I(l)) / (y_eigenvalue - y_other))
+    sector_dimension = round(Int, tr(P))
+    n_states >= 1 || throw(ArgumentError("n_states must be positive"))
+    n_states <= sector_dimension || error(
+        "requested n_states=$n_states, but the $sector sector dimension is $sector_dimension",
+    )
+    k = n_states
+
+    # Initialize k basis vectors and project them into the sector
+    states = zeros(Float64, l, k)
+    for i in 1:k
+        states[i, i] = 1.0
+    end
+    factor = qr(P * states)
+    minimum(abs.(diag(factor.R)[1:k])) > 1e-12 || error(
+        "the first $k basis vectors are linearly dependent after $sector projection; " *
+        "reduce n_states",
+    )
+    states = Matrix(factor.Q)[:, 1:k]
+
+    local_log_stretches = zeros(Float64, k, periods)
+    sector_leakage = zeros(Float64, periods)
+    config = MeasureConfig(τ = τ, t₂ = 1, mode = :sample, enable_τ_eff = false)
+
+    for step in 1:periods
+        sample_layer = BitMatrix(sample[(step - 1) * n_layers + 1 : step * n_layers, :])
+        propagated = similar(states)
+        for i in 1:k
+            outcome = _sample_measure(model, states[:, i], sample_layer, config, false)
+            propagated[:, i] = outcome.state
+        end
+
+        factor = qr(propagated)
+        stretches = abs.(diag(factor.R)[1:k])
+        minimum(stretches) > 0 || error("Lyapunov frame collapsed at period $step")
+        local_log_stretches[:, step] = log.(stretches)
+        # Roundoff is removed by an explicit sector projection. Since every
+        # Fibonacci measurement transfer matrix commutes with Y, this changes
+        # only numerical leakage, not the exact restricted dynamics.
+        states = Matrix(qr(P * Matrix(factor.Q)[:, 1:k]).Q)[:, 1:k]
+        sector_leakage[step] = norm(Y * states - y_eigenvalue * states) / norm(states)
+    end
+
+    cumulative_log_stretches = cumsum(local_log_stretches; dims = 2)
+    elapsed_periods = reshape(collect(1:periods), 1, :)
+    lyapunov_exponents = cumulative_log_stretches ./ elapsed_periods
+
+    return (
+        local_log_stretches = local_log_stretches,
+        lyapunov_exponents = lyapunov_exponents,
+        free_energy_spectrum = -lyapunov_exponents,
+        sector_leakage = sector_leakage,
+        sector_dimension = sector_dimension,
+        final_frame = states,
+    )
 end

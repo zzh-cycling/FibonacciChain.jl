@@ -118,14 +118,14 @@ function get_δtL_Born(τ, L)
         table = Dict(
             atanh(0.4) =>vcat([10, 20, 30, 35, 37], collect(41:2:49), collect(50:2:52), [60, 65, 80]),
             atanh(0.5) => sort(vcat([5, 10], collect(16:2:36), [40])),
-            atanh(0.6) => sort(vcat(collect(5:2:19), [2, 20, 22])),
+            atanh(0.6) => sort(vcat(collect(5:2:19), [2, 12, 16, 18, 20, 22])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))
     elseif L == 24
         table = Dict(
             atanh(0.5) => sort(vcat(collect(25:2:35), collect(24:2:28), [5, 10, 15, 20])),
-            atanh(0.6) => sort(vcat(collect(10:2:20), [2, 5, 22, 25])),
+            atanh(0.6) => sort(vcat(collect(10:2:20), [2, 5, 8, 17, 19, 22, 25])),
             atanh(1/√2) => (collect(1:15)),
         )
         δtlis = get(table, τ, collect(1:10))

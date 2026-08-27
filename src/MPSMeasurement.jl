@@ -1062,12 +1062,12 @@ function _stochastic_measurement_layer_mps_mps(
 end
 
 """
-    transfer_matrix_subspace_mps(model::AnyonModel, sites::Vector{<:Index}, τ::Float64, sample::BitMatrix; 
+    lyapunov_spectrum_mps(model::AnyonModel, sites::Vector{<:Index}, τ::Float64, sample::BitMatrix;
                                  n_states::Int=10, cutoff::Float64=1e-10, maxdim::Int=100)
 
 Compute the dominant spectrum of the transfer matrix via subspace iteration, using MPS states.
 
-This is the MPS analogue of [`transfer_matrix_subspace`](@ref). The algorithm initializes
+This is the MPS analogue of [`lyapunov_spectrum`](@ref). The algorithm initializes
 `n_states` product states (basis vectors), then iteratively applies the transfer matrix
 for each time slice's measurement outcome. At each step, states are orthogonalized via a
 Gram-matrix Cholesky procedure (the MPS equivalent of QR), and the diagonal Cholesky
@@ -1100,13 +1100,13 @@ julia> sites = siteinds("Qubit", L);
 
 julia> sample = BitMatrix(ones(Int8, 2, div(L, 2)));
 
-julia> spectrum = transfer_matrix_subspace_mps(model, sites, τ, sample; n_states = 5);
+julia> spectrum = lyapunov_spectrum_mps(model, sites, τ, sample; n_states = 5);
 
 julia> size(spectrum, 1) == 5
 true
 ```
 """
-function transfer_matrix_subspace_mps(
+function lyapunov_spectrum_mps(
     model::AnyonModel{AT},
     sites::Vector{<:Index},
     τ::Float64,

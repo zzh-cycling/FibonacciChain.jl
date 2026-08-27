@@ -650,7 +650,7 @@ end
     # Obtained from transfer matrix applied
 end
 
-@testset "transfer_matrix_subspace" begin
+@testset "lyapunov_spectrum" begin
     L = 8
     τ = atanh(0.95)
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
@@ -665,7 +665,7 @@ end
     # Multi-period sample: subspace iteration should converge to the same spectrum, should equals the post selection scenerio
     D = 100
     sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
-    spectrum_sub = transfer_matrix_subspace(
+    spectrum_sub = lyapunov_spectrum(
         model, τ, sample_long; n_states = 10
     )
     # spectrum_sub is a ComplexF64 matrix of shape (10, 32)
@@ -709,4 +709,47 @@ end
     )
     @test size(spectrum_short) == (10, 1)
     @test spectrum_short[:, 1] ≈ spectrum_ref atol = 1e-10
+end
+
+@testset "lyapunov_spectrum_topological_sector" begin
+    L = 8
+    τ = atanh(0.95)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+
+    # Reference: eigenvalues of the single-period transfer matrix restricted to
+    # a topological sector (Y eigenvalue ϕ for y=1, -1/ϕ for y=τ)
+    ϕ = (1 + √5) / 2
+    Y = topological_charge_operator(model)
+    y_eigs = eigen(Symmetric(Y))
+
+    sample_ref = BitMatrix(ones(Int8, 2, div(L, 2)))
+    T = transfer_matrix(model, τ, sample_ref)
+
+    n_states = 5
+    # Finite-time exponents converge like ~1/periods; 800 periods give < 1e-2 error
+    D = 1600
+    sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
+
+    for (sector, y_value) in ((:trivial, ϕ), (:tau, -inv(ϕ)))
+        V = y_eigs.vectors[:, abs.(y_eigs.values .- y_value) .< 1e-8]
+        sector_dim = size(V, 2)
+        spectrum_ref = sort(log.(abs.(eigvals(V' * T * V))), rev = true)
+
+        # Repeating the same period forever: Lyapunov exponents converge to
+        # log|eigenvalues| of the sector-restricted transfer matrix
+        spectrum = lyapunov_spectrum_topological_sector(
+            model, τ, sample_long; sector = sector, n_states = n_states,
+        )
+
+        @test spectrum.sector_dimension == sector_dim
+        @test size(spectrum.lyapunov_exponents) == (n_states, div(D, 2))
+        @test spectrum.free_energy_spectrum == -spectrum.lyapunov_exponents
+        @test maximum(spectrum.sector_leakage) < 1e-9
+        @test sort(spectrum.lyapunov_exponents[:, end], rev = true) ≈
+              spectrum_ref[1:n_states] atol = 1e-2
+    end
+
+    # Topological sectors require periodic boundaries
+    model_obc = AnyonModel(FibonacciAnyon(), L; pbc = false)
+    @test_throws ErrorException lyapunov_spectrum_topological_sector(model_obc, τ, sample_ref)
 end
