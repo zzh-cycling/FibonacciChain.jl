@@ -49,23 +49,12 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         return projected
     end
 
-    # Matrix element of Y|00⋯0⟩ for two adjacent output fusion-path bits.
-    # In the repository convention 0=τ and 1=vacuum.
-    function _y_vacuum_edge_weight(x::Int, xnext::Int)
-        ϕ = (1 + √5) / 2
-        x == 0 && xnext == 0 && return -inv(ϕ)
-        x == 0 && xnext == 1 && return inv(sqrt(ϕ))
-        x == 1 && xnext == 0 && return 1.0
-        return 0.0
-    end
-
     """
         initial_y1_mps(model; cutoff=1e-14, maxdim=32)
 
     Construct the same projected all-τ state as [`initial_y1_exact`](@ref),
-    directly as an MPS. The amplitudes of `Y|00⋯0⟩` form a periodic
-    nearest-neighbor weight with bond dimension two. Resolving its two boundary
-    values and adding `ϕ⁻¹|00⋯0⟩` implements
+    directly as an MPS, by applying the topological charge MPO to the all-τ
+    product state:
 
         P₁|00⋯0⟩ ∝ (Y + ϕ⁻¹ I)|00⋯0⟩.
 
@@ -78,49 +67,10 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         N >= 2 || error("initial_y1_mps requires at least two sites")
         sites = siteinds("Qubit", N)
 
-        function fixed_boundary_mps(boundary_bit::Int)
-            links = [Index(2, "Link,y1_init,l=$i") for i in 1:(N - 1)]
-            tensors = Vector{ITensor}(undef, N)
-
-            first_tensor = ITensor(sites[1], links[1])
-            for next_bit in 0:1
-                first_tensor[
-                    sites[1] => boundary_bit + 1,
-                    links[1] => next_bit + 1,
-                ] = _y_vacuum_edge_weight(boundary_bit, next_bit)
-            end
-            tensors[1] = first_tensor
-
-            for site in 2:(N - 1)
-                tensor = ITensor(links[site - 1], sites[site], links[site])
-                for bit in 0:1, next_bit in 0:1
-                    tensor[
-                        links[site - 1] => bit + 1,
-                        sites[site] => bit + 1,
-                        links[site] => next_bit + 1,
-                    ] = _y_vacuum_edge_weight(bit, next_bit)
-                end
-                tensors[site] = tensor
-            end
-
-            last_tensor = ITensor(links[end], sites[end])
-            for bit in 0:1
-                last_tensor[
-                    links[end] => bit + 1,
-                    sites[end] => bit + 1,
-                ] = _y_vacuum_edge_weight(bit, boundary_bit)
-            end
-            tensors[end] = last_tensor
-            return MPS(tensors)
-        end
-
-        y_on_vacuum = add(
-            fixed_boundary_mps(0),
-            fixed_boundary_mps(1);
-            cutoff = cutoff,
-            maxdim = maxdim,
-        )
         vacuum = productMPS(sites, fill("0", N))
+        Y_mpo = topological_charge_mpo(sites; pbc = true)
+        y_on_vacuum = apply(Y_mpo, vacuum; cutoff = cutoff, maxdim = maxdim)
+
         ϕ = (1 + √5) / 2
         vacuum[1] = inv(ϕ) * vacuum[1]
         projected = add(y_on_vacuum, vacuum; cutoff = cutoff, maxdim = maxdim)
@@ -203,13 +153,18 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             rng = MersenneTwister(seed),
             cutoff = 1e-12,
             maxdim = χ,
+            track_y_expectation = true,
         )
         outcome = bulk_evolution(model, sites, initial_state, config)
+        ϕ = (1 + √5) / 2
+        maximum(abs.(outcome.y_expectation_values .- ϕ)) < 1e-4 ||
+            error("the MPS trajectory left the y=1 sector")
         return (
             state = outcome.state,
             samples = outcome.samples,
             free_energy = outcome.free_energys,
             halfchain_entropy = outcome.entanglement_entropys,
+            y_expectation = outcome.y_expectation_values,
             final_entropy_profile = anyon_eelis(model, outcome.state),
             initial_bond_dimension = initial_bond_dimension,
         )
@@ -243,6 +198,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             sample = result.samples,
             sample_free_energy = result.free_energy,
             halfchain_EE_tlis = result.halfchain_entropy,
+            y_expectation_values = get(result, :y_expectation, Float32[]),
             final_EElis = result.final_entropy_profile,
         )
         return output_path

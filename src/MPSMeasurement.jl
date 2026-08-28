@@ -1213,7 +1213,8 @@ end
 
 """
     lyapunov_spectrum_mps(model::AnyonModel, sites::Vector{<:Index}, τ::Float64, sample::BitMatrix;
-                                 n_states::Int=10, cutoff::Float64=1e-10, maxdim::Int=100)
+                                 n_states::Int=10, initial_states=nothing, sector=nothing,
+                                 cutoff::Float64=1e-10, maxdim::Int=100)
 
 Compute the dominant spectrum of the transfer matrix via subspace iteration, using MPS states.
 
@@ -1229,7 +1230,23 @@ factors are recorded as the spectrum.
 - `τ::Float64`: Measurement strength parameter
 - `sample::BitMatrix`: Measurement outcome sequences (rows = layers, cols = sites).
   The number of rows must be divisible by `layers_per_period(model)`.
-- `n_states::Int=10`: Number of initial basis vectors to propagate
+- `n_states::Int=10`: Number of initial basis vectors to propagate (ignored when
+  `initial_states` is given)
+- `initial_states::Union{Nothing,Vector{MPS}}=nothing`: Optional custom initial
+  frame (e.g. states projected into a topological sector with
+  `topological_charge_mpo`). The frame is Gram-Cholesky orthonormalized before
+  the first recorded step, so the step-1 spectrum contains only propagation
+  stretches.
+- `sector::Union{Nothing,Symbol}=nothing`: Optional topological charge sector,
+  `:trivial` (y=1) or `:tau` (y=τ), for Fibonacci models with `pbc=true`. When
+  set, every state is first projected onto the constraint-satisfying subspace
+  with `fibonacci_constraint_projector_mpo` and then into the sector with
+  `P = (Y - ȳ I)/(y - ȳ)` applied through `topological_charge_mpo`, after each
+  period. This is the MPS analogue of the projection in
+  `lyapunov_spectrum_topological_sector`: it is exact because every Fibonacci
+  measurement transfer matrix commutes with `Y`, and it prevents MPS
+  truncation noise — in the `y=τ` sector as well as in unphysical
+  configurations — from taking over the subleading frame directions.
 - `cutoff::Float64=1e-10`: MPS truncation cutoff
 - `maxdim::Int=100`: Maximum bond dimension for MPS operations
 
@@ -1262,6 +1279,8 @@ function lyapunov_spectrum_mps(
     τ::Float64,
     sample::BitMatrix;
     n_states::Int = 10,
+    initial_states::Union{Nothing,Vector{MPS}} = nothing,
+    sector::Union{Nothing,Symbol} = nothing,
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
 ) where {AT<:AbstractAnyonBasis}
@@ -1275,17 +1294,65 @@ function lyapunov_spectrum_mps(
     n_cols == _samples_per_layer(model) ||
         error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
 
-    basis = anyon_basis(model)
-    l = length(basis)
-    k = min(n_states, l)
     N = length(sites)
 
-    # Initialize k product states (basis vectors)
-    states = Vector{MPS}(undef, k)
-    for i in 1:k
-        buf = basis[i].buf
-        state_str = [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base=2, pad=N))]
-        states[i] = productMPS(sites, state_str)
+    # Optional topological-sector projector P = (Y - ȳ I)/(y - ȳ) via the Y MPO.
+    # P is a true projector only on the constraint-satisfying subspace (where Y
+    # has eigenvalues y, ȳ); on unphysical configurations Y gives zero and P
+    # merely shrinks the state, so the Fibonacci constraint projector is
+    # applied first to annihilate truncation noise outside the constrained
+    # Hilbert space — otherwise the orthonormalization re-normalizes that
+    # noise and the subleading frame directions decay into it.
+    project = if sector === nothing
+        nothing
+    else
+        AT <: FibonacciAnyon || throw(
+            ArgumentError("sector restriction is only available for FibonacciAnyon models"),
+        )
+        model.pbc || error("A topological charge sector requires periodic boundaries")
+        sector in (:trivial, :tau) ||
+            throw(ArgumentError("sector must be :trivial (y=1) or :tau (y=τ), got $sector"))
+        ϕ = (1 + √5) / 2
+        y_eigenvalue = sector == :trivial ? ϕ : -inv(ϕ)
+        y_other = sector == :trivial ? -inv(ϕ) : ϕ
+        Y_mpo = topological_charge_mpo(sites; pbc = true)
+        constraint_projector = fibonacci_constraint_projector_mpo(sites; pbc = true)
+        function (ψ)
+            physical = apply(constraint_projector, ψ; cutoff = cutoff, maxdim = maxdim)
+            return inv(y_eigenvalue - y_other) * add(
+                apply(Y_mpo, physical; cutoff = cutoff, maxdim = maxdim),
+                (-y_other) * physical;
+                cutoff = cutoff,
+                maxdim = maxdim,
+            )
+        end
+    end
+
+    if initial_states === nothing
+        basis = anyon_basis(model)
+        l = length(basis)
+        k = min(n_states, l)
+
+        # Initialize k product states (basis vectors)
+        states = Vector{MPS}(undef, k)
+        for i in 1:k
+            buf = basis[i].buf
+            state_str = [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base=2, pad=N))]
+            states[i] = productMPS(sites, state_str)
+        end
+        if project !== nothing
+            states = [project(ψ) for ψ in states]
+        end
+    else
+        states = copy(initial_states)
+        k = length(states)
+        if project !== nothing
+            states = [project(ψ) for ψ in states]
+        end
+        # Orthonormalize the custom frame first (unrecorded), so the step-1
+        # spectrum contains only propagation stretches — the MPS analogue of
+        # the initial QR in `lyapunov_spectrum_topological_sector`.
+        states, _ = _gram_cholesky_orthonormalize_mps(states, sites; cutoff, maxdim)
     end
     spectrum_tlis = zeros(k, t)
 
@@ -1306,65 +1373,90 @@ function lyapunov_spectrum_mps(
             states[i] = outcome.state
         end
 
-        # Compute Gram matrix
-        G = zeros(Float64, k, k)
-        for i in 1:k
-            for j in i:k
-                val = real(inner(states[i], states[j]))
-                G[i, j] = val
-                G[j, i] = val
-            end
+        if project !== nothing
+            states = [project(ψ) for ψ in states]
         end
-
-        # Gram-matrix Cholesky (MPS analogue of QR)
-        try
-            F = cholesky(Hermitian(G))
-            L = F.L
-            Linv = inv(L)
-
-            # Form orthonormal states: Q_i = sum_j (Linv)_{ij} ψ_j
-            new_states = Vector{MPS}(undef, k)
-            for i in 1:k
-                ψ_new = Linv[i, 1] * states[1]
-                for j in 2:k
-                    ψ_new = ψ_new + Linv[i, j] * states[j]
-                end
-                new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
-            end
-            states = new_states
-
-            # Note here do not sort, will distort the spectrum
-            spectrum_tlis[:, step] = -log.(abs.(diag(L)))
-        catch e
-            if e isa PosDefException
-                # Fallback to eigen if Cholesky fails (subspace collapse)
-                @show "collapse at step $step, falling back to eigen decomposition"
-                F = eigen(Hermitian(G))
-                vals = F.values
-                vecs = F.vectors
-
-                new_states = Vector{MPS}(undef, k)
-                for i in 1:k
-                    if vals[i] > 1e-14
-                        coef = vecs[:, i] / sqrt(vals[i])
-                        ψ_new = coef[1] * states[1]
-                        for j in 2:k
-                            ψ_new = ψ_new + coef[j] * states[j]
-                        end
-                        new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
-                    else
-                        new_states[i] = productMPS(sites, ["0" for _ in 1:N])
-                    end
-                end
-                states = new_states
-                spectrum_tlis[:, step] = -log.(sqrt.(abs.(vals[1:k])))
-            else
-                rethrow(e)
-            end
-        end
+        states, stretches =
+            _gram_cholesky_orthonormalize_mps(states, sites; cutoff, maxdim, step)
+        # Note here do not sort, will distort the spectrum
+        spectrum_tlis[:, step] = -log.(stretches)
     end
 
     return spectrum_tlis
+end
+
+"""
+    _gram_cholesky_orthonormalize_mps(states::Vector{MPS}, sites; cutoff, maxdim, step=0)
+
+Orthonormalize an MPS frame via the Gram-matrix Cholesky procedure (the MPS
+analogue of QR). Returns `(orthonormal_states, stretches)` where `stretches`
+are `abs.(diag(L))` of the Cholesky factor `G = L * L'`. Falls back to an
+eigen decomposition of the Gram matrix when Cholesky fails (subspace
+collapse); collapsed directions are refilled with the all-τ product state.
+"""
+function _gram_cholesky_orthonormalize_mps(
+    states::Vector{MPS},
+    sites::Vector{<:Index};
+    cutoff::Float64,
+    maxdim::Int,
+    step::Int = 0,
+)
+    k = length(states)
+    N = length(sites)
+
+    # Compute Gram matrix
+    G = zeros(Float64, k, k)
+    for i in 1:k
+        for j in i:k
+            val = real(inner(states[i], states[j]))
+            G[i, j] = val
+            G[j, i] = val
+        end
+    end
+
+    # Gram-matrix Cholesky (MPS analogue of QR)
+    try
+        F = cholesky(Hermitian(G))
+        L = F.L
+        Linv = inv(L)
+
+        # Form orthonormal states: Q_i = sum_j (Linv)_{ij} ψ_j
+        new_states = Vector{MPS}(undef, k)
+        for i in 1:k
+            ψ_new = Linv[i, 1] * states[1]
+            for j in 2:k
+                ψ_new = ψ_new + Linv[i, j] * states[j]
+            end
+            new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
+        end
+
+        return new_states, abs.(diag(L))
+    catch e
+        if e isa PosDefException
+            # Fallback to eigen if Cholesky fails (subspace collapse)
+            @show "collapse at step $step, falling back to eigen decomposition"
+            F = eigen(Hermitian(G))
+            vals = F.values
+            vecs = F.vectors
+
+            new_states = Vector{MPS}(undef, k)
+            for i in 1:k
+                if vals[i] > 1e-14
+                    coef = vecs[:, i] / sqrt(vals[i])
+                    ψ_new = coef[1] * states[1]
+                    for j in 2:k
+                        ψ_new = ψ_new + coef[j] * states[j]
+                    end
+                    new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
+                else
+                    new_states[i] = productMPS(sites, ["0" for _ in 1:N])
+                end
+            end
+            return new_states, sqrt.(abs.(vals[1:k]))
+        else
+            rethrow(e)
+        end
+    end
 end
 
 """
@@ -1879,6 +1971,9 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:Bor
   - `samples::BitMatrix`: The generated measurement outcome sequences.
   - `free_energys::Vector{Float32}`: The free energy for each measurement layer.
   - `entanglement_entropys::Vector{Float32}`: Half-chain entanglement entropy at each period.
+  - `y_expectation_values::Vector{Float32}`: Normalized `Y` expectation (via
+    `topological_charge_mpo`) after each period, or an empty vector when
+    `track_y_expectation=false`
 """
 function _born_measure_mps(
     model::AnyonModel{AT},
@@ -1914,11 +2009,22 @@ function _born_measure_mps(
     else
         nothing
     end
+    y_charge_mpo = if measure_config.track_y_expectation
+        model isa AnyonModel{FibonacciAnyon} || error(
+            "Y expectation tracking is only supported for Fibonacci anyon models",
+        )
+        model.pbc || error("Y expectation tracking requires periodic boundaries")
+        topological_charge_mpo(sites; pbc = true)
+    else
+        nothing
+    end
 
     # 1. Initialize sample matrix with max columns per layer
     samples = BitMatrix(zeros(Bool, D, n_cols))
     sample_free_energy = zeros(Float32, D)
     entanglement_entropys = zeros(Float32, Δt)
+    y_expectation_values =
+        measure_config.track_y_expectation ? zeros(Float32, Δt) : Float32[]
 
     for period = 1:Δt
         # Apply all layers in this period
@@ -1958,6 +2064,12 @@ function _born_measure_mps(
         end
         # Compute half-chain EE on-the-fly
         entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
+        if y_charge_mpo !== nothing
+            y_expectation_values[period] = Float32(
+                real(inner(prime(current_state), y_charge_mpo, current_state)) /
+                real(inner(current_state, current_state)),
+            )
+        end
     end
 
     return Measurement_outcome_mps_bulk(
@@ -1965,6 +2077,7 @@ function _born_measure_mps(
         samples,
         sample_free_energy,
         entanglement_entropys,
+        y_expectation_values,
     )
 end
 
@@ -2087,7 +2200,19 @@ struct Measurement_outcome_mps_bulk
     samples::BitMatrix
     free_energys::Vector{Float32}
     entanglement_entropys::Vector{Float32}
+    y_expectation_values::Vector{Float32}
 end
+
+# Keep the previous four-argument constructor available for callers that do not
+# measure the topological Y charge.
+Measurement_outcome_mps_bulk(state, samples, free_energys, entanglement_entropys) =
+    Measurement_outcome_mps_bulk(
+        state,
+        samples,
+        free_energys,
+        entanglement_entropys,
+        Float32[],
+    )
 
 struct Measurement_outcome_mps_boundary
     state::MPS

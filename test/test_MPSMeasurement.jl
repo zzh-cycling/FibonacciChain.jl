@@ -204,6 +204,129 @@ end
     @test all(y -> min(abs(y - ϕ), abs(y + inv(ϕ))) < 1e-8, y_eigs)
 end
 
+@testset "topological_charge_mpo sector structure" begin
+    ϕ = (1 + √5) / 2
+    N = 6
+    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+    sites = siteinds("Qubit", N)
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+    basis = anyon_basis(model)
+
+    basis_product_mps(buf) = productMPS(
+        sites,
+        [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base = 2, pad = N))],
+    )
+    # Random states supported on the constrained anyon basis
+    rng = MersenneTwister(42)
+    function random_physical_state()
+        coef = randn(rng, length(basis))
+        ψ = coef[1] * basis_product_mps(basis[1].buf)
+        for i in 2:length(basis)
+            ψ = add(ψ, coef[i] * basis_product_mps(basis[i].buf); cutoff = 1e-15, maxdim = 200)
+        end
+        normalize!(ψ)
+        return ψ
+    end
+    # Sector projectors via the Y MPO: P1 = (Y + ϕ⁻¹ I)/(ϕ + ϕ⁻¹),
+    # Pτ = (Y - ϕ I)/(-ϕ⁻¹ - ϕ)
+    project_1(ψ) = inv(ϕ + inv(ϕ)) * add(
+        apply(Y_mpo, ψ; cutoff = 1e-15, maxdim = 200),
+        inv(ϕ) * ψ;
+        cutoff = 1e-15,
+        maxdim = 200,
+    )
+    project_τ(ψ) = inv(-inv(ϕ) - ϕ) * add(
+        apply(Y_mpo, ψ; cutoff = 1e-15, maxdim = 200),
+        (-ϕ) * ψ;
+        cutoff = 1e-15,
+        maxdim = 200,
+    )
+
+    ψ = random_physical_state()
+    φ = random_physical_state()
+    Yψ = apply(Y_mpo, ψ; cutoff = 1e-15, maxdim = 200)
+
+    # On the constrained subspace Y has eigenvalues ϕ and -1/ϕ, hence the
+    # minimal polynomial Y² = Y + I
+    YYψ = apply(Y_mpo, Yψ; cutoff = 1e-15, maxdim = 200)
+    residual = add(
+        YYψ,
+        (-1.0) * add(Yψ, ψ; cutoff = 1e-15, maxdim = 200);
+        cutoff = 1e-15,
+        maxdim = 200,
+    )
+    @test norm(residual) < 1e-10
+
+    # Y is hermitian: ⟨ψ|Y|φ⟩ = ⟨φ|Y|ψ⟩*
+    @test inner(prime(ψ), Y_mpo, φ) ≈ conj(inner(prime(φ), Y_mpo, ψ)) atol = 1e-12
+
+    # The sector projectors are complete and orthogonal on physical states
+    p1ψ = project_1(ψ)
+    pτψ = project_τ(ψ)
+    @test norm(add(p1ψ, pτψ; cutoff = 1e-15, maxdim = 200) - ψ) < 1e-10
+    @test norm(project_1(pτψ)) < 1e-10
+    @test real(inner(prime(p1ψ), Y_mpo, p1ψ)) / inner(p1ψ, p1ψ) ≈ ϕ atol = 1e-10
+    @test real(inner(prime(pτψ), Y_mpo, pτψ)) / inner(pτψ, pτψ) ≈ -inv(ϕ) atol = 1e-10
+
+    # Y commutes with every measurement transfer matrix: [T, Y] = 0 for a
+    # fixed-outcome period applied with normalized = false
+    τ = 0.8
+    n_layers = FibonacciChain.layers_per_period(model)
+    sample = BitMatrix(ones(Int8, n_layers, FibonacciChain._samples_per_layer(model)))
+    sample[1, 1] = 0
+    config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
+    apply_T(state) = FibonacciChain._sample_measure_mps(
+        model,
+        sites,
+        state,
+        sample,
+        config;
+        cutoff = 1e-15,
+        maxdim = 200,
+        normalized = false,
+    ).state
+    TYψ = apply_T(Yψ)
+    YTψ = apply(Y_mpo, apply_T(ψ); cutoff = 1e-15, maxdim = 200)
+    @test norm(add(TYψ, (-1.0) * YTψ; cutoff = 1e-15, maxdim = 200)) / norm(TYψ) < 1e-10
+
+    # The automaton bond dimensions: 4 for open boundaries (carrying the
+    # current fusion pair), 16 for periodic boundaries (also closing the ring)
+    Y_obc = topological_charge_mpo(sites; pbc = false)
+    @test maxlinkdim(Y_obc) == 4
+    @test maxlinkdim(Y_mpo) == 16
+end
+
+@testset "TCI ground state is a y=1 eigenstate of the Y MPO" begin
+    # The periodic Fibonacci (tricritical Ising) ground state carries trivial
+    # topological charge, so Y|GS⟩ = ϕ|GS⟩. The exact ground state is used
+    # because penalty-based DMRG mixes the nearly-degenerate sectors at the
+    # 1e-3 level; the state is assembled as an MPS and probed purely through
+    # the Y MPO.
+    ϕ = (1 + √5) / 2
+    L = 10
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    basis = anyon_basis(model)
+    gs_vec = real(Arpack.eigs(anyon_ham_sparse(model); nev = 1, which = :SR)[2][:, 1])
+
+    sites = siteinds("Qubit", L)
+    product_state(i) = productMPS(
+        sites,
+        [bit ? "1" : "0" for bit in reverse(digits(Bool, basis[i].buf; base = 2, pad = L))],
+    )
+    gs = gs_vec[1] * product_state(1)
+    for i in 2:length(basis)
+        gs = add(gs, gs_vec[i] * product_state(i); cutoff = 1e-15, maxdim = 256)
+    end
+    normalize!(gs)
+
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+    y_exp = real(inner(prime(gs), Y_mpo, gs))
+    @test y_exp ≈ ϕ atol = 1e-8
+
+    Yψ = apply(Y_mpo, gs; cutoff = 1e-15, maxdim = 256)
+    @test norm(add(Yψ, (-ϕ) * gs; cutoff = 1e-15, maxdim = 512)) < 1e-7
+end
+
 @testset "Constraint-preserving post-selection MPS" begin
     N = 8
     periods = 2N
@@ -625,4 +748,110 @@ end
     # The dominant eigenvalues converge well; subdominant ones are more sensitive
     # to MPS truncation and orthogonalization errors.
     @test spectrum_sub[1:7, :] ≈ spectrum_ref[1:7, :] atol = 1e-5
+end
+
+
+@testset "Y MPO sector tools: initial state, tracking, sector Lyapunov" begin
+    L = 8
+    τ = atanh(0.95)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    sites = siteinds("Qubit", L)
+    ϕ = (1 + √5) / 2
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+
+    basis = anyon_basis(model)
+    basis_mps(buf) = productMPS(
+        sites,
+        [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base = 2, pad = L))],
+    )
+
+    # y=1 projected all-τ state built with the Y MPO: P1|0⋯0⟩ ∝ (Y + ϕ⁻¹ I)|0⋯0⟩
+    vacuum = basis_mps(0)
+    y1_init = add(
+        apply(Y_mpo, vacuum; cutoff = 1e-14, maxdim = 100),
+        inv(ϕ) * vacuum;
+        cutoff = 1e-14,
+        maxdim = 100,
+    )
+    normalize!(y1_init)
+
+    # Compare against the exact sector projection
+    Y_exact = topological_charge_operator(model)
+    P1 = (Y_exact + inv(ϕ) * I) / (ϕ + inv(ϕ))
+    exact_init = zeros(length(basis))
+    exact_init[1] = 1.0
+    exact_init = P1 * exact_init
+    exact_init ./= norm(exact_init)
+    mps_amplitudes = [inner(basis_mps(b.buf), y1_init) for b in basis]
+    @test mps_amplitudes ≈ exact_init atol = 1e-10
+
+    # ⟨Y⟩ via the MPO equals the y=1 eigenvalue ϕ
+    y_exp =
+        real(inner(prime(y1_init), Y_mpo, y1_init)) / real(inner(y1_init, y1_init))
+    @test y_exp ≈ ϕ atol = 1e-10
+
+    # Born evolution tracks the y=1 sector on-the-fly via the Y MPO
+    periods = 5
+    outcome = bulk_evolution(
+        model,
+        sites,
+        y1_init,
+        MeasureConfig(
+            τ = τ,
+            t₂ = periods,
+            mode = :Born,
+            rng = MersenneTwister(1),
+            enable_τ_eff = false,
+            cutoff = 1e-12,
+            maxdim = 100,
+            track_y_expectation = true,
+        ),
+    )
+    @test length(outcome.y_expectation_values) == periods
+    # y_expectation_values are stored as Float32, so the tolerance must exceed
+    # Float32 roundoff (~1.2e-7)
+    @test all(y -> abs(y - ϕ) < 1e-6, outcome.y_expectation_values)
+
+    # Sector-restricted Lyapunov spectrum with an MPS frame: project the first
+    # basis product states with P1 via the Y MPO, then let `initial_states`
+    # drive the subspace iteration. `sector = :trivial` re-projects the frame
+    # into y=1 after every period; without it, MPS truncation noise leaks into
+    # the y=τ sector, whose leading exponent (-2.95 here) outgrows the y=1
+    # subleading directions. Compare at the same time horizon against
+    # the exact sector Lyapunov function, so only MPS truncation error remains.
+    n_states = 3
+    frame = Vector{MPS}(undef, n_states)
+    for i in 1:n_states
+        product_state = basis_mps(basis[i].buf)
+        frame[i] = add(
+            apply(Y_mpo, product_state; cutoff = 1e-12, maxdim = 100),
+            inv(ϕ) * product_state;
+            cutoff = 1e-12,
+            maxdim = 100,
+        )
+    end
+
+    D = 400
+    sample_long = BitMatrix(ones(Int8, D, div(L, 2)))
+    spectrum_mps = lyapunov_spectrum_mps(
+        model,
+        sites,
+        τ,
+        sample_long;
+        initial_states = frame,
+        sector = :trivial,
+        cutoff = 1e-12,
+        maxdim = 100,
+    )
+    lyapunov_mps =
+        cumsum(-spectrum_mps; dims = 2) ./ reshape(collect(1:div(D, 2)), 1, :)
+
+    exact = lyapunov_spectrum_topological_sector(
+        model,
+        τ,
+        sample_long;
+        sector = :trivial,
+        n_states = n_states,
+    )
+    @test lyapunov_mps[:, end] ≈ exact.lyapunov_exponents[:, end] atol = 1e-3
 end

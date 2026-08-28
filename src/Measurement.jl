@@ -1720,6 +1720,10 @@ Evolve an MPS state under bulk measurements.
   - `samples::BitMatrix`: Measurement outcome sequences
   - `free_energys::Vector{Float32}`: Free energy for each layer
   - `entanglement_entropys::Vector{Float32}`: Half-chain EE at each period
+  - `y_expectation_values::Vector{Float32}`: Normalized `Y` expectation after each
+    period (Fibonacci PBC models only, via `topological_charge_mpo`), or an empty
+    vector when `track_y_expectation=false`. Currently supported by the MPS
+    `:Born` evolution.
 
 # Notes
 - In `:Born` mode, samples are generated probabilistically via Born rule
