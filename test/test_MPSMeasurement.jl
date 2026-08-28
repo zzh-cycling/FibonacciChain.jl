@@ -4,6 +4,7 @@ using ITensorMPS, ITensors
 using LinearAlgebra
 using Random
 using Arpack
+using BitBasis
 
 @testset "initial_mps" begin
     N = 6
@@ -157,6 +158,50 @@ end
             @test norm(projected) ≈ (is_allowed ? 1.0 : 0.0) atol = 1e-13
         end
     end
+end
+
+@testset "topological_charge_mpo" begin
+    # The MPO must reproduce ⟨x|Y|x'⟩ = ∏ᵢ (F^{τ xᵢ τ}_{x'ᵢ₊₁})^{xᵢ₊₁}_{x'ᵢ}
+    # for every pair of bit configurations, legal fusion path or not.
+    state_mps(sites, N, buf) = productMPS(
+        sites,
+        [bit ? "1" : "0" for bit in reverse(digits(Bool, buf; base = 2, pad = N))],
+    )
+
+    for (N, pbc) in ((4, true), (4, false), (2, true))
+        model = AnyonModel(FibonacciAnyon(), N; pbc = pbc)
+        sites = siteinds("Qubit", N)
+        Y_mpo = topological_charge_mpo(sites; pbc = pbc)
+        for buf_in in 0:(2^N - 1)
+            ψ_in = state_mps(sites, N, buf_in)
+            mapped = apply(Y_mpo, ψ_in; cutoff = 1e-15, maxdim = 100)
+            for buf_out in 0:(2^N - 1)
+                ψ_out = state_mps(sites, N, buf_out)
+                expected = Fsymmetry_coef(model, BitStr{N}(buf_out), BitStr{N}(buf_in))
+                @test inner(ψ_out, mapped) ≈ expected atol = 1e-13
+            end
+        end
+    end
+
+    # On the constrained anyon basis the MPO must coincide with the exact
+    # topological charge operator, whose PBC eigenvalues are ϕ (y=1 sector)
+    # and -1/ϕ (y=τ sector).
+    N = 8
+    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+    Y_exact = topological_charge_operator(model)
+    sites = siteinds("Qubit", N)
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+    basis = anyon_basis(model)
+    basis_mps = [state_mps(sites, N, b.buf) for b in basis]
+    Y_rebuilt = [
+        inner(basis_mps[i], apply(Y_mpo, basis_mps[j]; cutoff = 1e-15, maxdim = 100))
+        for i in eachindex(basis), j in eachindex(basis)
+    ]
+    @test Y_rebuilt ≈ Y_exact atol = 1e-10
+
+    ϕ = (1 + √5) / 2
+    y_eigs = eigvals((Y_rebuilt+Y_rebuilt')/2)
+    @test all(y -> min(abs(y - ϕ), abs(y + inv(ϕ))) < 1e-8, y_eigs)
 end
 
 @testset "Constraint-preserving post-selection MPS" begin

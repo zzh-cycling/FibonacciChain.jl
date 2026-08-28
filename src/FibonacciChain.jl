@@ -60,6 +60,7 @@ export anyon_mps_gst,
     evenparity_mps,
     mps_measurement_enumeration,
     ee_mps,
+    topological_charge_mpo,
     lyapunov_spectrum_mps
 # Reference qubits functions
 export add_reference_qubits,

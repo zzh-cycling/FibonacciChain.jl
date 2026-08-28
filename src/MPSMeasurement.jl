@@ -161,6 +161,156 @@ function fibonacci_constraint_projector_mpo(
     return MPO(tensors)
 end
 
+"""
+    topological_charge_mpo(sites::Vector{<:Index}; pbc::Bool=true)
+
+Return the Fibonacci topological charge operator `Y` as an MPO.
+
+The matrix element between two fusion-path configurations is a product of
+local F-symbols (see `Fsymmetry_coef` in `Basis.jl`):
+
+    ⟨x₁⋯x_N|Y|x'₁⋯x'_N⟩ = ∏ᵢ (F^{τ xᵢ τ}_{x'ᵢ₊₁})^{xᵢ₊₁}_{x'ᵢ},
+
+where bits are read left to right (site `i` carries `xᵢ`), `x_{N+1} ≡ x₁` for
+PBC, and the product stops at `i = N - 1` for OBC. Since each factor depends
+only on `(xᵢ, x'ᵢ, xᵢ₊₁, x'ᵢ₊₁)`, `Y` is a finite-state automaton MPO: the
+virtual bond carries the current pair `(xᵢ, x'ᵢ)`, and the site-`i+1` tensor
+deposits the factor `Fsymbol(xᵢ, x'ᵢ₊₁, xᵢ₊₁, x'ᵢ)`.
+
+For OBC the bond dimension is 4 (the current pair). For PBC the automaton
+additionally carries the first pair `(x₁, x'₁)` to close the ring, so the bond
+dimension is 16.
+
+The contraction equals `Fsymmetry_coef` for every pair of `2^N` bit
+configurations, legal fusion path or not; in particular it coincides with
+`topological_charge_operator` on the constrained anyon basis.
+
+# Example
+```julia
+sites = siteinds("Qubit", N)
+Y_mpo = topological_charge_mpo(sites; pbc = true)
+y_expectation = real(inner(prime(ψ), Y_mpo, ψ)) / real(inner(ψ, ψ))
+```
+"""
+function topological_charge_mpo(
+    sites::Vector{<:Index};
+    pbc::Bool = true,
+)
+    N = length(sites)
+    N >= 2 || error("The topological charge MPO requires N >= 2")
+
+    # Weight deposited at site i+1: (F^{τ σ τ}_δ)^μ_ν with
+    # σ = out_prev, μ = out_cur, ν = in_prev, δ = in_cur.
+    # Out (in) bits live on the primed (unprimed) physical index.
+    weight(out_prev, out_cur, in_prev, in_cur) =
+        _Fibonacci_Fsymbol(out_prev, in_cur, out_cur, in_prev)
+
+    if !pbc
+        # Bond dimension 4: carry the current pair (out_cur, in_cur).
+        links = [Index(4, "Link,TopologicalCharge,l=$i") for i = 1:(N-1)]
+        pair(c, d) = 2c + d + 1
+        tensors = Vector{ITensor}(undef, N)
+
+        first_tensor = ITensor(prime(sites[1]), dag(sites[1]), links[1])
+        for out_bit in 0:1, in_bit in 0:1
+            first_tensor[
+                prime(sites[1]) => out_bit + 1,
+                dag(sites[1]) => in_bit + 1,
+                links[1] => pair(out_bit, in_bit),
+            ] = 1.0
+        end
+        tensors[1] = first_tensor
+
+        for site in 2:(N - 1)
+            tensor = ITensor(
+                links[site-1],
+                prime(sites[site]),
+                dag(sites[site]),
+                links[site],
+            )
+            for out_prev in 0:1, in_prev in 0:1, out_bit in 0:1, in_bit in 0:1
+                w = weight(out_prev, out_bit, in_prev, in_bit)
+                iszero(w) && continue
+                tensor[
+                    links[site-1] => pair(out_prev, in_prev),
+                    prime(sites[site]) => out_bit + 1,
+                    dag(sites[site]) => in_bit + 1,
+                    links[site] => pair(out_bit, in_bit),
+                ] = w
+            end
+            tensors[site] = tensor
+        end
+
+        last_tensor = ITensor(links[end], prime(sites[end]), dag(sites[end]))
+        for out_prev in 0:1, in_prev in 0:1, out_bit in 0:1, in_bit in 0:1
+            w = weight(out_prev, out_bit, in_prev, in_bit)
+            iszero(w) && continue
+            last_tensor[
+                links[end] => pair(out_prev, in_prev),
+                prime(sites[end]) => out_bit + 1,
+                dag(sites[end]) => in_bit + 1,
+            ] = w
+        end
+        tensors[end] = last_tensor
+        return MPO(tensors)
+    end
+
+    # Bond dimension 16: carry (first_out, first_in, current_out, current_in).
+    links = [Index(16, "Link,TopologicalCharge,l=$i") for i = 1:(N-1)]
+    automaton_state(first_out, first_in, cur_out, cur_in) =
+        8 * first_out + 4 * first_in + 2 * cur_out + cur_in + 1
+
+    tensors = Vector{ITensor}(undef, N)
+    first_tensor = ITensor(prime(sites[1]), dag(sites[1]), links[1])
+    for out_bit in 0:1, in_bit in 0:1
+        first_tensor[
+            prime(sites[1]) => out_bit + 1,
+            dag(sites[1]) => in_bit + 1,
+            links[1] => automaton_state(out_bit, in_bit, out_bit, in_bit),
+        ] = 1.0
+    end
+    tensors[1] = first_tensor
+
+    for site in 2:(N - 1)
+        tensor = ITensor(
+            links[site-1],
+            prime(sites[site]),
+            dag(sites[site]),
+            links[site],
+        )
+        for first_out in 0:1, first_in in 0:1, out_prev in 0:1, in_prev in 0:1,
+            out_bit in 0:1, in_bit in 0:1
+            w = weight(out_prev, out_bit, in_prev, in_bit)
+            iszero(w) && continue
+            tensor[
+                links[site-1] => automaton_state(first_out, first_in, out_prev, in_prev),
+                prime(sites[site]) => out_bit + 1,
+                dag(sites[site]) => in_bit + 1,
+                links[site] => automaton_state(first_out, first_in, out_bit, in_bit),
+            ] = w
+        end
+        tensors[site] = tensor
+    end
+
+    # The last site deposits both the factor on bond (N-1, N) and the closing
+    # factor on bond (N, 1): Fsymbol(x_N, x'_1, x_1, x'_N).
+    last_tensor = ITensor(links[end], prime(sites[end]), dag(sites[end]))
+    for first_out in 0:1, first_in in 0:1, out_prev in 0:1, in_prev in 0:1,
+        out_bit in 0:1, in_bit in 0:1
+        w =
+            weight(out_prev, out_bit, in_prev, in_bit) *
+            weight(out_bit, first_out, in_bit, first_in)
+        iszero(w) && continue
+        last_tensor[
+            links[end] => automaton_state(first_out, first_in, out_prev, in_prev),
+            prime(sites[end]) => out_bit + 1,
+            dag(sites[end]) => in_bit + 1,
+        ] = w
+    end
+    tensors[end] = last_tensor
+    return MPO(tensors)
+end
+
 """Return the MPO counting forbidden adjacent `11` pairs."""
 function fibonacci_constraint_violation_mpo(
     sites::Vector{<:Index};
