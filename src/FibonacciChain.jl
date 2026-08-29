@@ -11,6 +11,7 @@ export FibonacciAnyon,
     HybridConfig,
     HybridGateSchedule,
     HybridMeasurementOutcome,
+    HybridLearnabilityOutcome,
     Measurement_outcome_bulk,
     Measurement_outcome_boundary,
     Measurement_outcome_mps
@@ -49,7 +50,9 @@ export measure_basismap,
     lyapunov_spectrum_topological_sector,
     transfer_matrix_dynamics,
     boundary_evolution,
-    bulk_evolution
+    bulk_evolution,
+    hybrid_bayesian_evolution,
+    hybrid_lyapunov_spectrum
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,
