@@ -6,69 +6,107 @@ using LinearAlgebra
 using Random
 using Statistics
 
+# Sector-resolved Lyapunov spectra along Born trajectories (y=1 or y=τ).
+# Merged from lyapunov_spectrum_y1.jl and lyapunov_spectrum_ytau.jl;
+# data roots, file names and JLD2 schemas are unchanged.
+#
 # Shared γ/τ grid (τlis), fib_model, and the evolution-time tables
 # (get_cfg_params_Born / get_mps_params_Born); measurement strengths are
 # selected by integer index τ_idx, as in transfer_matrix.jl
 include(joinpath(@__DIR__, "config.jl"))
 
-"""
-    initial_ytau_state(model) -> Vector
+# In the repository normalization the y=1 sector has topological charge
+# eigenvalue ϕ, while the y=τ sector has eigenvalue -1/ϕ.
+const SECTOR_SPECS = Dict{Symbol,NamedTuple}(
+    :y1 => (;
+        title = "y=1",
+        sector = :trivial,
+        dir_name = "lyapunov_spectrum_y1",
+        file_tag = "lyapunov_y1",
+        sector_label = "y=1",
+        y_eigenvalue = (1 + √5) / 2,
+        other_eigenvalue = -2 / (1 + √5),
+        min_χ = 1,
+    ),
+    :ytau => (;
+        title = "y=τ",
+        sector = :tau,
+        dir_name = "lyapunov_spectrum_ytau",
+        file_tag = "lyapunov_ytau",
+        sector_label = "y=tau",
+        y_eigenvalue = -2 / (1 + √5),
+        other_eigenvalue = (1 + √5) / 2,
+        # The y=τ projected all-τ MPS needs bond dimension at least 5.
+        min_χ = 5,
+    ),
+)
 
-Project the all-`τ` fusion path into the `y=τ` sector and normalize it. This is
-the state used to sample the Born trajectory. In the repository normalization
-the `y=1` sector has topological charge eigenvalue `ϕ`, while the `y=τ` sector
-has eigenvalue `-1/ϕ`, so `Pτ = (ϕ I - Y) / (ϕ + ϕ⁻¹)`.
+function sector_spec(sector::Symbol)
+    haskey(SECTOR_SPECS, sector) ||
+        error("Unknown sector: $sector (expected :y1 or :ytau)")
+    return SECTOR_SPECS[sector]
+end
+
 """
-function initial_ytau_state(model::AnyonModel{FibonacciAnyon})
-    model.pbc || error("The topological y=τ sector requires periodic boundaries")
-    ϕ = (1 + √5) / 2
+    initial_sector_state(model, spec) -> Vector
+
+Project the all-`τ` fusion path into the sector selected by `spec` and
+normalize it. This is the state used to sample the Born trajectory. With `y`
+the sector eigenvalue and `ȳ` the other one, `P = (Y - ȳ I)/(y - ȳ)`.
+"""
+function initial_sector_state(model::AnyonModel{FibonacciAnyon}, spec)
+    model.pbc || error("The topological $(spec.title) sector requires periodic boundaries")
     Y = topological_charge_operator(model)
-    Pτ = (ϕ * I(size(Y, 1)) - Y) / (ϕ + inv(ϕ))
+    P = (Y - spec.other_eigenvalue * I(size(Y, 1))) /
+        (spec.y_eigenvalue - spec.other_eigenvalue)
     state = zeros(Float64, length(anyon_basis(model)))
     state[1] = 1.0
-    projected = Pτ * state
+    projected = P * state
     weight = real(dot(projected, projected))
-    weight > 1e-14 || error("The all-τ path has zero y=τ weight")
+    weight > 1e-14 || error("The all-τ path has zero $(spec.title) weight")
     return projected / sqrt(weight)
 end
 
 """
-    initial_ytau_mps(model; cutoff=1e-14, maxdim=32)
+    initial_sector_mps(model, spec; cutoff=1e-14, maxdim=32)
 
-MPS version of [`initial_ytau_state`](@ref): apply the topological charge MPO to
-the all-`τ` product state and add the identity part,
+MPS version of [`initial_sector_state`](@ref): apply the topological charge
+MPO to the all-`τ` product state and add the identity part,
 
-    Pτ|00⋯0⟩ ∝ (ϕ I - Y)|00⋯0⟩,
+    P|00⋯0⟩ ∝ (Y - ȳ I)|00⋯0⟩,
 
 so no dense Y matrix is ever constructed and large L is accessible.
 """
-function initial_ytau_mps(model::AnyonModel{FibonacciAnyon}; cutoff::Float64 = 1e-14, maxdim::Int = 32)
-    model.pbc || error("The topological y=τ sector requires periodic boundaries")
+function initial_sector_mps(
+    model::AnyonModel{FibonacciAnyon},
+    spec;
+    cutoff::Float64 = 1e-14,
+    maxdim::Int = 32,
+)
+    model.pbc || error("The topological $(spec.title) sector requires periodic boundaries")
     N = model.N
-    N >= 2 || error("initial_ytau_mps requires at least two sites")
+    N >= 2 || error("initial_sector_mps requires at least two sites")
     sites = siteinds("Qubit", N)
 
     vacuum = productMPS(sites, fill("0", N))
     Y_mpo = topological_charge_mpo(sites; pbc = true)
     y_on_vacuum = apply(Y_mpo, vacuum; cutoff = cutoff, maxdim = maxdim)
 
-    ϕ = (1 + √5) / 2
-    y_on_vacuum[1] = -y_on_vacuum[1]
-    vacuum[1] = ϕ * vacuum[1]
+    vacuum[1] = -spec.other_eigenvalue * vacuum[1]
     projected = add(y_on_vacuum, vacuum; cutoff = cutoff, maxdim = maxdim)
     normalize!(projected)
     return projected, sites
 end
 
 """
-    lyapunov_ytau_time(backend, L, τ_idx) -> Int
+    lyapunov_sector_time(backend, L, τ_idx) -> Int
 
 Evolution time `t` (number of measurement periods, two layers each) taken from
 the shared tables in `config.jl`, as in `transfer_matrix.jl`: the exact backend
 uses `div(D, 2)` from `get_cfg_params_Born`, the MPS backend uses
 `time_in_L * L` from `get_mps_params_Born`.
 """
-function lyapunov_ytau_time(backend::Symbol, L::Integer, τ_idx::Integer)
+function lyapunov_sector_time(backend::Symbol, L::Integer, τ_idx::Integer)
     if backend == :exact
         D, _, _ = get_cfg_params_Born(τ_idx, L)
         return div(D, 2)
@@ -80,14 +118,15 @@ function lyapunov_ytau_time(backend::Symbol, L::Integer, τ_idx::Integer)
 end
 
 """
-    simulate_ytau_lyapunov(L, τ, t; n_states=10, trajectory_seed=1)
+    simulate_sector_lyapunov(spec, L, τ, t; n_states=10, trajectory_seed=1)
 
-Generate a Born trajectory of `t` periods from `Pτ|τ⋯τ⟩` (exact state-vector
-evolution), then compute the Lyapunov spectrum of the corresponding
-transfer-matrix product restricted to the full `y=τ` sector via
+Generate a Born trajectory of `t` periods from the sector-projected all-`τ`
+state (exact state-vector evolution), then compute the Lyapunov spectrum of
+the corresponding transfer-matrix product restricted to the full sector via
 `lyapunov_spectrum_topological_sector`.
 """
-function simulate_ytau_lyapunov(
+function simulate_sector_lyapunov(
+    spec,
     L::Int,
     τ::Real,
     t::Int;
@@ -96,7 +135,7 @@ function simulate_ytau_lyapunov(
 )
     t >= 1 || throw(ArgumentError("t must be positive"))
     model = fib_model(L)
-    initial_state = initial_ytau_state(model)
+    initial_state = initial_sector_state(model, spec)
     born_config = MeasureConfig(
         τ = Float64(τ),
         t₂ = t,
@@ -110,15 +149,14 @@ function simulate_ytau_lyapunov(
         model,
         Float64(τ),
         trajectory.samples;
-        sector = :tau,
+        sector = spec.sector,
         n_states = n_states,
     )
 
-    ϕ = (1 + √5) / 2
-    maximum(abs.(trajectory.y_expectation_values .+ inv(ϕ))) < 1e-5 ||
-        error("the Born trajectory left the y=τ sector")
+    maximum(abs.(trajectory.y_expectation_values .- spec.y_eigenvalue)) < 1e-5 ||
+        error("the Born trajectory left the $(spec.title) sector")
     maximum(spectrum.sector_leakage) < 1e-9 ||
-        error("the Lyapunov frame left the y=τ sector")
+        error("the Lyapunov frame left the $(spec.title) sector")
     return trajectory, (
         local_log_stretches = spectrum.local_log_stretches,
         lyapunov_exponents = spectrum.lyapunov_exponents,
@@ -129,18 +167,19 @@ function simulate_ytau_lyapunov(
 end
 
 """
-    simulate_ytau_lyapunov_mps(L, τ, t, χ; n_states=10, trajectory_seed=1)
+    simulate_sector_lyapunov_mps(spec, L, τ, t, χ; n_states=10, trajectory_seed=1)
 
-MPS version of [`simulate_ytau_lyapunov`](@ref) for large L. The Born trajectory
-of `t` periods is generated from the Y-MPO-projected initial state
-(`initial_ytau_mps`), with the `y=τ` sector monitored on-the-fly by
+MPS version of [`simulate_sector_lyapunov`](@ref) for large L. The Born
+trajectory of `t` periods is generated from the Y-MPO-projected initial state
+(`initial_sector_mps`), with the sector monitored on-the-fly by
 `topological_charge_mpo`. The Lyapunov spectrum is computed by
-`lyapunov_spectrum_mps` with `sector = :tau`, which projects the propagated
-frame back into the `y=τ` sector after every period via the Y MPO; since the
-transfer matrix commutes with `Y`, this only removes MPS truncation leakage
-into the `y=1` sector and the unphysical fusion-path subspace.
+`lyapunov_spectrum_mps` with `sector = spec.sector`, which projects the
+propagated frame back into the sector after every period via the Y MPO; since
+the transfer matrix commutes with `Y`, this only removes MPS truncation
+leakage into the other sector and the unphysical fusion-path subspace.
 """
-function simulate_ytau_lyapunov_mps(
+function simulate_sector_lyapunov_mps(
+    spec,
     L::Int,
     τ::Real,
     t::Int,
@@ -149,9 +188,10 @@ function simulate_ytau_lyapunov_mps(
     trajectory_seed::Int = 1,
 )
     t >= 1 || throw(ArgumentError("t must be positive"))
-    χ >= 5 || error("χ must be at least 5 to represent the y=τ initial MPS")
+    χ >= spec.min_χ ||
+        error("χ must be at least $(spec.min_χ) to represent the $(spec.title) initial MPS")
     model = fib_model(L)
-    initial_state, sites = initial_ytau_mps(model; cutoff = 1e-12, maxdim = χ)
+    initial_state, sites = initial_sector_mps(model, spec; cutoff = 1e-12, maxdim = χ)
     born_config = MeasureConfig(
         τ = Float64(τ),
         t₂ = t,
@@ -170,7 +210,7 @@ function simulate_ytau_lyapunov_mps(
         Float64(τ),
         trajectory.samples;
         n_states = n_states,
-        sector = :tau,
+        sector = spec.sector,
         cutoff = 1e-12,
         maxdim = χ,
     )
@@ -179,9 +219,8 @@ function simulate_ytau_lyapunov_mps(
     lyapunov_exponents =
         cumsum(local_log_stretches; dims = 2) ./ reshape(collect(1:t_out), 1, :)
 
-    ϕ = (1 + √5) / 2
-    maximum(abs.(trajectory.y_expectation_values .+ inv(ϕ))) < 1e-4 ||
-        error("the MPS Born trajectory left the y=τ sector")
+    maximum(abs.(trajectory.y_expectation_values .- spec.y_eigenvalue)) < 1e-4 ||
+        error("the MPS Born trajectory left the $(spec.title) sector")
     return trajectory, (
         local_log_stretches = local_log_stretches,
         lyapunov_exponents = lyapunov_exponents,
@@ -193,15 +232,16 @@ end
 
 
 """
-    lyapunov_ytau_dir(backend, L, τ_idx; χ=nothing) -> String
+    lyapunov_sector_dir(spec, backend, L, τ_idx; χ=nothing) -> String
 
 Directory holding the per-seed data files of this script, following the
-`transfer_matrix.jl` layout: `exm/data/Bulk_measure/lyapunov_spectrum_ytau/
+`transfer_matrix.jl` layout: `exm/data/Bulk_measure/<spec.dir_name>/
 L\$(L)/gammaind\$(τ_idx)` for the exact backend, with an additional
 `chi\$(χ)` level for the MPS backend. Paths are relative to the repository
 root.
 """
-function lyapunov_ytau_dir(
+function lyapunov_sector_dir(
+    spec,
     backend::Symbol,
     L::Integer,
     τ_idx::Integer;
@@ -214,7 +254,7 @@ function lyapunov_ytau_dir(
         "exm",
         "data",
         "Bulk_measure",
-        "lyapunov_spectrum_ytau",
+        spec.dir_name,
         "L$(L)",
         "gammaind$(τ_idx)",
     )
@@ -222,18 +262,18 @@ function lyapunov_ytau_dir(
 end
 
 """
-    collect_lyapunov_ytau(backend, L, τ_idx; χ=nothing)
+    collect_lyapunov_sector(spec, backend, L, τ_idx; χ=nothing)
 
-Aggregate the per-seed `y=τ` Lyapunov spectra produced by the `exact`/`mps`
+Aggregate the per-seed sector Lyapunov spectra produced by the `exact`/`mps`
 modes of this script into a single ensemble file: element-wise mean and
 standard error (over seeds) of `local_log_stretches`, `lyapunov_exponents`,
 `free_energy_spectrum` and `y_expectation_values`, plus the per-seed final
-exponents. The evolution time `t` is taken from [`lyapunov_ytau_time`](@ref).
+exponents. The evolution time `t` is taken from [`lyapunov_sector_time`](@ref).
 Following `transfer_matrix.jl`, the ensemble file is saved one level above the
-per-seed directory, in `.../lyapunov_spectrum_ytau/L\$(L)`. Returns the output
-path.
+per-seed directory, in `.../<spec.dir_name>/L\$(L)`. Returns the output path.
 """
-function collect_lyapunov_ytau(
+function collect_lyapunov_sector(
+    spec,
     backend::Symbol,
     L::Integer,
     τ_idx::Integer;
@@ -242,10 +282,10 @@ function collect_lyapunov_ytau(
     backend in (:exact, :mps) || throw(ArgumentError("backend must be :exact or :mps"))
     backend == :mps && χ === nothing &&
         throw(ArgumentError("collecting the mps backend requires χ"))
-    t = lyapunov_ytau_time(backend, L, τ_idx)
-    data_dir = lyapunov_ytau_dir(backend, L, τ_idx; χ = χ)
+    t = lyapunov_sector_time(backend, L, τ_idx)
+    data_dir = lyapunov_sector_dir(spec, backend, L, τ_idx; χ = χ)
     files = sort(filter(
-        file -> startswith(file, "lyapunov_ytau_L$(L)_t$(t)_seed") &&
+        file -> startswith(file, "$(spec.file_tag)_L$(L)_t$(t)_seed") &&
                 endswith(file, ".jld2"),
         readdir(data_dir),
     ))
@@ -268,7 +308,8 @@ function collect_lyapunov_ytau(
         data = JLD2.load(joinpath(data_dir, file))
         String(data["backend"]) == String(backend) ||
             error("Unexpected backend in $file")
-        data["topological_sector"] == "y=tau" || error("Unexpected sector in $file")
+        data["topological_sector"] == spec.sector_label ||
+            error("Unexpected sector in $file")
         Int(data["L"]) == L && Int(data["t"]) == t ||
             error("Inconsistent system size or evolution length in $file")
         Int(data["τ_idx"]) == τ_idx || error("Inconsistent τ_idx in $file")
@@ -290,19 +331,19 @@ function collect_lyapunov_ytau(
     final_exponents = hcat([m[:, end] for m in exponents]...)
     y_matrix = reduce(hcat, y_expectations)  # t × samples_num
 
-    out_dir = joinpath("exm", "data", "Bulk_measure", "lyapunov_spectrum_ytau", "L$(L)")
+    out_dir = joinpath("exm", "data", "Bulk_measure", spec.dir_name, "L$(L)")
     mkpath(out_dir)
     output_path = joinpath(
         out_dir,
         backend == :mps ?
-        "ensemble_lyapunov_ytau_L$(L)_gammaind$(τ_idx)_t$(t)_chi$(χ).jld2" :
-        "ensemble_lyapunov_ytau_L$(L)_gammaind$(τ_idx)_t$(t).jld2",
+        "ensemble_$(spec.file_tag)_L$(L)_gammaind$(τ_idx)_t$(t)_chi$(χ).jld2" :
+        "ensemble_$(spec.file_tag)_L$(L)_gammaind$(τ_idx)_t$(t).jld2",
     )
     jldsave(
         output_path;
         backend = String(backend),
-        topological_sector = "y=tau",
-        y_eigenvalue = -2 / (1 + √5),
+        topological_sector = spec.sector_label,
+        y_eigenvalue = spec.y_eigenvalue,
         L = Int(L),
         τ_idx = Int(τ_idx),
         τ = τlis[τ_idx],
@@ -337,17 +378,19 @@ end
 # =============================================================================
 if length(ARGS) == 0
     println("No arguments provided.")
-    println("Usage: julia --project=. exm/Bulk_measure/lyapunov_spectrum_ytau.jl backend [args...]")
+    println("Usage: julia --project=. exm/Bulk_measure/lyapunov_spectrum_sector.jl sector backend [args...]")
     println("")
-    println("Backends (measurement strength by index τ_idx into config.jl's τlis;")
-    println("evolution time t in periods from get_cfg_params_Born/get_mps_params_Born):")
+    println("sector is y1 or ytau. Backends (measurement strength by index τ_idx")
+    println("into config.jl's τlis; evolution time t in periods from")
+    println("get_cfg_params_Born/get_mps_params_Born):")
     println("")
     println("  exact L τ_idx n_states seed [output.jld2]")
-    println("      Born trajectory (exact state vector) from Pτ|τ⋯τ⟩, plus the y=τ-sector")
-    println("      Lyapunov spectrum of the transfer-matrix product along it.")
+    println("      Born trajectory (exact state vector) from the sector-projected")
+    println("      all-τ state, plus the sector Lyapunov spectrum of the")
+    println("      transfer-matrix product along it.")
     println("")
     println("  mps L τ_idx chi n_states seed [output.jld2]")
-    println("      MPS version for large L; the y=τ sector is enforced and monitored")
+    println("      MPS version for large L; the sector is enforced and monitored")
     println("      through the topological-charge MPO.")
     println("")
     println("  collect exact L τ_idx")
@@ -355,31 +398,35 @@ if length(ARGS) == 0
     println("      Aggregate the per-seed spectra into an ensemble file in the L directory.")
     println("")
     println("Examples:")
-    println("  julia --project=. exm/Bulk_measure/lyapunov_spectrum_ytau.jl exact 8 10 3 1")
-    println("  julia --project=. exm/Bulk_measure/lyapunov_spectrum_ytau.jl collect exact 8 10")
+    println("  julia --project=. exm/Bulk_measure/lyapunov_spectrum_sector.jl y1 exact 8 10 3 1")
+    println("  julia --project=. exm/Bulk_measure/lyapunov_spectrum_sector.jl ytau collect exact 8 10")
 else
-    backend = Symbol(lowercase(ARGS[1]))
+    length(ARGS) >= 2 || error("Usage: lyapunov_spectrum_sector.jl sector backend [args...]")
+    spec = sector_spec(Symbol(lowercase(ARGS[1])))
+    backend = Symbol(lowercase(ARGS[2]))
 
     if backend == :collect
         # -------------------------------------------------------------------
         # collect: ensemble-average the per-seed spectra
         # -------------------------------------------------------------------
-        length(ARGS) >= 2 || error("collect requires a sub-backend: exact or mps")
-        sub = Symbol(lowercase(ARGS[2]))
+        length(ARGS) >= 3 || error("collect requires a sub-backend: exact or mps")
+        sub = Symbol(lowercase(ARGS[3]))
         if sub == :exact
-            length(ARGS) == 4 || error("Usage: collect exact L τ_idx")
-            output_path = collect_lyapunov_ytau(
+            length(ARGS) == 5 || error("Usage: SECTOR collect exact L τ_idx")
+            output_path = collect_lyapunov_sector(
+                spec,
                 :exact,
-                parse(Int, ARGS[3]),
                 parse(Int, ARGS[4]),
+                parse(Int, ARGS[5]),
             )
         elseif sub == :mps
-            length(ARGS) == 5 || error("Usage: collect mps L τ_idx chi")
-            output_path = collect_lyapunov_ytau(
+            length(ARGS) == 6 || error("Usage: SECTOR collect mps L τ_idx chi")
+            output_path = collect_lyapunov_sector(
+                spec,
                 :mps,
-                parse(Int, ARGS[3]),
-                parse(Int, ARGS[4]);
-                χ = parse(Int, ARGS[5]),
+                parse(Int, ARGS[4]),
+                parse(Int, ARGS[5]);
+                χ = parse(Int, ARGS[6]),
             )
         else
             error("Unknown collect backend: $sub")
@@ -388,44 +435,46 @@ else
 
     elseif backend == :exact || backend == :mps
         # -------------------------------------------------------------------
-        # exact/mps: single Born trajectory + y=τ-sector Lyapunov spectrum
+        # exact/mps: single Born trajectory + sector Lyapunov spectrum
         # -------------------------------------------------------------------
         if backend == :exact
-            length(ARGS) in (5, 6) ||
-                error("Usage: exact L τ_idx n_states seed [output.jld2]")
-            L = parse(Int, ARGS[2])
-            τ_idx = parse(Int, ARGS[3])
-            n_states = parse(Int, ARGS[4])
-            seed = parse(Int, ARGS[5])
-            χ = 0
-        else
             length(ARGS) in (6, 7) ||
-                error("Usage: mps L τ_idx chi n_states seed [output.jld2]")
-            L = parse(Int, ARGS[2])
-            τ_idx = parse(Int, ARGS[3])
-            χ = parse(Int, ARGS[4])
+                error("Usage: SECTOR exact L τ_idx n_states seed [output.jld2]")
+            L = parse(Int, ARGS[3])
+            τ_idx = parse(Int, ARGS[4])
             n_states = parse(Int, ARGS[5])
             seed = parse(Int, ARGS[6])
+            χ = 0
+        else
+            length(ARGS) in (7, 8) ||
+                error("Usage: SECTOR mps L τ_idx chi n_states seed [output.jld2]")
+            L = parse(Int, ARGS[3])
+            τ_idx = parse(Int, ARGS[4])
+            χ = parse(Int, ARGS[5])
+            n_states = parse(Int, ARGS[6])
+            seed = parse(Int, ARGS[7])
         end
         τ = τlis[τ_idx]
-        t = lyapunov_ytau_time(backend, L, τ_idx)
+        t = lyapunov_sector_time(backend, L, τ_idx)
 
-        println("=== y=τ Lyapunov spectrum ($backend backend) ===")
+        println("=== $(spec.title) Lyapunov spectrum ($backend backend) ===")
         println("L = $L, τ_idx = $τ_idx, τ = $τ, γ = $(tanh(τ))" *
                 (backend == :mps ? ", χ = $χ" : ""))
         println("t = $t, n_states = $n_states, seed = $seed")
 
         trajectory, spectrum = if backend == :exact
-            simulate_ytau_lyapunov(L, τ, t; n_states = n_states, trajectory_seed = seed)
+            simulate_sector_lyapunov(spec, L, τ, t; n_states = n_states, trajectory_seed = seed)
         else
-            simulate_ytau_lyapunov_mps(L, τ, t, χ; n_states = n_states, trajectory_seed = seed)
+            simulate_sector_lyapunov_mps(
+                spec, L, τ, t, χ; n_states = n_states, trajectory_seed = seed,
+            )
         end
 
-        has_custom_output = (backend == :exact && length(ARGS) == 6) ||
-                            (backend == :mps && length(ARGS) == 7)
+        has_custom_output = (backend == :exact && length(ARGS) == 7) ||
+                            (backend == :mps && length(ARGS) == 8)
         output_path = has_custom_output ? ARGS[end] : joinpath(
-            lyapunov_ytau_dir(backend, L, τ_idx; χ = backend == :mps ? χ : nothing),
-            "lyapunov_ytau_L$(L)_t$(t)_seed$(seed).jld2",
+            lyapunov_sector_dir(spec, backend, L, τ_idx; χ = backend == :mps ? χ : nothing),
+            "$(spec.file_tag)_L$(L)_t$(t)_seed$(seed).jld2",
         )
         mkpath(dirname(output_path))
         jldsave(
@@ -439,8 +488,8 @@ else
             t = t,
             n_states = n_states,
             trajectory_seed = seed,
-            topological_sector = "y=tau",
-            y_eigenvalue = -2 / (1 + √5),
+            topological_sector = spec.sector_label,
+            y_eigenvalue = spec.y_eigenvalue,
             sector_dimension = spectrum.sector_dimension,
             samples = trajectory.samples,
             local_log_stretches = spectrum.local_log_stretches,
@@ -452,7 +501,7 @@ else
 
         println("saved: $output_path")
         spectrum.sector_dimension > 0 &&
-            println("y=τ sector dimension: $(spectrum.sector_dimension)")
+            println("$(spec.title) sector dimension: $(spectrum.sector_dimension)")
         !isempty(spectrum.sector_leakage) &&
             println("max sector leakage: $(maximum(spectrum.sector_leakage))")
         println("final Lyapunov exponents: $(spectrum.lyapunov_exponents[:, end])")
