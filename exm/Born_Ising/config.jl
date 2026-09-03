@@ -12,26 +12,17 @@ end
 
 ising_model(L::Int) = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true, measure_operator = :X)
 
-# Shared (D, inds, avg_range) table keyed by τ index
+# Shared `(t, inds, avg_range)` table keyed by τ index. Here `t` is the
+# number of complete measurement periods; `inds` and `avg_range` are also
+# expressed in period indices.
 function get_cfg_params_Born(ind, L)
     cfg = Dict(
-        1 => (2500L, 1000, 750L),
-        2 => (500L,  100, 120L),
-        3 => (200L,  40, 80L),
-        4 => (100L,  40, 40L),
-        5 => (80L,   32, 20L),
-        6 => (45L,   20, 15L),
-        7 => (35L,   14, 10L),
-        8 => (25L,   10, 5L),
-        9 => (8L,    4, 2L),
-        10 => (8L,    4, 2L),
-        11 => (5L,    2, 1L),
-        12 => (5L, 2, L),
+        7 => (4L, 2, L),
     )
-    D, step, start = get(cfg, ind, (24L, 10, 5L))
-    inds = collect(1:step:div(D,2))
-    avg_range = start:2:div(D,2)-5
-    return D, inds, avg_range
+    t, step, start = get(cfg, ind, (24L, 10, 5L))
+    inds = collect(1:step:t)
+    avg_range = start:2:t-5
+    return t, inds, avg_range
 end
 
 # Shared seed sanity check
