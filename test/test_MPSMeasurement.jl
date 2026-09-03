@@ -204,6 +204,49 @@ end
     @test all(y -> min(abs(y - ϕ), abs(y + inv(ϕ))) < 1e-8, y_eigs)
 end
 
+@testset "topological_charge_mpo bulk tensor and full contraction" begin
+    ϕ = (1 + √5) / 2
+    N = 4
+    sites = siteinds("Qubit", N)
+
+    # OBC bulk tensor: the automaton transition table
+    # A[(xᵢ₋₁, x'ᵢ₋₁), (xᵢ, x'ᵢ) folded, (xᵢ, x'ᵢ)] = (F^{τ xᵢ₋₁ τ}_{x'ᵢ})^{xᵢ}_{x'ᵢ₋₁},
+    # with the physical pair folded into the middle dim (prime index fastest).
+    Y_obc = topological_charge_mpo(sites; pbc = false)
+    A = reshape(
+        Array(
+            Y_obc[2],
+            linkind(Y_obc, 1),
+            prime(sites[2]),
+            dag(sites[2]),
+            linkind(Y_obc, 2),
+        ),
+        4, 4, 4,
+    )
+    expected = zeros(4, 4, 4)
+    expected[1, 1, 1] = -ϕ^(-1)
+    expected[2, 1, 1] = ϕ^(-1 / 2)
+    expected[3, 1, 1] = 1.0
+    expected[1, 3, 2] = 1.0
+    expected[3, 3, 2] = 1.0
+    expected[1, 2, 3] = ϕ^(-1 / 2)
+    expected[2, 2, 3] = ϕ^(-1)
+    @test A ≈ expected atol = 1e-14
+
+    # Fully contracting the MPO must give ⟨x|Y|x'⟩ = Fsymmetry_coef(x, x')
+    # for every pair of bit configurations, legal fusion path or not.
+    pbc = true
+    model = AnyonModel(FibonacciAnyon(), N; pbc = pbc); # obc has the same eigvals, but not the same matrix elements order
+    Y_contracted = foldr(*, topological_charge_mpo(sites; pbc = pbc))
+    i_in  = filter(i -> plev(i) > 0, inds(Y_contracted))
+    i_out = filter(i -> plev(i) == 0, inds(Y_contracted))
+    Y_perm = permute(Y_contracted, i_in..., i_out...)
+    Y_matrix = reshape(Y_perm.tensor, 2^4, 2^4)
+    idx = pbc ? [1,2,3,5,6,9,11] : [1,2,3,5,6,9,10,11]
+    Y_ed = topological_charge_operator(model)
+    @test Y_matrix[idx, idx] ≈ Y_ed    
+end
+
 @testset "topological_charge_mpo sector structure" begin
     ϕ = (1 + √5) / 2
     N = 6
@@ -325,6 +368,76 @@ end
 
     Yψ = apply(Y_mpo, gs; cutoff = 1e-15, maxdim = 256)
     @test norm(add(Yψ, (-ϕ) * gs; cutoff = 1e-15, maxdim = 512)) < 1e-7
+
+    # The penalty DMRG ground state at L = 10 (20 sweeps, maxdim 128,
+    # seed 1234) is already a y=1 eigenstate at the 1e-3 level, unlike the
+    # nearly-degenerate L = 16 case where sector mixing is visible.
+    # Note the DMRG MPS carries its own site indices, so the Y MPO must be
+    # rebuilt on `siteinds(ψ)`.
+    ψ, _ = anyon_mps_gst(
+        model;
+        sweep_times = 20,
+        maxdim = 128,
+        cutoff = 1e-12,
+        outputlevel = 0,
+        seed = 1234,
+    )
+    Y_mpo_dmrg = topological_charge_mpo(siteinds(ψ); pbc = true)
+    y_dmrg = real(inner(prime(ψ), Y_mpo_dmrg, ψ)) / real(inner(ψ, ψ))
+    @test y_dmrg ≈ ϕ atol = 1e-5  # measured: 1.61803253
+
+    Yψ_dmrg = apply(Y_mpo_dmrg, ψ; cutoff = 1e-15, maxdim = 512)
+    res_dmrg = norm(add(Yψ_dmrg, (-ϕ) * ψ; cutoff = 1e-15, maxdim = 1024))
+    @test res_dmrg < 3e-3  # measured: 1.8e-3
+end
+
+@testset "Potts ground state is a y=τ eigenstate of the Y MPO" begin
+    # The ferromagnetically coupled periodic Fibonacci chain (3-state Potts
+    # critical point) has a unique ground state carrying total charge τ,
+    # so Y|GS⟩ = -ϕ⁻¹|GS⟩. Exact ground state assembled as an MPS, probed
+    # purely through the Y MPO (mirrors the TCI testset above).
+    ϕ = (1 + √5) / 2
+    L = 10
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true, measure_operator = :Ferro)
+    basis = anyon_basis(model)
+    gs_vec = real(Arpack.eigs(anyon_ham_sparse(model); nev = 1, which = :SR)[2][:, 1])
+
+    sites = siteinds("Qubit", L)
+    product_state(i) = productMPS(
+        sites,
+        [bit ? "1" : "0" for bit in reverse(digits(Bool, basis[i].buf; base = 2, pad = L))],
+    )
+    gs = gs_vec[1] * product_state(1)
+    for i in 2:length(basis)
+        gs = add(gs, gs_vec[i] * product_state(i); cutoff = 1e-15, maxdim = 256)
+    end
+    normalize!(gs)
+
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+    y_exp = real(inner(prime(gs), Y_mpo, gs))
+    @test y_exp ≈ -inv(ϕ) atol = 1e-8
+
+    Yψ = apply(Y_mpo, gs; cutoff = 1e-15, maxdim = 256)
+    @test norm(add(Yψ, inv(ϕ) * gs; cutoff = 1e-15, maxdim = 512)) < 1e-7
+
+    # Penalty DMRG ground state at L = 10 (20 sweeps, maxdim 128, seed 1234):
+    # a y=τ eigenstate at the 1e-3 level. The DMRG MPS carries its own site
+    # indices, so the Y MPO must be rebuilt on `siteinds(ψ)`.
+    ψ, _ = anyon_mps_gst(
+        model;
+        sweep_times = 20,
+        maxdim = 128,
+        cutoff = 1e-12,
+        outputlevel = 0,
+        seed = 1234,
+    )
+    Y_mpo_dmrg = topological_charge_mpo(siteinds(ψ); pbc = true)
+    y_dmrg = real(inner(prime(ψ), Y_mpo_dmrg, ψ)) / real(inner(ψ, ψ))
+    @test y_dmrg ≈ -inv(ϕ) atol = 1e-5  # measured: -0.61803281
+
+    Yψ_dmrg = apply(Y_mpo_dmrg, ψ; cutoff = 1e-15, maxdim = 512)
+    res_dmrg = norm(add(Yψ_dmrg, inv(ϕ) * ψ; cutoff = 1e-15, maxdim = 1024))
+    @test res_dmrg < 3e-3  # measured: 1.6e-3
 end
 
 @testset "Constraint-preserving post-selection MPS" begin
