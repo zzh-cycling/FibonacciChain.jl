@@ -10,25 +10,40 @@ using Statistics
 include(joinpath(@__DIR__, "config.jl"))
 
 const ISING_DATA_ROOT = joinpath("exm", "data", "Bulk_measure", "Ising")
-const ISING_TOPO_SECTOR_DATA_ROOT =
-    joinpath("exm", "data", "Bulk_measure", "Ising_topo_sector")
+const ISING_VACCUM_SECTOR_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_vaccum_sector")
+const ISING_FERMION_SECTOR_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_fermion_sector")
 const ISING_MPS_DATA_ROOT = joinpath("exm", "data", "Bulk_measure", "Ising_mps")
-const ISING_TOPO_SECTOR_MPS_DATA_ROOT =
-    joinpath("exm", "data", "Bulk_measure", "Ising_topo_sector_mps")
+const ISING_VACCUM_SECTOR_MPS_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_vaccum_sector_mps")
+const ISING_FERMION_SECTOR_MPS_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_fermion_sector_mps")
+
+function _ising_sector_spec(sector::Symbol)
+    sector == :vaccum && return (; sign = 1.0, label = "vaccum")
+    sector == :fermion && return (; sign = -1.0, label = "fermion")
+    throw(ArgumentError("sector must be :vaccum or :fermion"))
+end
 
 """
-    initial_topo_sector_state(L) -> Vector{Float64}
+    initial_topo_sector_state(L; sector=:vaccum) -> Vector{Float64}
 
 Construct the normalized initial state
 
-    |ψ₀⟩ ∝ |+⟩^⊗L + |GHZ⟩,
+    |ψ₀⟩ ∝ |+⟩^⊗L ± |GHZ⟩,
     |GHZ⟩ = (|0⟩^⊗L + |1⟩^⊗L)/√2.
 
-Since `⟨+|^⊗L GHZ⟩ = 2^((1-L)/2)`, its normalization is
-`√(2 + 2^((3-L)/2))`.
+The default `sector=:vaccum` selects the plus sign. `sector=:fermion` selects
+the minus sign. Since `⟨+|^⊗L GHZ⟩ = 2^((1-L)/2)`, the normalization is
+`√(2 ± 2^((3-L)/2))`.
 """
-function initial_topo_sector_state(L::Integer)
+function initial_topo_sector_state(L::Integer; sector::Symbol = :vaccum)
     L >= 1 || throw(ArgumentError("L must be positive"))
+    spec = _ising_sector_spec(sector)
+    spec.sign < 0 && L == 1 && throw(ArgumentError(
+        "the fermion-sector state vanishes for L=1",
+    ))
     model = ising_model(Int(L))
     dim = length(anyon_basis(model))
     plus_state = fill(inv(sqrt(dim)), dim)
@@ -36,10 +51,10 @@ function initial_topo_sector_state(L::Integer)
     ghz_state[1] = inv(sqrt(2))
     ghz_state[end] = inv(sqrt(2))
 
-    state = plus_state + ghz_state
-    expected_norm_squared = 2 + 2.0^((3 - L) / 2)
+    state = plus_state + spec.sign * ghz_state
+    expected_norm_squared = 2 + spec.sign * 2.0^((3 - L) / 2)
     isapprox(dot(state, state), expected_norm_squared; atol = 1e-12, rtol = 1e-12) ||
-        error("Unexpected norm for the topological-sector initial state")
+        error("Unexpected norm for the $(spec.label) initial state")
     normalize!(state)
     return state
 end
@@ -52,19 +67,25 @@ function initial_all_plus_mps(L::Integer)
 end
 
 """
-    initial_topo_sector_mps(L; cutoff=1e-14, maxdim=16)
+    initial_topo_sector_mps(L; sector=:vaccum, cutoff=1e-14, maxdim=16)
 
 Construct the same state as [`initial_topo_sector_state`](@ref) directly as an
-MPS. The exact construction is a sum of one bond-dimension-1 product MPS and a
-bond-dimension-2 GHZ MPS, hence `maxdim ≥ 3` is sufficient initially.
+MPS. `sector=:fermion` changes the relative sign to minus. The exact
+construction is a sum of one bond-dimension-1 product MPS and a bond-dimension-2
+GHZ MPS, hence `maxdim ≥ 3` is sufficient initially.
 """
 function initial_topo_sector_mps(
     L::Integer;
+    sector::Symbol = :vaccum,
     cutoff::Real = 1e-14,
     maxdim::Integer = 16,
 )
     L >= 1 || throw(ArgumentError("L must be positive"))
     maxdim >= 3 || throw(ArgumentError("maxdim must be at least 3"))
+    spec = _ising_sector_spec(sector)
+    spec.sign < 0 && L == 1 && throw(ArgumentError(
+        "the fermion-sector state vanishes for L=1",
+    ))
     sites = siteinds("Qubit", Int(L))
     plus_state = productMPS(sites, fill("+", Int(L)))
     zero_state = productMPS(sites, fill("0", Int(L)))
@@ -75,7 +96,7 @@ function initial_topo_sector_mps(
         cutoff = Float64(cutoff),
         maxdim = Int(maxdim),
     )
-    ghz_state[1] *= inv(sqrt(2))
+    ghz_state[1] *= spec.sign * inv(sqrt(2))
     state = add(
         plus_state,
         ghz_state;
@@ -219,28 +240,35 @@ end
 
 """
     samples_generate_topo_sector(
-        L, τ_idx, seed, t=get_cfg_params_Born(τ_idx, L)[1]
+        L, τ_idx, seed, t=get_cfg_params_Born(τ_idx, L)[1]; sector=:vaccum
     )
 
-Generate a Born trajectory from [`initial_topo_sector_state`](@ref). Here and
-in the output filename, `t` is the number of complete two-layer measurement
-periods.
+Generate a Born trajectory from [`initial_topo_sector_state`](@ref), in either
+the `:vaccum` or `:fermion` sector. Here and in the output filename, `t` is the
+number of complete two-layer measurement periods.
 """
 function samples_generate_topo_sector(
     L::Integer,
     τ_idx::Integer,
     seed::Integer,
     t::Integer = get_cfg_params_Born(τ_idx, L)[1];
-    data_root::AbstractString = ISING_TOPO_SECTOR_DATA_ROOT,
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
 )
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
     return _samples_generate_ising(
         L,
         τ_idx,
         seed,
         t,
-        initial_topo_sector_state(L),
-        "topo_sector",
-        data_root,
+        initial_topo_sector_state(L; sector = sector),
+        spec.label,
+        resolved_data_root,
     )
 end
 
@@ -339,10 +367,12 @@ end
 
 """
     samples_generate_topo_sector_mps(L, τ_idx, χ, seed,
-                                     t=get_cfg_params_Born(τ_idx, L)[1])
+                                     t=get_cfg_params_Born(τ_idx, L)[1];
+                                     sector=:vaccum)
 
-Generate an MPS Born trajectory from [`initial_topo_sector_mps`](@ref).
-`t` is the actual number of complete measurement periods.
+Generate an MPS Born trajectory from [`initial_topo_sector_mps`](@ref), in
+either the `:vaccum` or `:fermion` sector. `t` is the actual number of complete
+measurement periods.
 """
 function samples_generate_topo_sector_mps(
     L::Integer,
@@ -350,11 +380,24 @@ function samples_generate_topo_sector_mps(
     χ::Integer,
     seed::Integer,
     t::Integer = get_cfg_params_Born(τ_idx, L)[1];
-    data_root::AbstractString = ISING_TOPO_SECTOR_MPS_DATA_ROOT,
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
     cutoff::Real = 1e-12,
 )
     χ >= 3 || throw(ArgumentError("χ must be at least 3 for the initial state"))
-    initial_state, sites = initial_topo_sector_mps(L; cutoff = cutoff, maxdim = χ)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ?
+        ISING_VACCUM_SECTOR_MPS_DATA_ROOT : ISING_FERMION_SECTOR_MPS_DATA_ROOT
+    else
+        data_root
+    end
+    initial_state, sites = initial_topo_sector_mps(
+        L;
+        sector = sector,
+        cutoff = cutoff,
+        maxdim = χ,
+    )
     return _samples_generate_ising_mps(
         L,
         τ_idx,
@@ -363,8 +406,8 @@ function samples_generate_topo_sector_mps(
         t,
         initial_state,
         sites,
-        "topo_sector",
-        data_root;
+        spec.label,
+        resolved_data_root;
         cutoff = cutoff,
     )
 end
@@ -552,22 +595,28 @@ function samples_collect_process_data(
     )
 end
 
-"""Collect topological-sector trajectories; `t` is the number of periods."""
+"""Collect `:vaccum` or `:fermion` trajectories; `t` is the number of periods."""
 function samples_collect_process_data_topo_sector(
     L::Integer,
     τ_idx::Integer,
     t::Integer = get_cfg_params_Born(τ_idx, L)[1];
-    data_root::AbstractString = ISING_TOPO_SECTOR_DATA_ROOT,
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
 )
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
     return _samples_collect_process_data_ising(
         L,
         τ_idx,
         t,
-        "topo_sector",
-        data_root,
+        spec.label,
+        resolved_data_root,
     )
 end
-
 function _samples_collect_process_data_ising_mps(
     L::Integer,
     τ_idx::Integer,
@@ -713,36 +762,46 @@ function samples_collect_process_data_mps(
     )
 end
 
-"""Collect topological-sector MPS trajectories for fixed simulation parameters."""
+"""Collect `:vaccum` or `:fermion` MPS trajectories for fixed parameters."""
 function samples_collect_process_data_topo_sector_mps(
     L::Integer,
     τ_idx::Integer,
     χ::Integer,
     t::Integer = get_cfg_params_Born(τ_idx, L)[1];
-    data_root::AbstractString = ISING_TOPO_SECTOR_MPS_DATA_ROOT,
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
 )
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ?
+        ISING_VACCUM_SECTOR_MPS_DATA_ROOT : ISING_FERMION_SECTOR_MPS_DATA_ROOT
+    else
+        data_root
+    end
     return _samples_collect_process_data_ising_mps(
         L,
         τ_idx,
         χ,
         t,
-        "topo_sector",
-        data_root,
+        spec.label,
+        resolved_data_root,
     )
 end
-
-
 function print_usage()
     println("Here t is the number of complete measurement periods.")
     println("Usage:")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl L τ_idx seed [t]")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect L τ_idx [t]")
-    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl topo_sector L τ_idx seed [t]")
-    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_topo_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl vaccum_sector L τ_idx seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_vaccum_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl fermion_sector L τ_idx seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_fermion_sector L τ_idx [t]")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl mps L τ_idx χ seed [t]")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_mps L τ_idx χ [t]")
-    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl topo_sector_mps L τ_idx χ seed [t]")
-    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_topo_sector_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl vaccum_sector_mps L τ_idx χ seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_vaccum_sector_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl fermion_sector_mps L τ_idx χ seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_fermion_sector_mps L τ_idx χ [t]")
 end
 
 function _configured_or_explicit_time(args, index::Int, τ_idx::Int, L::Int)
@@ -757,19 +816,32 @@ elseif lowercase(ARGS[1]) == "collect"
     τ_idx = parse(Int, ARGS[3])
     t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
     println("saved: $(samples_collect_process_data(L, τ_idx, t))")
-elseif lowercase(ARGS[1]) == "topo_sector"
-    length(ARGS) in (4, 5) || error("Usage: topo_sector L τ_idx seed [t]")
+elseif lowercase(ARGS[1]) == "vaccum_sector"
+    length(ARGS) in (4, 5) || error("Usage: vaccum_sector L τ_idx seed [t]")
     L = parse(Int, ARGS[2])
     τ_idx = parse(Int, ARGS[3])
     seed = parse(Int, ARGS[4])
     t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
     println("saved: $(samples_generate_topo_sector(L, τ_idx, seed, t))")
-elseif lowercase(ARGS[1]) == "collect_topo_sector"
-    length(ARGS) in (3, 4) || error("Usage: collect_topo_sector L τ_idx [t]")
+elseif lowercase(ARGS[1]) == "collect_vaccum_sector"
+    length(ARGS) in (3, 4) || error("Usage: collect_vaccum_sector L τ_idx [t]")
     L = parse(Int, ARGS[2])
     τ_idx = parse(Int, ARGS[3])
     t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
     println("saved: $(samples_collect_process_data_topo_sector(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "fermion_sector"
+    length(ARGS) in (4, 5) || error("Usage: fermion_sector L τ_idx seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    seed = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector(L, τ_idx, seed, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "collect_fermion_sector"
+    length(ARGS) in (3, 4) || error("Usage: collect_fermion_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector(L, τ_idx, t; sector = :fermion))")
 elseif lowercase(ARGS[1]) == "mps"
     length(ARGS) in (5, 6) || error("Usage: mps L τ_idx χ seed [t]")
     L = parse(Int, ARGS[2])
@@ -785,21 +857,36 @@ elseif lowercase(ARGS[1]) == "collect_mps"
     χ = parse(Int, ARGS[4])
     t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
     println("saved: $(samples_collect_process_data_mps(L, τ_idx, χ, t))")
-elseif lowercase(ARGS[1]) == "topo_sector_mps"
-    length(ARGS) in (5, 6) || error("Usage: topo_sector_mps L τ_idx χ seed [t]")
+elseif lowercase(ARGS[1]) == "vaccum_sector_mps"
+    length(ARGS) in (5, 6) || error("Usage: vaccum_sector_mps L τ_idx χ seed [t]")
     L = parse(Int, ARGS[2])
     τ_idx = parse(Int, ARGS[3])
     χ = parse(Int, ARGS[4])
     seed = parse(Int, ARGS[5])
     t = _configured_or_explicit_time(ARGS, 6, τ_idx, L)
     println("saved: $(samples_generate_topo_sector_mps(L, τ_idx, χ, seed, t))")
-elseif lowercase(ARGS[1]) == "collect_topo_sector_mps"
-    length(ARGS) in (4, 5) || error("Usage: collect_topo_sector_mps L τ_idx χ [t]")
+elseif lowercase(ARGS[1]) == "collect_vaccum_sector_mps"
+    length(ARGS) in (4, 5) || error("Usage: collect_vaccum_sector_mps L τ_idx χ [t]")
     L = parse(Int, ARGS[2])
     τ_idx = parse(Int, ARGS[3])
     χ = parse(Int, ARGS[4])
     t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
     println("saved: $(samples_collect_process_data_topo_sector_mps(L, τ_idx, χ, t))")
+elseif lowercase(ARGS[1]) == "fermion_sector_mps"
+    length(ARGS) in (5, 6) || error("Usage: fermion_sector_mps L τ_idx χ seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    seed = parse(Int, ARGS[5])
+    t = _configured_or_explicit_time(ARGS, 6, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector_mps(L, τ_idx, χ, seed, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "collect_fermion_sector_mps"
+    length(ARGS) in (4, 5) || error("Usage: collect_fermion_sector_mps L τ_idx χ [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector_mps(L, τ_idx, χ, t; sector = :fermion))")
 else
     length(ARGS) in (3, 4) || error("Usage: L τ_idx seed [t]")
     L = parse(Int, ARGS[1])
