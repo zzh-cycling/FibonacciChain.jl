@@ -369,6 +369,77 @@ function topological_charge_operator(
     return Ymatrix
 end
 
+function _kramers_wannier_sign(bra::T, ket::T) where {N,T<:BitStr{N}}
+    phase_is_odd = false
+    for site = 1:N
+        next_site = mod1(site + 1, N)
+        domain_wall = bra[N-site+1] != bra[N-next_site+1]
+        phase_is_odd = xor(phase_is_odd, domain_wall && ket[N-site+1] == 1)
+    end
+    return phase_is_odd ? -1.0 : 1.0
+end
+
+raw"""
+    kramers_wannier_operator(model::AnyonModel{SpinHalf})
+
+Construct the non-invertible Kramers-Wannier (KW) duality operator `D` on the
+full spin-half Hilbert space of a periodic chain. In the computational `Z`
+basis its matrix elements are
+
+```math
+\langle x|D|y\rangle =
+2^{-N/2}(-1)^{\sum_{j=1}^{N}(x_j\oplus x_{j+1})y_j},
+\qquad x_{N+1}=x_1.
+```
+
+This normalization and orientation follow the translation convention used by
+[`translation_matrix`](@ref). With `η = ∏ⱼ Xⱼ` and that translation operator
+`T`, the operator obeys
+
+```math
+D^2=T(1+\eta),\qquad
+D X_j=Z_jZ_{j+1}D,\qquad
+D Z_jZ_{j+1}=X_{j+1}D.
+```
+
+This is the categorical normalization, for which the Ising defect eigenvalues
+in the vacuum, fermion, and spin sectors are `√2`, `-√2`, and `0`. Some
+wave-function conventions instead use `D/√2`; that rescaled operator has
+eigenvalues `±1` and squares to `T(1+η)/2`.
+
+The construction is defined for any [`SpinHalf`](@ref) model because it only
+depends on the product basis. It is a symmetry of a Hamiltonian only when that
+Hamiltonian is KW self-dual, such as the periodic critical Ising and OBF
+chains. Open boundary conditions require a distinct map between primal and
+dual Hilbert spaces and therefore raise an `ArgumentError` here.
+
+# Examples
+```jldoctest
+julia> using LinearAlgebra
+
+julia> model = AnyonModel(SpinHalf(), 4; model_type=:Ising, pbc=true);
+
+julia> D = kramers_wannier_operator(model);
+
+julia> size(D)
+(16, 16)
+
+julia> rank(D)
+8
+```
+"""
+function kramers_wannier_operator(model::AnyonModel{SpinHalf})
+    model.pbc || throw(ArgumentError(
+        "kramers_wannier_operator is defined only for periodic SpinHalf chains",
+    ))
+
+    basis = anyon_basis(model)
+    normalization = 2.0^(-model.N / 2)
+    return normalization .* [
+        _kramers_wannier_sign(bra, ket) for bra in basis, ket in basis
+    ]
+end
+
 """
     anyon_basis(AT::AbstractAnyonBasis, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
     anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing)

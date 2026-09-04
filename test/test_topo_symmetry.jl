@@ -11,6 +11,120 @@ function Lucas_number(L)
     return Fibonacci_number(L+1) + Fibonacci_number(L-1)
 end
 
+function _ising_sector_spec(sector::Symbol)
+    sector == :vaccum && return (; sign = 1.0, label = "vaccum")
+    sector == :fermion && return (; sign = -1.0, label = "fermion")
+    throw(ArgumentError("sector must be :vaccum or :fermion"))
+end
+
+function initial_topo_sector_state(L::Integer; sector::Symbol = :vaccum)
+    L >= 1 || throw(ArgumentError("L must be positive"))
+    spec = _ising_sector_spec(sector)
+    spec.sign < 0 && L == 1 && throw(ArgumentError(
+        "the fermion-sector state vanishes for L=1",
+    ))
+    model = AnyonModel(
+        SpinHalf(),
+        Int(L);
+        model_type = :Ising,
+        pbc = true,
+        measure_operator = :X,
+    )
+    dim = length(anyon_basis(model))
+    plus_state = fill(inv(sqrt(dim)), dim)
+    ghz_state = zeros(Float64, dim)
+    ghz_state[1] = inv(sqrt(2))
+    ghz_state[end] = inv(sqrt(2))
+
+    state = plus_state + spec.sign * ghz_state
+    expected_norm_squared = 2 + spec.sign * 2.0^((3 - L) / 2)
+    isapprox(dot(state, state), expected_norm_squared; atol = 1e-12, rtol = 1e-12) ||
+        error("Unexpected norm for the $(spec.label) initial state")
+    normalize!(state)
+    return state
+end
+
+@testset "Kramers-Wannier symmetry of SpinHalf chains" begin
+    σx = [0.0 1.0; 1.0 0.0]
+    σz = [1.0 0.0; 0.0 -1.0]
+    id2 = Matrix{Float64}(I, 2, 2)
+    pauli_on_site = function (pauli, site, N)
+        return foldl(kron, (j == site ? pauli : id2 for j = 1:N))
+    end
+
+    model2 = AnyonModel(SpinHalf(), 2; model_type = :Ising, pbc = true)
+    D2 = kramers_wannier_operator(model2)
+    @test D2 ≈ [
+        1 1 1 1
+        1 -1 -1 1
+        1 -1 -1 1
+        1 1 1 1
+    ] / 2
+
+    for N = 2:5
+        model = AnyonModel(SpinHalf(), N; model_type = :Ising, pbc = true)
+        D = kramers_wannier_operator(model)
+        η = foldl(*, (pauli_on_site(σx, site, N) for site = 1:N))
+        T = translation_matrix(model)
+
+        @test size(D) == (2^N, 2^N)
+        @test rank(D) == 2^(N - 1)
+        @test D * η ≈ D atol = 1e-12
+        @test η * D ≈ D atol = 1e-12
+        @test D^2 ≈ T * (I + η) atol = 1e-12
+
+        for site = 1:N
+            next_site = mod1(site + 1, N)
+            Xj = pauli_on_site(σx, site, N)
+            Xnext = pauli_on_site(σx, next_site, N)
+            Zj = pauli_on_site(σz, site, N)
+            Znext = pauli_on_site(σz, next_site, N)
+            @test D * Xj ≈ Zj * Znext * D atol = 1e-12
+            @test D * Zj * Znext ≈ Xnext * D atol = 1e-12
+        end
+    end
+
+    critical_ising =
+        AnyonModel(SpinHalf(), 5; model_type = :Ising, pbc = true, J = 1.0, h = 1.0)
+    @test kramers_wannier_operator(critical_ising) * anyon_ham(critical_ising) ≈
+          anyon_ham(critical_ising) * kramers_wannier_operator(critical_ising) atol = 1e-12
+
+    ising_Jh =
+        AnyonModel(SpinHalf(), 4; model_type = :Ising, pbc = true, J = 0.37, h = 1.21)
+    ising_hJ =
+        AnyonModel(SpinHalf(), 4; model_type = :Ising, pbc = true, J = 1.21, h = 0.37)
+    D = kramers_wannier_operator(ising_Jh)
+    @test D * anyon_ham(ising_Jh) ≈ anyon_ham(ising_hJ) * D atol = 1e-12
+
+    obf_model = AnyonModel(
+        SpinHalf(),
+        4;
+        model_type = :OBF,
+        pbc = true,
+        λ = 0.37,
+        λI = 0.82,
+    )
+    @test kramers_wannier_operator(obf_model) * anyon_ham(obf_model) ≈
+          anyon_ham(obf_model) * kramers_wannier_operator(obf_model) atol = 1e-12
+
+    obc_model = AnyonModel(SpinHalf(), 4; model_type = :Ising, pbc = false)
+    @test_throws ArgumentError kramers_wannier_operator(obc_model)
+
+    @testset "initial_topo_sector_state eigenvalues" begin
+        for L = 2:6
+            model = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true)
+            D = kramers_wannier_operator(model)
+            vaccum_state = initial_topo_sector_state(L; sector = :vaccum)
+            fermion_state = initial_topo_sector_state(L; sector = :fermion)
+
+            @test D * vaccum_state ≈ sqrt(2) * vaccum_state atol = 1e-12
+            @test D * fermion_state ≈ -sqrt(2) * fermion_state atol = 1e-12
+        end
+
+        @test_throws ArgumentError initial_topo_sector_state(1; sector = :fermion)
+    end
+end
+
 @testset "Topological symmetry of Fibonacci-chain dynamics" begin
     L = 6
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)

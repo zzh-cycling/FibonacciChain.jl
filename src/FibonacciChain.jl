@@ -24,7 +24,8 @@ export anyon_basis,
     mapst_sec2tot,
     anyon_rdm_sec,
     Fsymmetry_coef,
-    topological_charge_operator
+    topological_charge_operator,
+    kramers_wannier_operator
 export ee,
     anyon_eelis,
     anyonladder_eelis,
