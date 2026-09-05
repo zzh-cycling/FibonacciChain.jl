@@ -17,11 +17,11 @@ ising_model(L::Int) = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true,
 # expressed in period indices.
 function get_cfg_params_Born(ind, L)
     cfg = Dict(
-        7 => (4L, 2, L),
+        7 => (100L, 2, 20L),
     )
     t, step, start = get(cfg, ind, (24L, 10, 5L))
     inds = collect(1:step:t)
-    avg_range = start:2:t-5
+    avg_range = start:t-5
     return t, inds, avg_range
 end
 
