@@ -33,13 +33,13 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function ps_prob_sample_path(
         L::Integer,
         τind::Integer,
-        D::Integer,
+        periods::Integer,
         prob::Real,
         seed::Integer,
     )
         return joinpath(
             ps_prob_data_dir(L, τind, prob),
-            "L$(L)_t$(div(D,2L))_gamma$(τind)_prob$(prob)_sample$(seed).jld",
+            "L$(L)_t$(div(periods,L))_gamma$(τind)_prob$(prob)_sample$(seed).jld",
         )
     end
 
@@ -54,24 +54,25 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         prob::Real,
         seed::Integer,
     )
-        D, _, _ = get_cfg_params_Born(τind, L)
+        periods, _, _ = get_cfg_params_Born(τind, L)
         τ = τlis[τind]
         model = fib_model(L)
         initial_state = zeros(length(anyon_basis(model)))
         initial_state[1] = 1.0
-        gate_num = div(D*L, 2)
+        layers = 2 * periods
+        gate_num = periods * L
 
         rng = MersenneTwister(seed)
         sample = BitMatrix(
-            reshape([binary_distribution(prob, rng) for _ = 1:gate_num], D, div(L, 2)),
+            reshape([binary_distribution(prob, rng) for _ = 1:gate_num], layers, div(L, 2)),
         )
-        config = MeasureConfig(τ = τ, mode = :sample, t₂ = div(D, 2))
+        config = MeasureConfig(τ = τ, mode = :sample, t₂ = periods)
         mo = bulk_evolution(model, initial_state, config, sample)
         ee = Float64.(anyon_eelis(model, mo.state))
         ee_tlis = mo.entanglement_entropys
         sample_free_energy = Float32.(mo.free_energys)
 
-        output_path = ps_prob_sample_path(L, τind, D, prob, seed)
+        output_path = ps_prob_sample_path(L, τind, periods, prob, seed)
         mkpath(dirname(output_path))
         save(
             output_path,
@@ -93,7 +94,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         prob::Real;
         samplelis = 1:10000,
     )
-        D, _, avg_range = get_cfg_params_Born(τind, L)
+        periods, _, avg_range = get_cfg_params_Born(τind, L)
         samplelis = collect(samplelis)
         isempty(samplelis) && throw(ArgumentError("samplelis must not be empty"))
 
@@ -101,10 +102,10 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         seedlis = zeros(Int64, samples_num)
         ensemble_ee = zeros(Float64, samples_num, L-1)
         ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
-        ensemble_ee_tlis = zeros(Float64, samples_num, div(D, 2))
+        ensemble_ee_tlis = zeros(Float64, samples_num, periods)
 
         for (i, sample) in enumerate(samplelis)
-            sample_path = ps_prob_sample_path(L, τind, D, prob, sample)
+            sample_path = ps_prob_sample_path(L, τind, periods, prob, sample)
             ee, ee_tlis, sample_free_energy, seed = load(
                 sample_path,
                 "ee",
@@ -116,13 +117,13 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
                 "EE length mismatch in $sample_path: expected $(L-1), found $(length(ee))",
             )
             ensemble_ee[i, :] = ee
-            if length(ee_tlis) == div(D, 2)
+            if length(ee_tlis) == periods
                 ensemble_ee_tlis[i, :] = ee_tlis
-            elseif length(ee_tlis) == D
-                ensemble_ee_tlis[i, :] = ee_tlis[2:2:D]
+            elseif length(ee_tlis) == 2 * periods
+                ensemble_ee_tlis[i, :] = ee_tlis[2:2:(2 * periods)]
             else
                 error(
-                    "EE dynamics length mismatch in $sample_path: expected $(div(D,2)) or $D, found $(length(ee_tlis))",
+                    "EE dynamics length mismatch in $sample_path: expected $periods or $(2 * periods), found $(length(ee_tlis))",
                 )
             end
             ensemble_free_energy[i] = Float32.(sample_free_energy)
@@ -154,7 +155,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             "exm/data/Bulk_measure/ps_prob_evolution",
             "prob$(prob)",
             "L$(L)",
-            "L$(L)_t$(div(D,2L))_gamma$(τind)_prob$(prob)_processed.jld",
+            "L$(L)_t$(div(periods,L))_gamma$(τind)_prob$(prob)_processed.jld",
         )
         save(
             output_path,
@@ -210,14 +211,14 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             bulk_FE_stderrlis = zeros(length(Llis))
 
             for (id, L) in enumerate(Llis)
-                D, _, _ = get_cfg_params_Born(τind, L)
+                periods, _, _ = get_cfg_params_Born(τind, L)
                 @show (L, τ, prob)
                 cent, bulk_FE, bulk_FE_stderr = load(
                     joinpath(
                         "exm/data/Bulk_measure/ps_prob_evolution",
                         "prob$(prob)",
                         "L$(L)",
-                        "L$(L)_t$(div(D,2L))_gamma$(τind)_prob$(prob)_processed.jld",
+                        "L$(L)_t$(div(periods,L))_gamma$(τind)_prob$(prob)_processed.jld",
                     ),
                     "cent",
                     "bulk_FE",

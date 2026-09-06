@@ -16,8 +16,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     function data_path(inds, L, index)
         if L <= 30
-            D, _, _ = get_cfg_params_Born(inds, L)
-            DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(D,2L))_samples$(index).jld"
+            periods, _, _ = get_cfg_params_Born(inds, L)
+            DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(periods,L))_samples$(index).jld"
         else
             t, _, _ = get_mps_params_Born(inds, L)
             DATA_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(inds)/t$(div(t,L))_samples$(index).jld2"
@@ -28,8 +28,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function save_data_path(L, inds)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(inds, L)
-            t = div(D, 2L)
+            periods, _, _ = get_cfg_params_Born(inds, L)
+            t = div(periods, L)
         else
             t, _, _ = get_mps_params_Born(inds, L)
         end
@@ -46,8 +46,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
             FElis=load(sample_path, "sample_free_energy")
             
-            D, _, _ = get_cfg_params_Born(τ_idx, L)
-            t = div(D, 2)
+            t, _, _ = get_cfg_params_Born(τ_idx, L)
             model = fib_model(L)
             st = zeros(length(anyon_basis(model)))
             st[1] = 1.0
@@ -72,8 +71,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     function defect_FE_collect(L::Int64, τind::Int64)
         try
-            D, _, _ = get_cfg_params_Born(τind, L)
-            t = div(D, 2L)
+            periods, _, _ = get_cfg_params_Born(τind, L)
+            t = div(periods, L)
             dir_path = save_data_path(L, τind)
         
             samples_num = length(
@@ -83,8 +82,9 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
                 ),
             )
             println("collecting $(samples_num) sample files")
-            defect_FE_lis = zeros(samples_num, D)
-            FE_lis = zeros(samples_num, D)
+            layers = 2 * periods
+            defect_FE_lis = zeros(samples_num, layers)
+            FE_lis = zeros(samples_num, layers)
             parity_lis = zeros(samples_num)
             existing_files = filter(
                 f -> startswith(f, "defect_FE_t$(t)") && endswith(f, ".jld2"),

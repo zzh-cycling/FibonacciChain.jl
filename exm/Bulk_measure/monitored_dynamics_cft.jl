@@ -283,8 +283,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     function cft_default_periods(backend::Symbol, L::Integer, tau_idx::Integer)
         if backend == :exact
-            D, _, _ = get_cfg_params_Born(tau_idx, L)
-            return div(D, 2)
+            periods, _, _ = get_cfg_params_Born(tau_idx, L)
+            return periods
         elseif backend == :mps
             time_in_L, _, _ = get_mps_params_Born(tau_idx, L)
             return time_in_L * L

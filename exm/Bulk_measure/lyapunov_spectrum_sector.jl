@@ -104,14 +104,13 @@ end
     lyapunov_sector_time(backend, L, τ_idx) -> Int
 
 Evolution time `t` (number of measurement periods, two layers each) taken from
-the shared tables in `config.jl`, as in `transfer_matrix.jl`: the exact backend
-uses `div(D, 2)` from `get_cfg_params_Born`, the MPS backend uses
-`time_in_L * L` from `get_mps_params_Born`.
+the shared tables in `config.jl`, as in `transfer_matrix.jl`.  Both config
+helpers return this period count directly.
 """
 function lyapunov_sector_time(backend::Symbol, L::Integer, τ_idx::Integer)
     if backend == :exact
-        D, _, _ = get_cfg_params_Born(τ_idx, L)
-        return div(D, 2)
+        t, _, _ = get_cfg_params_Born(τ_idx, L)
+        return t
     elseif backend == :mps
         time_in_L, _, _ = get_mps_params_Born(τ_idx, L)
         return time_in_L * L

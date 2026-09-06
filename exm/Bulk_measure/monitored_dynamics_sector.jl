@@ -140,8 +140,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     function sector_dyn_default_periods(backend::Symbol, L::Integer, τ_idx::Integer)
         if backend == :exact
-            D, _, _ = get_cfg_params_Born(τ_idx, L)
-            return div(D, 2)
+            periods, _, _ = get_cfg_params_Born(τ_idx, L)
+            return periods
         elseif backend == :mps
             time_in_L, _, _ = get_mps_params_Born(τ_idx, L)
             return time_in_L * L

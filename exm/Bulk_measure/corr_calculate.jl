@@ -73,19 +73,18 @@ end
 
 function compute_ratio(L::Int64, τ_idx::Int64, index::Int64, δt::Int64 = 2)
     τ = τlis[τ_idx]
-    D, _, _ = get_cfg_params_Born(τ_idx, L)
+    t, _, _ = get_cfg_params_Born(τ_idx, L)
     model = fib_model(L)
-    t = div(D, 2)
+    layers = 2 * t
     sample = load(
         "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(div(t,L))_samples$(index).jld",
         "sample",
     )
-    # Here sample is of size D x (L/2), representing measurement outcomes at each layer for the monitored dynamics
+    # Here sample is of size layers x (L/2), representing outcomes at each layer.
     initial_state = zeros(length(anyon_basis(model)))
     initial_state[1] = 1.0 # initial state is all zero state
 
-    t = div(D, 2)
-    D1 = D + get_correlation_dynamics_D(τ, L)
+    D1 = layers + get_correlation_dynamics_D(τ, L)
 
     rng = MersenneTwister(index)
     config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
@@ -94,7 +93,7 @@ function compute_ratio(L::Int64, τ_idx::Int64, index::Int64, δt::Int64 = 2)
 
     t1 = t + get_correlation_dynamics_D(τ, L) # total evolution time after adding two ref qubits
     ref_sample = BitMatrix(zeros(Bool, 2*(t+δt+t1), length(2:2:L)))
-    view(ref_sample, 1:D, :) .= Bool.(view(sample, :, :))
+    view(ref_sample, 1:layers, :) .= Bool.(view(sample, :, :))
 
     if δt == 0
         ref_config =
@@ -117,8 +116,8 @@ function compute_ratio(L::Int64, τ_idx::Int64, index::Int64, δt::Int64 = 2)
 
     ref_mo = reference_evolution(model, mo.state, ref_config, ref_sample)
     sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys # to compute temporal correlation, add ref qubit at site L/2+1
-    view(sample_free_energy, 1:D) .= view(Flis, :)
-    view(sample_layer, 1:D, :) .= view(sample, :, :)
+    view(sample_free_energy, 1:layers) .= view(Flis, :)
+    view(sample_layer, 1:layers, :) .= view(sample, :, :)
 
     spatial_corr, temporal_corr =
         ref_correlation(model, ref_mo.state, spatial = spatial, temporal = temporal)
@@ -230,9 +229,9 @@ end
 function corr_collect(arg::Tuple)
     L, τ_idx, δt = arg
     τ = τlis[τ_idx]
-    D = get_cfg_params_Born(τ_idx, L)[1]
-    t = div(D, 2) # true circuits depth
-    D1 = D + get_correlation_dynamics_D(τ, L)
+    t = get_cfg_params_Born(τ_idx, L)[1]
+    layers = 2 * t
+    D1 = layers + get_correlation_dynamics_D(τ, L)
 
     dir_path = "exm/data/Bulk_measure/spatial_temporal_corr_Born/L$(L)/τ$(τ)/dt$(δt)"
     existing_files = filter(

@@ -24,23 +24,24 @@ function spatial_temporal_corr_varyingt(args::Tuple)
     L, τind, index, δt = args
     try
         τ = τlis[τind]
-        D = get_cfg_params_Born(τind, L)[1]
+        periods = get_cfg_params_Born(τind, L)[1]
+        layers = 2 * periods
         # | ----> |____| ----> |
-        # 0       D   D+δt   D+δt+t  
+        # 0       layers   layers+δt   layers+δt+t
         # compute how the spatial and temporal correlation changes with t, the evolution time after add two ref qubits. δt is the time interval between two ref qubits
 
         model = fib_model(L)
 
-        # 1). First evolve to steady state with D time steps
+        # 1). First evolve to steady state for the configured number of periods
         sample = load(
-            "exm/data/Bulk_measure/monitored_dynamics/L$L/gammaind$(τind)/t$(div(D,2L))_samples$(index).jld",
+            "exm/data/Bulk_measure/monitored_dynamics/L$L/gammaind$(τind)/t$(div(periods,L))_samples$(index).jld",
             "sample",
         )
         println("Loaded sample for L=$(L), τ=$(τ), index=$(index)")
         initial_state = zeros(length(anyon_basis(model)))
         initial_state[1] = 1.0 # initial state is all zero state
 
-        t = div(D, 2)
+        t = periods
         pre_config = MeasureConfig(τ = τ, mode = :sample, t₂ = t, enable_τ_eff = false)
         pre_mo = bulk_evolution(model, initial_state, pre_config, sample)
         Flis = pre_mo.free_energys
@@ -72,8 +73,8 @@ function spatial_temporal_corr_varyingt(args::Tuple)
                 sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref
                 spatial = true
                 temporal = false
-                view(sample_free_energy, 1:D) .= view(Flis, :)
-                view(sample_layer, 1:D, :) .= view(sample, :, :)
+                view(sample_free_energy, 1:layers) .= view(Flis, :)
+                view(sample_layer, 1:layers, :) .= view(sample, :, :)
             else
                 ref_config = MeasureConfig(
                     τ = τ,
@@ -88,8 +89,8 @@ function spatial_temporal_corr_varyingt(args::Tuple)
                 sample_layer, sample_free_energy = ref_mo.samples, ref_mo.free_energys  # to compute temporal correlation, add ref qubit at site L/2+1
                 temporal = true
                 spatial = false
-                view(sample_free_energy, 1:D) .= view(Flis, :)
-                view(sample_layer, 1:D, :) .= view(sample, :, :)
+                view(sample_free_energy, 1:layers) .= view(Flis, :)
+                view(sample_layer, 1:layers, :) .= view(sample, :, :)
             end
             sysrdm =
                 reference_rdm(model, collect(1:div(L, 2)), ref_mo.state, traceref = false)
@@ -119,7 +120,7 @@ function collect_spatial_temporal_corr_varying_Born_data(
     L::Int64, τind::Int64, δt::Int64)
     
     τ = τlis[τind]
-    D = get_cfg_params_Born(τind, L)[1]
+    periods = get_cfg_params_Born(τind, L)[1]
     src_dir = joinpath("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τlis[τind])/dt$(δt)")
     dst_file = joinpath("exm/data/Bulk_measure/spatial_temporal_corr_varying_Born/L$(L)/τ$(τlis[τind])/dt$(δt)_collect.jld")
     mkpath(dirname(dst_file))

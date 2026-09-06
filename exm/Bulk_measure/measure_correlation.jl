@@ -18,8 +18,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function data_path(inds, L, index)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(inds, L)
-            DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(D,2L))_samples$(index).jld2"
+            periods, _, _ = get_cfg_params_Born(inds, L)
+            DATA_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)/t$(div(periods,L))_samples$(index).jld2"
         else
             t, _, _ = get_mps_params_Born(inds, L)
             DATA_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(inds)/t$(div(t,L))_samples$(index).jld2"
@@ -30,8 +30,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function save_data_filename(L, inds)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(inds, L)
-            t = div(D, 2L)
+            periods, _, _ = get_cfg_params_Born(inds, L)
+            t = div(periods, L)
         else
             t, _, _ = get_mps_params_Born(inds, L)
         end
@@ -337,8 +337,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function save_data_filename_temporal(L, inds)
         τ = τlis[inds]
         if L <= 32
-            D, _, _ = get_cfg_params_Born(inds, L)
-            t = div(D, 2L)
+            periods, _, _ = get_cfg_params_Born(inds, L)
+            t = div(periods, L)
         else
             t, _, _ = get_mps_params_Born(inds, L)
         end
@@ -362,8 +362,8 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     function average_temporal_corr(inds, L; max_k = -1)
         if L <= 32
             τ = τlis[inds]
-            D, _, avg_range = get_cfg_params_Born(inds, L)
-            t = div(D, 2L)
+            periods, _, avg_range = get_cfg_params_Born(inds, L)
+            t = div(periods, L)
             dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(inds)"
             sample_num = length(
                 filter(
@@ -580,8 +580,9 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
         # Save with consistent key names
         τ = τlis[inds]
-        D, _, _ = get_cfg_params_Born(inds, L)
-        save_path = "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(D,L)).jld2"
+        periods, _, _ = get_cfg_params_Born(inds, L)
+        layers = 2 * periods
+        save_path = "exm/data/Bulk_measure/records_correlation/L$(L)/τ$(τ)/record_correlation_D$(div(layers,L)).jld2"
         mkpath(dirname(save_path))
         save(
             save_path,

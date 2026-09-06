@@ -62,13 +62,12 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         try
             τ = τlis_ext[τ_idx]
             rng = MersenneTwister(index)
-            D, _, _ = get_cfg_params_Born(τ_idx, L)
-            t = div(D, 2)
+            periods, _, _ = get_cfg_params_Born(τ_idx, L)
             model = fib_model(L)
             st = zeros(length(anyon_basis(model)))
             st[1] = 1.0
 
-            config = MeasureConfig(τ = τ, mode = :Born, t₂ = t, rng = rng)
+            config = MeasureConfig(τ = τ, mode = :Born, t₂ = periods, rng = rng)
             outcome = bulk_evolution(model, st, config)
             sample = outcome.samples
             sample_free_energy = outcome.free_energys
@@ -79,7 +78,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
             out_dir = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)"
             save(
-                joinpath(out_dir, "t$(div(t,L))_samples$(index).jld"),
+                joinpath(out_dir, "t$(div(periods,L))_samples$(index).jld"),
                 "sample",
                 sample,
                 "sample_free_energy",
@@ -109,13 +108,13 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         sample_files::Union{Nothing,AbstractVector} = nothing,
         y_label::Union{Nothing,AbstractString} = nothing,
     )
-        D, _, _ = get_cfg_params_Born(τind, L)
-        t = div(D, 2L)
+        periods, _, _ = get_cfg_params_Born(τind, L)
+        time_in_L = div(periods, L)
         dir_path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)/"
         # dir_path = "exm/data/Bulk_measure/monitored_dynamics_mps/L$(L)/gammaind$(τind)"
         existing_files = isnothing(sample_files) ?
             filter(
-                f -> startswith(f, "t$(t)_samples") && endswith(f, ".jld"),
+                f -> startswith(f, "t$(time_in_L)_samples") && endswith(f, ".jld"),
                 readdir(dir_path),
             ) : String.(sample_files)
         isempty(existing_files) && error("No sample files selected for L=$L, τ_idx=$τind")
@@ -127,7 +126,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         ensemble = Vector{BitMatrix}(undef, samples_num)
         ensemble_free_energy = Vector{Vector{Float32}}(undef, samples_num)
         ensemble_seed = zeros(samples_num)
-        ensemble_EE_dynamics = zeros(samples_num, div(D, 2))
+        ensemble_EE_dynamics = zeros(samples_num, periods)
         ensemble_final_EElis = zeros(samples_num, L-1)
 
         for (i, fname) in enumerate(existing_files)
@@ -142,12 +141,15 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             ensemble[i] = sample
             ensemble_free_energy[i] = sample_free_energy
             ensemble_seed[i] = seed
-            if length(halfchain_EE_tlis) == div(D, 2)
+            if length(halfchain_EE_tlis) == periods
                 ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
             else
-                ensemble_EE_dynamics[i, :] = halfchain_EE_tlis[2:2:D]
+                length(halfchain_EE_tlis) == 2 * periods || error(
+                    "EE dynamics length mismatch in $fname: expected $periods or $(2 * periods), " *
+                    "got $(length(halfchain_EE_tlis))",
+                )
+                ensemble_EE_dynamics[i, :] = halfchain_EE_tlis[2:2:(2 * periods)]
             end
-            #    ensemble_EE_dynamics[i, :] = halfchain_EE_tlis[2:2:D]
             ensemble_final_EElis[i, :] = final_EElis
         end
 
@@ -170,7 +172,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         y_suffix = isnothing(y_label) ? "" : "_y$(y_label)"
         output_path = joinpath(
             "exm/data/Bulk_measure/monitored_dynamics/L$(L)",
-            "EE_FEdynamics_L$(L)_gamma$(τind)$(y_suffix)_t$(t).jld2",
+            "EE_FEdynamics_L$(L)_gamma$(τind)$(y_suffix)_t$(time_in_L).jld2",
         )
         save(
             output_path,
@@ -206,11 +208,11 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
 
     """Collect EE/free-energy data separately in the two final-Y sectors."""
     function samples_collect_process_data_y_sectors(L::Int64, τind::Int64)
-        D, _, _ = get_cfg_params_Born(τind, L)
-        t = div(D, 2L)
+        periods, _, _ = get_cfg_params_Born(τind, L)
+        time_in_L = div(periods, L)
         y_data_path = joinpath(
             "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)",
-            "Y_expectation_L$(L)_gamma$(τind)_t$(t).jld2",
+            "Y_expectation_L$(L)_gamma$(τind)_t$(time_in_L).jld2",
         )
         isfile(y_data_path) || error("Y-dynamics file does not exist: $y_data_path")
         y_data = JLD2.load(y_data_path)
@@ -364,8 +366,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     process_final_y_expectation_task(task) = _process_y_task(task, true)
 
     function _trajectory_inputs(L, τind)
-        D, _, _ = get_cfg_params_Born(τind, L)
-        periods = div(D, 2)
+        periods, _, _ = get_cfg_params_Born(τind, L)
         time_in_L = div(periods, L)
         data_dir = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τind)"
         isdir(data_dir) || error("Trajectory directory does not exist: $data_dir")

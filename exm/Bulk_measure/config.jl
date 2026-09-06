@@ -148,49 +148,53 @@ function get_δtL_Born(τ, L)
     return δtlis
 end
 
-# Shared (D, inds, avg_range) table keyed by τ
+# Shared (t, inds, avg_range) table keyed by τ.  The first return value is
+# the number of periods; each period contains two measurement layers.
 # (identical in parrellel.jl, parrellel_collect.jl, parrellel_dynamics.jl and ps_prob.jl).
 function get_system_params(τ, L)
     cfg = Dict(
-        atanh(0.1) => (2500L, 1000, 1500L),
-        atanh(0.2) => (500L, 100, 250L),
-        atanh(0.3) => (120L, 48, 100L),
-        atanh(0.4) => (100L, 40, 80L),
-        atanh(0.5) => (80L, 32, 40L),
-        atanh(0.6) => (45L, 20, 30L),
-        log(1 + √2) => (35L, 14, 20L),
-        atanh(0.8) => (25L, 10, 10L),
-        atanh(0.9) => (8L, 4, 4L),
-        atanh(0.95) => (8L, 4, 4L),
-        atanh(0.999) => (5L, 2, 2L),
+        atanh(0.1) => (1250L, 500, 250L),
+        atanh(0.2) => (250L, 50, 50L),
+        atanh(0.3) => (60L, 24, 12L),
+        atanh(0.4) => (50L, 20, 10L),
+        atanh(0.5) => (40L, 16, 8L),
+        atanh(0.6) => (22.5L, 10, 4.5L),
+        log(1 + √2) => (17.5L, 7, 3.5L),
+        atanh(0.8) => (12.5L, 5, 2.5L),
+        atanh(0.9) => (4L, 2, L),
+        atanh(0.95) => (4L, 2, L),
+        atanh(0.999) => (2.5L, 1, 0.5L),
     )
-    D, step, start = get(cfg, τ, (5L, 2, 2L))
-    inds = collect(1:step:D)
-    avg_range = start:(div(D, 2)-5)
-    return D, inds, avg_range
+    t, step, start = get(cfg, τ, (2.5L, 1, 0.5L))
+    inds = collect(1:step:t)
+    avg_range = start:(t - 2)
+    return t, inds, avg_range
 end
 
-# Shared (D, inds, avg_range) table keyed by τ index
+# Shared (t, inds, avg_range) table keyed by τ index.  The configuration table
+# stores the historical layer count internally, while the first return value
+# is the corresponding number of periods.
 # (identical in defect_scaling_dimension.jl and transfer_matrix.jl).
 function get_cfg_params_Born(ind, L)
     cfg = Dict(
-        1 => (2500L, 1000, 750L),
-        2 => (500L,  100, 120L),
-        3 => (200L,  40, 80L),
-        4 => (100L,  40, 40L),
-        5 => (80L,   32, 20L),
-        6 => (45L,   20, 15L),
-        7 => (35L,   14, 10L),
-        8 => (25L,   10, 5L),
-        9 => (8L,    4, 2L),
-        10 => (8L,    4, 2L),
-        11 => (5L,    2, 1L),
-        12 => (5L, 2, L),
+        1 => (1250L, 500, 250L),
+        2 => (250L, 50, 50L),
+        3 => (100L,  20, 20L),
+        4 => (50L, 20, 10L),
+        5 => (40L, 16, 8L),
+        6 => (22.5L, 10, 4.5L),
+        7 => (17.5L, 7, 3.5L),
+        8 => (12.5L, 5, 2.5L),
+        9 => (4L, 2, L),
+        10 => (4L, 2, L),
+        11 => (2.5L, 1, 0.5L),
+        12 => (2.5L, 1, 0.5L),
     )
-    D, step, start = get(cfg, ind, (24L, 10, 5L))
-    inds = collect(1:step:div(D,2))
-    avg_range = start:2:div(D,2)-5
-    return D, inds, avg_range
+    D_layers, step, start = get(cfg, ind, (12L, 6, 2L))
+    t = div(D_layers, 2)
+    inds = collect(1:step:t)
+    avg_range = start:2:(t - 5)
+    return t, inds, avg_range
 end
 
 # Shared MPS evolution parameters keyed by τ index

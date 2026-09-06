@@ -129,9 +129,9 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     )   
     
         τ = τlis[τ_idx]
-        D, inds, avg_range = get_cfg_params_Born(τ_idx, L)
-        t = div(D, 2L)
-        path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(t)_samples$(index).jld"
+        periods, inds, avg_range = get_cfg_params_Born(τ_idx, L)
+        time_in_L = div(periods, L)
+        path = "exm/data/Bulk_measure/monitored_dynamics/L$(L)/gammaind$(τ_idx)/t$(time_in_L)_samples$(index).jld"
         data = load(path)
         sample = data["sample"]
         model = fib_model(L)
@@ -186,13 +186,12 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
     )
         if isnothing(χ)
             # Exact diagonalization spectra
-            D, _, _ = get_cfg_params_Born(τ_idx, L)
-            t = div(D, 2)
+            periods, _, _ = get_cfg_params_Born(τ_idx, L)
             dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)"
             out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx).jld2"
         else
             # MPS spectra
-            t, _, _ = get_mps_params_Born(τ_idx, L)
+            periods, _, _ = get_mps_params_Born(τ_idx, L)
             dir_path = "exm/data/Bulk_measure/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/chi$(χ)"
             out_name = "ensemble_spectrum_L$(L)_gammaind$(τ_idx)_chi$(χ).jld2"
         end
@@ -210,7 +209,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             return nothing, nothing
         end
 
-        spectra = zeros(n_states, t*L, samples_num)
+        spectra = zeros(n_states, periods * L, samples_num)
 
         for (i, fname) in enumerate(existing_files)
             data = load(joinpath(dir_path, fname))
