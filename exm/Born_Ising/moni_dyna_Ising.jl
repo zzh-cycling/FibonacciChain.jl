@@ -504,6 +504,8 @@ function _samples_collect_process_data_ising(
     time_FElis, time_FEstderr = _mean_and_stderr(ensemble_FE_dynamics)
 
     _, _, configured_periods = get_cfg_params_Born(τ_idx, L)
+    # Use the period window defined by the shared Born_Ising config directly;
+    # it already stops before the terminal half-strength period.
     averaging_periods = collect(configured_periods)
     isempty(averaging_periods) && error("The configured averaging window is empty")
     first(averaging_periods) >= 1 && last(averaging_periods) <= t ||

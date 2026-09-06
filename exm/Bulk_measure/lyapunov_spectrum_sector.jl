@@ -8,7 +8,9 @@ using Statistics
 
 # Sector-resolved Lyapunov spectra along Born trajectories (y=1 or y=τ).
 # Merged from lyapunov_spectrum_y1.jl and lyapunov_spectrum_ytau.jl;
-# data roots, file names and JLD2 schemas are unchanged.
+# existing data roots, file names and numerical JLD2 fields are preserved.
+# New runs mark initial_frame_orthonormalized=true. Older MPS files lack this
+# flag and include a sector-dependent initial-frame contribution to λ(t).
 #
 # Shared γ/τ grid (τlis), fib_model, and the evolution-time tables
 # (get_cfg_params_Born / get_mps_params_Born); measurement strengths are
@@ -295,6 +297,9 @@ function collect_lyapunov_sector(
     first_data = JLD2.load(joinpath(data_dir, first(files)))
     Int(first_data["t"]) == t || error("Inconsistent evolution length")
     n_states = Int(first_data["n_states"])
+    initial_frame_orthonormalized = get(
+        first_data, "initial_frame_orthonormalized", backend == :exact,
+    )
 
     samples_num = length(files)
     seeds = zeros(Int, samples_num)
@@ -314,6 +319,10 @@ function collect_lyapunov_sector(
             error("Inconsistent system size or evolution length in $file")
         Int(data["τ_idx"]) == τ_idx || error("Inconsistent τ_idx in $file")
         Int(data["n_states"]) == n_states || error("Inconsistent n_states in $file")
+        get(data, "initial_frame_orthonormalized", backend == :exact) ==
+            initial_frame_orthonormalized || error(
+            "Cannot mix legacy and corrected initial-frame normalization in $file",
+        )
         seeds[i] = Int(data["trajectory_seed"])
         log_stretches[i] = Float64.(data["local_log_stretches"])
         exponents[i] = Float64.(data["lyapunov_exponents"])
@@ -342,6 +351,7 @@ function collect_lyapunov_sector(
     jldsave(
         output_path;
         backend = String(backend),
+        initial_frame_orthonormalized = initial_frame_orthonormalized,
         topological_sector = spec.sector_label,
         y_eigenvalue = spec.y_eigenvalue,
         L = Int(L),
@@ -480,6 +490,7 @@ else
         jldsave(
             output_path;
             backend = String(backend),
+            initial_frame_orthonormalized = true,
             L = L,
             τ_idx = τ_idx,
             τ = τ,

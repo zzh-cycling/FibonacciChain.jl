@@ -864,6 +864,25 @@ end
 end
 
 
+@testset "Default sector MPS frame has an unrecorded initial QR" begin
+    L = 8
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    sites = siteinds("Qubit", L)
+    record = BitMatrix(rand(MersenneTwister(2718), Bool, 6, L ÷ 2))
+    for sector in (:trivial, :tau)
+        exact = lyapunov_spectrum_topological_sector(
+            model, atanh(0.95), record; sector, n_states = 4,
+        )
+        mps = lyapunov_spectrum_mps(
+            model, sites, atanh(0.95), record;
+            sector, n_states = 4, cutoff = 1e-14, maxdim = 80,
+        )
+        # Compare every period, including the first: checking only late-time
+        # stretches or supplying a custom frame misses the default-frame bug.
+        @test mps ≈ -exact.local_log_stretches atol = 1e-7
+    end
+end
+
 @testset "Y MPO sector tools: initial state, tracking, sector Lyapunov" begin
     L = 8
     τ = atanh(0.95)
@@ -967,4 +986,131 @@ end
         n_states = n_states,
     )
     @test lyapunov_mps[:, end] ≈ exact.lyapunov_exponents[:, end] atol = 1e-3
+end
+
+
+@testset "topological charge sharpening MPS" begin
+    N = 6
+    model = AnyonModel(FibonacciAnyon(), N; pbc = true)
+    τ = 1.0
+    t₂ = 4
+    seed = 1234
+
+    ψ, sites = initial_mps(N)  # vacuum product state
+    st = zeros(length(anyon_basis(model)))
+    st[1] = 1.0
+
+    # Born mode: the MPS trajectory with the same seed must reproduce the exact
+    # trajectory (measurement record, free energies, ancilla entropy history
+    # and final ancilla density matrix).
+    mps_born = topological_charge_sharpening(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(
+            τ = τ,
+            t₂ = t₂,
+            rng = MersenneTwister(seed),
+            mode = :Born,
+            enable_τ_eff = false,
+            cutoff = 1e-12,
+            maxdim = 100,
+        ),
+    )
+    exact_born = topological_charge_sharpening(
+        model,
+        st,
+        MeasureConfig(
+            τ = τ,
+            t₂ = t₂,
+            rng = MersenneTwister(seed),
+            mode = :Born,
+            enable_τ_eff = false,
+        ),
+    )
+
+    @test mps_born.samples == exact_born.samples
+    @test mps_born.free_energys ≈ exact_born.free_energys atol = 1e-6
+    @test Float64.(mps_born.entanglement_entropys) ≈
+          Float64.(exact_born.entanglement_entropys) atol = 1e-6
+    @test reference_rdm(model, mps_born.state) ≈
+          reference_rdm(model, [1], exact_born.state) atol = 1e-8
+
+    # Replay the Born-generated record as a fixed post-selected trajectory.
+    mps_sample = topological_charge_sharpening(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(
+            τ = τ,
+            t₂ = t₂,
+            mode = :sample,
+            enable_τ_eff = false,
+            cutoff = 1e-12,
+            maxdim = 100,
+        ),
+        exact_born.samples,
+    )
+    exact_sample = topological_charge_sharpening(
+        model,
+        st,
+        MeasureConfig(τ = τ, t₂ = t₂, mode = :sample, enable_τ_eff = false),
+        exact_born.samples,
+    )
+
+    @test mps_sample.samples == exact_sample.samples
+    @test mps_sample.free_energys ≈ exact_sample.free_energys atol = 1e-6
+    @test Float64.(mps_sample.entanglement_entropys) ≈
+          Float64.(exact_sample.entanglement_entropys) atol = 1e-6
+    @test reference_rdm(model, mps_sample.state) ≈
+          reference_rdm(model, [1], exact_sample.state) atol = 1e-8
+
+    # At τ = 0 the Kraus operators are proportional to the identity, so the
+    # ancilla entropy remains at its initial value 0.611974857421813 (the
+    # dimension-weighted charge entropy of the vacuum state, cf. the exact
+    # "Topological charge sharpening" testset).
+    zero_mps = topological_charge_sharpening(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(
+            τ = 0.0,
+            t₂ = 3,
+            rng = MersenneTwister(7),
+            mode = :Born,
+            enable_τ_eff = false,
+            cutoff = 1e-12,
+            maxdim = 100,
+        ),
+    )
+    @test Float64.(zero_mps.entanglement_entropys) ≈
+          fill(0.611974857421813, 3) atol = 1e-6
+    @test ee(reference_rdm(model, zero_mps.state)) ≈ 0.611974857421813 atol = 1e-8
+
+    # The enforce_fibonacci_constraint path projects the system part of the
+    # joint MPS after every layer and must still agree with the exact replay.
+    constrained_mps = topological_charge_sharpening(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(
+            τ = τ,
+            t₂ = t₂,
+            mode = :sample,
+            enable_τ_eff = false,
+            cutoff = 1e-12,
+            maxdim = 100,
+            enforce_fibonacci_constraint = true,
+        ),
+        exact_born.samples,
+    )
+    @test Float64.(constrained_mps.entanglement_entropys) ≈
+          Float64.(exact_sample.entanglement_entropys) atol = 1e-6
+
+    @test_throws ErrorException topological_charge_sharpening(
+        model,
+        sites,
+        ψ,
+        MeasureConfig(τ = τ, t₂ = t₂, mode = :sample, enable_τ_eff = false),
+    )
 end

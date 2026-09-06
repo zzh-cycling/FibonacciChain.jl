@@ -1234,9 +1234,9 @@ factors are recorded as the spectrum.
   `initial_states` is given)
 - `initial_states::Union{Nothing,Vector{MPS}}=nothing`: Optional custom initial
   frame (e.g. states projected into a topological sector with
-  `topological_charge_mpo`). The frame is Gram-Cholesky orthonormalized before
-  the first recorded step, so the step-1 spectrum contains only propagation
-  stretches.
+  `topological_charge_mpo`). Both custom frames and the default sector-projected
+  frame are Gram-Cholesky orthonormalized before the first recorded step,
+  so the step-1 spectrum contains only propagation stretches.
 - `sector::Union{Nothing,Symbol}=nothing`: Optional topological charge sector,
   `:trivial` (y=1) or `:tau` (y=τ), for Fibonacci models with `pbc=true`. When
   set, every state is first projected onto the constraint-satisfying subspace
@@ -1349,9 +1349,12 @@ function lyapunov_spectrum_mps(
         if project !== nothing
             states = [project(ψ) for ψ in states]
         end
-        # Orthonormalize the custom frame first (unrecorded), so the step-1
-        # spectrum contains only propagation stretches — the MPS analogue of
-        # the initial QR in `lyapunov_spectrum_topological_sector`.
+    end
+    if initial_states !== nothing || project !== nothing
+        # Projection destroys the orthonormality of the default product frame
+        # too. Its initial QR must be unrecorded, just as for a custom frame
+        # and in `lyapunov_spectrum_topological_sector`; otherwise log(diag(R₀))
+        # contaminates the finite-time exponents by a sector-dependent 1/t term.
         states, _ = _gram_cholesky_orthonormalize_mps(states, sites; cutoff, maxdim)
     end
     spectrum_tlis = zeros(k, t)
@@ -2480,4 +2483,719 @@ function anyon_eelis(model::AnyonModel, ψ::MPS)
         EE_lis[m]=ee_mps(ψ, splitlis[m])
     end
     return EE_lis
+end
+
+
+################################################################################
+# Topological charge sharpening with an ancilla qubit (MPS version).
+# Mirrors the exact state-vector implementation in ReferenceProbe.jl: the total
+# topological charge is entangled with one ancilla qubit, the joint state is
+# evolved under the measurement dynamics, and the ancilla entropy after every
+# period diagnoses how much the trajectory has learned about the charge.
+################################################################################
+
+"""
+    _embed_system_state_with_ancilla(ψ::MPS, ref_site::Index, ref_val::Int)
+
+Embed a system MPS `ψ` into a chain with one extra qubit `ref_site` pinned to
+`ref_val` (1 for |0⟩, 2 for |1⟩) at position 1. Used to assemble the joint
+ancilla–system state of [`topological_charge_sharpening`](@ref).
+"""
+function _embed_system_state_with_ancilla(ψ::MPS, ref_site::Index, ref_val::Int)
+    N = length(ψ)
+    link_idx = Index(1, "Link,l=0")
+    ψ_ext = MPS(N + 1)
+    ref_tensor = ITensor(ref_site, link_idx)
+    ref_tensor[ref_site => ref_val, link_idx => 1] = 1.0
+    ψ_ext[1] = ref_tensor
+    ψ_ext[2] = ψ[1] * ITensor([1.0], link_idx)
+    for i in 2:N
+        ψ_ext[i+1] = ψ[i]
+    end
+    return ψ_ext
+end
+
+"""
+    _joint_measurement_operator_mpo(model, new_sites, i, τ, sign)
+
+Fibonacci measurement operator at model site `i` acting on the joint
+ancilla–system chain `new_sites` (ancilla at position 1), as an MPO. Needed
+for the PBC terms centered at model sites `1` and `N`: their support is
+noncontiguous in the joint chain (`{N+1, 2, 3}` and `{N, N+1, 2}`), so a
+single ITensor gate would make `apply` permute the physical sites with SWAPs.
+"""
+function _joint_measurement_operator_mpo(
+    model::AnyonModel{FibonacciAnyon},
+    new_sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool,
+)
+    @assert model.pbc "The MPO path is only needed for periodic boundary terms"
+    @assert model.measure_operator ∈ [:Ferro, :Antiferro]
+    N = length(new_sites) - 1
+    @assert 1 <= i <= N "Index i must be in the range [1, N]"
+
+    ϕ = (1 + √5) / 2
+    if τ >= 1e2
+        cstτ = 0.5
+        coef = sign ? -0.5 : 0.5
+    else
+        cstτ = (exp(τ) + 1) / (2 * √(exp(2τ) + 1))
+        coef =
+            sign ? (1 - exp(τ)) / (2 * √(exp(2τ) + 1)) :
+            (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
+    end
+
+    # In the joint chain the measured site sits at position i + 1 and its model
+    # neighbors mod1(i ± 1, N) at positions mod1(i ± 1, N) + 1, so no
+    # wrap-around term ever touches the ancilla at position 1.
+    ic = i + 1
+    im1, ip1 = mod1(i - 1, N) + 1, mod1(i + 1, N) + 1
+    os = OpSum()
+    os += cstτ, "I", 2
+
+    if model.measure_operator == :Antiferro
+        os += coef, "Proj0", im1, "Z", ic, "Proj1", ip1
+        os += coef, "Proj1", im1, "Z", ic, "Proj0", ip1
+        os += -coef, "Proj1", im1, "Z", ic, "Proj1", ip1
+        os += coef * (1 - 2 * ϕ^(-1)), "Proj0", im1, "Z", ic, "Proj0", ip1
+        os += coef * (-2 * ϕ^(-3 / 2)), "Proj0", im1, "X", ic, "Proj0", ip1
+    else
+        os += -coef, "Proj0", im1, "Z", ic, "Proj1", ip1
+        os += -coef, "Proj1", im1, "Z", ic, "Proj0", ip1
+        os += coef, "Proj1", im1, "Z", ic, "Proj1", ip1
+        os += coef * (2 * ϕ^(-1) - 1), "Proj0", im1, "Z", ic, "Proj0", ip1
+        os += coef * (2 * ϕ^(-3 / 2)), "Proj0", im1, "X", ic, "Proj0", ip1
+    end
+
+    return MPO(os, new_sites)
+end
+
+function _joint_measurement_operator_application(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool,
+)
+    # Bulk terms stay three-site gates on the system sites; they act on the
+    # contiguous positions (i, i+1, i+2) of the joint chain.
+    if 2 <= i <= length(sites) - 1
+        return measurement_operator_mps(model, sites, i, τ, sign)
+    end
+    return _joint_measurement_operator_mpo(model, new_sites, i, τ, sign)
+end
+
+function _joint_measuremap(
+    model::AnyonModel{FibonacciAnyon},
+    ψ::MPS,
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    i::Int,
+    τ::Float64,
+    sign::Bool;
+    cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
+    maxdim::Int = 100,
+)
+    M = _joint_measurement_operator_application(model, sites, new_sites, i, τ, sign)
+    return _measuremap_with_operator(
+        ψ,
+        M;
+        cutoff = cutoff,
+        mindim = mindim,
+        maxdim = maxdim,
+    )
+end
+
+"""
+    _joint_fibonacci_constraint_projector_mpo(new_sites, sites)
+
+Projector onto the Fibonacci fusion paths of the system part of a joint
+ancilla–system chain. The ancilla at position 1 of `new_sites` is acted on by
+the identity.
+"""
+function _joint_fibonacci_constraint_projector_mpo(
+    new_sites::Vector{<:Index},
+    sites::Vector{<:Index},
+)
+    system_projector = fibonacci_constraint_projector_mpo(sites; pbc = true)
+    dummy_link = Index(1, "Link,l=0")
+    ancilla_tensor = ITensor(prime(new_sites[1]), dag(new_sites[1]), dummy_link)
+    for a in 1:2
+        ancilla_tensor[
+            prime(new_sites[1]) => a,
+            dag(new_sites[1]) => a,
+            dummy_link => 1,
+        ] = 1.0
+    end
+    first_system = system_projector[1] * ITensor([1.0], dummy_link)
+    return MPO(vcat([ancilla_tensor, first_system], system_projector[2:end]))
+end
+
+"""
+    _reference_apply_measurement_layer_mps(model, τ, sites, new_sites, ψ,
+                                           layer_sample, layer_idx; ...)
+
+Apply deterministic measurements to one layer of the joint ancilla–system MPS
+with given outcomes. Mirrors `_reference_apply_measurement_layer` (exact
+version), with measurements restricted to the system sites.
+"""
+function _reference_apply_measurement_layer_mps(
+    model::AnyonModel{FibonacciAnyon},
+    τ::Float64,
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    ψ::MPS,
+    layer_sample::BitVector,
+    layer_idx::Int64;
+    cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
+    maxdim::Int = 100,
+    truncate_every_events::Int = 1,
+)
+    measurement_sites, measure_anyon_model, measurement_strength =
+        _obtain_measurement_config(model, layer_idx, τ)
+    n = length(measurement_sites)
+    length(layer_sample) == n ||
+        error("sample size mismatch with measurement layer ($n)")
+    F_layer = 0.0
+    do_per_event_truncate = (truncate_every_events == 1)
+    operators = if do_per_event_truncate
+        nothing
+    else
+        [
+            _joint_measurement_operator_application(
+                measure_anyon_model,
+                sites,
+                new_sites,
+                measurement_sites[k],
+                measurement_strength,
+                layer_sample[k],
+            ) for k = 1:n
+        ]
+    end
+
+    if do_per_event_truncate
+        @inbounds for idx = 1:n
+            ψ, prob = _joint_measuremap(
+                measure_anyon_model,
+                ψ,
+                sites,
+                new_sites,
+                measurement_sites[idx],
+                measurement_strength,
+                layer_sample[idx];
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+            F_layer += -log(prob)
+        end
+    else
+        @inbounds for idx = 1:n
+            ψ, prob = _measuremap_with_operator(
+                ψ,
+                operators[idx];
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+                truncate_per_event = false,
+            )
+            F_layer += -log(prob)
+            if idx % truncate_every_events == 0 || idx == n
+                ψ = truncate(ψ; cutoff = cutoff, mindim = mindim, maxdim = maxdim)
+                normalize!(ψ)
+            end
+        end
+    end
+    return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
+end
+
+"""
+    _reference_stochastic_measurement_layer_mps(model, τ, sites, new_sites, ψ,
+                                                rng, layer_idx; ...)
+
+Perform Born-rule sampled measurements on one layer of the joint ancilla–system
+MPS. Mirrors `_reference_stochastic_measurement_layer` (exact version), with
+measurements restricted to the system sites.
+"""
+function _reference_stochastic_measurement_layer_mps(
+    model::AnyonModel{FibonacciAnyon},
+    τ::Float64,
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    ψ::MPS,
+    rng::MersenneTwister = MersenneTwister(),
+    layer_idx::Int64 = 1;
+    cutoff::Float64 = 1e-10,
+    mindim::Int = 1,
+    maxdim::Int = 100,
+    verbose::Bool = false,
+    truncate_every_events::Int = 1,
+)
+    measurement_sites, measure_anyon_model, measurement_strength =
+        _obtain_measurement_config(model, layer_idx, τ)
+    n = length(measurement_sites)
+    sample_layer = BitVector(zeros(Bool, n))
+    F_layer = 0.0
+    do_per_event_truncate = (truncate_every_events == 1)
+    operators_false, operators_true = if do_per_event_truncate
+        nothing, nothing
+    else
+        (
+            [
+                _joint_measurement_operator_application(
+                    measure_anyon_model,
+                    sites,
+                    new_sites,
+                    measurement_sites[i],
+                    measurement_strength,
+                    false,
+                ) for i = 1:n
+            ],
+            [
+                _joint_measurement_operator_application(
+                    measure_anyon_model,
+                    sites,
+                    new_sites,
+                    measurement_sites[i],
+                    measurement_strength,
+                    true,
+                ) for i = 1:n
+            ],
+        )
+    end
+
+    if do_per_event_truncate
+        # Preserve legacy behavior for exact RNG trajectory compatibility.
+        @inbounds for idx = 1:n
+            ψ0, p0 = _joint_measuremap(
+                measure_anyon_model,
+                ψ,
+                sites,
+                new_sites,
+                measurement_sites[idx],
+                measurement_strength,
+                false;
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+            p1 = 1 - p0
+
+            random_number = rand(rng)
+            verbose && @show random_number
+            if random_number < p0
+                sample_layer[idx] = 0
+                ψ = ψ0
+                F_layer += -log(p0)
+            else
+                ψ, _ = _joint_measuremap(
+                    measure_anyon_model,
+                    ψ,
+                    sites,
+                    new_sites,
+                    measurement_sites[idx],
+                    measurement_strength,
+                    true;
+                    cutoff = cutoff,
+                    mindim = mindim,
+                    maxdim = maxdim,
+                )
+                sample_layer[idx] = 1
+                F_layer += -log(p1)
+            end
+        end
+    else
+        @inbounds for i = 1:n
+            ψ0, p0 = _measuremap_with_operator(
+                ψ,
+                operators_false[i];
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+                truncate_per_event = false,
+            )
+            p1 = 1 - p0
+
+            random_number = rand(rng)
+            verbose && @show random_number
+            if random_number < p0
+                sample_layer[i] = 0
+                ψ = ψ0
+                F_layer += -log(p0)
+                verbose && @show -log(p0)
+            else
+                ψ0 = nothing  # release ψ0 memory before allocating ψ1
+                ψ1, _ = _measuremap_with_operator(
+                    ψ,
+                    operators_true[i];
+                    cutoff = cutoff,
+                    mindim = mindim,
+                    maxdim = maxdim,
+                    truncate_per_event = false,
+                )
+                sample_layer[i] = 1
+                ψ = ψ1
+                F_layer += -log(p1)
+                verbose && @show -log(p1)
+            end
+            if i % truncate_every_events == 0 || i == n
+                ψ = truncate(ψ; cutoff = cutoff, mindim = mindim, maxdim = maxdim)
+                normalize!(ψ)
+            end
+        end
+    end
+
+    return Measurement_outcome_mps_boundary(ψ, sample_layer, Float32(F_layer))
+end
+
+"""
+    _reference_born_measure_mps(model, sites, new_sites, current_state, measure_config)
+
+Evolve the joint ancilla–system MPS with probabilistic Born-rule sampling,
+recording the ancilla entropy after every full measurement period. MPS analogue
+of `_reference_born_measure` with `track_reference_entropy = true`.
+"""
+function _reference_born_measure_mps(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    current_state::MPS,
+    measure_config::MeasureConfig,
+)
+    n_measure = _samples_per_layer(model)
+    τ = measure_config.τ
+    t₁ = measure_config.t₁
+    t₂ = measure_config.t₂
+    rng = measure_config.rng
+    enable_τ_eff = measure_config.enable_τ_eff
+    verbose = measure_config.verbose
+    cutoff = measure_config.cutoff
+    mindim = measure_config.mindim
+    maxdim = measure_config.maxdim
+
+    Δt = t₂ - t₁ + 1
+    Δt >= 0 || error("t₂ must be >= t₁")
+    D = Δt * 2 # number of layers to evolve
+
+    constraint_projector = if measure_config.enforce_fibonacci_constraint
+        _joint_fibonacci_constraint_projector_mpo(new_sites, sites)
+    else
+        nothing
+    end
+
+    samples = BitMatrix(undef, (D, n_measure))
+    sample_free_energy = zeros(Float32, D)
+    # The ancilla sits at position 1, so its entropy is the bond-1 entropy.
+    entanglement_entropys = zeros(Float32, Δt)
+
+    for period = 1:Δt
+        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+
+        outcome1 = _reference_stochastic_measurement_layer_mps(
+            model,
+            τ,
+            sites,
+            new_sites,
+            current_state,
+            rng,
+            2*period-1;
+            cutoff = cutoff,
+            mindim = mindim,
+            maxdim = maxdim,
+            verbose = verbose,
+            truncate_every_events = measure_config.truncate_every_events,
+        )
+        current_state = outcome1.state
+        if constraint_projector !== nothing
+            current_state = _project_fibonacci_constraint(
+                constraint_projector,
+                current_state;
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+        end
+        samples[2*period-1, :] = outcome1.sample
+        sample_free_energy[2*period-1] = outcome1.free_energy
+
+        outcome2 = _reference_stochastic_measurement_layer_mps(
+            model,
+            τ_eff,
+            sites,
+            new_sites,
+            current_state,
+            rng,
+            2*period;
+            cutoff = cutoff,
+            mindim = mindim,
+            maxdim = maxdim,
+            verbose = verbose,
+            truncate_every_events = measure_config.truncate_every_events,
+        )
+        current_state = outcome2.state
+        if constraint_projector !== nothing
+            current_state = _project_fibonacci_constraint(
+                constraint_projector,
+                current_state;
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+        end
+        samples[2*period, :] = outcome2.sample
+        sample_free_energy[2*period] = outcome2.free_energy
+
+        entanglement_entropys[period] = Float32(ee_mps(current_state, 1))
+    end
+
+    return Measurement_outcome_mps_bulk(
+        current_state,
+        samples,
+        sample_free_energy,
+        entanglement_entropys,
+    )
+end
+
+"""
+    _reference_sample_measure_mps(model, sites, new_sites, current_state,
+                                  samples, measure_config)
+
+Evolve the joint ancilla–system MPS using a predefined measurement trajectory,
+recording the ancilla entropy after every full measurement period. MPS analogue
+of `_reference_sample_measure` with `track_reference_entropy = true`.
+"""
+function _reference_sample_measure_mps(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    new_sites::Vector{<:Index},
+    current_state::MPS,
+    samples::BitMatrix,
+    measure_config::MeasureConfig,
+)
+    n_measure = _samples_per_layer(model)
+    τ = measure_config.τ
+    t₁ = measure_config.t₁
+    t₂ = measure_config.t₂
+    enable_τ_eff = measure_config.enable_τ_eff
+    cutoff = measure_config.cutoff
+    mindim = measure_config.mindim
+    maxdim = measure_config.maxdim
+
+    Δt = t₂ - t₁ + 1
+    Δt >= 0 || error("t₂ must be >= t₁")
+    D = Δt * 2 # number of layers to evolve
+
+    size(samples) == (D, n_measure) ||
+        error("sample size should be ($D, $n_measure), got $(size(samples))")
+
+    constraint_projector = if measure_config.enforce_fibonacci_constraint
+        _joint_fibonacci_constraint_projector_mpo(new_sites, sites)
+    else
+        nothing
+    end
+
+    sample_free_energy = zeros(Float32, D)
+    entanglement_entropys = zeros(Float32, Δt)
+
+    for period = 1:Δt
+        τ_eff = (period == Δt && enable_τ_eff) ? τ/2 : τ
+
+        outcome1 = _reference_apply_measurement_layer_mps(
+            model,
+            τ,
+            sites,
+            new_sites,
+            current_state,
+            BitVector(samples[2*period-1, :]),
+            2*period-1;
+            cutoff = cutoff,
+            mindim = mindim,
+            maxdim = maxdim,
+            truncate_every_events = measure_config.truncate_every_events,
+        )
+        current_state = outcome1.state
+        if constraint_projector !== nothing
+            current_state = _project_fibonacci_constraint(
+                constraint_projector,
+                current_state;
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+        end
+        sample_free_energy[2*period-1] = outcome1.free_energy
+
+        outcome2 = _reference_apply_measurement_layer_mps(
+            model,
+            τ_eff,
+            sites,
+            new_sites,
+            current_state,
+            BitVector(samples[2*period, :]),
+            2*period;
+            cutoff = cutoff,
+            mindim = mindim,
+            maxdim = maxdim,
+            truncate_every_events = measure_config.truncate_every_events,
+        )
+        current_state = outcome2.state
+        if constraint_projector !== nothing
+            current_state = _project_fibonacci_constraint(
+                constraint_projector,
+                current_state;
+                cutoff = cutoff,
+                mindim = mindim,
+                maxdim = maxdim,
+            )
+        end
+        sample_free_energy[2*period] = outcome2.free_energy
+
+        entanglement_entropys[period] = Float32(ee_mps(current_state, 1))
+    end
+
+    return Measurement_outcome_mps_bulk(
+        current_state,
+        samples,
+        sample_free_energy,
+        entanglement_entropys,
+    )
+end
+
+"""
+    topological_charge_sharpening(model::AnyonModel{FibonacciAnyon},
+                                  sites::Vector{<:Index},
+                                  state::MPS,
+                                  measure_config::MeasureConfig,
+                                  samples::Union{Nothing,BitMatrix}=nothing)
+
+MPS analogue of the exact `topological_charge_sharpening` (see
+`ReferenceProbe.jl`). Entangle the total topological charge of a periodic
+Fibonacci chain with an ancilla qubit and evolve the joint state with
+Born-rule or fixed-sample measurement dynamics.
+
+For the two eigenvalues of the topological charge operator `Y`,
+`y₁ = ϕ` and `yτ = -1/ϕ`, the input MPS is decomposed as
+`|ψ⟩ = P₁|ψ⟩ + Pτ|ψ⟩` via [`topological_charge_mpo`](@ref), and the joint
+state is prepared as an MPS with the ancilla at position 1:
+
+```
+    |0⟩ₐ Pτ|ψ⟩ + |1⟩ₐ P₁|ψ⟩,
+```
+
+matching the ancilla-|0⟩-block-first ordering of the exact version.
+Measurements act only on the system sites (positions `2 … N+1`). The returned
+`Measurement_outcome_mps_bulk.entanglement_entropys` contains the ancilla von
+Neumann entropy (the bond-1 entropy `ee_mps(state, 1)` of the joint MPS) after
+every full measurement period. This entropy is the charge-sharpening
+diagnostic: it vanishes when the trajectory has learned the total topological
+charge.
+
+# Arguments
+- `model`: Periodic Fibonacci anyon model.
+- `sites`: ITensor site indices of the `model.N` system sites.
+- `state`: MPS on the system sites, without the ancilla.
+- `measure_config`: Evolution parameters. Its mode must be `:Born` or
+  `:sample`. `cutoff`, `mindim`, `maxdim`, `truncate_every_events` and
+  `enforce_fibonacci_constraint` control the MPS truncation.
+- `samples`: Fixed measurement record required when `mode = :sample`. Its size
+  must be `(2Δt, model.N ÷ 2)`, where `Δt = t₂ - t₁ + 1`.
+
+# Returns
+- `Measurement_outcome_mps_bulk`: Final joint MPS (length `model.N + 1`, with
+  the ancilla at position 1), measurement record, free energies, and the
+  ancilla entropy trajectory.
+
+See also: [`reference_rdm`](@ref), [`topological_charge_mpo`](@ref)
+"""
+function topological_charge_sharpening(
+    model::AnyonModel{FibonacciAnyon},
+    sites::Vector{<:Index},
+    state::MPS,
+    measure_config::MeasureConfig,
+    samples::Union{Nothing,BitMatrix} = nothing,
+)
+    model.pbc || error("topological charge sharpening requires periodic boundary conditions")
+    mode = measure_config.mode
+    mode ∈ (:Born, :sample) || error("mode must be one of :Born, :sample")
+    length(sites) == model.N || error(
+        "sites length must equal the system size $(model.N), got $(length(sites))",
+    )
+    length(state) == model.N || error(
+        "state must be an MPS on the $(model.N) system sites (without the ancilla), got length $(length(state))",
+    )
+
+    state_norm = norm(state)
+    iszero(state_norm) && error("state must have nonzero norm")
+    normalized_state = copy(state)
+    normalize!(normalized_state)
+
+    cutoff = measure_config.cutoff
+    maxdim = measure_config.maxdim
+
+    ϕ = (1 + √5) / 2
+    y₁ = ϕ
+    yτ = -inv(ϕ)
+    Y_mpo = topological_charge_mpo(sites; pbc = true)
+    Ystate = apply(Y_mpo, normalized_state; cutoff = cutoff, maxdim = maxdim)
+    state_y₁ =
+        inv(y₁ - yτ) *
+        add(Ystate, (-yτ) * normalized_state; cutoff = cutoff, maxdim = maxdim)
+    state_yτ =
+        inv(y₁ - yτ) *
+        add(y₁ * normalized_state, (-1.0) * Ystate; cutoff = cutoff, maxdim = maxdim)
+
+    # Ancilla at position 1: |0⟩ₐ ⊗ state_yτ + |1⟩ₐ ⊗ state_y₁.
+    ref_site = Index(2, "Qubit,Site,n=ref")
+    new_sites = vcat([ref_site], sites)
+    joint_state = add(
+        _embed_system_state_with_ancilla(state_yτ, ref_site, 1),
+        _embed_system_state_with_ancilla(state_y₁, ref_site, 2);
+        cutoff = cutoff,
+        maxdim = maxdim,
+    )
+    normalize!(joint_state)
+
+    if mode == :Born
+        return _reference_born_measure_mps(
+            model,
+            sites,
+            new_sites,
+            joint_state,
+            measure_config,
+        )
+    end
+
+    isnothing(samples) && error("When mode=:sample, samples must be provided as BitMatrix")
+    return _reference_sample_measure_mps(
+        model,
+        sites,
+        new_sites,
+        joint_state,
+        samples,
+        measure_config,
+    )
+end
+
+"""
+    reference_rdm(model::AnyonModel{FibonacciAnyon}, ψ::MPS)
+
+Reduced density matrix of the ancilla qubit (position 1) of a joint
+ancilla–system MPS built by [`topological_charge_sharpening`](@ref). MPS
+analogue of the exact `reference_rdm(model, [1], state)`.
+"""
+function reference_rdm(model::AnyonModel{FibonacciAnyon}, ψ::MPS)
+    length(ψ) == model.N + 1 || error(
+        "expected a joint ancilla–system MPS of length $(model.N + 1), got $(length(ψ))",
+    )
+    ψ_orth = orthogonalize(ψ, 1)
+    A = ψ_orth[1]
+    s = siteinds(ψ_orth)[1]
+    dim(s) == 2 || error("the ancilla site must have dimension 2, got $(dim(s))")
+    ρ_it = A * dag(prime(A, s))
+    return [ρ_it[s => a, s' => b] for a in 1:2, b in 1:2]
 end
