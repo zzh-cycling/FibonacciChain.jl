@@ -628,8 +628,9 @@ end
     EE = anyon_eelis(model, final_st)
     @test fitCCEntEntScal(EE, mincut = 2, pbc = true)[1][1] ≈ 0.8 atol=1e-1
 
-    samples = BitMatrix(ones(Int8, 15N, div(N, 2)))
-    measure_config = MeasureConfig(τ = τ, t₂ = div(15N, 2), mode = :sample)
+    samples = BitMatrix(ones(Int8, 5N, div(N, 2)))
+    measure_config = MeasureConfig(τ = τ, t₂ = div(5N, 2), mode = :sample,
+        enforce_fibonacci_constraint = true)
     ψ0, sites = initial_mps(N)
     measure_outcome_mps = bulk_evolution(model, sites, ψ0, measure_config, samples)
     F = measure_outcome_mps.free_energys
