@@ -789,6 +789,206 @@ function samples_collect_process_data_topo_sector_mps(
         resolved_data_root,
     )
 end
+################################################################################
+# Kramers-Wannier (KW) expectation replay.
+#
+# Mirrors the Y-expectation pipeline of exm/Bulk_measure/monitored_dynamics.jl
+# (modes 3): stored Born trajectories are replayed with their recorded
+# measurement outcomes while `track_y_expectation=true` records the
+# topological-symmetry expectation after every period. For SpinHalf models the
+# tracked operator is the KW duality map (see `kramers_wannier_map`), so
+# `outcome.y_expectation_values` holds the KW expectation dynamics.
+# KW defect sectors: vaccum (+√2), spin (0), fermion (-√2).
+################################################################################
+
+const KW_SECTORS = (
+    (label = "vaccum", assignment = Int8(1), eigenvalue = sqrt(2.0)),
+    (label = "spin", assignment = Int8(0), eigenvalue = 0.0),
+    (label = "fermion", assignment = Int8(-1), eigenvalue = -sqrt(2.0)),
+)
+
+"""Rebuild the exact initial state matching a trajectory file's `initial_state` label."""
+function _ising_initial_state_from_label(label::AbstractString, L::Integer)
+    if label == "all_plus"
+        model = ising_model(Int(L))
+        state = ones(Float64, length(anyon_basis(model)))
+        normalize!(state)
+        return state
+    elseif label in ("vaccum", "fermion")
+        return initial_topo_sector_state(L; sector = Symbol(label))
+    end
+    throw(ArgumentError("Unknown initial-state label: $label"))
+end
+
+"""Replay one stored trajectory, returning `(seed, per-period KW expectations)`."""
+function _kw_replay_file(
+    model,
+    replay_config::MeasureConfig,
+    data_dir::AbstractString,
+    file::AbstractString,
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    expected_label::AbstractString,
+)
+    data = load(joinpath(data_dir, file))
+    get(data, "initial_state", expected_label) == expected_label ||
+        error("Unexpected initial state in $file")
+    Int(get(data, "L", L)) == L || error("Inconsistent L in $file")
+    Int(get(data, "τ_idx", τ_idx)) == τ_idx || error("Inconsistent τ_idx in $file")
+    Int(get(data, "t", t)) == t || error("Inconsistent period count in $file")
+    sample = BitMatrix(data["sample"])
+    size(sample, 1) == 2t || error("Inconsistent sample depth in $file")
+
+    initial_state = _ising_initial_state_from_label(expected_label, L)
+    outcome = bulk_evolution(model, initial_state, replay_config, sample)
+    kw_dynamics = outcome.y_expectation_values
+    length(kw_dynamics) == t || error(
+        "KW dynamics length mismatch in $file: expected $t, got $(length(kw_dynamics))",
+    )
+    return Int(data["seed"]), kw_dynamics
+end
+
+"""Three-way KW-sector statistics, classified by the final KW value's nearest
+defect eigenvalue (+√2 vaccum, 0 spin, -√2 fermion). Empty sectors are recorded
+with count 0 and empty arrays instead of raising an error."""
+function _kw_sector_statistics(kw_dynamics, seeds, sample_files)
+    final_kw = kw_dynamics[:, end]
+    all(isfinite, final_kw) ||
+        error("KW-sector classification requires finite values")
+    eigenvalues = [sector.eigenvalue for sector in KW_SECTORS]
+    assignment = Vector{Int8}(undef, length(final_kw))
+    for i in eachindex(final_kw)
+        assignment[i] = KW_SECTORS[argmin(abs.(eigenvalues .- final_kw[i]))].assignment
+    end
+
+    metadata = Dict{String,Any}(
+        "kw_sector_classification_rule" =>
+            "nearest eigenvalue to final_kw_expectation_values among {sqrt(2), 0, -sqrt(2)}",
+        "kw_sector_assignment" => assignment,
+    )
+    for sector in KW_SECTORS
+        idx = findall(==(sector.assignment), assignment)
+        prefix = "kw_$(sector.label)_sector"
+        metadata["$(prefix)_eigenvalue"] = sector.eigenvalue
+        metadata["$(prefix)_samples_num"] = length(idx)
+        metadata["$(prefix)_ensemble_seed"] = seeds[idx]
+        metadata["$(prefix)_sample_files"] = sample_files[idx]
+        metadata["$(prefix)_final_kw_expectation_values"] = final_kw[idx]
+        if isempty(idx)
+            metadata["$(prefix)_average_kw_expectation_values"] = Float32[]
+            metadata["$(prefix)_stderr_kw_expectation_values"] = Float64[]
+        else
+            dynamics = view(kw_dynamics, idx, :)
+            metadata["$(prefix)_average_kw_expectation_values"] =
+                vec(mean(dynamics; dims = 1))
+            metadata["$(prefix)_stderr_kw_expectation_values"] =
+                vec(std(dynamics; dims = 1, corrected = false)) ./ sqrt(length(idx))
+        end
+    end
+    return metadata
+end
+
+function _samples_collect_kw_ising(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    initial_state_label::AbstractString,
+    data_root::AbstractString,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    dir_path = joinpath(data_root, "L$(L)", "gammaind$(τ_idx)")
+    isdir(dir_path) || error("Data directory does not exist: $dir_path")
+    existing_files = sort(filter(
+        file -> startswith(file, "t$(t)_samples") && endswith(file, ".jld"),
+        readdir(dir_path),
+    ))
+    samples_num = length(existing_files)
+    samples_num > 0 || error(
+        "No trajectory files with L=$L, τ_idx=$τ_idx, t=$t in $dir_path",
+    )
+    println("replaying $samples_num $(initial_state_label) trajectories for KW dynamics")
+
+    model = ising_model(L)
+    replay_config = MeasureConfig(
+        τ = τlis[τ_idx],
+        mode = :sample,
+        t₂ = t,
+        track_y_expectation = true,  # for SpinHalf models this tracks the KW duality
+    )
+    ensemble_seed = zeros(Int, samples_num)
+    kw_dynamics = zeros(Float32, samples_num, t)
+    for (i, file) in enumerate(existing_files)
+        seed, kw = _kw_replay_file(
+            model, replay_config, dir_path, file, L, τ_idx, t, initial_state_label,
+        )
+        ensemble_seed[i] = seed
+        kw_dynamics[i, :] = kw
+        i % 100 == 0 && println("  replayed $i / $samples_num")
+    end
+    check_duplicates(ensemble_seed)
+
+    order = sortperm(ensemble_seed)
+    ensemble_seed = ensemble_seed[order]
+    kw_dynamics = kw_dynamics[order, :]
+    existing_files = existing_files[order]
+
+    average_kw, stderr_kw = _mean_and_stderr(kw_dynamics)
+    final_kw = kw_dynamics[:, end]
+    sectors = _kw_sector_statistics(kw_dynamics, ensemble_seed, existing_files)
+    sector_pairs = NamedTuple(Symbol(k) => v for (k, v) in sectors)
+
+    output_path = joinpath(
+        dir_path,
+        "KW_expectation_L$(L)_gamma$(τ_idx)_t$(t).jld2",
+    )
+    JLD2.jldsave(
+        output_path;
+        initial_state = String(initial_state_label),
+        L = L,
+        τ_idx = τ_idx,
+        τ = τlis[τ_idx],
+        gamma = tanh(τlis[τ_idx]),
+        periods = t,
+        samples_num = samples_num,
+        ensemble_seed = ensemble_seed,
+        sample_files = existing_files,
+        trajectory_kw_expectation_values = kw_dynamics,
+        average_kw_expectation_values = average_kw,
+        stderr_kw_expectation_values = stderr_kw,
+        final_kw_expectation_values = final_kw,
+        sector_pairs...,
+    )
+    return output_path
+end
+
+"""Replay `|+⟩^⊗L` trajectories, collecting the per-period KW expectation dynamics."""
+function samples_collect_kw_expectations(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_DATA_ROOT,
+)
+    return _samples_collect_kw_ising(L, τ_idx, t, "all_plus", data_root)
+end
+
+"""Replay `:vaccum` or `:fermion` trajectories, collecting the KW dynamics."""
+function samples_collect_kw_expectations_topo_sector(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
+    return _samples_collect_kw_ising(L, τ_idx, t, spec.label, resolved_data_root)
+end
+
 function print_usage()
     println("Here t is the number of complete measurement periods.")
     println("Usage:")
@@ -804,6 +1004,9 @@ function print_usage()
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_vaccum_sector_mps L τ_idx χ [t]")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl fermion_sector_mps L τ_idx χ seed [t]")
     println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_fermion_sector_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw_vaccum_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw_fermion_sector L τ_idx [t]")
 end
 
 function _configured_or_explicit_time(args, index::Int, τ_idx::Int, L::Int)
@@ -889,6 +1092,24 @@ elseif lowercase(ARGS[1]) == "collect_fermion_sector_mps"
     χ = parse(Int, ARGS[4])
     t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
     println("saved: $(samples_collect_process_data_topo_sector_mps(L, τ_idx, χ, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "kw"
+    length(ARGS) in (3, 4) || error("Usage: kw L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "kw_vaccum_sector"
+    length(ARGS) in (3, 4) || error("Usage: kw_vaccum_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations_topo_sector(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "kw_fermion_sector"
+    length(ARGS) in (3, 4) || error("Usage: kw_fermion_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations_topo_sector(L, τ_idx, t; sector = :fermion))")
 else
     length(ARGS) in (3, 4) || error("Usage: L τ_idx seed [t]")
     L = parse(Int, ARGS[1])

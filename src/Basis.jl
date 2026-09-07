@@ -441,6 +441,106 @@ function kramers_wannier_operator(model::AnyonModel{SpinHalf})
 end
 
 """
+    KramersWannierMap
+
+Lazy representation of [`kramers_wannier_operator`](@ref). The dense operator
+needs `O(4^N)` memory, but its action factors into a fast Walsh-Hadamard
+transform and a bit permutation,
+
+    (Dψ)(x) = 2^(-N/2) Σ_y (-1)^{z(x)·y} ψ(y),  z_j(x) = x_j ⊕ x_{j+1},
+
+so `D * ψ` costs `O(N 2^N)` time and `O(2^N)` memory. Sites follow the chain's
+bit convention (site `s` is bit value `2^(N-s)`).
+"""
+struct KramersWannierMap
+    N::Int
+    normalization::Float64
+    # zindex[x+1] = z(x)+1, where z(x) is the domain-wall configuration of x.
+    zindex::Vector{Int}
+end
+
+Base.size(D::KramersWannierMap) = (2^D.N, 2^D.N)
+Base.size(D::KramersWannierMap, d::Int) = d in (1, 2) ? 2^D.N :
+    throw(DimensionMismatch("KramersWannierMap has only two dimensions"))
+Base.eltype(::KramersWannierMap) = Float64
+
+"""
+    kramers_wannier_map(model::AnyonModel{SpinHalf}) -> KramersWannierMap
+
+Return the lazy [`KramersWannierMap`](@ref) of
+[`kramers_wannier_operator`](@ref), usable in place of the dense matrix for
+matrix-vector products (e.g. expectation values along a trajectory).
+"""
+function kramers_wannier_map(model::AnyonModel{SpinHalf})
+    model.pbc || throw(ArgumentError(
+        "kramers_wannier_map is defined only for periodic SpinHalf chains",
+    ))
+    N = model.N
+    basis = anyon_basis(model)
+    bufs = [b.buf for b in basis]
+    bufs == collect(0:(2^N-1)) || error(
+        "kramers_wannier_map requires the full spin-half product basis",
+    )
+    zindex = Vector{Int}(undef, 2^N)
+    for x in 0:(2^N-1)
+        z = 0
+        for site in 1:N
+            xj = (x >> (N - site)) & 1
+            xj1 = (x >> (N - mod1(site + 1, N))) & 1
+            z |= xor(xj, xj1) << (N - site)
+        end
+        zindex[x+1] = z + 1
+    end
+    return KramersWannierMap(N, 2.0^(-N / 2), zindex)
+end
+
+# In-place unnormalized fast Walsh-Hadamard transform: after the call,
+# a[z+1] = Σ_y (-1)^{popcount(z&y)} a_in[y+1].
+function _fwht!(a::AbstractVector)
+    n = length(a)
+    h = 1
+    while h < n
+        @inbounds for i in 1:(2h):n
+            for j in i:(i+h-1)
+                u = a[j]
+                v = a[j+h]
+                a[j] = u + v
+                a[j+h] = u - v
+            end
+        end
+        h <<= 1
+    end
+    return a
+end
+
+function Base.:*(D::KramersWannierMap, ψ::AbstractVector)
+    length(ψ) == 2^D.N || throw(DimensionMismatch(
+        "state length $(length(ψ)) does not match the $(D.N)-site Kramers-Wannier map",
+    ))
+    w = _fwht!(Vector{eltype(ψ)}(ψ))
+    out = similar(w)
+    @inbounds for x in eachindex(out)
+        out[x] = D.normalization * w[D.zindex[x]]
+    end
+    return out
+end
+
+"""
+    kramers_wannier_expectation(model::AnyonModel{SpinHalf}, state) -> Float64
+
+Normalized expectation `⟨ψ|D|ψ⟩/⟨ψ|ψ⟩` of the Kramers-Wannier duality
+operator, evaluated with the lazy [`kramers_wannier_map`](@ref). Along the
+(real) measurement trajectories the result is real; any residual imaginary
+part is dropped.
+"""
+function kramers_wannier_expectation(model::AnyonModel{SpinHalf}, state::AbstractVector)
+    norm_squared = real(dot(state, state))
+    norm_squared > 0 || error("cannot evaluate the KW expectation of a zero-norm state")
+    return real(dot(state, kramers_wannier_map(model) * state)) / norm_squared
+end
+
+
+"""
     anyon_basis(AT::AbstractAnyonBasis, ::Type{T}, k::Int; symmetry_block=nothing) where {N, T <: BitStr{N}}
     anyon_basis(model::AnyonModel, k::Int; symmetry_block=nothing)
 

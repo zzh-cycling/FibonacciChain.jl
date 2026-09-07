@@ -109,6 +109,55 @@ end
 
     obc_model = AnyonModel(SpinHalf(), 4; model_type = :Ising, pbc = false)
     @test_throws ArgumentError kramers_wannier_operator(obc_model)
+    @test_throws ArgumentError kramers_wannier_map(obc_model)
+
+    @testset "lazy KramersWannierMap" begin
+        rng = MersenneTwister(1234)
+        for N = 2:6
+            model = AnyonModel(SpinHalf(), N; model_type = :Ising, pbc = true)
+            D_dense = kramers_wannier_operator(model)
+            D_lazy = kramers_wannier_map(model)
+            @test size(D_lazy) == size(D_dense)
+            @test eltype(D_lazy) == Float64
+            for _ = 1:3
+                ψ = randn(rng, 2^N)
+                @test D_lazy * ψ ≈ D_dense * ψ atol = 1e-10
+                @test kramers_wannier_expectation(model, ψ) ≈
+                      dot(ψ, D_dense * ψ) / dot(ψ, ψ) atol = 1e-10
+            end
+        end
+
+        for L = 2:6
+            model = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true)
+            @test kramers_wannier_expectation(
+                model, initial_topo_sector_state(L; sector = :vaccum)) ≈ sqrt(2) atol = 1e-10
+            @test kramers_wannier_expectation(
+                model, initial_topo_sector_state(L; sector = :fermion)) ≈ -sqrt(2) atol = 1e-10
+        end
+    end
+
+    @testset "KW tracking in exact Ising evolution" begin
+        L = 6
+        model = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true)
+        τ = atanh(0.8)
+        st = zeros(Float64, 2^L)
+        st .+= 1.0
+        normalize!(st)
+        samples = BitMatrix(rand(Bool, 2 * 3, L))
+        config = MeasureConfig(
+            τ = τ, t₂ = 3, mode = :sample, track_y_expectation = true)
+        outcome = bulk_evolution(model, st, config, samples)
+        @test length(outcome.y_expectation_values) == 3
+        # The tracked operator is the KW duality map; values are recorded after
+        # each complete period.
+        @test Float64(outcome.y_expectation_values[end]) ≈
+              kramers_wannier_expectation(model, outcome.state) atol = 1e-6
+        # Tracking disabled yields an empty record.
+        config_off = MeasureConfig(τ = τ, t₂ = 3, mode = :sample)
+        outcome_off = bulk_evolution(model, st, config_off, samples)
+        @test isempty(outcome_off.y_expectation_values)
+    end
+
 
     @testset "initial_topo_sector_state eigenvalues" begin
         for L = 2:6

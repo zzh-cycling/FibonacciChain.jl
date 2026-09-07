@@ -1356,8 +1356,10 @@ Configuration struct for measurement evolution parameters.
 - `t₁::Int`: Starting layer index for evolution (default: 1)
 - `verbose::Bool`: Verbosity flag for detailed output (default: false)
 - `enable_τ_eff::Bool`: Whether to enable half-strength measurement for the last layer (default: true)
-- `track_y_expectation::Bool`: Record the Fibonacci topological-symmetry expectation
-  value after every complete period (default: false)
+- `track_y_expectation::Bool`: Record the topological-symmetry expectation value
+  after every complete period (default: false). For Fibonacci models this is the
+  topological charge `Y`; for SpinHalf models it is the Kramers-Wannier duality
+  operator (exact-state evolution only).
 - `cutoff::Float64`: MPS truncation cutoff (default: `1e-12`)
 - `mindim::Int`: Minimum MPS bond dimension retained during truncation
   (default: 1)
@@ -1728,9 +1730,11 @@ Evolve an MPS state under bulk measurements.
 # Notes
 - In `:Born` mode, samples are generated probabilistically via Born rule
 - In `:sample` mode, `samples` must be provided as input
-- `track_y_expectation=true` is currently supported by the exact-state Fibonacci
-  evolution. The operator is constructed once per call and is not constructed when
-  tracking is disabled.
+- `track_y_expectation=true` is supported by the exact-state evolution for
+  Fibonacci models (topological charge `Y`) and SpinHalf models (the
+  Kramers-Wannier duality operator, via its lazy `kramers_wannier_map`). The
+  operator is constructed once per call and is not constructed when tracking
+  is disabled.
 - (2N+1) layers of measurements correspond to N time steps of evolution
 """
 function bulk_evolution(
@@ -1760,8 +1764,15 @@ end
 _tracked_y_operator(model::AnyonModel{FibonacciAnyon}) =
     topological_charge_operator(model)
 
+# For spin-1/2 models the tracked "Y" is the non-invertible Kramers-Wannier
+# duality operator — the Ising analogue of the Fibonacci topological charge.
+# The lazy map keeps per-period tracking affordable (the dense operator costs
+# O(4^N) memory).
+_tracked_y_operator(model::AnyonModel{SpinHalf}) =
+    kramers_wannier_map(model)
+
 function _tracked_y_operator(model::AnyonModel)
-    error("Y expectation tracking is only supported for Fibonacci anyon models")
+    error("Y expectation tracking is only supported for Fibonacci and SpinHalf models")
 end
 
 function _normalized_y_expectation(Y, state::AbstractVector)
