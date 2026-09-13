@@ -1,7 +1,6 @@
 using FibonacciChain
 using Test
 
-include("test_IsingAnyon.jl")
 
 @testset "basis.jl" begin
     include("./test_Basis.jl")
@@ -30,6 +29,10 @@ end
 
 @testset "FiboSparse.jl" begin
     include("./test_FiboSparse.jl")
+end
+
+@testset "IsingAnyon.jl" begin
+    include("test_IsingAnyon.jl")
 end
 
 @testset "Ising" begin
