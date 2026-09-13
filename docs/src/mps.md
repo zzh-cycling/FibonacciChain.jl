@@ -132,7 +132,7 @@ bytes measure allocation traffic, not peak resident memory. Use the same script
 with `--project=/path/to/baseline` to compare revisions, running them sequentially.
 
 Local results on Apple Silicon with Julia 1.12.5, one Julia thread and one BLAS
-thread (2026-09-13), comparing baseline `d2efae7` with this optimization:
+thread (2026-09-13), comparing baseline `d2efae7` with commit `da00223`:
 
 | L | maxdim | Periods | Before (s) | After (s) | Before allocated (GB) | After allocated (GB) |
 |---|--------|---------|------------|-----------|-----------------------|----------------------|
@@ -157,3 +157,40 @@ Regression tests compare against the original Born algorithm for Fibonacci,
 Ising, and OBF models, including both outcomes, deferred truncation, and the final
 half-strength layer. They check samples, free energies, entropies, final states,
 RNG consumption, and replay of recorded outcomes.
+
+### Compact periodic boundary MPOs
+
+A subsequent profile of the L=32 benchmark put about 78% of sampled evolution
+time in MPO application. The two periodic boundary measurement MPOs built by
+`OpSum` carried four bond channels through the entire chain. The distant
+neighbor only contributes `Proj0` or `Proj1`, so two channels suffice in the
+bulk. Constructing those channels explicitly gives bond dimensions
+`[3, 2, …, 2]` for a measurement centered at site 1, and the reverse for site N.
+The three-channel bond carries the measured site's `I`, `Z`, and `X` terms.
+This is an exact representation of the same operator, with no operator
+truncation or change to the MPS compression settings.
+
+Sequential before/after measurements against `da00223`, using the same machine,
+Julia/BLAS thread counts, workloads, seeds, and warmup as above:
+
+| L | maxdim | Before (s) | Compact MPO (s) | Before allocated (GB) | Compact MPO allocated (GB) |
+|---|--------|------------|-----------------|-----------------------|---------------------------|
+| 8 | 64 | 0.299 | 0.314 | 0.918 | 0.867 |
+| 16 | 32 | 0.604 | 0.499 | 2.118 | 1.442 |
+| 16 | 64 | 0.664 | 0.523 | 2.273 | 1.581 |
+| 32 | 64 | 20.460 | 13.896 | 45.861 | 26.161 |
+
+The L=32 case takes **32% less time** (1.47× speedup) and allocates **43% fewer
+bytes** than the previously optimized version. The L=8 case shows no timing
+improvement in this run; the benefit grows as boundary contractions become more
+expensive. These figures measure cumulative allocation traffic, not peak memory.
+The benchmark workload itself is unchanged. For the before/after validation,
+the returned states were serialized outside the timed region for comparison.
+
+All 12 trajectories retained identical sampled outcomes and stored free energies.
+The largest stored entropy difference was `1.2e-7`, and all final-state
+fidelities agreed with one within `1e-8`. The tests also compare the entire
+boundary operator against the dense local gate, including states outside the
+fusion constraint, both boundary sites, both measurement conventions and
+outcomes, and strengths from zero through the projective limit. The trajectory
+reference independently reconstructs the original four-channel `OpSum` MPO.

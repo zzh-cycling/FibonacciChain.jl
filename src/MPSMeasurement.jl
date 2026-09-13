@@ -702,6 +702,11 @@ PBC terms centered at sites `1` and `N`. Applying those terms as a single ITenso
 gate makes ITensorMPS move the noncontiguous sites together with SWAPs and then
 move them back. The MPO representation applies the same operator without
 permuting the physical sites.
+
+For distinct boundary sites (`N >= 3`), the MPO carries only the two projectors
+of the distant neighbor through the bulk. Its bond dimensions are `3, 2, …, 2`
+at site `1`, and the reverse at site `N`; this construction is algebraically
+exact and does not truncate the measurement operator.
 """
 function measurement_operator_mpo(
     model::AnyonModel{FibonacciAnyon},
@@ -726,6 +731,16 @@ function measurement_operator_mpo(
             (exp(τ) - 1) / (2 * √(exp(2τ) + 1))
     end
 
+    if N >= 3 && (i == 1 || i == N)
+        # The distant neighbor only selects P0 or P1. Carry those two
+        # channels through the bulk instead of OpSum's four-channel MPO.
+        # Reflection exchanges the two neighbors, leaving this operator invariant.
+        ordered_sites = i == 1 ? sites : reverse(sites)
+        signed_coef = model.measure_operator == :Antiferro ? coef : -coef
+        tensors = _fibonacci_boundary_tensors(ordered_sites, cstτ, signed_coef)
+        return MPO(i == 1 ? tensors : reverse(tensors))
+    end
+
     im1, ip1 = mod1(i - 1, N), mod1(i + 1, N)
     os = OpSum()
     # An operator on one site is implicitly tensored with identities elsewhere.
@@ -746,6 +761,30 @@ function measurement_operator_mpo(
     end
 
     return MPO(os, sites)
+end
+
+function _fibonacci_boundary_tensors(sites, cst, coef)
+    N = length(sites)
+    ϕ = (1 + √5) / 2
+    links = [Index(j == 1 ? 3 : 2, "Link,l=$j") for j in 1:(N-1)]
+    tensors = Vector{ITensor}(undef, N)
+    # At the measured site the operator is a linear combination of I, Z, X.
+    tensors[1] = cst * op("I", sites[1]) * ITensors.onehot(links[1] => 1) +
+                 coef * op("Z", sites[1]) * ITensors.onehot(links[1] => 2) +
+                 coef * op("X", sites[1]) * ITensors.onehot(links[1] => 3)
+    l, r = dag(links[1]), links[2]
+    P0, P1 = op("Proj0", sites[2]), op("Proj1", sites[2])
+    tensors[2] = op("I", sites[2]) * ITensors.onehot(l => 1) *
+                 (ITensors.onehot(r => 1) + ITensors.onehot(r => 2)) +
+                 (P1 + (1 - 2/ϕ) * P0) * ITensors.onehot(l => 2, r => 1) +
+                 op("Z", sites[2]) * ITensors.onehot(l => 2, r => 2) +
+                 (-2 * ϕ^(-3/2)) * P0 * ITensors.onehot(l => 3, r => 1)
+    for j in 3:(N-1)
+        tensors[j] = delta(dag(links[j-1]), links[j]) * op("I", sites[j])
+    end
+    tensors[N] = ITensors.onehot(dag(links[N-1]) => 1) * op("Proj0", sites[N]) +
+                 ITensors.onehot(dag(links[N-1]) => 2) * op("Proj1", sites[N])
+    return tensors
 end
 
 function _measurement_operator_mps_application(

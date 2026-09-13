@@ -1,7 +1,44 @@
 using FibonacciChain, ITensorMPS, ITensors, Test, Random, LinearAlgebra
 
+@testset "Compact Fibonacci boundary MPO is the exact local operator" begin
+    for N in (3, 4, 6), convention in (:Antiferro, :Ferro)
+        model = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=convention)
+        sites = siteinds("Qubit", N)
+        for i in (1, N), sign in (false, true), τ in (0.0, 1e-8, 0.8, Inf)
+            mpo = FibonacciChain.measurement_operator_mpo(model, sites, i, τ, sign)
+            expected = measurement_operator_mps(model, sites, i, τ, sign)
+            for j in setdiff(1:N, (mod1(i-1, N), i, mod1(i+1, N)))
+                expected *= op("I", sites[j])
+            end
+            # Compare the full operator, including states outside the fusion constraint.
+            @test norm(prod(mpo) - expected) <= 1e-13 * norm(expected)
+            @test linkdims(mpo) == (i == 1 ? [3; fill(2, N-2)] : [fill(2, N-2); 3])
+        end
+    end
+end
+
 # Reference the pre-optimization Born algorithm: reconstruct gates per event,
 # contract the whole MPS for probabilities, and retain the old RNG/branch order.
+function legacy_measurement_operator(model, sites, i, τ, sign)
+    if !(model isa AnyonModel{FibonacciAnyon} && model.pbc && i in (1, length(sites)))
+        return FibonacciChain._measurement_operator_mps_application(model, sites, i, τ, sign)
+    end
+    ϕ = (1 + √5)/2
+    cst = τ >= 100 ? 0.5 : (exp(τ)+1)/(2sqrt(exp(2τ)+1))
+    coef = τ >= 100 ? 0.5 : (exp(τ)-1)/(2sqrt(exp(2τ)+1))
+    coef *= sign ? -1 : 1
+    coef *= model.measure_operator == :Antiferro ? 1 : -1
+    im1, ip1 = mod1(i-1, length(sites)), mod1(i+1, length(sites))
+    os = OpSum()
+    os += cst, "I", 1
+    os += coef, "Proj0", im1, "Z", i, "Proj1", ip1
+    os += coef, "Proj1", im1, "Z", i, "Proj0", ip1
+    os += -coef, "Proj1", im1, "Z", i, "Proj1", ip1
+    os += coef*(1-2/ϕ), "Proj0", im1, "Z", i, "Proj0", ip1
+    os += coef*(-2*ϕ^(-3/2)), "Proj0", im1, "X", i, "Proj0", ip1
+    return MPO(os, sites)
+end
+
 function legacy_mps_born(model, sites, initial, config)
     ψ = deepcopy(initial)
     rng = copy(config.rng)
@@ -25,13 +62,13 @@ function legacy_mps_born(model, sites, initial, config)
         positions, local_model, strength = FibonacciChain._obtain_measurement_config(model, row, τ)
         cols = FibonacciChain._get_sample_column_indices(model, row)
         for (k, site) in enumerate(positions)
-            M0 = FibonacciChain._measurement_operator_mps_application(local_model, sites, site, strength, false)
+            M0 = legacy_measurement_operator(local_model, sites, site, strength, false)
             ψ0, p0 = branch(ψ, M0)
             if rand(rng) < p0
                 ψ = ψ0
                 energies[row] -= log(p0)
             else
-                M1 = FibonacciChain._measurement_operator_mps_application(local_model, sites, site, strength, true)
+                M1 = legacy_measurement_operator(local_model, sites, site, strength, true)
                 ψ, _ = branch(ψ, M1)
                 samples[row, cols[k]] = true
                 energies[row] -= log(1-p0)
@@ -92,7 +129,8 @@ end
     model = AnyonModel(FibonacciAnyon(), 6; pbc=true)
     for i in (1, 3, 6), sign in (false, true), deferred in (false, true)
         M = FibonacciChain._measurement_operator_mps_application(model, sites, i, 0.7, sign)
-        expected = deferred ? apply(M, ψ; cutoff=0.0) : apply(M, ψ; cutoff=1e-12, maxdim=3)
+        old_M = legacy_measurement_operator(model, sites, i, 0.7, sign)
+        expected = deferred ? apply(old_M, ψ; cutoff=0.0) : apply(old_M, ψ; cutoff=1e-12, maxdim=3)
         p_expected = real(inner(expected, expected))
         normalize!(expected)
         actual, p = FibonacciChain._measuremap_with_operator(ψ, M;
