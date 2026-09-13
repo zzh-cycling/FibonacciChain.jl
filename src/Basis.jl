@@ -27,19 +27,27 @@ abstract type AbstractAnyonBasis end
 struct FibonacciAnyon <: AbstractAnyonBasis end  # Fibonacci fusion space: bitstrings with no adjacent 1 s, dim ~ φ^N
 struct SpinHalf <: AbstractAnyonBasis end        # spin-1/2 chains (Ising, OBF, Heisenberg): full 2^N product basis
 
+"""Periodic Ising fusion paths with labels `0 = I`, `1 = η`, `2 = σ`.
+`AnyonModel(IsingAnyon(), L)` counts physical σ anyons, not spins.
+See the Ising anyon manual for the two alternating sectors.
+"""
+struct IsingAnyon <: AbstractAnyonBasis end
+
 """
     AnyonModel(basis::FibonacciAnyon, N::Int; pbc::Bool=true, measure_operator::Symbol=:Antiferro, kwargs...)
     AnyonModel(basis::SpinHalf, N::Int; model_type::Symbol, pbc::Bool=true, measure_operator::Symbol=:X, kwargs...)
+    AnyonModel(basis::IsingAnyon, L::Int; pbc::Bool=true, measure_operator::Symbol=:fusion, J=1.0, h=1.0)
 
 Represents a 1D anyon/spin chain model.
 
 The type is parameterized as `AnyonModel{B, M}` by the basis type `B <: AbstractAnyonBasis`
-and a model tag `M::Symbol` (`:Fibonacci`, `:Ising`, `:OBF` or `:Heisenberg`); the tag of a
+and a model tag `M::Symbol` (`:Fibonacci`, `:IsingAnyon`, `:Ising`, `:OBF` or `:Heisenberg`); the tag of a
 model can be retrieved with `model_type(model)`.
 
 # Hilbert space
 Each basis type defines its own (possibly constrained) Hilbert space via `anyon_basis`:
 - `FibonacciAnyon()`: Fibonacci fusion space — bitstrings with no adjacent 1 (`1`)s, dimension ~ φ^N (model tag `:Fibonacci`).
+- `IsingAnyon()`: periodic σ fusion paths on `L` links, with both alternating sectors; dimension `2^(L÷2+1)` for even `L`, zero for odd `L` (model tag `:IsingAnyon`). `J,h` weight vacuum projectors on odd/even links.
 - `SpinHalf()`: spin-1/2 chains with the full 2^N product basis; the Hamiltonian is selected by `model_type`:
   `:Ising` (transverse-field Ising chain), `:OBF` (O'Brien-Fendley chain) or `:Heisenberg` (XXZ chain).
 
@@ -71,6 +79,18 @@ struct AnyonModel{B<:AbstractAnyonBasis,M}
     pbc::Bool
     measure_operator::Symbol
     params::Dict{Symbol,Float64}
+    function AnyonModel(
+        basis::IsingAnyon, N::Int;
+        pbc::Bool = true, measure_operator::Symbol = :fusion,
+        J::Real = 1.0, h::Real = 1.0,
+    )
+        N > 0 || throw(ArgumentError("N must be positive"))
+        pbc || throw(ArgumentError("IsingAnyon implements periodic fusion paths; open paths require boundary charges"))
+        measure_operator === :fusion || throw(ArgumentError("IsingAnyon requires measure_operator=:fusion"))
+        isfinite(J) && isfinite(h) || throw(ArgumentError("J and h must be finite"))
+        return new{IsingAnyon,:IsingAnyon}(basis, N, pbc, measure_operator,
+            Dict(:J => Float64(J), :h => Float64(h)))
+    end
     function AnyonModel(
         basis::FibonacciAnyon,
         N::Int;
@@ -105,7 +125,7 @@ struct AnyonModel{B<:AbstractAnyonBasis,M}
     end
 end
 
-# Model tag accessor: returns :Fibonacci, :Ising, :OBF or :Heisenberg.
+# Model tag accessor: returns :Fibonacci, :IsingAnyon, :Ising, :OBF or :Heisenberg.
 model_type(::AnyonModel{B,M}) where {B,M} = M
 
 # Helper function to get parameter with default value

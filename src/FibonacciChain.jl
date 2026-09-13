@@ -5,6 +5,8 @@ using ITensorMPS, ITensors
 
 #  Exported types and structs
 export FibonacciAnyon,
+    IsingAnyon,
+    ising_fusion_projector,
     SpinHalf,
     AnyonModel,
     MeasureConfig,
@@ -87,5 +89,6 @@ include("FiboSparse.jl")
 include("MPSMeasurement.jl")
 include("HybridEvolution.jl")
 include("ReferenceProbe.jl")
+include("IsingAnyon.jl")
 
 end

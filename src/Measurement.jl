@@ -271,7 +271,8 @@ Construct the Hamiltonian matrix for a 1D anyon chain.
 
 # Supported Models
 - **Fibonacci Anyons**: Supports `:Antiferro` and `:Ferro` interaction terms.
-- **Ising Anyons**: Transverse field Ising model with parameters `J` and `h`.
+- **Ising fusion chain** (`IsingAnyon`): Periodic vacuum-projector Hamiltonian with odd/even couplings `J`, `h`.
+- **Ising spin chain** (`SpinHalf`): Transverse field Ising model with parameters `J` and `h`.
 - **OBF Anyons**: O'Brien-Fendley model with parameter `λ`.
 - **Heisenberg chain**: Spin-1/2 XXZ chain `H = J ∑ (XX + YY + Δ ZZ)` (J = +1 AFM, J = -1 FM) with parameters `J` and `Δ`.
 

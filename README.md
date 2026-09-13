@@ -5,7 +5,7 @@
 [![Build Status](https://github.com/zzh-cycling/FibonacciChain.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/zzh-cycling/FibonacciChain.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/zzh-cycling/FibonacciChain.jl)
 
-This package is designed to simulate interacting anyons. Like in the Heisenberg model where singlet states have lower energy, we could design the trivial fusion outcome as the lower energy state. Currently we support two types of basis: Fibonacci constraint basis and normal spin-$1/2$ basis, for simulating Ising anyon/Majorana fermions chain $SU(2)_2$, Fibonacci anyon chain $SU(2)_3$, and Heisenberg chain $SU(2)_\infty$.
+This package is designed to simulate interacting anyons. Like in the Heisenberg model where singlet states have lower energy, we can favor the trivial fusion outcome. The supported bases are the Fibonacci constraint basis, the periodic Ising fusion-path basis, and the spin-$1/2$ product basis for spin chains.
 
 Ref: Phys. Rev. Lett. 98, 160409 [DOI](https://doi.org/10.1103/PhysRevLett.98.160409)
 
@@ -54,3 +54,9 @@ For more examples and API details, see the [documentation](https://zzh-cycling.g
 - **Measurement dynamics**: Both for Born random sampling and post selection clean trajectory.
 - **Anyon Operations**: Anyonic braiding, exchange statistics, and fusion operations.
 - **Topological symmetry**: Topological symmetry sector analysis.
+
+## Ising anyon fusion chains
+
+For the periodic Ising fusion-path Hilbert space, Hamiltonian, and local
+measurements, see [Ising anyon chain](docs/src/ising_anyons.md).
+Use `AnyonModel(IsingAnyon(), L)` with `L` physical σ anyons.

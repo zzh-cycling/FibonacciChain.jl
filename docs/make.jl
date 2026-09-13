@@ -22,6 +22,7 @@ makedocs(;
         "Home" => "index.md",
         "Manual" => [
             "Basis Functions" => "basis.md",
+            "Ising Anyon Chain" => "ising_anyons.md",
             "Observables" => "observables.md",
             "Measurements" => "measurements.md",
             "MPS Methods" => "mps.md",

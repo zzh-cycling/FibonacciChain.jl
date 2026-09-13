@@ -1,6 +1,8 @@
 using FibonacciChain
 using Test
 
+include("test_IsingAnyon.jl")
+
 @testset "basis.jl" begin
     include("./test_Basis.jl")
 end
