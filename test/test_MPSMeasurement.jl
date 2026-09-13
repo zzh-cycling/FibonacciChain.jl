@@ -240,7 +240,7 @@ end
     Y_contracted = foldr(*, topological_charge_mpo(sites; pbc = pbc))
     i_in  = filter(i -> plev(i) > 0, inds(Y_contracted))
     i_out = filter(i -> plev(i) == 0, inds(Y_contracted))
-    Y_perm = permute(Y_contracted, i_in..., i_out...)
+    Y_perm = ITensors.permute(Y_contracted, i_in..., i_out...)
     Y_matrix = reshape(Y_perm.tensor, 2^4, 2^4)
     idx = pbc ? [1,2,3,5,6,9,11] : [1,2,3,5,6,9,10,11]
     Y_ed = topological_charge_operator(model)

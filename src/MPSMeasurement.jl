@@ -911,8 +911,10 @@ function _measuremap_with_operator(
                  apply(M, ψ; cutoff = cutoff, mindim = mindim, maxdim = maxdim) :
                  apply(M, ψ; cutoff = 0.0)
 
-    # Calculate probability (norm squared)
-    prob = real(inner(ψ_measured, ψ_measured))
+    # `apply` normally leaves a canonical MPS. Its norm then only contracts the
+    # orthogonality center; `inner(ψ, ψ)` contracts the entire chain. `norm`
+    # also handles noncanonical results through its full-contraction fallback.
+    prob = norm(ψ_measured)^2
 
     # Normalize the state in-place to avoid extra MPS allocation
     normalize!(ψ_measured)
@@ -1076,6 +1078,23 @@ function _apply_measurement_layer_mps(
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
 end
 
+# Fixed gates can be shared across periods of one trajectory. The cache must
+# remain local to that trajectory: MPO/ITensor indices belong to its `sites`.
+struct _MPSMeasurementLayerOperators
+    outcome0::Vector{Union{ITensor,MPO}}
+    outcome1::Vector{Union{ITensor,MPO}}
+end
+
+function _measurement_layer_operators(model, τ, sites, layer_idx)
+    measurement_sites, measure_model, strength =
+        _obtain_measurement_config(model, layer_idx, τ)
+    gates(sign) = Union{ITensor,MPO}[
+        _measurement_operator_mps_application(measure_model, sites, i, strength, sign)
+        for i in measurement_sites
+    ]
+    return _MPSMeasurementLayerOperators(gates(false), gates(true))
+end
+
 function _stochastic_measurement_layer_mps_mps(
     model::AnyonModel{AT},
     τ::Float64,
@@ -1088,6 +1107,7 @@ function _stochastic_measurement_layer_mps_mps(
     maxdim::Int = 100,
     verbose::Bool = false,
     truncate_every_events::Int = 1,
+    operators::Union{Nothing,_MPSMeasurementLayerOperators} = nothing,
 ) where {AT<:AbstractAnyonBasis}
 
     measurement_sites, measure_anyon_model, measurement_strength =
@@ -1096,7 +1116,9 @@ function _stochastic_measurement_layer_mps_mps(
     sample_layer = BitVector(zeros(Bool, n))
     F_layer = 0.0
     do_per_event_truncate = (truncate_every_events == 1)
-    operators_false, operators_true = if do_per_event_truncate
+    operators_false, operators_true = if operators !== nothing
+        operators.outcome0, operators.outcome1
+    elseif do_per_event_truncate
         nothing, nothing
     else
         (
@@ -1122,20 +1144,26 @@ function _stochastic_measurement_layer_mps_mps(
     end
 
     if do_per_event_truncate
-        # Preserve legacy behavior for exact RNG trajectory compatibility.
+        # Keep per-event compression and draw from the original input state.
         @inbounds for idx = 1:n
             site = measurement_sites[idx]
-            ψ0, p0 = measuremap(
-                measure_anyon_model,
-                ψ,
-                sites,
-                site,
-                measurement_strength,
-                false;
-                cutoff = cutoff,
-                mindim = mindim,
-                maxdim = maxdim,
-            )
+            ψ0, p0 = if operators === nothing
+                measuremap(
+                    measure_anyon_model,
+                    ψ,
+                    sites,
+                    site,
+                    measurement_strength,
+                    false;
+                    cutoff = cutoff,
+                    mindim = mindim,
+                    maxdim = maxdim,
+                )
+            else
+                _measuremap_with_operator(
+                    ψ, operators_false[idx]; cutoff=cutoff, mindim=mindim, maxdim=maxdim,
+                )
+            end
             p1 = 1 - p0
 
             randomNumber = rand(rng)
@@ -1145,17 +1173,23 @@ function _stochastic_measurement_layer_mps_mps(
                 ψ = ψ0
                 F_layer += -log(p0)
             else
-                ψ, _ = measuremap(
-                    measure_anyon_model,
-                    ψ,
-                    sites,
-                    site,
-                    measurement_strength,
-                    true;
-                    cutoff = cutoff,
-                    mindim = mindim,
-                    maxdim = maxdim,
-                )
+                ψ, _ = if operators === nothing
+                    measuremap(
+                        measure_anyon_model,
+                        ψ,
+                        sites,
+                        site,
+                        measurement_strength,
+                        true;
+                        cutoff = cutoff,
+                        mindim = mindim,
+                        maxdim = maxdim,
+                    )
+                else
+                    _measuremap_with_operator(
+                        ψ, operators_true[idx]; cutoff=cutoff, mindim=mindim, maxdim=maxdim,
+                    )
+                end
                 sample_layer[idx] = 1
                 F_layer += -log(p1)
             end
@@ -2029,12 +2063,20 @@ function _born_measure_mps(
     y_expectation_values =
         measure_config.track_y_expectation ? zeros(Float32, Δt) : Float32[]
 
+    operator_cache = Dict{Tuple{Int,Float64},_MPSMeasurementLayerOperators}()
+
     for period = 1:Δt
         # Apply all layers in this period
         for layer = 1:n_layers
             global_layer_idx = (period - 1) * n_layers + layer
             # Apply τ_eff only on the last layer of the last period
             τ_current = (period == Δt && layer == n_layers && enable_τ_eff) ? τ/2 : τ
+
+            # Include the strength in the key so the final half-strength layer
+            # never reuses a full-strength operator. OBF has 14 distinct phases.
+            operators = get!(operator_cache, (layer, τ_current)) do
+                _measurement_layer_operators(model, τ_current, sites, global_layer_idx)
+            end
 
             outcome = _stochastic_measurement_layer_mps_mps(
                 model,
@@ -2048,6 +2090,7 @@ function _born_measure_mps(
                 maxdim = maxdim,
                 verbose = verbose,
                 truncate_every_events = measure_config.truncate_every_events,
+                operators = operators,
             )
             current_state = outcome.state
             if constraint_projector !== nothing

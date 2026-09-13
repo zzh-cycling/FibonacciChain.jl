@@ -21,6 +21,7 @@ end
 
 @testset "MPSMeasurement.jl" begin
     include("./test_MPSMeasurement.jl")
+    include("./test_MPSPerformance.jl")
 end
 
 @testset "HybridEvolution.jl" begin

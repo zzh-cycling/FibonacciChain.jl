@@ -105,3 +105,55 @@ println("Measurement probability: $prob")
 2. **Convergence**: Monitor energy convergence during DMRG sweeps  
 3. **Memory**: Use appropriate number precision (Float64 vs ComplexF64)
 4. **Parallelization**: ITensors supports threading for large calculations
+
+### Born evolution performance (issue #36)
+
+Born MPS evolution caches the two measurement operators for each layer phase
+within a trajectory. The final half-strength layer has a separate cache entry.
+Probabilities use `norm(ψ)^2`, which contracts only the orthogonality center when
+the resulting MPS is canonical, and falls back to a full contraction otherwise.
+This avoids rebuilding fixed gates and repeatedly contracting the entire chain.
+The public API, RNG draw order, and truncation settings are unchanged.
+
+Keep `truncate_every_events=1` as the starting point. Deferring truncation can
+increase intermediate bond dimensions substantially, making SVDs more expensive
+and increasing memory use; a larger interval is not necessarily faster.
+
+Run the reproducible benchmark from the repository root:
+
+```sh
+julia --project=. exm/benchmark_mps_issue36.jl 3 1
+```
+
+The arguments are the number of seeded repetitions and `truncate_every_events`.
+The script warms up compilation, fixes BLAS to one thread, and reports elapsed
+time, cumulative allocated bytes, and final maximum bond dimension. Allocated
+bytes measure allocation traffic, not peak resident memory. Use the same script
+with `--project=/path/to/baseline` to compare revisions, running them sequentially.
+
+Local results on Apple Silicon with Julia 1.12.5, one Julia thread and one BLAS
+thread (2026-09-13), comparing baseline `d2efae7` with this optimization:
+
+| L | maxdim | Periods | Before (s) | After (s) | Before allocated (GB) | After allocated (GB) |
+|---|--------|---------|------------|-----------|-----------------------|----------------------|
+| 8 | 64 | 80 | 0.571 | 0.346 | 1.706 | 0.918 |
+| 16 | 32 | 32 | 0.932 | 0.651 | 3.249 | 2.118 |
+| 16 | 64 | 32 | 0.996 | 0.671 | 3.418 | 2.273 |
+| 32 | 64 | 64 | 26.256 | 21.307 | 60.690 | 45.861 |
+
+Each entry is the median of seeds 1–3, with periodic Fibonacci chains,
+`cutoff=1e-12`, `truncate_every_events=1`, and the default final half-strength
+layer. The strength is `atanh(1/sqrt(2))` for L=8 and `atanh(0.95)` otherwise.
+GB denotes decimal gigabytes of cumulative allocations. The L=32 workload takes
+about 19% less time and allocates 24% fewer bytes. These are local measurements,
+not an asymptotic scaling fit or a peak-memory measurement; gate application and
+SVD compression still dominate larger runs.
+
+An additional before/after comparison of all 12 seeded trajectories found
+identical samples and stored Float32 free energies and entropies; final-state
+fidelities differed from one by less than `1e-8`.
+
+Regression tests compare against the original Born algorithm for Fibonacci,
+Ising, and OBF models, including both outcomes, deferred truncation, and the final
+half-strength layer. They check samples, free energies, entropies, final states,
+RNG consumption, and replay of recorded outcomes.
