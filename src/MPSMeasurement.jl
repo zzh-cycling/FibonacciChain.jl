@@ -839,6 +839,46 @@ function measurement_operator_mps(
     return M_local
 end
 
+function _measurement_operator_mps_application(
+    model::Union{AnyonModel{SpinHalf,:Ising},AnyonModel{SpinHalf,:OBF}},
+    sites::Vector{<:Index}, i::Int, τ::Float64, sign::Bool,
+)
+    N = length(sites)
+    operator = model.measure_operator
+    width = operator == :ZZ ? 2 : operator in (:XZZ, :ZZX) ? 3 : 1
+    if !model.pbc || N <= width || i + width - 1 <= N
+        return measurement_operator_mps(model, sites, i, τ, sign)
+    end
+    @assert 1 <= i <= N "Index i must be in the range [1, N]"
+    cst = τ >= 100 ? 0.5 : cosh(τ/2) / √(2cosh(τ))
+    coef = τ >= 100 ? 0.5 : sinh(τ/2) / √(2cosh(τ))
+    coef *= sign ? -1 : 1
+    operator in (:XZZ, :ZZX) && (coef = -coef)
+    positions = mod1.(i:(i+width-1), N)
+    names = operator == :ZZ ? ("Z", "Z") :
+            operator == :XZZ ? ("X", "Z", "Z") : ("Z", "Z", "X")
+    # c I + a P is a sum of two product operators, even across the boundary.
+    # Carry the two terms through an MPO instead of swapping distant sites.
+    links = [Index(2, "Link,l=$j") for j in 1:(N-1)]
+    tensors = Vector{ITensor}(undef, N)
+    for j in 1:N
+        k = findfirst(==(j), positions)
+        identity = op("I", sites[j])
+        pauli = isnothing(k) ? identity : op(names[k], sites[j])
+        if j == 1
+            tensors[j] = cst * identity * ITensors.onehot(links[j] => 1) +
+                         coef * pauli * ITensors.onehot(links[j] => 2)
+        elseif j == N
+            tensors[j] = identity * ITensors.onehot(dag(links[j-1]) => 1) +
+                         pauli * ITensors.onehot(dag(links[j-1]) => 2)
+        else
+            tensors[j] = identity * ITensors.onehot(dag(links[j-1]) => 1, links[j] => 1) +
+                         pauli * ITensors.onehot(dag(links[j-1]) => 2, links[j] => 2)
+        end
+    end
+    return MPO(tensors)
+end
+
 function measurement_operator_mps(
     model::AnyonModel{SpinHalf,:OBF},
     sites::Vector{<:Index},

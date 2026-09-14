@@ -1,5 +1,27 @@
 using FibonacciChain, ITensorMPS, ITensors, Test, Random, LinearAlgebra
 
+@testset "Spin boundary MPOs equal the dense Pauli measurement" begin
+    for N in (3, 4, 6), kind in (:Ising, :OBF)
+        sites = siteinds("Qubit", N)
+        operators = kind == :Ising ? (:ZZ,) : (:ZZ, :XZZ, :ZZX)
+        for operator in operators, i in (N-1, N), sign in (false, true), τ in (0.0, 0.8, Inf)
+            model = AnyonModel(SpinHalf(), N; model_type=kind, pbc=true, measure_operator=operator)
+            gate = measurement_operator_mps(model, sites, i, τ, sign)
+            optimized = FibonacciChain._measurement_operator_mps_application(model, sites, i, τ, sign)
+            actual = optimized isa MPO ? prod(optimized) : optimized
+            expected = gate
+            for site in sites
+                hasind(expected, site) || (expected *= op("I", site))
+                hasind(actual, site) || (actual *= op("I", site))
+            end
+            @test norm(actual - expected) <= 1e-13 * norm(expected)
+            if optimized isa MPO
+                @test maxlinkdim(optimized) == 2
+            end
+        end
+    end
+end
+
 @testset "Compact Fibonacci boundary MPO is the exact local operator" begin
     for N in (3, 4, 6), convention in (:Antiferro, :Ferro)
         model = AnyonModel(FibonacciAnyon(), N; pbc=true, measure_operator=convention)
@@ -20,6 +42,9 @@ end
 # Reference the pre-optimization Born algorithm: reconstruct gates per event,
 # contract the whole MPS for probabilities, and retain the old RNG/branch order.
 function legacy_measurement_operator(model, sites, i, τ, sign)
+    if model isa Union{AnyonModel{SpinHalf,:Ising},AnyonModel{SpinHalf,:OBF}}
+        return measurement_operator_mps(model, sites, i, τ, sign)
+    end
     if !(model isa AnyonModel{FibonacciAnyon} && model.pbc && i in (1, length(sites)))
         return FibonacciChain._measurement_operator_mps_application(model, sites, i, τ, sign)
     end
@@ -93,8 +118,12 @@ end
         @testset "$(typeof(model)), stride=$stride, half_layer=$half_layer" begin
             ψ, sites = initial_mps(model.N)
             original = deepcopy(ψ)
+            # Spin boundary MPOs avoid the old intermediate SWAP truncations.
+            # Compare their trajectories in the exact six-site limit; compressed
+            # spin trajectories are checked against dense evolution separately.
+            maxdim = model isa AnyonModel{FibonacciAnyon} ? 4 : 8
             config = MeasureConfig(τ=0.8, t₂=3, mode=:Born, rng=MersenneTwister(36),
-                cutoff=1e-12, mindim=1, maxdim=4, truncate_every_events=stride,
+                cutoff=1e-12, mindim=1, maxdim=maxdim, truncate_every_events=stride,
                 enable_τ_eff=half_layer)
             expected = legacy_mps_born(model, sites, ψ, config)
             actual = bulk_evolution(model, sites, ψ, config)
@@ -117,6 +146,49 @@ end
             # 1-p0. Compare free energies to the legacy Born path above, not to
             # the replay convention, which uses the selected branch's norm.
         end
+    end
+end
+
+function reference_spin_replay(model, sites, initial, samples; maxdim=nothing)
+    state = isnothing(maxdim) ? prod(initial) : deepcopy(initial)
+    for row in axes(samples, 1)
+        τ = row == size(samples, 1) ? 0.4 : 0.8
+        positions, local_model, strength = FibonacciChain._obtain_measurement_config(model, row, τ)
+        cols = FibonacciChain._get_sample_column_indices(model, row)
+        for (k, i) in enumerate(positions)
+            gate = measurement_operator_mps(local_model, sites, i, strength, samples[row, cols[k]])
+            state = isnothing(maxdim) ? apply(gate, state) :
+                apply(gate, state; cutoff=1e-12, maxdim=maxdim)
+            state /= norm(state)
+        end
+    end
+    return state
+end
+
+@testset "Compressed spin trajectories converge to dense evolution" begin
+    for kind in (:Ising, :OBF)
+        model = AnyonModel(SpinHalf(), 6; model_type=kind, pbc=true, λ=0.3)
+        initial, sites = initial_mps(6)
+        config = MeasureConfig(τ=0.8, t₂=3, mode=:Born, rng=MersenneTwister(36),
+            maxdim=8, cutoff=1e-12)
+        samples = bulk_evolution(model, sites, initial, config).samples
+        exact = reference_spin_replay(model, sites, initial, samples)
+        errors = Float64[]
+        for chi in (2, 4, 8)
+            replay = MeasureConfig(τ=0.8, t₂=3, mode=:sample, maxdim=chi, cutoff=1e-12)
+            actual = bulk_evolution(model, sites, initial, replay, samples).state
+            legacy = reference_spin_replay(model, sites, initial, samples; maxdim=chi)
+            error = 1 - abs(inner(exact, prod(actual)))^2
+            old_error = 1 - abs(inner(exact, prod(legacy)))^2
+            push!(errors, error)
+            @test maxlinkdim(actual) <= chi
+            @test norm(actual) ≈ 1 atol=1e-12
+            # For these fixed trajectories, avoiding SWAP truncations improves
+            # accuracy. This is a regression example, not a universal error bound.
+            @test error <= old_error + 1e-10
+        end
+        @test errors[2] < errors[1]
+        @test errors[3] < 1e-9
     end
 end
 
