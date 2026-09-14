@@ -863,6 +863,48 @@ end
     @test spectrum_sub[1:7, :] ≈ spectrum_ref[1:7, :] atol = 1e-5
 end
 
+@testset "cached periodic OBF measurement operators" begin
+    L = 8
+    τ = atanh(0.8)
+    model = AnyonModel(SpinHalf(), L; model_type = :OBF, λ = 0.5, pbc = true)
+    sites = siteinds("Qubit", L)
+    ψ = productMPS(sites, fill("0", L))
+    layer = 1
+    measurement_sites, _, _ = FibonacciChain._obtain_measurement_config(model, layer, τ)
+    layer_sample = BitVector(rand(MersenneTwister(19), Bool, length(measurement_sites)))
+    operators = FibonacciChain._lyapunov_measurement_layer_operators(model, τ, sites, layer)
+
+    # The last XZZ event wraps across the periodic boundary and must use an MPO.
+    @test operators.outcome0[end] isa MPO
+
+    uncached = FibonacciChain._apply_measurement_layer_mps(
+        model,
+        τ,
+        sites,
+        ψ,
+        layer_sample,
+        layer;
+        cutoff = 1e-14,
+        maxdim = 64,
+        normalized = false,
+    ).state
+    cached = FibonacciChain._apply_measurement_layer_mps(
+        model,
+        τ,
+        sites,
+        ψ,
+        layer_sample,
+        layer;
+        cutoff = 1e-14,
+        maxdim = 64,
+        normalized = false,
+        operators = operators,
+    ).state
+
+    @test inner(cached, cached) ≈ inner(uncached, uncached) atol = 1e-13
+    @test inner(cached, uncached) ≈ inner(uncached, uncached) atol = 1e-13
+end
+
 
 @testset "Default sector MPS frame has an unrecorded initial QR" begin
     L = 8

@@ -929,6 +929,73 @@ function _measuremap_impl!(
     return mapped_state
 end
 
+# Apply one measurement map to every column of a Lyapunov frame. The local
+# basis transition is independent of the frame index, so evaluate it once and
+# reuse it across columns instead of traversing the full basis for each state.
+function _measuremap_frame_impl!(
+    mapped_states::Matrix{ET},
+    basis::Vector{BT},
+    model::AnyonModel{AT},
+    τ::Float64,
+    states::Matrix{ET},
+    idx::Int,
+    sign::Bool,
+) where {ET,BT,AT<:AbstractAnyonBasis}
+    l, k = size(states)
+    size(mapped_states) == (l, k) ||
+        throw(DimensionMismatch("mapped frame must have size ($l, $k)"))
+    length(basis) == l ||
+        throw(DimensionMismatch("basis length must be $l, got $(length(basis))"))
+
+    fill!(mapped_states, zero(ET))
+    @inbounds for i = 1:l
+        result = _apply_result(model, τ, basis[i], idx, sign)
+        if result.w2 == 0
+            for column = 1:k
+                mapped_states[i, column] += result.w1 * states[i, column]
+            end
+        else
+            j2 = searchsortedfirst(basis, result.s2)
+            for column = 1:k
+                amplitude = states[i, column]
+                mapped_states[i, column] += result.w1 * amplitude
+                mapped_states[j2, column] += result.w2 * amplitude
+            end
+        end
+    end
+
+    return mapped_states
+end
+
+function _apply_measurement_frame_layer!(
+    buffer::Matrix{ET},
+    states::Matrix{ET},
+    basis,
+    measure_model::AnyonModel{AT},
+    strength::Float64,
+    measurement_sites,
+    layer_sample,
+) where {ET,AT<:AbstractAnyonBasis}
+    length(layer_sample) == length(measurement_sites) ||
+        throw(DimensionMismatch("measurement sample and site counts must match"))
+
+    current = states
+    scratch = buffer
+    @inbounds for event in eachindex(measurement_sites)
+        _measuremap_frame_impl!(
+            scratch,
+            basis,
+            measure_model,
+            strength,
+            current,
+            measurement_sites[event],
+            layer_sample[event],
+        )
+        current, scratch = scratch, current
+    end
+    return current, scratch
+end
+
 function laddermeasuremap(
     model::AnyonModel{AT},
     τ::Float64,
@@ -2193,26 +2260,50 @@ function lyapunov_spectrum(
     for i in 1:k
         states[i, i] = 1.0
     end
+    buffer = similar(states)
     spectrum_tlis = zeros(k, t)
 
+    # Every period has the same layer geometry and measurement strengths. Cache
+    # those data once; only the outcome bits vary between periods.
+    layer_configs = map(1:n_layers) do layer
+        measurement_sites, measure_model, strength =
+            _obtain_measurement_config(model, layer, τ)
+        return (
+            measurement_sites = measurement_sites,
+            measure_model = measure_model,
+            strength = strength,
+            basis = basis,
+            sample_columns = _get_sample_column_indices(model, layer),
+        )
+    end
+
     for step in 1:t
-        sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
-        for i in 1:k
-            config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
-            outcome = _sample_measure(
-                model,
-                states[:, i],
-                sample_layer,
-                config,
-                false,
+        for layer in 1:n_layers
+            global_layer = (step - 1) * n_layers + layer
+            config = layer_configs[layer]
+            layer_sample = @view sample[global_layer, config.sample_columns]
+            states, buffer = _apply_measurement_frame_layer!(
+                buffer,
+                states,
+                config.basis,
+                config.measure_model,
+                config.strength,
+                config.measurement_sites,
+                layer_sample,
             )
-            states[:, i] = outcome.state
         end
-        
-        Q, R = qr(states)
-        states = Q[:, 1:k]
+
+        # Materialize only the thin Q frame into the reusable buffer. Building
+        # Matrix(F.Q) would create an l×l matrix when l ≫ k.
+        F = qr!(states)
         # Note here do not sort, will distort the Lyapunov spectrum (singular eigenvalues, corresponds to the lnZ, not lnp)
-        spectrum_tlis[:, step] = -log.(abs.(diag(R)))
+        spectrum_tlis[:, step] = -log.(abs.(diag(F.R)))
+        fill!(buffer, 0.0)
+        @inbounds for i = 1:k
+            buffer[i, i] = 1.0
+        end
+        lmul!(F.Q, buffer)
+        states, buffer = buffer, states
     end
 
     return spectrum_tlis

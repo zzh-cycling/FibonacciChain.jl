@@ -1050,6 +1050,58 @@ function boundary_evolution(
     end
 end
 
+# Fixed gates can be shared across periods of one trajectory. The cache must
+# remain local to that trajectory: MPO/ITensor indices belong to its `sites`.
+struct _MPSMeasurementLayerOperators
+    outcome0::Vector{Union{ITensor,MPO}}
+    outcome1::Vector{Union{ITensor,MPO}}
+end
+
+function _measurement_layer_operators(model, τ, sites, layer_idx)
+    measurement_sites, measure_model, strength =
+        _obtain_measurement_config(model, layer_idx, τ)
+    gates(sign) = Union{ITensor,MPO}[
+        _measurement_operator_mps_application(measure_model, sites, i, strength, sign)
+        for i in measurement_sites
+    ]
+    return _MPSMeasurementLayerOperators(gates(false), gates(true))
+end
+
+# The compact boundary MPO is validated for periodic spin chains. Fibonacci
+# Lyapunov evolution retains the existing gate representation because its
+# boundary MPO follows a different convention in the unnormalized path.
+function _unnormalized_measurement_operator_mps(model, sites, i, τ, sign)
+    return measurement_operator_mps(model, sites, i, τ, sign)
+end
+
+function _unnormalized_measurement_operator_mps(
+    model::AnyonModel{SpinHalf},
+    sites,
+    i,
+    τ,
+    sign,
+)
+    return _measurement_operator_mps_application(model, sites, i, τ, sign)
+end
+
+function _lyapunov_measurement_layer_operators(model, τ, sites, layer_idx)
+    measurement_sites, measure_model, strength =
+        _obtain_measurement_config(model, layer_idx, τ)
+    gates(sign) = Union{ITensor,MPO}[
+        _unnormalized_measurement_operator_mps(measure_model, sites, i, strength, sign)
+        for i in measurement_sites
+    ]
+    return _MPSMeasurementLayerOperators(gates(false), gates(true))
+end
+
+@inline function _measurement_operator_for_outcome(
+    operators::_MPSMeasurementLayerOperators,
+    sign::Bool,
+    event::Int,
+)
+    return sign ? operators.outcome1[event] : operators.outcome0[event]
+end
+
 function _apply_measurement_layer_mps(
     model::AnyonModel{AT},
     τ::Float64,
@@ -1062,6 +1114,7 @@ function _apply_measurement_layer_mps(
     maxdim::Int = 100,
     truncate_every_events::Int = 1,
     normalized::Bool = true,
+    operators::Union{Nothing,_MPSMeasurementLayerOperators} = nothing,
 ) where {AT<:AbstractAnyonBasis}
     # Helper function to apply measurements to a layer
     measurement_sites, measure_anyon_model, measurement_strength =
@@ -1069,19 +1122,12 @@ function _apply_measurement_layer_mps(
     F_layer = 0.0
     n = length(measurement_sites)
     do_per_event_truncate = (truncate_every_events == 1)
-    operators = if normalized && do_per_event_truncate
+    selected_operators = if operators !== nothing || (normalized && do_per_event_truncate)
         nothing
     else
-        [
-            normalized ?
-            _measurement_operator_mps_application(
-                measure_anyon_model,
-                sites,
-                measurement_sites[k],
-                measurement_strength,
-                layer_sample[k],
-            ) :
-            measurement_operator_mps(
+        Union{ITensor,MPO}[
+            (normalized ? _measurement_operator_mps_application :
+             _unnormalized_measurement_operator_mps)(
                 measure_anyon_model,
                 sites,
                 measurement_sites[k],
@@ -1095,17 +1141,31 @@ function _apply_measurement_layer_mps(
         if do_per_event_truncate
             # Preserve legacy behavior for exact RNG trajectory compatibility.
             @inbounds for idx = 1:n
-                ψ, prob = measuremap(
-                    measure_anyon_model,
-                    ψ,
-                    sites,
-                    measurement_sites[idx],
-                    measurement_strength,
-                    layer_sample[idx];
-                    cutoff = cutoff,
-                    mindim = mindim,
-                    maxdim = maxdim,
-                )
+                ψ, prob = if operators === nothing
+                    measuremap(
+                        measure_anyon_model,
+                        ψ,
+                        sites,
+                        measurement_sites[idx],
+                        measurement_strength,
+                        layer_sample[idx];
+                        cutoff = cutoff,
+                        mindim = mindim,
+                        maxdim = maxdim,
+                    )
+                else
+                    _measuremap_with_operator(
+                        ψ,
+                        _measurement_operator_for_outcome(
+                            operators,
+                            layer_sample[idx],
+                            idx,
+                        );
+                        cutoff = cutoff,
+                        mindim = mindim,
+                        maxdim = maxdim,
+                    )
+                end
                 F_layer += -log(prob)
             end
         else
@@ -1116,7 +1176,8 @@ function _apply_measurement_layer_mps(
             @inbounds for idx = 1:n
                 ψ, prob = _measuremap_with_operator(
                     ψ,
-                    operators[idx];
+                    operators === nothing ? selected_operators[idx] :
+                    _measurement_operator_for_outcome(operators, layer_sample[idx], idx);
                     cutoff = cutoff,
                     mindim = mindim,
                     maxdim = maxdim,
@@ -1138,11 +1199,23 @@ function _apply_measurement_layer_mps(
         # Unnormalized evolution: apply operators without normalizing
         if do_per_event_truncate
             @inbounds for idx = 1:n
-                ψ = apply(operators[idx], ψ; cutoff = cutoff, maxdim = maxdim)
+                operator = operators === nothing ? selected_operators[idx] :
+                           _measurement_operator_for_outcome(
+                    operators,
+                    layer_sample[idx],
+                    idx,
+                )
+                ψ = apply(operator, ψ; cutoff = cutoff, maxdim = maxdim)
             end
         else
             @inbounds for idx = 1:n
-                ψ = apply(operators[idx], ψ; cutoff = 0.0)
+                operator = operators === nothing ? selected_operators[idx] :
+                           _measurement_operator_for_outcome(
+                    operators,
+                    layer_sample[idx],
+                    idx,
+                )
+                ψ = apply(operator, ψ; cutoff = 0.0)
                 if idx % truncate_every_events == 0 || idx == n
                     ψ = truncate(
                         ψ;
@@ -1155,23 +1228,6 @@ function _apply_measurement_layer_mps(
         end
     end
     return Measurement_outcome_mps_boundary(ψ, layer_sample, Float32(F_layer))
-end
-
-# Fixed gates can be shared across periods of one trajectory. The cache must
-# remain local to that trajectory: MPO/ITensor indices belong to its `sites`.
-struct _MPSMeasurementLayerOperators
-    outcome0::Vector{Union{ITensor,MPO}}
-    outcome1::Vector{Union{ITensor,MPO}}
-end
-
-function _measurement_layer_operators(model, τ, sites, layer_idx)
-    measurement_sites, measure_model, strength =
-        _obtain_measurement_config(model, layer_idx, τ)
-    gates(sign) = Union{ITensor,MPO}[
-        _measurement_operator_mps_application(measure_model, sites, i, strength, sign)
-        for i in measurement_sites
-    ]
-    return _MPSMeasurementLayerOperators(gates(false), gates(true))
 end
 
 function _stochastic_measurement_layer_mps_mps(
@@ -1327,7 +1383,8 @@ end
 """
     lyapunov_spectrum_mps(model::AnyonModel, sites::Vector{<:Index}, τ::Float64, sample::BitMatrix;
                                  n_states::Int=10, initial_states=nothing, sector=nothing,
-                                 cutoff::Float64=1e-10, maxdim::Int=100)
+                                 cutoff::Float64=1e-10, maxdim::Int=100,
+                                 truncate_every_events::Int=1)
 
 Compute the dominant spectrum of the transfer matrix via subspace iteration, using MPS states.
 
@@ -1362,6 +1419,8 @@ factors are recorded as the spectrum.
   configurations — from taking over the subleading frame directions.
 - `cutoff::Float64=1e-10`: MPS truncation cutoff
 - `maxdim::Int=100`: Maximum bond dimension for MPS operations
+- `truncate_every_events::Int=1`: Number of measurement events between full-MPS
+  truncations. The default preserves the existing per-event behavior.
 
 # Returns
 - `Matrix{Float64}`: Matrix of size `(k, t)` where `k = min(n_states, length(anyon_basis(model)))`
@@ -1396,6 +1455,7 @@ function lyapunov_spectrum_mps(
     sector::Union{Nothing,Symbol} = nothing,
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
+    truncate_every_events::Int = 1,
 ) where {AT<:AbstractAnyonBasis}
     # Here the transfer matrix is not hermitian, thus the Schur vector is not eigenvectors.
     # We need to do a QR-like projection via Gram-matrix Cholesky. When the non-hermitian
@@ -1406,6 +1466,7 @@ function lyapunov_spectrum_mps(
     t = D_layers ÷ n_layers
     n_cols == _samples_per_layer(model) ||
         error("sample size spatial dimension must be $(_samples_per_layer(model)), got $n_cols")
+    truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
 
     N = length(sites)
 
@@ -1471,10 +1532,21 @@ function lyapunov_spectrum_mps(
         states, _ = _gram_cholesky_orthonormalize_mps(states, sites; cutoff, maxdim)
     end
     spectrum_tlis = zeros(k, t)
+    config = MeasureConfig(
+        τ = τ,
+        mode = :sample,
+        t₂ = 1,
+        enable_τ_eff = false,
+        cutoff = cutoff,
+        maxdim = maxdim,
+        truncate_every_events = truncate_every_events,
+    )
+    operator_cache = [
+        _lyapunov_measurement_layer_operators(model, τ, sites, layer) for layer = 1:n_layers
+    ]
 
     for step in 1:t
         sample_layer = sample[(step - 1) * n_layers + 1 : step * n_layers, :]
-        config = MeasureConfig(τ = τ, mode = :sample, t₂ = 1, enable_τ_eff = false)
         for i in 1:k
             outcome = _sample_measure_mps(
                 model,
@@ -1485,6 +1557,8 @@ function lyapunov_spectrum_mps(
                 cutoff = cutoff,
                 maxdim = maxdim,
                 normalized = false,
+                compute_entropy = false,
+                operator_cache = operator_cache,
             )
             states[i] = outcome.state
         end
@@ -1493,7 +1567,14 @@ function lyapunov_spectrum_mps(
             states = [project(ψ) for ψ in states]
         end
         states, stretches =
-            _gram_cholesky_orthonormalize_mps(states, sites; cutoff, maxdim, step)
+            _gram_cholesky_orthonormalize_mps(
+                states,
+                sites;
+                cutoff,
+                maxdim,
+                step,
+                batched_add = AT <: SpinHalf,
+            )
         # Note here do not sort, will distort the spectrum
         spectrum_tlis[:, step] = -log.(stretches)
     end
@@ -1510,12 +1591,31 @@ are `abs.(diag(L))` of the Cholesky factor `G = L * L'`. Falls back to an
 eigen decomposition of the Gram matrix when Cholesky fails (subspace
 collapse); collapsed directions are refilled with the all-τ product state.
 """
+function _combine_mps_frame(
+    states::Vector{MPS},
+    coefficients,
+    indices;
+    cutoff::Float64,
+    maxdim::Int,
+)
+    terms = MPS[]
+    sizehint!(terms, length(indices))
+    for j in indices
+        coefficient = coefficients[j]
+        iszero(coefficient) && continue
+        push!(terms, coefficient * states[j])
+    end
+    isempty(terms) && error("cannot form an MPS from an all-zero coefficient vector")
+    return length(terms) == 1 ? terms[1] : add(terms...; cutoff = cutoff, maxdim = maxdim)
+end
+
 function _gram_cholesky_orthonormalize_mps(
     states::Vector{MPS},
     sites::Vector{<:Index};
     cutoff::Float64,
     maxdim::Int,
     step::Int = 0,
+    batched_add::Bool = false,
 )
     k = length(states)
     N = length(sites)
@@ -1536,14 +1636,27 @@ function _gram_cholesky_orthonormalize_mps(
         L = F.L
         Linv = inv(L)
 
-        # Form orthonormal states: Q_i = sum_j (Linv)_{ij} ψ_j
+        # For spin-chain Lyapunov frames, exploit the lower-triangular Linv and
+        # add all nonzero terms in one bounded-χ density-matrix sum. Fibonacci
+        # frames retain the established pairwise route because their deep
+        # subleading exponents are sensitive to the truncation order.
         new_states = Vector{MPS}(undef, k)
         for i in 1:k
-            ψ_new = Linv[i, 1] * states[1]
-            for j in 2:k
-                ψ_new = ψ_new + Linv[i, j] * states[j]
+            if batched_add
+                new_states[i] = _combine_mps_frame(
+                    states,
+                    @view(Linv[i, :]),
+                    1:i;
+                    cutoff = cutoff,
+                    maxdim = maxdim,
+                )
+            else
+                ψ_new = Linv[i, 1] * states[1]
+                for j in 2:k
+                    ψ_new = ψ_new + Linv[i, j] * states[j]
+                end
+                new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
             end
-            new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
         end
 
         return new_states, abs.(diag(L))
@@ -1559,11 +1672,21 @@ function _gram_cholesky_orthonormalize_mps(
             for i in 1:k
                 if vals[i] > 1e-14
                     coef = vecs[:, i] / sqrt(vals[i])
-                    ψ_new = coef[1] * states[1]
-                    for j in 2:k
-                        ψ_new = ψ_new + coef[j] * states[j]
+                    if batched_add
+                        new_states[i] = _combine_mps_frame(
+                            states,
+                            coef,
+                            eachindex(coef);
+                            cutoff = cutoff,
+                            maxdim = maxdim,
+                        )
+                    else
+                        ψ_new = coef[1] * states[1]
+                        for j in 2:k
+                            ψ_new = ψ_new + coef[j] * states[j]
+                        end
+                        new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
                     end
-                    new_states[i] = truncate(ψ_new; cutoff = cutoff, maxdim = maxdim)
                 else
                     new_states[i] = productMPS(sites, ["0" for _ in 1:N])
                 end
@@ -2221,6 +2344,8 @@ This internal helper function is called by `bulk_evolution` when `mode` is `:sam
 - `measure_config::MeasureConfig`: Configuration containing `τ`, `t₁`, `t₂`, etc.
 - `cutoff::Float64=1e-10`: MPS truncation cutoff.
 - `maxdim::Int=100`: Maximum bond dimension.
+- `compute_entropy::Bool=true`: Whether to compute half-chain entropy after each period.
+- `operator_cache=nothing`: Optional per-layer operator cache for repeated fixed-record evolution.
 
 # Returns
 - `Measurement_outcome_mps_bulk`: A struct containing:
@@ -2238,6 +2363,8 @@ function _sample_measure_mps(
     cutoff::Float64 = 1e-10,
     maxdim::Int = 100,
     normalized::Bool = true,
+    compute_entropy::Bool = true,
+    operator_cache::Union{Nothing,Vector{_MPSMeasurementLayerOperators}} = nothing,
 ) where {AT<:AbstractAnyonBasis}
 
     n_cols = _samples_per_layer(model)  # Use max samples per layer
@@ -2295,6 +2422,7 @@ function _sample_measure_mps(
                 maxdim = maxdim,
                 truncate_every_events = measure_config.truncate_every_events,
                 normalized = normalized,
+                operators = operator_cache === nothing ? nothing : operator_cache[layer],
             )
             current_state = outcome.state
             if constraint_projector !== nothing
@@ -2308,8 +2436,9 @@ function _sample_measure_mps(
             end
             sample_free_energy[global_layer_idx] = outcome.free_energy
         end
-        # Compute half-chain EE on-the-fly
-        entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
+        if compute_entropy
+            entanglement_entropys[period] = Float32(ee_mps(current_state, div(N, 2)))
+        end
     end
 
     return Measurement_outcome_mps_bulk(

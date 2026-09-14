@@ -675,6 +675,41 @@ end
     @test spectrum_sub[:, end] ≈ spectrum_ref atol = 1e-2
 end
 
+@testset "batched Lyapunov frame propagation" begin
+    L = 6
+    τ = atanh(0.8)
+    model = AnyonModel(SpinHalf(), L; model_type = :OBF, λ = 0.5, pbc = true)
+    rng = MersenneTwister(91)
+    states = randn(rng, length(anyon_basis(model)), 4)
+
+    for layer in (1, 7, 14)
+        measurement_sites, measure_model, strength =
+            FibonacciChain._obtain_measurement_config(model, layer, τ)
+        layer_sample = BitVector(rand(rng, Bool, length(measurement_sites)))
+        expected = hcat([
+            FibonacciChain._apply_measurement_layer(
+                model,
+                τ,
+                states[:, column],
+                layer_sample;
+                layer_idx = layer,
+                normalized = false,
+            ).state for column = 1:size(states, 2)
+        ]...)
+
+        actual, _ = FibonacciChain._apply_measurement_frame_layer!(
+            similar(states),
+            copy(states),
+            anyon_basis(measure_model),
+            measure_model,
+            strength,
+            measurement_sites,
+            layer_sample,
+        )
+        @test actual ≈ expected atol = 1e-13
+    end
+end
+
 @testset "transfer_matrix_dynamics" begin
     L = 8
     τ = atanh(0.95)

@@ -47,6 +47,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
         index::Int;
         n_states::Int = 10,
         cutoff::Float64 = 1e-12,
+        truncate_every_events::Int = 1,
     )
         τ = τlis[τ_idx]
         χ = chi_table(τ_idx, L, λ) 
@@ -63,6 +64,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
             n_states = n_states,
             cutoff = cutoff,
             maxdim = χ,
+            truncate_every_events = truncate_every_events,
         )
 
         out_dir = "exm/data/OBF/tf_spectrum_Born/L$(L)/gammaind$(τ_idx)/λ$(λ)/chi$(χ)"
