@@ -9,12 +9,6 @@ const OTHER_Y_EIGENVALUE = Dict(:y1 => -inv(PHI), :ytau => PHI)
 const TRAJECTORY_RE = r"^periods(\d+)_trajectory_seed(\d+)\.jld2$"
 const RAW_SCHEMA_VERSION = 3
 
-struct ReplayEvent
-    diagonal::Vector{Float64}
-    target::Vector{Int}
-    offdiagonal::Vector{Float64}
-end
-
 """Parse comma-separated integers and integer ranges."""
 function parse_int_spec(spec::AbstractString)
     values = Int[]
@@ -165,171 +159,78 @@ function sector_frames(L::Int, k_max::Int, basis_seed::Int)
     return model, frames, dimensions, residuals
 end
 
-function replay_event_layers(
+"""
+Replay one recorded trajectory through the package's exact `bulk_evolution`
+`:sample` path. `bulk_evolution` already normalizes after every measurement and
+returns the corresponding layer free energies, so `log P` is their negative sum.
+The returned `Float32` values are promoted before accumulation.
+"""
+function replay_log_probability_dynamics(
     model,
     tau::Float64,
+    initial_state::AbstractVector,
     sample::BitMatrix;
     enable_tau_eff::Bool = true,
-    cache::Dict{Tuple{Int,Float64,Bool},ReplayEvent} =
-        Dict{Tuple{Int,Float64,Bool},ReplayEvent}(),
 )
     n_layers = FibonacciChain.layers_per_period(model)
     size(sample, 1) % n_layers == 0 || error("sample has incomplete periods")
-    event_layers = Vector{Vector{ReplayEvent}}(undef, size(sample, 1))
-    for layer in axes(sample, 1)
-        events = ReplayEvent[]
-        tau_current =
-            enable_tau_eff && layer == size(sample, 1) ? tau / 2 : tau
-        sites, measure_model, strength =
-            FibonacciChain._obtain_measurement_config(model, layer, tau_current)
-        basis = anyon_basis(measure_model)
-        columns = FibonacciChain._get_sample_column_indices(model, layer)
-        outcomes = @view sample[layer, columns]
-        length(sites) == length(outcomes) ||
-            error("site/outcome mismatch at layer " * string(layer))
-        for event_index in eachindex(sites)
-            site = Int(sites[event_index])
-            outcome = Bool(outcomes[event_index])
-            key = (site, Float64(strength), outcome)
-            event = get!(cache, key) do
-                dimension = length(basis)
-                diagonal = Vector{Float64}(undef, dimension)
-                target = zeros(Int, dimension)
-                offdiagonal = zeros(Float64, dimension)
-                for basis_index in eachindex(basis)
-                    result = FibonacciChain.measure_basismap(
-                        measure_model,
-                        Float64(strength),
-                        basis[basis_index],
-                        site,
-                        outcome,
-                    )
-                    diagonal[basis_index] = Float64(result.w1)
-                    if result.w2 != 0
-                        target[basis_index] = searchsortedfirst(basis, result.s2)
-                        offdiagonal[basis_index] = Float64(result.w2)
-                    end
-                end
-                ReplayEvent(diagonal, target, offdiagonal)
-            end
-            push!(events, event)
-        end
-        event_layers[layer] = events
-    end
-    return event_layers
-end
-
-function replay_events(
-    model,
-    tau::Float64,
-    sample::BitMatrix;
-    enable_tau_eff::Bool = true,
-    cache::Dict{Tuple{Int,Float64,Bool},ReplayEvent} =
-        Dict{Tuple{Int,Float64,Bool},ReplayEvent}(),
-)
-    event_layers = replay_event_layers(
-        model,
-        tau,
-        sample;
-        enable_tau_eff = enable_tau_eff,
-        cache = cache,
+    n_periods = size(sample, 1) ÷ n_layers
+    config = MeasureConfig(
+        τ = tau,
+        t₂ = n_periods,
+        mode = :sample,
+        enable_τ_eff = enable_tau_eff,
     )
-    events = ReplayEvent[]
-    for layer_events in event_layers
-        append!(events, layer_events)
-    end
-    return events
-end
-
-function replay_log_probability(initial_state::AbstractVector, events)
-    current = Vector{Float64}(initial_state)
-    buffer = similar(current)
-    log_probability = 0.0
-    for event in events
-        fill!(buffer, 0.0)
-        @inbounds for basis_index in eachindex(current)
-            amplitude = current[basis_index]
-            buffer[basis_index] += event.diagonal[basis_index] * amplitude
-            target_index = event.target[basis_index]
-            target_index == 0 ||
-                (buffer[target_index] += event.offdiagonal[basis_index] * amplitude)
-        end
-        probability = sum(abs2, buffer)
-        probability >= 0 || error("negative probability encountered")
-        probability == 0 && return -Inf
-        log_probability += log(probability)
-        buffer .*= inv(sqrt(probability))
-        current, buffer = buffer, current
-    end
-    return log_probability
-end
-
-function replay_frame(frame::AbstractMatrix, events)
-    logp = Vector{Float64}(undef, size(frame, 2))
-    Threads.@threads :dynamic for state_index in axes(frame, 2)
-        logp[state_index] =
-            replay_log_probability(@view(frame[:, state_index]), events)
-    end
-    return logp
-end
-
-function replay_log_probability_dynamics(
-    initial_state::AbstractVector,
-    event_layers::AbstractVector,
-    layers_per_period::Int,
-)
-    length(event_layers) % layers_per_period == 0 ||
-        error("incomplete final period")
-    n_periods = length(event_layers) ÷ layers_per_period
+    outcome = bulk_evolution(model, Vector{Float64}(initial_state), config, sample)
     logp = zeros(Float64, n_periods + 1)
-    current = Vector{Float64}(initial_state)
-    buffer = similar(current)
-    log_probability = 0.0
-
-    for (layer_index, events) in enumerate(event_layers)
-        for event in events
-            fill!(buffer, 0.0)
-            @inbounds for basis_index in eachindex(current)
-                amplitude = current[basis_index]
-                buffer[basis_index] += event.diagonal[basis_index] * amplitude
-                target_index = event.target[basis_index]
-                target_index == 0 ||
-                    (buffer[target_index] += event.offdiagonal[basis_index] * amplitude)
-            end
-            probability = sum(abs2, buffer)
-            probability >= 0 || error("negative probability encountered")
-            if probability == 0
-                first_unfilled_period = cld(layer_index, layers_per_period) + 1
-                fill!(@view(logp[first_unfilled_period:end]), -Inf)
-                return logp
-            end
-            log_probability += log(probability)
-            buffer .*= inv(sqrt(probability))
-            current, buffer = buffer, current
-        end
-        if layer_index % layers_per_period == 0
-            period_index = layer_index ÷ layers_per_period
-            logp[period_index + 1] = log_probability
-        end
+    for period in 1:n_periods
+        rows = ((period - 1) * n_layers + 1):(period * n_layers)
+        logp[period + 1] = logp[period] - sum(
+            value -> Float64(value),
+            @view(outcome.free_energys[rows]),
+        )
     end
     return logp
 end
 
 function replay_frame_dynamics(
+    model,
+    tau::Float64,
     frame::AbstractMatrix,
-    event_layers::AbstractVector,
-    layers_per_period::Int,
+    sample::BitMatrix;
+    enable_tau_eff::Bool = true,
 )
-    n_periods = length(event_layers) ÷ layers_per_period
+    n_layers = FibonacciChain.layers_per_period(model)
+    size(sample, 1) % n_layers == 0 || error("sample has incomplete periods")
+    n_periods = size(sample, 1) ÷ n_layers
     logp = Matrix{Float64}(undef, n_periods + 1, size(frame, 2))
     Threads.@threads :dynamic for state_index in axes(frame, 2)
         logp[:, state_index] = replay_log_probability_dynamics(
+            model,
+            tau,
             @view(frame[:, state_index]),
-            event_layers,
-            layers_per_period,
+            sample;
+            enable_tau_eff = enable_tau_eff,
         )
     end
     return logp
+end
+
+function replay_frame(
+    model,
+    tau::Float64,
+    frame::AbstractMatrix,
+    sample::BitMatrix;
+    enable_tau_eff::Bool = true,
+)
+    dynamics = replay_frame_dynamics(
+        model,
+        tau,
+        frame,
+        sample;
+        enable_tau_eff = enable_tau_eff,
+    )
+    return copy(@view dynamics[end, :])
 end
 
 function validate_truth_sector(truth_sector::Symbol)
@@ -429,19 +330,23 @@ function decode_records(
     model, frames, _, _ = sector_frames(L, k_max, basis_seed)
     logp_state_y1 = Matrix{Float64}(undef, length(records), k_max)
     logp_state_ytau = similar(logp_state_y1)
-    replay_cache = Dict{Tuple{Int,Float64,Bool},ReplayEvent}()
 
     for (record_index, record) in enumerate(records)
         @info "Replaying record" record_index n_records = length(records) seed = record.seed
-        events = replay_events(
+        logp_state_y1[record_index, :] = replay_frame(
             model,
             record.tau,
+            frames[:y1],
             record.sample;
             enable_tau_eff = enable_tau_eff,
-            cache = replay_cache,
         )
-        logp_state_y1[record_index, :] = replay_frame(frames[:y1], events)
-        logp_state_ytau[record_index, :] = replay_frame(frames[:ytau], events)
+        logp_state_ytau[record_index, :] = replay_frame(
+            model,
+            record.tau,
+            frames[:ytau],
+            record.sample;
+            enable_tau_eff = enable_tau_eff,
+        )
     end
 
     save_static_logp(
@@ -481,25 +386,22 @@ function decode_records_dynamics(
     layers_per_period = FibonacciChain.layers_per_period(model)
     logp_state_y1 = Array{Float64}(undef, length(records), periods + 1, k_max)
     logp_state_ytau = similar(logp_state_y1)
-    replay_cache = Dict{Tuple{Int,Float64,Bool},ReplayEvent}()
 
     for (record_index, record) in enumerate(records)
         @info "Replaying dynamics" record_index n_records = length(records) seed = record.seed
-        event_layers = replay_event_layers(
+        current_y1 = replay_frame_dynamics(
             model,
             record.tau,
+            frames[:y1],
             record.sample;
             enable_tau_eff = enable_tau_eff,
-            cache = replay_cache,
-        )
-        length(event_layers) == periods * layers_per_period || error(
-            "unexpected number of measurement layers for seed " * string(record.seed),
-        )
-        current_y1 = replay_frame_dynamics(
-            frames[:y1], event_layers, layers_per_period,
         )
         current_ytau = replay_frame_dynamics(
-            frames[:ytau], event_layers, layers_per_period,
+            model,
+            record.tau,
+            frames[:ytau],
+            record.sample;
+            enable_tau_eff = enable_tau_eff,
         )
         @views logp_state_y1[record_index, :, :] .= current_y1
         @views logp_state_ytau[record_index, :, :] .= current_ytau
@@ -610,4 +512,3 @@ function main(args::Vector{String})
 end
 
 abspath(PROGRAM_FILE) == (@__FILE__) && main(ARGS)
-
