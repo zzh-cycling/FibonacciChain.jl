@@ -129,13 +129,96 @@ function translation_matrix(model::AnyonModel)
     basis=anyon_basis(model)
     l = length(basis)
     Mat=zeros(Float64, (l, l))
-    translated_basis = cyclebits.(basis) # Use broadcasting to apply cyclebits to each element in basis
-    order = searchsortedfirst.(Ref(basis), translated_basis) # Find the indices of the translated basis in the original basis
+    order = _translation_order(model)
     for i = 1:l
         Mat[i, order[i]] += 1.0
     end
 
     return Mat
+end
+
+function _translation_order(model::AnyonModel)
+    basis = anyon_basis(model)
+    translated_basis = cyclebits.(basis)
+    return searchsortedfirst.(Ref(basis), translated_basis)
+end
+
+"""
+    momentum_weights(model::AnyonModel, state::AbstractVector)
+    momentum_weights(model::AnyonModel, states::AbstractMatrix)
+
+Resolve one or more exact state vectors into physical one-site momentum
+sectors. The returned vector (or row of the returned matrix) is indexed
+directly by `k + 1`, with
+`k = 0, ..., model.N - 1` and physical momentum `2πk / model.N`.
+
+For a normalized state `|ψ⟩`, the weights are
+
+    w(k) = (1/N) Σᵣ exp(-2πikr/N) ⟨ψ|Tʳ|ψ⟩.
+
+The matrix method returns an `N × nstates` array, one momentum distribution
+per input column. It applies the translation permutation without forming the
+dense [`translation_matrix`](@ref).
+"""
+function momentum_weights(model::AnyonModel, states::AbstractMatrix)
+    model.pbc || error("Momentum sectors require periodic boundaries")
+    size(states, 1) == length(anyon_basis(model)) || throw(DimensionMismatch(
+        "state dimension $(size(states, 1)) does not match the anyon basis",
+    ))
+    nstates = size(states, 2)
+    nstates >= 1 || throw(ArgumentError("states must contain at least one column"))
+
+    norms_squared = vec(real.(sum(abs2, states; dims = 1)))
+    minimum(norms_squared) > 0 || throw(ArgumentError("cannot resolve a zero-norm state"))
+
+    N = model.N
+    order = _translation_order(model)
+    overlaps = zeros(ComplexF64, N, nstates)
+    translated = Matrix(states)
+    for r = 0:(N - 1)
+        overlaps[r + 1, :] = vec(sum(conj.(states) .* translated; dims = 1)) ./
+                             norms_squared
+        translated = translated[order, :]
+    end
+
+    weights = zeros(Float64, N, nstates)
+    for k = 0:(N - 1), r = 0:(N - 1)
+        phase = cis(-2π * k * r / N)
+        @views weights[k + 1, :] .+= real.(phase .* overlaps[r + 1, :]) ./ N
+    end
+
+    minimum(weights) >= -1e-9 || error(
+        "momentum projector produced a negative weight $(minimum(weights)); " *
+        "check the translation convention or input state",
+    )
+    weights[abs.(weights) .< 1e-12] .= 0.0
+    weights .= max.(weights, 0.0)
+    weights ./= sum(weights; dims = 1)
+    return weights
+end
+
+momentum_weights(model::AnyonModel, state::AbstractVector) =
+    vec(momentum_weights(model, reshape(state, :, 1)))
+
+"""
+    momentum_subspace_weights(model::AnyonModel, states::AbstractMatrix)
+
+Return the basis-independent momentum distribution of the subspace spanned
+by `states`, normalized by its dimension:
+
+    w_A(k) = Tr(P_A P_k) / dim(A).
+
+This is the appropriate diagnostic for an exactly or nearly degenerate group
+of Lyapunov vectors, whose individual QR columns can rotate inside the group.
+"""
+function momentum_subspace_weights(model::AnyonModel, states::AbstractMatrix)
+    nstates = size(states, 2)
+    nstates >= 1 || throw(ArgumentError("states must contain at least one column"))
+    factor = qr(Matrix(states))
+    minimum(abs.(diag(factor.R)[1:nstates])) > 1e-12 ||
+        throw(ArgumentError("states are linearly dependent"))
+    frame = Matrix(factor.Q)[:, 1:nstates]
+    return vec(sum(momentum_weights(model, frame); dims = 2)) ./ nstates
 end
 
 """

@@ -40,6 +40,30 @@ end
     @test isapprox(Mat^N, I, atol = 1e-5)
 end
 
+@testset "momentum weights" begin
+    N = 8
+    model = AnyonModel(FibonacciAnyon(), N, pbc = true)
+    T = translation_matrix(model)
+    seed = zeros(ComplexF64, length(anyon_basis(model)))
+    seed[2] = 1.0
+
+    k = 3
+    state = sum(cis(-2π * k * r / N) .* (T^r * seed) for r = 0:(N - 1))
+    state ./= norm(state)
+    weights = momentum_weights(model, state)
+    @test sum(weights) ≈ 1.0 atol = 1e-12
+    @test argmax(weights) - 1 == k
+    @test weights[k + 1] ≈ 1.0 atol = 1e-12
+
+    partner = conj(state)
+    frame = hcat(state, partner)
+    subspace_weights = momentum_subspace_weights(model, frame)
+    rotation = ComplexF64[1 1; im -im] / √2
+    @test momentum_subspace_weights(model, frame * rotation) ≈ subspace_weights atol = 1e-12
+    @test subspace_weights[k + 1] ≈ 0.5 atol = 1e-12
+    @test subspace_weights[mod(-k, N) + 1] ≈ 0.5 atol = 1e-12
+end
+
 @testset "inversion_matrix" begin
     N=8
     model = AnyonModel(FibonacciAnyon(), N, pbc = true)

@@ -651,6 +651,27 @@ end
     # Obtained from transfer matrix applied
 end
 
+@testset "post-selection glide momentum" begin
+    L = 8
+    τ = atanh(0.8)
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    ϕ = (1 + √5) / 2
+
+    tci = postselection_glide_spectrum(model, τ, true; n_states = 4)
+    @test tci.commutator_residual < 1e-12
+    @test tci.glide_relation_residual < 1e-12
+    @test maximum(tci.eigenvector_residuals) < 1e-12
+    @test maximum(tci.momentum_quantization_residuals) < 1e-12
+    @test tci.momentum_indices == [0, div(L, 2), 0, div(L, 2)]
+    @test tci.topological_charges ≈ [ϕ, -inv(ϕ), -inv(ϕ), ϕ] atol = 1e-10
+
+    potts = postselection_glide_spectrum(model, τ, false; n_states = 6)
+    @test potts.commutator_residual < 1e-12
+    @test potts.glide_relation_residual < 1e-12
+    @test maximum(potts.eigenvector_residuals) < 1e-12
+    @test maximum(potts.momentum_quantization_residuals) < 1e-12
+end
+
 @testset "lyapunov_spectrum" begin
     L = 8
     τ = atanh(0.95)
@@ -774,13 +795,22 @@ end
         # Repeating the same period forever: Lyapunov exponents converge to
         # log|eigenvalues| of the sector-restricted transfer matrix
         spectrum = lyapunov_spectrum_topological_sector(
-            model, τ, sample_long; sector = sector, n_states = n_states,
+            model, τ, sample_long;
+            sector = sector,
+            n_states = n_states,
+            track_momentum = true,
         )
 
         @test spectrum.sector_dimension == sector_dim
         @test size(spectrum.lyapunov_exponents) == (n_states, div(D, 2))
         @test spectrum.free_energy_spectrum == -spectrum.lyapunov_exponents
         @test maximum(spectrum.sector_leakage) < 1e-9
+        @test size(spectrum.momentum_weights) == (L, n_states, div(D, 2))
+        @test all(isapprox.(
+            sum(spectrum.momentum_weights; dims = 1),
+            1.0;
+            atol = 1e-10,
+        ))
         @test sort(spectrum.lyapunov_exponents[:, end], rev = true) ≈
               spectrum_ref[1:n_states] atol = 1e-2
     end

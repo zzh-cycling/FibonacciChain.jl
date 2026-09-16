@@ -2125,6 +2125,106 @@ function transfer_matrix(
 end
 
 """
+    postselection_glide_spectrum(model, τ, outcome; n_states=10)
+
+Compute the exact physical one-site momenta of a uniform post-selected
+Fibonacci trajectory. A two-layer brickwork period `U = M₂M₁` does not commute
+with one-site translation `T`; it only has a two-site unit cell. For uniform
+outcomes, however,
+
+    G = T M₁,    [G, U] = 0,    G² = T² U.
+
+Thus a common eigenstate with `U|n⟩ = μₙ|n⟩` and `G|n⟩ = gₙ|n⟩` has
+
+    exp(ikₙ) = gₙ / sqrt(μₙ).
+
+Diagonalizing `G` avoids folding `k = 0` and `k = π`. The returned momentum
+indices use `kₙ = 2π * momentum_indices[n] / model.N`. `outcome=true` is the
+antiferromagnetic/TCI post-selection channel and `outcome=false` is the
+ferromagnetic/three-state-Potts channel.
+"""
+function postselection_glide_spectrum(
+    model::AnyonModel{FibonacciAnyon},
+    τ::Real,
+    outcome::Bool;
+    n_states::Int = 10,
+)
+    model.pbc || error("Post-selection glide momentum requires periodic boundaries")
+    iseven(model.N) || error("The two-layer brickwork geometry requires even system size")
+    layers_per_period(model) == 2 || error("Glide momentum currently requires two layers")
+    n_states >= 1 || throw(ArgumentError("n_states must be positive"))
+
+    N = model.N
+    basis_dimension = length(anyon_basis(model))
+    uniform_sample = fill(outcome, 2, _samples_per_layer(model))
+    first_layer_sample = BitVector(
+        uniform_sample[1, _get_sample_column_indices(model, 1)],
+    )
+    first_layer = zeros(Float64, basis_dimension, basis_dimension)
+    for column = 1:basis_dimension
+        state = zeros(Float64, basis_dimension)
+        state[column] = 1.0
+        first_layer[:, column] = _apply_measurement_layer(
+            model,
+            Float64(τ),
+            state,
+            first_layer_sample;
+            layer_idx = 1,
+            normalized = false,
+        ).state
+    end
+
+    period = transfer_matrix(model, Float64(τ), BitMatrix(uniform_sample))
+    translation = translation_matrix(model)
+    glide = translation * first_layer
+    glide_eigen = eigen(glide)
+    Y = topological_charge_operator(model)
+
+    count = length(glide_eigen.values)
+    transfer_eigenvalues = zeros(ComplexF64, count)
+    momenta = zeros(Float64, count)
+    momentum_indices = zeros(Int, count)
+    topological_charges = zeros(Float64, count)
+    eigenvector_residuals = zeros(Float64, count)
+    momentum_quantization_residuals = zeros(Float64, count)
+
+    for index in eachindex(glide_eigen.values)
+        state = @view glide_eigen.vectors[:, index]
+        norm_squared = real(dot(state, state))
+        μ = dot(state, period * state) / norm_squared
+        transfer_eigenvalues[index] = μ
+        eigenvector_residuals[index] = norm(period * state - μ * state) / norm(state)
+        topological_charges[index] = real(dot(state, Y * state) / norm_squared)
+
+        phase_factor = glide_eigen.values[index] / sqrt(μ)
+        momentum = mod(angle(phase_factor), 2π)
+        momentum_index = mod(round(Int, momentum * N / (2π)), N)
+        momenta[index] = 2π * momentum_index / N
+        momentum_indices[index] = momentum_index
+        momentum_quantization_residuals[index] =
+            abs(phase_factor - cis(2π * momentum_index / N))
+    end
+
+    order = sortperm(abs.(transfer_eigenvalues); rev = true)
+    keep = order[1:min(n_states, count)]
+    scale = max(norm(period), eps(Float64))
+    return (
+        transfer_eigenvalues = transfer_eigenvalues[keep],
+        free_energies = -log.(abs.(transfer_eigenvalues[keep])),
+        glide_eigenvalues = glide_eigen.values[keep],
+        momenta = momenta[keep],
+        momentum_indices = momentum_indices[keep],
+        topological_charges = topological_charges[keep],
+        eigenvector_residuals = eigenvector_residuals[keep],
+        momentum_quantization_residuals = momentum_quantization_residuals[keep],
+        commutator_residual = norm(glide * period - period * glide) / scale,
+        glide_relation_residual =
+            norm(glide^2 - translation^2 * period) / scale,
+        states = glide_eigen.vectors[:, keep],
+    )
+end
+
+"""
     transfer_matrix_dynamics(model::AnyonModel, τ::Float64, sample::BitMatrix; n_spectrums::Int=10)
 
 Compute the exact eigenvalue spectrum of the **cumulative** transfer matrix
@@ -2311,7 +2411,8 @@ end
 
 """
     lyapunov_spectrum_topological_sector(model::AnyonModel{FibonacciAnyon}, τ::Float64, sample::BitMatrix;
-                      sector::Symbol=:trivial, n_states::Int=10)
+                      sector::Symbol=:trivial, n_states::Int=10,
+                      track_momentum::Bool=false)
 
 Compute the finite-time Lyapunov spectrum of the transfer-matrix product
 restricted to a topological charge sector along a fixed measurement
@@ -2348,6 +2449,8 @@ matrix commutes with `Y`.
   The number of rows must be divisible by `layers_per_period(model)`.
 - `sector::Symbol=:trivial`: Topological sector, `:trivial` (y=1) or `:tau` (y=τ)
 - `n_states::Int=10`: Number of frame vectors (and exponents) to compute
+- `track_momentum::Bool=false`: Record the physical one-site momentum weights
+  of every QR vector after every period
 
 # Returns
 A named tuple with fields:
@@ -2358,6 +2461,9 @@ A named tuple with fields:
 - `sector_leakage`: relative leakage of the frame out of the sector after each period
 - `sector_dimension`: dimension of the sector
 - `final_frame`: the orthonormal frame after the last period
+- `momentum_weights`: an `N × n_states × periods` array when momentum tracking
+  is enabled, otherwise `nothing`. Averaging this array over a group of
+  near-degenerate state indices gives the basis-independent subspace weight.
 """
 function lyapunov_spectrum_topological_sector(
     model::AnyonModel{FibonacciAnyon},
@@ -2365,6 +2471,7 @@ function lyapunov_spectrum_topological_sector(
     sample::BitMatrix;
     sector::Symbol = :trivial,
     n_states::Int = 10,
+    track_momentum::Bool = false,
 )
     model.pbc || error("A topological charge sector requires periodic boundaries")
     sector in (:trivial, :tau) ||
@@ -2403,6 +2510,8 @@ function lyapunov_spectrum_topological_sector(
 
     local_log_stretches = zeros(Float64, k, periods)
     sector_leakage = zeros(Float64, periods)
+    momentum_weight_history =
+        track_momentum ? zeros(Float64, model.N, k, periods) : nothing
     config = MeasureConfig(τ = τ, t₂ = 1, mode = :sample, enable_τ_eff = false)
 
     for step in 1:periods
@@ -2422,6 +2531,9 @@ function lyapunov_spectrum_topological_sector(
         # only numerical leakage, not the exact restricted dynamics.
         states = Matrix(qr(P * Matrix(factor.Q)[:, 1:k]).Q)[:, 1:k]
         sector_leakage[step] = norm(Y * states - y_eigenvalue * states) / norm(states)
+        if track_momentum
+            momentum_weight_history[:, :, step] = momentum_weights(model, states)
+        end
     end
 
     cumulative_log_stretches = cumsum(local_log_stretches; dims = 2)
@@ -2435,5 +2547,6 @@ function lyapunov_spectrum_topological_sector(
         sector_leakage = sector_leakage,
         sector_dimension = sector_dimension,
         final_frame = states,
+        momentum_weights = momentum_weight_history,
     )
 end
