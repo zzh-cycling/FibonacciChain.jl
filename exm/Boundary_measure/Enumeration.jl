@@ -7,54 +7,63 @@ include("../FitEntEntScal.jl")
 γlis = vcat(collect(0.0:0.05:0.95), [0.99, 0.999], 1.0)
 τlis = vcat(atanh.(vcat(collect(0.0:0.05:0.95), [0.99, 0.999])), 1e3)
 
-function Born_eelis(N::Int64, τ::Float64, initial_state::Vector{ET}, measurement_sites::Vector{Int}, pbc::Bool=true) where {ET}
-    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
-    final_states, trajectories, probabilities = measurement_enumeration(
-        model, τ, initial_state, measurement_sites)
-    
+function Born_eelis(
+    N::Int64,
+    τ::Float64,
+    initial_state::Vector{ET},
+    measurement_sites::Vector{Int},
+    pbc::Bool = true,
+) where {ET}
+    model = AnyonModel(FibonacciAnyon(), N; pbc = pbc)
+    final_states, trajectories, probabilities =
+        measurement_enumeration(model, τ, initial_state, measurement_sites)
+
     num_final_states = length(final_states)
     println("Total number of final states: $(num_final_states)")
     println("Expected number: $(2^length(measurement_sites))")
-    
+
     total_prob = sum(probabilities)
     println("Total probability: $(total_prob)")
-    
-    
+
+
     entropies = Vector{Vector{Float64}}(undef, num_final_states)
-    for i in 1:num_final_states
+    for i = 1:num_final_states
         entropies[i] = anyon_eelis(model, final_states[i])
     end
-    
+
     # avg_eelis = sum(probabilities .* entropies)
     # println("Born-averaged entanglement entropy: $(avg_entropy)")
-    
+
 
     println("\nSome representative trajectories:")
-    sorted_indices = sortperm(probabilities, rev=true)
-    for i in 1:min(2, num_final_states)
+    sorted_indices = sortperm(probabilities, rev = true)
+    for i = 1:min(2, num_final_states)
         idx = sorted_indices[i]
-        println("Trajectory $(trajectories[idx]): probability = $(probabilities[idx]/total_prob)")
+        println(
+            "Trajectory $(trajectories[idx]): probability = $(probabilities[idx]/total_prob)",
+        )
         println("  Entanglement entropy = $(entropies[idx])")
     end
-    
+
     return final_states, trajectories, probabilities, entropies
 end
 
-function Born_FENlis(N, pbc::Bool=true)
-    model = AnyonModel(FibonacciAnyon(), N; pbc=pbc)
-    @time energy, states = eigs(anyon_ham_sparse(model), nev=1, which=:SR)
-    antiGS = states[:,1]
+function Born_FENlis(N, pbc::Bool = true)
+    model = AnyonModel(FibonacciAnyon(), N; pbc = pbc)
+    @time energy, states = eigs(anyon_ham_sparse(model), nev = 1, which = :SR)
+    antiGS = states[:, 1]
     measurement_sites = collect(2:2:N)
 
     FE_lis = Vector{Float64}(undef, length(τlis))
     for (idx, τ) in enumerate(τlis)
-        final_states, trajectories, probabilities = measurement_enumeration(model, τ, antiGS, measurement_sites)
+        final_states, trajectories, probabilities =
+            measurement_enumeration(model, τ, antiGS, measurement_sites)
 
         num_final_states = length(final_states)
         println("Total number of final states: $(num_final_states)")
-    
+
         temp = 0.0
-        for i in 1:num_final_states
+        for i = 1:num_final_states
             temp += -log(probabilities[i])
         end
         FE_lis[idx] = temp / num_final_states
@@ -94,7 +103,7 @@ end
 #     println("τ = $τ")
 #     measurement_sites = collect(2:2:N)
 #     @time final_states, trajectories, probabilities, entropies = Born_eelis(N, τ, antiGS, measurement_sites)
-    
+
 #     EE_lis= sum(probabilities.*entropies)
 #     cent, fig = fitCCEntEntScal(EE_lis; mincut=2, pbc=true)
 #     centlis[idx] = cent

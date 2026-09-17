@@ -1,0 +1,1120 @@
+using FibonacciChain
+using ITensorMPS
+using ITensors
+using JLD
+using JLD2
+using LinearAlgebra
+using Random
+using Statistics
+
+include(joinpath(@__DIR__, "config.jl"))
+
+const ISING_DATA_ROOT = joinpath("exm", "data", "Bulk_measure", "Ising")
+const ISING_VACCUM_SECTOR_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_vaccum_sector")
+const ISING_FERMION_SECTOR_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_fermion_sector")
+const ISING_MPS_DATA_ROOT = joinpath("exm", "data", "Bulk_measure", "Ising_mps")
+const ISING_VACCUM_SECTOR_MPS_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_vaccum_sector_mps")
+const ISING_FERMION_SECTOR_MPS_DATA_ROOT =
+    joinpath("exm", "data", "Bulk_measure", "Ising_fermion_sector_mps")
+
+function _ising_sector_spec(sector::Symbol)
+    sector == :vaccum && return (; sign = 1.0, label = "vaccum")
+    sector == :fermion && return (; sign = -1.0, label = "fermion")
+    throw(ArgumentError("sector must be :vaccum or :fermion"))
+end
+
+"""
+    initial_topo_sector_state(L; sector=:vaccum) -> Vector{Float64}
+
+Construct the normalized initial state
+
+    |ψ₀⟩ ∝ |+⟩^⊗L ± |GHZ⟩,
+    |GHZ⟩ = (|0⟩^⊗L + |1⟩^⊗L)/√2.
+
+The default `sector=:vaccum` selects the plus sign. `sector=:fermion` selects
+the minus sign. Since `⟨+|^⊗L GHZ⟩ = 2^((1-L)/2)`, the normalization is
+`√(2 ± 2^((3-L)/2))`.
+"""
+function initial_topo_sector_state(L::Integer; sector::Symbol = :vaccum)
+    L >= 1 || throw(ArgumentError("L must be positive"))
+    spec = _ising_sector_spec(sector)
+    spec.sign < 0 && L == 1 && throw(ArgumentError(
+        "the fermion-sector state vanishes for L=1",
+    ))
+    model = ising_model(Int(L))
+    dim = length(anyon_basis(model))
+    plus_state = fill(inv(sqrt(dim)), dim)
+    ghz_state = zeros(Float64, dim)
+    ghz_state[1] = inv(sqrt(2))
+    ghz_state[end] = inv(sqrt(2))
+
+    state = plus_state + spec.sign * ghz_state
+    expected_norm_squared = 2 + spec.sign * 2.0^((3 - L) / 2)
+    isapprox(dot(state, state), expected_norm_squared; atol = 1e-12, rtol = 1e-12) ||
+        error("Unexpected norm for the $(spec.label) initial state")
+    normalize!(state)
+    return state
+end
+
+"""Return the all-plus product MPS with a fresh set of Qubit site indices."""
+function initial_all_plus_mps(L::Integer)
+    L >= 1 || throw(ArgumentError("L must be positive"))
+    sites = siteinds("Qubit", Int(L))
+    return productMPS(sites, fill("+", Int(L))), sites
+end
+
+"""
+    initial_topo_sector_mps(L; sector=:vaccum, cutoff=1e-14, maxdim=16)
+
+Construct the same state as [`initial_topo_sector_state`](@ref) directly as an
+MPS. `sector=:fermion` changes the relative sign to minus. The exact
+construction is a sum of one bond-dimension-1 product MPS and a bond-dimension-2
+GHZ MPS, hence `maxdim ≥ 3` is sufficient initially.
+"""
+function initial_topo_sector_mps(
+    L::Integer;
+    sector::Symbol = :vaccum,
+    cutoff::Real = 1e-14,
+    maxdim::Integer = 16,
+)
+    L >= 1 || throw(ArgumentError("L must be positive"))
+    maxdim >= 3 || throw(ArgumentError("maxdim must be at least 3"))
+    spec = _ising_sector_spec(sector)
+    spec.sign < 0 && L == 1 && throw(ArgumentError(
+        "the fermion-sector state vanishes for L=1",
+    ))
+    sites = siteinds("Qubit", Int(L))
+    plus_state = productMPS(sites, fill("+", Int(L)))
+    zero_state = productMPS(sites, fill("0", Int(L)))
+    one_state = productMPS(sites, fill("1", Int(L)))
+    ghz_state = add(
+        zero_state,
+        one_state;
+        cutoff = Float64(cutoff),
+        maxdim = Int(maxdim),
+    )
+    ghz_state[1] *= spec.sign * inv(sqrt(2))
+    state = add(
+        plus_state,
+        ghz_state;
+        cutoff = Float64(cutoff),
+        maxdim = Int(maxdim),
+    )
+    normalize!(state)
+    return state, sites
+end
+
+function _validate_ising_run(L::Integer, τ_idx::Integer, t::Integer)
+    L >= 1 || throw(ArgumentError("L must be positive"))
+    τ_idx in eachindex(τlis) || throw(BoundsError(τlis, τ_idx))
+    t >= 1 || throw(ArgumentError("t must be a positive number of periods"))
+    return Int(L), Int(τ_idx), Int(t)
+end
+
+function _trajectory_path(
+    data_root::AbstractString,
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    seed::Integer,
+)
+    return joinpath(
+        data_root,
+        "L$(L)",
+        "gammaind$(τ_idx)",
+        "t$(t)_samples$(seed).jld",
+    )
+end
+
+function _trajectory_path_mps(
+    data_root::AbstractString,
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    t::Integer,
+    seed::Integer,
+)
+    return joinpath(
+        data_root,
+        "L$(L)",
+        "gammaind$(τ_idx)",
+        "chi$(χ)",
+        "t$(t)_samples$(seed)_chi$(χ).jld2",
+    )
+end
+
+function _samples_generate_ising(
+    L::Integer,
+    τ_idx::Integer,
+    seed::Integer,
+    t::Integer,
+    initial_state::AbstractVector,
+    initial_state_label::AbstractString,
+    data_root::AbstractString,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    model = ising_model(L)
+    length(initial_state) == length(anyon_basis(model)) ||
+        throw(DimensionMismatch("initial state has the wrong Hilbert-space dimension"))
+    isapprox(norm(initial_state), 1; atol = 1e-12, rtol = 1e-12) ||
+        throw(ArgumentError("initial state must be normalized"))
+
+    τ = τlis[τ_idx]
+    config = MeasureConfig(
+        τ = τ,
+        mode = :Born,
+        t₂ = t,
+        rng = MersenneTwister(seed),
+    )
+    @time outcome = bulk_evolution(model, collect(initial_state), config)
+
+    n_layers = FibonacciChain.layers_per_period(model)
+    size(outcome.samples, 1) == n_layers * t ||
+        error("Unexpected trajectory depth")
+    length(outcome.free_energys) == n_layers * t ||
+        error("Unexpected free-energy time-series length")
+    length(outcome.entanglement_entropys) == t ||
+        error("Unexpected entanglement time-series length")
+
+    output_path = _trajectory_path(data_root, L, τ_idx, t, seed)
+    mkpath(dirname(output_path))
+    save(
+        output_path,
+        "initial_state",
+        String(initial_state_label),
+        "L",
+        L,
+        "τ_idx",
+        τ_idx,
+        "τ",
+        τ,
+        "gamma",
+        tanh(τ),
+        "t",
+        t,
+        "layers_per_period",
+        n_layers,
+        "sample",
+        outcome.samples,
+        "sample_free_energy",
+        outcome.free_energys,
+        "seed",
+        Int(seed),
+        "halfchain_EE_tlis",
+        outcome.entanglement_entropys,
+        "final_EElis",
+        anyon_eelis(model, outcome.state),
+    )
+    return output_path
+end
+
+"""
+    samples_generate(L, τ_idx, seed, t=get_cfg_params_Born(τ_idx, L)[1])
+
+Generate a Born trajectory from `|+⟩^⊗L`. Here and in the output filename,
+`t` is the number of complete two-layer measurement periods.
+"""
+function samples_generate(
+    L::Integer,
+    τ_idx::Integer,
+    seed::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_DATA_ROOT,
+)
+    model = ising_model(Int(L))
+    initial_state = ones(Float64, length(anyon_basis(model)))
+    normalize!(initial_state)
+    return _samples_generate_ising(
+        L,
+        τ_idx,
+        seed,
+        t,
+        initial_state,
+        "all_plus",
+        data_root,
+    )
+end
+
+"""
+    samples_generate_topo_sector(
+        L, τ_idx, seed, t=get_cfg_params_Born(τ_idx, L)[1]; sector=:vaccum
+    )
+
+Generate a Born trajectory from [`initial_topo_sector_state`](@ref), in either
+the `:vaccum` or `:fermion` sector. Here and in the output filename, `t` is the
+number of complete two-layer measurement periods.
+"""
+function samples_generate_topo_sector(
+    L::Integer,
+    τ_idx::Integer,
+    seed::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
+    return _samples_generate_ising(
+        L,
+        τ_idx,
+        seed,
+        t,
+        initial_topo_sector_state(L; sector = sector),
+        spec.label,
+        resolved_data_root,
+    )
+end
+
+function _samples_generate_ising_mps(
+    L::Integer,
+    τ_idx::Integer,
+    seed::Integer,
+    χ::Integer,
+    t::Integer,
+    initial_state::MPS,
+    sites,
+    initial_state_label::AbstractString,
+    data_root::AbstractString;
+    cutoff::Real = 1e-12,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    χ >= 1 || throw(ArgumentError("χ must be positive"))
+    length(sites) == L || throw(DimensionMismatch("MPS has the wrong number of sites"))
+    isapprox(norm(initial_state), 1; atol = 1e-12, rtol = 1e-12) ||
+        throw(ArgumentError("initial MPS must be normalized"))
+
+    model = ising_model(L)
+    τ = τlis[τ_idx]
+    config = MeasureConfig(
+        τ = τ,
+        mode = :Born,
+        t₂ = t,
+        rng = MersenneTwister(seed),
+        cutoff = Float64(cutoff),
+        maxdim = Int(χ),
+    )
+    @time outcome = bulk_evolution(model, sites, initial_state, config)
+
+    n_layers = FibonacciChain.layers_per_period(model)
+    size(outcome.samples, 1) == n_layers * t || error("Unexpected trajectory depth")
+    length(outcome.free_energys) == n_layers * t ||
+        error("Unexpected free-energy time-series length")
+    length(outcome.entanglement_entropys) == t ||
+        error("Unexpected entanglement time-series length")
+
+    output_path = _trajectory_path_mps(data_root, L, τ_idx, χ, t, seed)
+    mkpath(dirname(output_path))
+    JLD2.jldsave(
+        output_path;
+        backend = "mps",
+        initial_state = String(initial_state_label),
+        L = L,
+        τ_idx = τ_idx,
+        τ = τ,
+        gamma = tanh(τ),
+        χ = Int(χ),
+        cutoff = Float64(cutoff),
+        t = t,
+        layers_per_period = n_layers,
+        sample = outcome.samples,
+        sample_free_energy = outcome.free_energys,
+        seed = Int(seed),
+        halfchain_EE_tlis = outcome.entanglement_entropys,
+        final_EElis = anyon_eelis(model, outcome.state),
+        final_maxlinkdim = maxlinkdim(outcome.state),
+    )
+    return output_path
+end
+
+"""
+    samples_generate_mps(L, τ_idx, χ, seed,
+                         t=get_cfg_params_Born(τ_idx, L)[1])
+
+Generate an MPS Born trajectory from `|+⟩^⊗L`. The directory and filename
+follow `monitored_dynamics_mps.jl`; unlike that older script, `t` here is the
+actual number of periods rather than a coefficient multiplying `L`.
+"""
+function samples_generate_mps(
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    seed::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_MPS_DATA_ROOT,
+    cutoff::Real = 1e-12,
+)
+    initial_state, sites = initial_all_plus_mps(L)
+    return _samples_generate_ising_mps(
+        L,
+        τ_idx,
+        seed,
+        χ,
+        t,
+        initial_state,
+        sites,
+        "all_plus",
+        data_root;
+        cutoff = cutoff,
+    )
+end
+
+"""
+    samples_generate_topo_sector_mps(L, τ_idx, χ, seed,
+                                     t=get_cfg_params_Born(τ_idx, L)[1];
+                                     sector=:vaccum)
+
+Generate an MPS Born trajectory from [`initial_topo_sector_mps`](@ref), in
+either the `:vaccum` or `:fermion` sector. `t` is the actual number of complete
+measurement periods.
+"""
+function samples_generate_topo_sector_mps(
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    seed::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+    cutoff::Real = 1e-12,
+)
+    χ >= 3 || throw(ArgumentError("χ must be at least 3 for the initial state"))
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ?
+        ISING_VACCUM_SECTOR_MPS_DATA_ROOT : ISING_FERMION_SECTOR_MPS_DATA_ROOT
+    else
+        data_root
+    end
+    initial_state, sites = initial_topo_sector_mps(
+        L;
+        sector = sector,
+        cutoff = cutoff,
+        maxdim = χ,
+    )
+    return _samples_generate_ising_mps(
+        L,
+        τ_idx,
+        seed,
+        χ,
+        t,
+        initial_state,
+        sites,
+        spec.label,
+        resolved_data_root;
+        cutoff = cutoff,
+    )
+end
+
+function _mean_and_stderr(values::AbstractMatrix)
+    sample_count = size(values, 1)
+    average = vec(mean(values; dims = 1))
+    stderr = sample_count == 1 ?
+             zeros(size(values, 2)) : vec(std(values; dims = 1)) / sqrt(sample_count)
+    return average, stderr
+end
+
+"""
+    late_time_drift(values; fraction=0.25)
+
+Compare the penultimate and final time blocks of an ensemble array whose rows
+are trajectories and columns are periods. The returned drift is the ensemble
+mean of `mean(final block) - mean(previous block)`, with its standard error.
+"""
+function late_time_drift(values::AbstractMatrix; fraction::Real = 0.25)
+    0 < fraction <= 0.5 || throw(ArgumentError("fraction must lie in (0, 0.5]"))
+    samples_num, t = size(values)
+    block = max(1, floor(Int, fraction * t))
+    previous = (t - 2block + 1):(t - block)
+    final = (t - block + 1):t
+    per_sample = vec(mean(values[:, final]; dims = 2) - mean(values[:, previous]; dims = 2))
+    drift = mean(per_sample)
+    stderr = samples_num == 1 ? 0.0 : std(per_sample) / sqrt(samples_num)
+    return (; drift, stderr, previous, final)
+end
+
+
+function _samples_collect_process_data_ising(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    initial_state_label::AbstractString,
+    data_root::AbstractString,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    dir_path = joinpath(data_root, "L$(L)", "gammaind$(τ_idx)")
+    isdir(dir_path) || error("Data directory does not exist: $dir_path")
+    existing_files = sort(filter(
+        file -> startswith(file, "t$(t)_samples") && endswith(file, ".jld"),
+        readdir(dir_path),
+    ))
+    samples_num = length(existing_files)
+    samples_num > 0 || error(
+        "No trajectory files with L=$L, τ_idx=$τ_idx, t=$t in $dir_path",
+    )
+    println("collecting $samples_num $(initial_state_label) sample files")
+
+    n_layers = FibonacciChain.layers_per_period(ising_model(L))
+    n_layers == 2 || error("This collector assumes the two-layer Ising circuit")
+    ensemble_seed = zeros(Int, samples_num)
+    ensemble_EE_dynamics = zeros(Float64, samples_num, t)
+    ensemble_final_EElis = zeros(Float64, samples_num, L - 1)
+    ensemble_FE_dynamics = zeros(Float64, samples_num, t)
+
+    for (i, fname) in enumerate(existing_files)
+        data = load(joinpath(dir_path, fname))
+        get(data, "initial_state", initial_state_label) == initial_state_label ||
+            error("Unexpected initial state in $fname")
+        Int(get(data, "L", L)) == L || error("Inconsistent L in $fname")
+        Int(get(data, "τ_idx", τ_idx)) == τ_idx ||
+            error("Inconsistent τ_idx in $fname")
+        Int(get(data, "t", t)) == t || error("Inconsistent period count in $fname")
+
+        sample = data["sample"]
+        sample_free_energy = Float64.(data["sample_free_energy"])
+        halfchain_EE_tlis = Float64.(data["halfchain_EE_tlis"])
+        final_EElis = Float64.(data["final_EElis"])
+        size(sample, 1) == n_layers * t ||
+            error("Inconsistent sample depth in $fname")
+        length(sample_free_energy) == n_layers * t ||
+            error("Inconsistent free-energy length in $fname")
+        length(halfchain_EE_tlis) == t ||
+            error("Inconsistent entanglement time-series length in $fname")
+        length(final_EElis) == L - 1 ||
+            error("Inconsistent final entropy profile in $fname")
+
+        ensemble_seed[i] = Int(data["seed"])
+        ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+        ensemble_final_EElis[i, :] = final_EElis
+        # Keep the free-energy normalization per layer while using period as
+        # the time coordinate.
+        ensemble_FE_dynamics[i, :] =
+            (sample_free_energy[1:2:end] + sample_free_energy[2:2:end]) / 2
+    end
+    check_duplicates(ensemble_seed)
+
+    average_EE_tlis, stderr_EE_tlis = _mean_and_stderr(ensemble_EE_dynamics)
+    bulk_meanEElis, ensemble_stderr_EElis = _mean_and_stderr(ensemble_final_EElis)
+    time_FElis, time_FEstderr = _mean_and_stderr(ensemble_FE_dynamics)
+
+    _, _, configured_periods = get_cfg_params_Born(τ_idx, L)
+    # Use the period window defined by the shared Born_Ising config directly;
+    # it already stops before the terminal half-strength period.
+    averaging_periods = collect(configured_periods)
+    isempty(averaging_periods) && error("The configured averaging window is empty")
+    first(averaging_periods) >= 1 && last(averaging_periods) <= t ||
+        error("The configured averaging window lies outside 1:t")
+    time_average_free_energy = vec(mean(
+        ensemble_FE_dynamics[:, averaging_periods];
+        dims = 2,
+    ))
+    bulk_FE = mean(time_average_free_energy)
+    bulk_FE_stderr = samples_num == 1 ?
+                     0.0 : std(time_average_free_energy) / sqrt(samples_num)
+
+    ee_drift = late_time_drift(ensemble_EE_dynamics)
+    free_energy_drift = late_time_drift(ensemble_FE_dynamics)
+    output_path = joinpath(
+        data_root,
+        "L$(L)",
+        "EE_FEdynamics_L$(L)_gamma$(τ_idx)_t$(t).jld2",
+    )
+    save(
+        output_path,
+        "initial_state",
+        String(initial_state_label),
+        "L",
+        L,
+        "τ_idx",
+        τ_idx,
+        "τ",
+        τlis[τ_idx],
+        "gamma",
+        tanh(τlis[τ_idx]),
+        "t",
+        t,
+        "layers_per_period",
+        n_layers,
+        "samples_num",
+        samples_num,
+        "average_EE_tlis",
+        average_EE_tlis,
+        "stderr_EE_tlis",
+        stderr_EE_tlis,
+        "bulk_meanEElis",
+        bulk_meanEElis,
+        "ensemble_stderr_EElis",
+        ensemble_stderr_EElis,
+        "averaging_periods",
+        averaging_periods,
+        "time_average_free_energy",
+        time_average_free_energy,
+        "bulk_FE",
+        bulk_FE,
+        "bulk_FE_stderr",
+        bulk_FE_stderr,
+        "time_FEstderr",
+        time_FEstderr,
+        "time_FElis",
+        time_FElis,
+        "ensemble_seed",
+        ensemble_seed,
+        "late_time_EE_drift",
+        ee_drift.drift,
+        "late_time_EE_drift_stderr",
+        ee_drift.stderr,
+        "late_time_FE_drift",
+        free_energy_drift.drift,
+        "late_time_FE_drift_stderr",
+        free_energy_drift.stderr,
+        "late_time_previous_periods",
+        collect(ee_drift.previous),
+        "late_time_final_periods",
+        collect(ee_drift.final),
+    )
+    return output_path
+end
+
+"""Collect `|+⟩^⊗L` trajectories; `t` is the number of periods."""
+function samples_collect_process_data(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_DATA_ROOT,
+)
+    return _samples_collect_process_data_ising(
+        L,
+        τ_idx,
+        t,
+        "all_plus",
+        data_root,
+    )
+end
+
+"""Collect `:vaccum` or `:fermion` trajectories; `t` is the number of periods."""
+function samples_collect_process_data_topo_sector(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
+    return _samples_collect_process_data_ising(
+        L,
+        τ_idx,
+        t,
+        spec.label,
+        resolved_data_root,
+    )
+end
+function _samples_collect_process_data_ising_mps(
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    t::Integer,
+    initial_state_label::AbstractString,
+    data_root::AbstractString,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    χ >= 1 || throw(ArgumentError("χ must be positive"))
+    data_dir = joinpath(
+        data_root,
+        "L$(L)",
+        "gammaind$(τ_idx)",
+        "chi$(χ)",
+    )
+    isdir(data_dir) || error("Data directory does not exist: $data_dir")
+    existing_files = sort(filter(
+        file -> startswith(file, "t$(t)_samples") &&
+                endswith(file, "_chi$(χ).jld2"),
+        readdir(data_dir),
+    ))
+    samples_num = length(existing_files)
+    samples_num > 0 || error(
+        "No MPS trajectory files with L=$L, τ_idx=$τ_idx, χ=$χ, t=$t in $data_dir",
+    )
+    println("collecting $samples_num $(initial_state_label) MPS sample files")
+
+    n_layers = FibonacciChain.layers_per_period(ising_model(L))
+    n_layers == 2 || error("This collector assumes the two-layer Ising circuit")
+    ensemble_seed = zeros(Int, samples_num)
+    ensemble_EE_dynamics = zeros(Float64, samples_num, t)
+    ensemble_final_EElis = zeros(Float64, samples_num, L - 1)
+    ensemble_FE_dynamics = zeros(Float64, samples_num, t)
+    final_maxlinkdims = zeros(Int, samples_num)
+
+    for (i, fname) in enumerate(existing_files)
+        data = JLD2.load(joinpath(data_dir, fname))
+        get(data, "backend", "") == "mps" || error("Unexpected backend in $fname")
+        get(data, "initial_state", "") == initial_state_label ||
+            error("Unexpected initial state in $fname")
+        Int(data["L"]) == L || error("Inconsistent L in $fname")
+        Int(data["τ_idx"]) == τ_idx || error("Inconsistent τ_idx in $fname")
+        Int(data["χ"]) == χ || error("Inconsistent χ in $fname")
+        Int(data["t"]) == t || error("Inconsistent period count in $fname")
+
+        sample = data["sample"]
+        sample_free_energy = Float64.(data["sample_free_energy"])
+        halfchain_EE_tlis = Float64.(data["halfchain_EE_tlis"])
+        final_EElis = Float64.(data["final_EElis"])
+        size(sample, 1) == n_layers * t ||
+            error("Inconsistent sample depth in $fname")
+        length(sample_free_energy) == n_layers * t ||
+            error("Inconsistent free-energy length in $fname")
+        length(halfchain_EE_tlis) == t ||
+            error("Inconsistent entanglement time-series length in $fname")
+        length(final_EElis) == L - 1 ||
+            error("Inconsistent final entropy profile in $fname")
+
+        ensemble_seed[i] = Int(data["seed"])
+        ensemble_EE_dynamics[i, :] = halfchain_EE_tlis
+        ensemble_final_EElis[i, :] = final_EElis
+        ensemble_FE_dynamics[i, :] =
+            (sample_free_energy[1:2:end] + sample_free_energy[2:2:end]) / 2
+        final_maxlinkdims[i] = Int(data["final_maxlinkdim"])
+    end
+    check_duplicates(ensemble_seed)
+
+    average_EE_tlis, stderr_EE_tlis = _mean_and_stderr(ensemble_EE_dynamics)
+    bulk_meanEElis, ensemble_stderr_EElis = _mean_and_stderr(ensemble_final_EElis)
+    time_FElis, time_FEstderr = _mean_and_stderr(ensemble_FE_dynamics)
+    _, _, configured_periods = get_cfg_params_Born(τ_idx, L)
+    averaging_periods = collect(configured_periods)
+    isempty(averaging_periods) && error("The configured averaging window is empty")
+    first(averaging_periods) >= 1 && last(averaging_periods) <= t ||
+        error("The configured averaging window lies outside 1:t")
+    time_average_free_energy = vec(mean(
+        ensemble_FE_dynamics[:, averaging_periods];
+        dims = 2,
+    ))
+    bulk_FE = mean(time_average_free_energy)
+    bulk_FE_stderr = samples_num == 1 ?
+                     0.0 : std(time_average_free_energy) / sqrt(samples_num)
+    ee_drift = late_time_drift(ensemble_EE_dynamics)
+    free_energy_drift = late_time_drift(ensemble_FE_dynamics)
+
+    output_path = joinpath(
+        data_root,
+        "L$(L)",
+        "gammaind$(τ_idx)",
+        "EE_FEdynamics_L$(L)_gamma$(τ_idx)_t$(t)_chi$(χ).jld2",
+    )
+    JLD2.jldsave(
+        output_path;
+        backend = "mps",
+        initial_state = String(initial_state_label),
+        L = L,
+        τ_idx = τ_idx,
+        τ = τlis[τ_idx],
+        gamma = tanh(τlis[τ_idx]),
+        χ = Int(χ),
+        t = t,
+        layers_per_period = n_layers,
+        samples_num = samples_num,
+        source_sample_files = existing_files,
+        average_EE_tlis = average_EE_tlis,
+        stderr_EE_tlis = stderr_EE_tlis,
+        bulk_meanEElis = bulk_meanEElis,
+        ensemble_stderr_EElis = ensemble_stderr_EElis,
+        averaging_periods = averaging_periods,
+        time_average_free_energy = time_average_free_energy,
+        bulk_FE = bulk_FE,
+        bulk_FE_stderr = bulk_FE_stderr,
+        time_FEstderr = time_FEstderr,
+        time_FElis = time_FElis,
+        ensemble_seed = ensemble_seed,
+        final_maxlinkdims = final_maxlinkdims,
+        late_time_EE_drift = ee_drift.drift,
+        late_time_EE_drift_stderr = ee_drift.stderr,
+        late_time_FE_drift = free_energy_drift.drift,
+        late_time_FE_drift_stderr = free_energy_drift.stderr,
+        late_time_previous_periods = collect(ee_drift.previous),
+        late_time_final_periods = collect(ee_drift.final),
+    )
+    return output_path
+end
+
+"""Collect all-plus MPS trajectories for fixed `L`, `τ_idx`, `χ`, and `t`."""
+function samples_collect_process_data_mps(
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_MPS_DATA_ROOT,
+)
+    return _samples_collect_process_data_ising_mps(
+        L,
+        τ_idx,
+        χ,
+        t,
+        "all_plus",
+        data_root,
+    )
+end
+
+"""Collect `:vaccum` or `:fermion` MPS trajectories for fixed parameters."""
+function samples_collect_process_data_topo_sector_mps(
+    L::Integer,
+    τ_idx::Integer,
+    χ::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ?
+        ISING_VACCUM_SECTOR_MPS_DATA_ROOT : ISING_FERMION_SECTOR_MPS_DATA_ROOT
+    else
+        data_root
+    end
+    return _samples_collect_process_data_ising_mps(
+        L,
+        τ_idx,
+        χ,
+        t,
+        spec.label,
+        resolved_data_root,
+    )
+end
+################################################################################
+# Kramers-Wannier (KW) expectation replay.
+#
+# Mirrors the Y-expectation pipeline of exm/Bulk_measure/monitored_dynamics.jl
+# (modes 3): stored Born trajectories are replayed with their recorded
+# measurement outcomes while `track_y_expectation=true` records the
+# topological-symmetry expectation after every period. For SpinHalf models the
+# tracked operator is the KW duality map (see `kramers_wannier_map`), so
+# `outcome.y_expectation_values` holds the KW expectation dynamics.
+# KW defect sectors: vaccum (+√2), spin (0), fermion (-√2).
+################################################################################
+
+const KW_SECTORS = (
+    (label = "vaccum", assignment = Int8(1), eigenvalue = sqrt(2.0)),
+    (label = "spin", assignment = Int8(0), eigenvalue = 0.0),
+    (label = "fermion", assignment = Int8(-1), eigenvalue = -sqrt(2.0)),
+)
+
+"""Rebuild the exact initial state matching a trajectory file's `initial_state` label."""
+function _ising_initial_state_from_label(label::AbstractString, L::Integer)
+    if label == "all_plus"
+        model = ising_model(Int(L))
+        state = ones(Float64, length(anyon_basis(model)))
+        normalize!(state)
+        return state
+    elseif label in ("vaccum", "fermion")
+        return initial_topo_sector_state(L; sector = Symbol(label))
+    end
+    throw(ArgumentError("Unknown initial-state label: $label"))
+end
+
+"""Replay one stored trajectory, returning `(seed, per-period KW expectations)`."""
+function _kw_replay_file(
+    model,
+    replay_config::MeasureConfig,
+    data_dir::AbstractString,
+    file::AbstractString,
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    expected_label::AbstractString,
+)
+    data = load(joinpath(data_dir, file))
+    get(data, "initial_state", expected_label) == expected_label ||
+        error("Unexpected initial state in $file")
+    Int(get(data, "L", L)) == L || error("Inconsistent L in $file")
+    Int(get(data, "τ_idx", τ_idx)) == τ_idx || error("Inconsistent τ_idx in $file")
+    Int(get(data, "t", t)) == t || error("Inconsistent period count in $file")
+    sample = BitMatrix(data["sample"])
+    size(sample, 1) == 2t || error("Inconsistent sample depth in $file")
+
+    initial_state = _ising_initial_state_from_label(expected_label, L)
+    outcome = bulk_evolution(model, initial_state, replay_config, sample)
+    kw_dynamics = outcome.y_expectation_values
+    length(kw_dynamics) == t || error(
+        "KW dynamics length mismatch in $file: expected $t, got $(length(kw_dynamics))",
+    )
+    return Int(data["seed"]), kw_dynamics
+end
+
+"""Three-way KW-sector statistics, classified by the final KW value's nearest
+defect eigenvalue (+√2 vaccum, 0 spin, -√2 fermion). Empty sectors are recorded
+with count 0 and empty arrays instead of raising an error."""
+function _kw_sector_statistics(kw_dynamics, seeds, sample_files)
+    final_kw = kw_dynamics[:, end]
+    all(isfinite, final_kw) ||
+        error("KW-sector classification requires finite values")
+    eigenvalues = [sector.eigenvalue for sector in KW_SECTORS]
+    assignment = Vector{Int8}(undef, length(final_kw))
+    for i in eachindex(final_kw)
+        assignment[i] = KW_SECTORS[argmin(abs.(eigenvalues .- final_kw[i]))].assignment
+    end
+
+    metadata = Dict{String,Any}(
+        "kw_sector_classification_rule" =>
+            "nearest eigenvalue to final_kw_expectation_values among {sqrt(2), 0, -sqrt(2)}",
+        "kw_sector_assignment" => assignment,
+    )
+    for sector in KW_SECTORS
+        idx = findall(==(sector.assignment), assignment)
+        prefix = "kw_$(sector.label)_sector"
+        metadata["$(prefix)_eigenvalue"] = sector.eigenvalue
+        metadata["$(prefix)_samples_num"] = length(idx)
+        metadata["$(prefix)_ensemble_seed"] = seeds[idx]
+        metadata["$(prefix)_sample_files"] = sample_files[idx]
+        metadata["$(prefix)_final_kw_expectation_values"] = final_kw[idx]
+        if isempty(idx)
+            metadata["$(prefix)_average_kw_expectation_values"] = Float32[]
+            metadata["$(prefix)_stderr_kw_expectation_values"] = Float64[]
+        else
+            dynamics = view(kw_dynamics, idx, :)
+            metadata["$(prefix)_average_kw_expectation_values"] =
+                vec(mean(dynamics; dims = 1))
+            metadata["$(prefix)_stderr_kw_expectation_values"] =
+                vec(std(dynamics; dims = 1, corrected = false)) ./ sqrt(length(idx))
+        end
+    end
+    return metadata
+end
+
+function _samples_collect_kw_ising(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer,
+    initial_state_label::AbstractString,
+    data_root::AbstractString,
+)
+    L, τ_idx, t = _validate_ising_run(L, τ_idx, t)
+    dir_path = joinpath(data_root, "L$(L)", "gammaind$(τ_idx)")
+    isdir(dir_path) || error("Data directory does not exist: $dir_path")
+    existing_files = sort(filter(
+        file -> startswith(file, "t$(t)_samples") && endswith(file, ".jld"),
+        readdir(dir_path),
+    ))
+    samples_num = length(existing_files)
+    samples_num > 0 || error(
+        "No trajectory files with L=$L, τ_idx=$τ_idx, t=$t in $dir_path",
+    )
+    println("replaying $samples_num $(initial_state_label) trajectories for KW dynamics")
+
+    model = ising_model(L)
+    replay_config = MeasureConfig(
+        τ = τlis[τ_idx],
+        mode = :sample,
+        t₂ = t,
+        track_y_expectation = true,  # for SpinHalf models this tracks the KW duality
+    )
+    ensemble_seed = zeros(Int, samples_num)
+    kw_dynamics = zeros(Float32, samples_num, t)
+    for (i, file) in enumerate(existing_files)
+        seed, kw = _kw_replay_file(
+            model, replay_config, dir_path, file, L, τ_idx, t, initial_state_label,
+        )
+        ensemble_seed[i] = seed
+        kw_dynamics[i, :] = kw
+        i % 100 == 0 && println("  replayed $i / $samples_num")
+    end
+    check_duplicates(ensemble_seed)
+
+    order = sortperm(ensemble_seed)
+    ensemble_seed = ensemble_seed[order]
+    kw_dynamics = kw_dynamics[order, :]
+    existing_files = existing_files[order]
+
+    average_kw, stderr_kw = _mean_and_stderr(kw_dynamics)
+    final_kw = kw_dynamics[:, end]
+    sectors = _kw_sector_statistics(kw_dynamics, ensemble_seed, existing_files)
+    sector_pairs = NamedTuple(Symbol(k) => v for (k, v) in sectors)
+
+    output_path = joinpath(
+        dir_path,
+        "KW_expectation_L$(L)_gamma$(τ_idx)_t$(t).jld2",
+    )
+    JLD2.jldsave(
+        output_path;
+        initial_state = String(initial_state_label),
+        L = L,
+        τ_idx = τ_idx,
+        τ = τlis[τ_idx],
+        gamma = tanh(τlis[τ_idx]),
+        periods = t,
+        samples_num = samples_num,
+        ensemble_seed = ensemble_seed,
+        sample_files = existing_files,
+        trajectory_kw_expectation_values = kw_dynamics,
+        average_kw_expectation_values = average_kw,
+        stderr_kw_expectation_values = stderr_kw,
+        final_kw_expectation_values = final_kw,
+        sector_pairs...,
+    )
+    return output_path
+end
+
+"""Replay `|+⟩^⊗L` trajectories, collecting the per-period KW expectation dynamics."""
+function samples_collect_kw_expectations(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    data_root::AbstractString = ISING_DATA_ROOT,
+)
+    return _samples_collect_kw_ising(L, τ_idx, t, "all_plus", data_root)
+end
+
+"""Replay `:vaccum` or `:fermion` trajectories, collecting the KW dynamics."""
+function samples_collect_kw_expectations_topo_sector(
+    L::Integer,
+    τ_idx::Integer,
+    t::Integer = get_cfg_params_Born(τ_idx, L)[1];
+    sector::Symbol = :vaccum,
+    data_root::Union{Nothing,AbstractString} = nothing,
+)
+    spec = _ising_sector_spec(sector)
+    resolved_data_root = if isnothing(data_root)
+        spec.sign > 0 ? ISING_VACCUM_SECTOR_DATA_ROOT : ISING_FERMION_SECTOR_DATA_ROOT
+    else
+        data_root
+    end
+    return _samples_collect_kw_ising(L, τ_idx, t, spec.label, resolved_data_root)
+end
+
+function print_usage()
+    println("Here t is the number of complete measurement periods.")
+    println("Usage:")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl L τ_idx seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl vaccum_sector L τ_idx seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_vaccum_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl fermion_sector L τ_idx seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_fermion_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl mps L τ_idx χ seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl vaccum_sector_mps L τ_idx χ seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_vaccum_sector_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl fermion_sector_mps L τ_idx χ seed [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl collect_fermion_sector_mps L τ_idx χ [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw_vaccum_sector L τ_idx [t]")
+    println("  julia --project=. exm/Born_Ising/moni_dyna_Ising.jl kw_fermion_sector L τ_idx [t]")
+end
+
+function _configured_or_explicit_time(args, index::Int, τ_idx::Int, L::Int)
+    return length(args) >= index ? parse(Int, args[index]) : get_cfg_params_Born(τ_idx, L)[1]
+end
+
+if isempty(ARGS)
+    print_usage()
+elseif lowercase(ARGS[1]) == "collect"
+    length(ARGS) in (3, 4) || error("Usage: collect L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_process_data(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "vaccum_sector"
+    length(ARGS) in (4, 5) || error("Usage: vaccum_sector L τ_idx seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    seed = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector(L, τ_idx, seed, t))")
+elseif lowercase(ARGS[1]) == "collect_vaccum_sector"
+    length(ARGS) in (3, 4) || error("Usage: collect_vaccum_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "fermion_sector"
+    length(ARGS) in (4, 5) || error("Usage: fermion_sector L τ_idx seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    seed = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector(L, τ_idx, seed, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "collect_fermion_sector"
+    length(ARGS) in (3, 4) || error("Usage: collect_fermion_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector(L, τ_idx, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "mps"
+    length(ARGS) in (5, 6) || error("Usage: mps L τ_idx χ seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    seed = parse(Int, ARGS[5])
+    t = _configured_or_explicit_time(ARGS, 6, τ_idx, L)
+    println("saved: $(samples_generate_mps(L, τ_idx, χ, seed, t))")
+elseif lowercase(ARGS[1]) == "collect_mps"
+    length(ARGS) in (4, 5) || error("Usage: collect_mps L τ_idx χ [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_collect_process_data_mps(L, τ_idx, χ, t))")
+elseif lowercase(ARGS[1]) == "vaccum_sector_mps"
+    length(ARGS) in (5, 6) || error("Usage: vaccum_sector_mps L τ_idx χ seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    seed = parse(Int, ARGS[5])
+    t = _configured_or_explicit_time(ARGS, 6, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector_mps(L, τ_idx, χ, seed, t))")
+elseif lowercase(ARGS[1]) == "collect_vaccum_sector_mps"
+    length(ARGS) in (4, 5) || error("Usage: collect_vaccum_sector_mps L τ_idx χ [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector_mps(L, τ_idx, χ, t))")
+elseif lowercase(ARGS[1]) == "fermion_sector_mps"
+    length(ARGS) in (5, 6) || error("Usage: fermion_sector_mps L τ_idx χ seed [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    seed = parse(Int, ARGS[5])
+    t = _configured_or_explicit_time(ARGS, 6, τ_idx, L)
+    println("saved: $(samples_generate_topo_sector_mps(L, τ_idx, χ, seed, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "collect_fermion_sector_mps"
+    length(ARGS) in (4, 5) || error("Usage: collect_fermion_sector_mps L τ_idx χ [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    χ = parse(Int, ARGS[4])
+    t = _configured_or_explicit_time(ARGS, 5, τ_idx, L)
+    println("saved: $(samples_collect_process_data_topo_sector_mps(L, τ_idx, χ, t; sector = :fermion))")
+elseif lowercase(ARGS[1]) == "kw"
+    length(ARGS) in (3, 4) || error("Usage: kw L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "kw_vaccum_sector"
+    length(ARGS) in (3, 4) || error("Usage: kw_vaccum_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations_topo_sector(L, τ_idx, t))")
+elseif lowercase(ARGS[1]) == "kw_fermion_sector"
+    length(ARGS) in (3, 4) || error("Usage: kw_fermion_sector L τ_idx [t]")
+    L = parse(Int, ARGS[2])
+    τ_idx = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_collect_kw_expectations_topo_sector(L, τ_idx, t; sector = :fermion))")
+else
+    length(ARGS) in (3, 4) || error("Usage: L τ_idx seed [t]")
+    L = parse(Int, ARGS[1])
+    τ_idx = parse(Int, ARGS[2])
+    seed = parse(Int, ARGS[3])
+    t = _configured_or_explicit_time(ARGS, 4, τ_idx, L)
+    println("saved: $(samples_generate(L, τ_idx, seed, t))")
+end

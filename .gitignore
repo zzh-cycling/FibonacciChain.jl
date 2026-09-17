@@ -12,3 +12,4 @@ nohup.out
 .log
 logs/*.log
 .vscode/
+tmp

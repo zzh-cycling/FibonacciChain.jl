@@ -1,6 +1,7 @@
 using FibonacciChain
 using Test
 
+
 @testset "basis.jl" begin
     include("./test_Basis.jl")
 end
@@ -19,10 +20,19 @@ end
 
 @testset "MPSMeasurement.jl" begin
     include("./test_MPSMeasurement.jl")
+    include("./test_MPSPerformance.jl")
+end
+
+@testset "HybridEvolution.jl" begin
+    include("./test_HybridEvolution.jl")
 end
 
 @testset "FiboSparse.jl" begin
     include("./test_FiboSparse.jl")
+end
+
+@testset "IsingAnyon.jl" begin
+    include("test_IsingAnyon.jl")
 end
 
 @testset "Ising" begin
@@ -33,6 +43,14 @@ end
     include("./test_Reference.jl")
 end
 
-@testset "OBFAnyon" begin
+@testset "OBF" begin
     include("./test_OBF.jl")
+end
+
+@testset "Heisenberg" begin
+    include("./test_Heisenberg.jl")
+end
+
+@testset "test_topo_symmetry.jl" begin
+    include("./test_topo_symmetry.jl")
 end

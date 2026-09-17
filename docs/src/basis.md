@@ -36,7 +36,7 @@ model_fibo = AnyonModel(FibonacciAnyon(), N; pbc=true)
 basis_pbc = anyon_basis(model_fibo)
 
 # Generate Ising anyon basis  
-model_ising = AnyonModel(IsingAnyon(), N; pbc=true)
+model_ising = AnyonModel(SpinHalf(), N; model_type=:Ising, pbc=true)
 basis_ising = anyon_basis(model_ising)
 
 # Generate basis in momentum sector k=0
