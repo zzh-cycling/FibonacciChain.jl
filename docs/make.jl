@@ -17,6 +17,9 @@ makedocs(;
         canonical = "https://zzh-cycling.github.io/FibonacciChain.jl",
         assets = String[],
         edit_link = nothing,
+        # The index intentionally contains the complete generated API reference.
+        size_threshold = 500 * 2^10,
+        size_threshold_warn = 300 * 2^10,
     ),
     pages = [
         "Home" => "index.md",

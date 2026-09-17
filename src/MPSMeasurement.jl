@@ -31,7 +31,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> model = AnyonModel(FibonacciAnyon(), 8; pbc=true);
 
-julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=32, outputlevel=0);
 
 julia> ψ_gs isa MPS
 true
@@ -2715,7 +2715,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
 
-julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=10, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=32, outputlevel=0);
 
 julia> ee_profile = anyon_eelis(model, ψ_gs);
 

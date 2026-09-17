@@ -25,6 +25,14 @@ abstract type AbstractAnyonBasis end
 # once and for all by its `anyon_basis` method — this is the single extension
 # point when adding a new chain:
 struct FibonacciAnyon <: AbstractAnyonBasis end  # Fibonacci fusion space: bitstrings with no adjacent 1 s, dim ~ φ^N
+
+"""
+    SpinHalf()
+
+Full spin-1/2 product basis with dimension `2^N`. Select the Hamiltonian through
+the `model_type` keyword of [`AnyonModel`](@ref): `:Ising`, `:OBF`, or
+`:Heisenberg`.
+"""
 struct SpinHalf <: AbstractAnyonBasis end        # spin-1/2 chains (Ising, OBF, Heisenberg): full 2^N product basis
 
 """Periodic Ising fusion paths with labels `0 = I`, `1 = η`, `2 = σ`.
@@ -399,7 +407,7 @@ function _kramers_wannier_sign(bra::T, ket::T) where {N,T<:BitStr{N}}
     return phase_is_odd ? -1.0 : 1.0
 end
 
-raw"""
+@doc raw"""
     kramers_wannier_operator(model::AnyonModel{SpinHalf})
 
 Construct the non-invertible Kramers-Wannier (KW) duality operator `D` on the

@@ -117,8 +117,3 @@ M = FibonacciChain.measure_matrix(model, 0.7, 2, false)
 This API covers fusion-path bases, Hamiltonians, and local measurements.
 MPS, entanglement, symmetry-sector and multilayer evolution interfaces for
 this new basis are not implemented.
-
-```@docs
-IsingAnyon
-ising_fusion_projector
-```
