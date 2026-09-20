@@ -97,7 +97,11 @@ struct HybridMeasurementOutcome{ST}
     schedule::HybridGateSchedule
     free_energys::Vector{Float32}
     entanglement_entropys::Vector{Float32}
+    y_expectation_values::Vector{Float32}
 end
+
+HybridMeasurementOutcome(state, schedule, free_energys, entanglement_entropys) =
+    HybridMeasurementOutcome(state, schedule, free_energys, entanglement_entropys, Float32[])
 
 function _validate_hybrid_run(
     model::AnyonModel{FibonacciAnyon},
@@ -184,6 +188,9 @@ end
 Run the hybrid Fibonacci circuit using an exact state vector. The staggered
 layer geometry is identical to the measurement-only evolution. Gate type is an
 independent Bernoulli variable at every valid spacetime location.
+Set `config.measurement.track_y_expectation=true` to record normalized
+topological-charge expectations after each period in `y_expectation_values`.
+This optional exact-state calculation constructs the dense charge operator.
 """
 function bulk_evolution(
     model::AnyonModel{FibonacciAnyon},
@@ -203,6 +210,8 @@ function bulk_evolution(
     entropies = zeros(Float32, Δt)
     current = ComplexF64.(state)
     buffer = similar(current)
+    Y = _tracked_y_operator(model, mc.track_y_expectation)
+    y_expectation_values = Y === nothing ? Float32[] : zeros(Float32, Δt)
     n_layers = layers_per_period(model)
 
     for period in 1:Δt
@@ -259,6 +268,9 @@ function bulk_evolution(
             free_energys[glayer] = Float32(F)
         end
         entropies[period] = Float32(ee(anyon_rdm(model, collect(1:div(model.N, 2)), current)))
+        if Y !== nothing
+            y_expectation_values[period] = _normalized_y_expectation(Y, current)
+        end
     end
 
     return HybridMeasurementOutcome(
@@ -266,6 +278,7 @@ function bulk_evolution(
         HybridGateSchedule(masks, outcomes, angles),
         free_energys,
         entropies,
+        y_expectation_values,
     )
 end
 
@@ -737,7 +750,8 @@ end
 
 MPS implementation of the replayable hybrid Fibonacci circuit. `cutoff`,
 `mindim`, `maxdim`, and `truncate_every_events` are inherited from the embedded
-`MeasureConfig`.
+`MeasureConfig`. With `track_y_expectation=true`, contract the periodic
+topological-charge MPO after each period and return `y_expectation_values`.
 """
 function bulk_evolution(
     model::AnyonModel{FibonacciAnyon},
@@ -750,6 +764,13 @@ function bulk_evolution(
     Δt, (D, ncols) = _validate_hybrid_run(model, config, schedule)
     mc = config.measurement
     mc.truncate_every_events >= 1 || error("truncate_every_events must be >= 1")
+    y_charge_mpo = if mc.track_y_expectation
+        model.pbc || error("Y expectation tracking requires periodic boundaries")
+        topological_charge_mpo(sites; pbc = true)
+    else
+        nothing
+    end
+    y_expectation_values = mc.track_y_expectation ? zeros(Float32, Δt) : Float32[]
     born = mc.mode == :Born
     born && !normalized && error("mode=:Born requires normalized=true")
     masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
@@ -837,6 +858,12 @@ function bulk_evolution(
             free_energys[glayer] = Float32(F)
         end
         entropies[period] = Float32(ee_mps(current, div(length(sites), 2)))
+        if y_charge_mpo !== nothing
+            y_expectation_values[period] = Float32(
+                real(inner(prime(current), y_charge_mpo, current)) /
+                real(inner(current, current)),
+            )
+        end
     end
 
     return HybridMeasurementOutcome(
@@ -844,5 +871,6 @@ function bulk_evolution(
         HybridGateSchedule(masks, outcomes, angles),
         free_energys,
         entropies,
+        y_expectation_values,
     )
 end

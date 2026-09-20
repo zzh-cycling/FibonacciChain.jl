@@ -25,6 +25,7 @@ end
 
 @testset "HybridEvolution.jl" begin
     include("./test_HybridEvolution.jl")
+    include("./test_HybridProtocol.jl")
 end
 
 @testset "FiboSparse.jl" begin

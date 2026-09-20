@@ -60,7 +60,8 @@ ee_profile = anyon_eelis(model, ground_state)
 Pages = [
     "basis.md", 
     "observables.md",
-    "measurements.md", 
+    "measurements.md",
+    "hybrid_evolution.md",
     "mps.md",
     "examples.md",
     "api.md"

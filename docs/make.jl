@@ -28,6 +28,7 @@ makedocs(;
             "Ising Anyon Chain" => "ising_anyons.md",
             "Observables" => "observables.md",
             "Measurements" => "measurements.md",
+            "Hybrid Evolution" => "hybrid_evolution.md",
             "MPS Methods" => "mps.md",
             "Examples" => "examples.md",
         ],
