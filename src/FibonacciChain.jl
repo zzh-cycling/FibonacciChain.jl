@@ -83,11 +83,15 @@ export add_reference_qubits,
     reference_evolution,
     topological_charge_sharpening,
     build_extended_basis
+export ising_reference_state,
+    categorical_kw_expectation,
+    ising_reference_evolution
 
 include("Basis.jl")
 include("Observable.jl")
 include("AnyonLadder.jl")
 include("Measurement.jl")
+include("IsingReference.jl")
 include("FiboSparse.jl")
 include("MPSMeasurement.jl")
 include("HybridEvolution.jl")

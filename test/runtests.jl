@@ -55,3 +55,7 @@ end
 @testset "test_topo_symmetry.jl" begin
     include("./test_topo_symmetry.jl")
 end
+
+@testset "IsingReference.jl" begin
+    include("test_IsingReference.jl")
+end
