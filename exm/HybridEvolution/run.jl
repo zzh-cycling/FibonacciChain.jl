@@ -26,7 +26,7 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
   --epsilon 0.05        Distance to either Y eigenvalue for sharpening
   --fraction 0.9        Ensemble fraction defining t_sharp
   --output PATH         New output directory (required for a run)
-  --save-schedule       Store replayable schedules using Julia Serialization
+  --save-schedule       Store replayable schedule arrays in JLD2 files
   --help               Show this help
 
 Workers receive the active Julia project and use one BLAS thread.

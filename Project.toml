@@ -24,8 +24,9 @@ SparseArrays = "1.11.0"
 julia = "1"
 
 [extras]
+JLD2 = "033835bb-8acc-5ee8-8aae-3f567f8a3819"
 LsqFit = "2fda8390-95c7-5789-9bda-21331edee243"
 Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [targets]
-test = ["Test", "LsqFit"]
+test = ["Test", "LsqFit", "JLD2"]

@@ -1,5 +1,42 @@
 using FibonacciChain, LinearAlgebra, Test
+using JLD2
 include("../exm/HybridEvolution/protocol.jl")
+
+@testset "Hybrid JLD2 output round trip" begin
+    results = [samples_generate(6, 0.0, 1, seed; save_schedule = true) for seed in 1:2]
+    mktempdir() do directory
+        save_ensemble(directory, results)
+        data = load(joinpath(directory, "trajectories.jld2"))
+        @test size(data["S_half"]) == (2, 2)
+        @test data["trajectory_seed"] == [1, 2]
+        @test data["time"] == [0, 1]
+        @test data["S_half"][2, :] == results[2].entropy
+        @test data["Y_expectation"][1, :] == results[1].y_expectation
+        summary = load(joinpath(directory, "summary.jld2"))
+        @test summary["S_mean"] ≈ vec(mean(data["S_half"]; dims = 1))
+        @test load(joinpath(directory, "sharpening.jld2"), "censored")
+        @test isnan(load(joinpath(directory, "sharpening.jld2"), "t_sharp"))
+        record = load(joinpath(directory, "schedule_seed1.jld2"))
+        schedule = HybridGateSchedule(record["measurement_mask"], record["outcomes"],
+            record["unitary_angles"])
+        @test isequal(schedule.unitary_angles, results[1].schedule.unitary_angles)
+        model = AnyonModel(FibonacciAnyon(), 6; pbc = true)
+        state = zeros(length(anyon_basis(model)))
+        state[1] = 1
+        replay = bulk_evolution(model, state,
+            HybridConfig(τ = Inf, t₂ = 1, mode = :sample, enable_τ_eff = false), schedule)
+        @test last(replay.entanglement_entropys) == last(results[1].entropy)
+        @test all(endswith(".jld2"), readdir(directory))
+    end
+    mktempdir() do directory
+        mps = samples_generate_mps(6, 0.0, 1, 1)
+        save_ensemble(directory, [mps])
+        @test load(joinpath(directory, "mps_diagnostics.jld2"), "final_bond_dimension") ==
+            [mps.final_bond_dimension]
+        @test all(isnan, load(joinpath(directory, "summary.jld2"), "S_sem"))
+        @test !isfile(joinpath(directory, "schedule_seed1.jld2"))
+    end
+end
 
 @testset "Coherent hybrid protocol" begin
     model = AnyonModel(FibonacciAnyon(), 6; pbc = true)
