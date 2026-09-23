@@ -56,6 +56,13 @@ end
 
 standard_error(x) = length(x) > 1 ? std(x) / sqrt(length(x)) : NaN
 
+"""Mean and SEM time series of an observable matrix restricted to `mask` rows."""
+function sector_stats(matrix, mask)
+    subset = matrix[mask, :]
+    return vec(mean(subset; dims = 1)),
+        [standard_error(column) for column in eachcol(subset)]
+end
+
 """Save JLD2 datasets; observable matrices have axes (trajectory, time)."""
 function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     first_result = first(results)
@@ -74,6 +81,12 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
 
     S_mean = vec(mean(S_half; dims = 1))
     fractions = vec(mean(is_sharp; dims = 1))
+    phi = (1 + sqrt(5.0)) / 2
+    sector1 = Y_expectation[:, end] .> (phi - inv(phi)) / 2
+    S_mean_sector1, S_sem_sector1 = sector_stats(S_half, sector1)
+    S_mean_sectortau, S_sem_sectortau = sector_stats(S_half, .!sector1)
+    Y_mean_sector1, Y_sem_sector1 = sector_stats(Y_expectation, sector1)
+    Y_mean_sectortau, Y_sem_sectortau = sector_stats(Y_expectation, .!sector1)
     jldsave(joinpath(directory, "summary.jld2");
         L, p, time, n, S_mean,
         S_sem = [standard_error(column) for column in eachcol(S_half)],
@@ -82,7 +95,11 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         Y_sem = [standard_error(column) for column in eachcol(Y_expectation)],
         sharp_fraction = fractions,
         sharp_sem = [standard_error(column) for column in eachcol(is_sharp)],
-        epsilon_Y = epsilon)
+        epsilon_Y = epsilon,
+        sector_rule = "sector 1 if final-time m_Y > (phi - 1/phi)/2 = 0.5, else sector tau",
+        n_sector1 = count(sector1), n_sectortau = count(.!sector1),
+        S_mean_sector1, S_sem_sector1, S_mean_sectortau, S_sem_sectortau,
+        Y_mean_sector1, Y_sem_sector1, Y_mean_sectortau, Y_sem_sectortau)
     index = findfirst(>=(fraction), fractions)
     jldsave(joinpath(directory, "sharpening.jld2");
         L, p, epsilon_Y = epsilon, target_fraction = fraction,
