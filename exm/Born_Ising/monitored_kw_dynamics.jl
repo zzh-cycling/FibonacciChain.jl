@@ -17,10 +17,9 @@ using JLD2
 
         # Edit the chain/reference preparation here if needed, together with
         # initial_state below. The reference is the leading qubit.
-        chain = zeros(Float64, 2^L)
-        chain[1] = 1.0
-        state = ising_reference_state(chain) # |+>_reference ⊗ |0...0>_chain
-        initial_state = "reference_plus_chain_zero"
+        chain = fill(2.0^(-L / 2), 2^L)
+        state = ising_reference_state(chain) # |+>_reference ⊗ |+...+>_chain
+        initial_state = "reference_plus_chain_allplus"
         config = MeasureConfig(τ = tau, t₂ = periods, mode = :Born,
             rng = MersenneTwister(seed), enable_τ_eff = half_boundary)
         result = ising_reference_evolution(model, state, config)
@@ -53,7 +52,7 @@ function kw_samples_generate(L::Int, tau::Real, periods::Int, seeds, output_dir;
         occursin(r"^t\d+_samples\d+\.jld2$", basename(file)) || continue
         data = JLD2.load(file)
         (data["L"], data["tau"], data["periods"], data["half_boundary"], data["initial_state"]) ==
-            (L, Float64(tau), periods, half_boundary, "reference_plus_chain_zero") ||
+            (L, Float64(tau), periods, half_boundary, "reference_plus_chain_allplus") ||
             error("Incompatible trajectory parameters in $file; use another directory")
     end
     tasks = [(L, Float64(tau), periods, seed, directory, half_boundary) for seed in seed_list]
