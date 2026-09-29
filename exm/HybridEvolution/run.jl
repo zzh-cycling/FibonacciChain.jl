@@ -25,12 +25,14 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
   --enforce-constraint  Reproject MPS to legal Fibonacci paths after each layer
   --epsilon 0.05        Distance to either Y eigenvalue for sharpening
   --fraction 0.9        Ensemble fraction defining t_sharp
-  --output PATH         New output directory (required for a run)
+  --output PATH         New output directory (each trajectory is saved on completion)
   --save-schedule       Store replayable schedule arrays in JLD2 files
   --help               Show this help
 
 Workers receive the active Julia project and use one BLAS thread.
 Existing workers started with julia -p are also supported.
+Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
+After a full (L,p) group finishes, ensemble summaries are written in the same directory.
 """)
 end
 
@@ -137,19 +139,20 @@ function main(args = ARGS)
             duration = opt.periods > 0 ? opt.periods : ceil(Int, opt.factor * L)
             seeds = collect((opt.seed + offset):(opt.seed + offset + opt.trajectories - 1))
             offset += opt.trajectories
+            directory = joinpath(opt.output, "L$(L)_p$(p)")
+            mkpath(directory)
             tasks = [(L, p, duration, seed, opt.stride, opt.save_schedule) for seed in seeds]
-            processor = process_task
+            processor = process_task_and_save
             if opt.backend == "mps"
                 settings = (; cutoff = opt.cutoff, mindim = opt.mindim, maxdim = opt.maxdim,
                     truncate_every_events = opt.truncate_every,
                     enforce_fibonacci_constraint = opt.enforce_constraint)
                 tasks = [(task..., settings) for task in tasks]
-                processor = process_task_mps
+                processor = process_task_mps_and_save
             end
-            results = nprocs() > 1 ? pmap(processor, tasks; batch_size = 1) :
-                map(processor, tasks)
-            directory = joinpath(opt.output, "L$(L)_p$(p)")
-            mkpath(directory)
+            jobs = [(task, directory) for task in tasks]
+            results = nprocs() > 1 ? pmap(processor, jobs; batch_size = 1) :
+                map(processor, jobs)
             save_ensemble(directory, results;
                 epsilon = opt.epsilon, fraction = opt.fraction)
             println("Saved L=$L p=$p, $(length(results)) trajectories: $directory")

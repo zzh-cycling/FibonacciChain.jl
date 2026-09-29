@@ -51,3 +51,10 @@ function process_task_mps(task)
     L, p, periods, seed, stride, save_schedule, settings = task
     return samples_generate_mps(L, p, periods, seed; stride, save_schedule, settings...)
 end
+
+function process_task_mps_and_save(job)
+    task, directory = job
+    result = process_task_mps(task)
+    save_trajectory(directory, result)
+    return result
+end

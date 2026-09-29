@@ -3,8 +3,16 @@ using JLD2
 include("../exm/HybridEvolution/protocol.jl")
 
 @testset "Hybrid JLD2 output round trip" begin
-    results = [samples_generate(6, 0.0, 1, seed; save_schedule = true) for seed in 1:2]
     mktempdir() do directory
+        results = [process_task_and_save(((6, 0.0, 1, seed, 1, true), directory))
+            for seed in 1:2]
+        single = load(joinpath(directory, "trajectory_seed2.jld2"))
+        @test single["seed"] == 2
+        @test single["time"] == results[2].times
+        @test single["S_half"] == results[2].entropy
+        @test single["Y_expectation"] == results[2].y_expectation
+        @test isequal(single["unitary_angles"], results[2].schedule.unitary_angles)
+        @test_throws ErrorException save_trajectory(directory, results[2])
         save_ensemble(directory, results)
         data = load(joinpath(directory, "trajectories.jld2"))
         @test size(data["S_half"]) == (2, 2)
@@ -30,6 +38,10 @@ include("../exm/HybridEvolution/protocol.jl")
     end
     mktempdir() do directory
         mps = samples_generate_mps(6, 0.0, 1, 1)
+        save_trajectory(directory, mps)
+        individual = load(joinpath(directory, "trajectory_seed1.jld2"))
+        @test individual["final_bond_dimension"] == mps.final_bond_dimension
+        @test !haskey(individual, "measurement_mask")
         save_ensemble(directory, [mps])
         @test load(joinpath(directory, "mps_diagnostics.jld2"), "final_bond_dimension") ==
             [mps.final_bond_dimension]

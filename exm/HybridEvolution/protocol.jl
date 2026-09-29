@@ -49,6 +49,13 @@ function process_task(task)
     return samples_generate(L, p, periods, seed; stride, save_schedule)
 end
 
+function process_task_and_save(job)
+    task, directory = job
+    result = process_task(task)
+    save_trajectory(directory, result)
+    return result
+end
+
 function sharp(y, epsilon)
     phi = (1 + sqrt(5.0)) / 2
     return min(abs(y - phi), abs(y + inv(phi))) < epsilon
@@ -61,6 +68,39 @@ function sector_stats(matrix, mask)
     subset = matrix[mask, :]
     return vec(mean(subset; dims = 1)),
         [standard_error(column) for column in eachcol(subset)]
+end
+
+"""Atomically save one completed trajectory, including its replay schedule when requested."""
+function save_trajectory(directory, result)
+    mkpath(directory)
+    path = joinpath(directory, "trajectory_seed$(result.seed).jld2")
+    ispath(path) && error("Trajectory already exists: $path")
+    temporary = tempname(directory)
+    try
+        jldopen(temporary, "w") do file
+            file["L"] = result.L
+            file["p"] = result.p
+            file["periods"] = result.periods
+            file["seed"] = result.seed
+            file["time"] = result.times
+            file["S_half"] = result.entropy
+            file["Y_expectation"] = result.y_expectation
+            file["initial_weight"] = result.initial_weight
+            file["measurement_count"] = result.measurement_count
+            if result.schedule !== nothing
+                file["measurement_mask"] = result.schedule.measurement_mask
+                file["outcomes"] = result.schedule.outcomes
+                file["unitary_angles"] = result.schedule.unitary_angles
+            end
+            if hasproperty(result, :final_bond_dimension)
+                file["final_bond_dimension"] = result.final_bond_dimension
+            end
+        end
+        mv(temporary, path)
+    finally
+        isfile(temporary) && rm(temporary)
+    end
+    return path
 end
 
 """Save JLD2 datasets; observable matrices have axes (trajectory, time)."""
