@@ -40,11 +40,13 @@ function samples_generate_mps(L::Int, p::Float64, periods::Int, seed::Int;
     times = sort!(unique!([0; collect(stride:stride:periods); periods]))
     entropy = [ee_mps(state, L ÷ 2); Float64.(outcome.entanglement_entropys)][times .+ 1]
     y_expectation = [initial_y; Float64.(outcome.y_expectation_values)][times .+ 1]
+    reference_entropy_final = reference_entropy_from_y(last(y_expectation))
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
     final_bond_dimension = maxlinkdim(outcome.state)
     return (; L, p, periods, seed, times, entropy, y_expectation,
-        initial_weight, measurement_count, schedule, final_bond_dimension)
+        initial_weight, measurement_count, reference_entropy_final,
+        schedule, final_bond_dimension)
 end
 
 function process_task_mps(task)

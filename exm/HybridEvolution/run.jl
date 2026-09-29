@@ -13,6 +13,7 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
   --rates 0:0.1:1       Measurement probabilities
   --trajectories 100    Trajectories per (L,p)
   --seed 1              First seed; consecutive distinct seeds across all jobs
+  --shared-seeds        Reuse the same seed range at every (L,p) point
   --time-factor 4       Run ceil(time-factor * L) complete periods
   --periods N           Override scaled time with a fixed positive duration
   --stride 1            Observation interval (always includes 0 and final time)
@@ -33,6 +34,7 @@ Workers receive the active Julia project and use one BLAS thread.
 Existing workers started with julia -p are also supported.
 Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
 After a full (L,p) group finishes, ensemble summaries are written in the same directory.
+After the scan, averaged.jld2 contains only the point summaries and run configuration.
 """)
 end
 
@@ -56,11 +58,14 @@ function options(args)
         "maxdim" => "256", "truncate-every" => "1")
     save_schedule = false
     enforce_constraint = false
+    shared_seeds = false
     i = 1
     while i <= length(args)
         arg = args[i]
         if arg == "--save-schedule"
             save_schedule = true
+        elseif arg == "--shared-seeds"
+            shared_seeds = true
         elseif arg == "--enforce-constraint"
             enforce_constraint = true
         else
@@ -104,7 +109,7 @@ function options(args)
     output = abspath(defaults["output"])
     ispath(output) && error("Output already exists: $output")
     return (; sizes, rates, trajectories, seed, factor, periods, stride,
-        workers, epsilon, fraction, output, save_schedule,
+        workers, epsilon, fraction, output, save_schedule, shared_seeds,
         backend, cutoff, mindim, maxdim, truncate_every, enforce_constraint)
 end
 
@@ -130,15 +135,20 @@ function main(args = ARGS)
         metadata["julia_version"] = string(VERSION)
         metadata["initial_state"] = "all-zero coherent fusion path"
         metadata["protocol"] = "HybridConfig Born; projective; random angles; even then odd"
-        metadata["seed_assignment"] = "size-major, rate-next, trajectory-minor, starting at seed"
+        metadata["seed_assignment"] = opt.shared_seeds ?
+            "same consecutive seed range at every (L,p) point" :
+            "size-major, rate-next, trajectory-minor, starting at seed"
         open(joinpath(opt.output, "config.toml"), "w") do io
             TOML.print(io, metadata)
         end
         offset = 0
         for L in opt.sizes, p in opt.rates
             duration = opt.periods > 0 ? opt.periods : ceil(Int, opt.factor * L)
-            seeds = collect((opt.seed + offset):(opt.seed + offset + opt.trajectories - 1))
-            offset += opt.trajectories
+            first_seed = opt.seed + (opt.shared_seeds ? 0 : offset)
+            seeds = collect(first_seed:(first_seed + opt.trajectories - 1))
+            if !opt.shared_seeds
+                offset += opt.trajectories
+            end
             directory = joinpath(opt.output, "L$(L)_p$(p)")
             mkpath(directory)
             tasks = [(L, p, duration, seed, opt.stride, opt.save_schedule) for seed in seeds]
@@ -157,6 +167,8 @@ function main(args = ARGS)
                 epsilon = opt.epsilon, fraction = opt.fraction)
             println("Saved L=$L p=$p, $(length(results)) trajectories: $directory")
         end
+        println("Saved averaged data: ",
+            save_averaged(opt.output, opt.sizes, opt.rates, opt.trajectories))
     finally
         isempty(added_workers) || rmprocs(added_workers)
     end

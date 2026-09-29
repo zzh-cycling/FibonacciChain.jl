@@ -38,10 +38,11 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     entropy = [ee(anyon_rdm(model, collect(1:(L ÷ 2)), state));
         Float64.(outcome.entanglement_entropys)][times .+ 1]
     y_expectation = [initial_y; Float64.(outcome.y_expectation_values)][times .+ 1]
+    reference_entropy_final = reference_entropy_from_y(last(y_expectation))
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
     return (; L, p, periods, seed, times, entropy, y_expectation,
-        initial_weight, measurement_count, schedule)
+        initial_weight, measurement_count, reference_entropy_final, schedule)
 end
 
 function process_task(task)
@@ -59,6 +60,17 @@ end
 function sharp(y, epsilon)
     phi = (1 + sqrt(5.0)) / 2
     return min(abs(y - phi), abs(y + inv(phi))) < epsilon
+end
+
+"""Reference-qubit entropy for orthogonal topological-charge sectors."""
+function reference_entropy_from_y(y::Real)
+    phi = (1 + sqrt(5.0)) / 2
+    weight = (Float64(y) + inv(phi)) / (phi + inv(phi))
+    isfinite(weight) && -1e-5 <= weight <= 1 + 1e-5 ||
+        throw(ArgumentError("Unphysical Y expectation: $y"))
+    weight = clamp(weight, 0.0, 1.0)
+    return (weight == 0 || weight == 1) ? 0.0 :
+        -weight * log(weight) - (1 - weight) * log1p(-weight)
 end
 
 standard_error(x) = length(x) > 1 ? std(x) / sqrt(length(x)) : NaN
@@ -87,6 +99,7 @@ function save_trajectory(directory, result)
             file["Y_expectation"] = result.y_expectation
             file["initial_weight"] = result.initial_weight
             file["measurement_count"] = result.measurement_count
+            file["reference_entropy_final"] = result.reference_entropy_final
             if result.schedule !== nothing
                 file["measurement_mask"] = result.schedule.measurement_mask
                 file["outcomes"] = result.schedule.outcomes
@@ -111,13 +124,16 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     all(r -> r.L == L && r.p == p && r.times == time, results) ||
         error("Ensemble parameters and observation times must agree")
     seeds = [r.seed for r in results]
+    length(unique(seeds)) == n || error("Duplicate trajectory seeds")
     S_half = reduce(vcat, [permutedims(r.entropy) for r in results])
     Y_expectation = reduce(vcat, [permutedims(r.y_expectation) for r in results])
+    reference_entropy_final = [r.reference_entropy_final for r in results]
     is_sharp = sharp.(Y_expectation, epsilon)
     jldsave(joinpath(directory, "trajectories.jld2");
         L, p, time, trajectory_seed = seeds, S_half, Y_expectation, is_sharp,
         epsilon_Y = epsilon, initial_weight = [r.initial_weight for r in results],
-        measurement_count = [r.measurement_count for r in results])
+        measurement_count = [r.measurement_count for r in results],
+        reference_entropy_final)
 
     S_mean = vec(mean(S_half; dims = 1))
     fractions = vec(mean(is_sharp; dims = 1))
@@ -133,6 +149,8 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         S_density = S_mean / L,
         Y_mean = vec(mean(Y_expectation; dims = 1)),
         Y_sem = [standard_error(column) for column in eachcol(Y_expectation)],
+        reference_entropy_mean = mean(reference_entropy_final),
+        reference_entropy_sem = standard_error(reference_entropy_final),
         sharp_fraction = fractions,
         sharp_sem = [standard_error(column) for column in eachcol(is_sharp)],
         epsilon_Y = epsilon,
@@ -160,4 +178,43 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
             final_bond_dimension = [r.final_bond_dimension for r in results])
     end
     return directory
+end
+
+"""Collect only per-point averages into one portable JLD2 file."""
+function save_averaged(output, sizes, rates, trajectories_per_point)
+    path = joinpath(output, "averaged.jld2")
+    ispath(path) && error("Averaged file already exists: $path")
+    temporary = tempname(output)
+    try
+        jldopen(temporary, "w") do file
+            file["sizes"] = collect(sizes)
+            file["rates"] = collect(rates)
+            file["trajectories_per_point"] = trajectories_per_point
+            config_path = joinpath(output, "config.toml")
+            if isfile(config_path)
+                file["config_toml"] = read(config_path, String)
+            end
+            for L in sizes, p in rates
+                directory = joinpath(output, "L$(L)_p$(p)")
+                summary = load(joinpath(directory, "summary.jld2"))
+                sharpening = load(joinpath(directory, "sharpening.jld2"))
+                summary["L"] == L && summary["p"] == p &&
+                    summary["n"] == trajectories_per_point ||
+                    error("Incomplete or mismatched ensemble in $directory")
+                haskey(summary, "reference_entropy_mean") ||
+                    error("Missing reference entropy in $directory")
+                prefix = "L$(L)/p$(p)"
+                for (key, value) in summary
+                    file["$prefix/summary/$key"] = value
+                end
+                for (key, value) in sharpening
+                    file["$prefix/sharpening/$key"] = value
+                end
+            end
+        end
+        mv(temporary, path)
+    finally
+        isfile(temporary) && rm(temporary)
+    end
+    return path
 end
