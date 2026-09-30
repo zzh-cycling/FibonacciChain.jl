@@ -5,7 +5,7 @@ using Random
 
 """Generate a coherent-state MPS trajectory using hybrid bulk_evolution."""
 function samples_generate_mps(L::Int, p::Float64, periods::Int, seed::Int;
-    stride::Int = 1, save_schedule::Bool = false,
+    stride::Int = 1, save_schedule::Bool = true,
     cutoff::Float64 = 1e-12, mindim::Int = 1, maxdim::Int = 256,
     truncate_every_events::Int = 1, enforce_fibonacci_constraint::Bool = false,
 )

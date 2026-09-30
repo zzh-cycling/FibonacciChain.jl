@@ -27,12 +27,13 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
   --epsilon 0.05        Distance to either Y eigenvalue for sharpening
   --fraction 0.9        Ensemble fraction defining t_sharp
   --output PATH         New output directory (each trajectory is saved on completion)
-  --save-schedule       Store replayable schedule arrays in JLD2 files
+  --save-schedule       Store replayable measurement records (enabled by default)
   --help               Show this help
 
 Workers receive the active Julia project and use one BLAS thread.
 Existing workers started with julia -p are also supported.
 Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
+Trajectory files include measurement_mask, outcomes, and unitary_angles for replay.
 After a full (L,p) group finishes, ensemble summaries are written in the same directory.
 After the scan, averaged.jld2 contains only the point summaries and run configuration.
 """)
@@ -56,7 +57,7 @@ function options(args)
         "epsilon" => "0.05", "fraction" => "0.9", "output" => "",
         "backend" => "exact", "cutoff" => "1e-12", "mindim" => "1",
         "maxdim" => "256", "truncate-every" => "1")
-    save_schedule = false
+    save_schedule = true
     enforce_constraint = false
     shared_seeds = false
     i = 1

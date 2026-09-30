@@ -8,7 +8,7 @@ include("protocol_mps.jl")
 
 """Generate a coherent-state trajectory using the package hybrid evolution."""
 function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
-    stride::Int = 1, save_schedule::Bool = false,
+    stride::Int = 1, save_schedule::Bool = true,
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and >= 4"))
     periods >= 1 && stride >= 1 && seed >= 0 ||
