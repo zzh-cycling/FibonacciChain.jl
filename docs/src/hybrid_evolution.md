@@ -326,6 +326,36 @@ The MPS method additionally uses `cutoff`, `mindim`, `maxdim`, and
 `enforce_fibonacci_constraint=true` reprojects the MPS onto legal periodic
 Fibonacci fusion paths after every layer.
 
+The research drivers `exm/HybridEvolution/protocol.jl` and `protocol_mps.jl`
+also measure the final pure state's subsystem scaling profile,
+``S(\ell)=S(\{1,\ldots,\ell\})`` for ``\ell=1,\ldots,L-1``, in the same
+fusion-path site convention as `anyon_rdm` and `ee_mps`, using natural logs.
+This is a prefix profile anchored at site 1, without averaging over origins.
+They divide the chain into consecutive blocks ``A,B,C,D`` with boundaries
+``\lfloor kL/4\rfloor`` for ``k=0,\ldots,4`` (equal quarters for sizes
+divisible by four), and compute
+
+```math
+I_3=S_A+S_B+S_C-S_{AB}-S_{AC}-S_{BC}+S_{ABC}.
+```
+
+Each trajectory saves `subsystem_sizes`, `S_subsystem_final`, `I3_partition`,
+`I3_entropy_labels`, `I3_entropies`, and `I3_final`. The seven constituent
+entropies follow the label order `A,B,C,AB,AC,BC,ABC`. In `trajectories.jld2`,
+entropy matrices have axes `(trajectory, subsystem size)` or
+`(trajectory, I3 entropy label)`, while `I3_final` is a trajectory vector.
+`summary.jld2` and the portable `averaged.jld2` include
+`S_subsystem_final_mean`, `S_subsystem_final_sem`, `I3_entropies_mean`,
+`I3_entropies_sem`, `I3_final_mean`, and `I3_final_sem`.
+
+MPS evaluation reorders copies of the final state to expose the required
+subsystems as prefixes, including the disconnected union ``AC``. These swaps
+use a separate SVD cutoff (`entropy_cutoff=1e-14`, or `--entropy-cutoff` in
+`run.jl`) without an evolution `maxdim` cap; intermediate bond dimensions can
+increase. The cutoff is stored as `entropy_swap_cutoff` in each MPS trajectory
+and in `mps_diagnostics.jld2`. Check convergence in both the evolution settings
+and this cutoff when using the final entropies quantitatively.
+
 ## Topological-Sector Diagnostics
 
 Two exact-state routines use the same stored hybrid schedules:

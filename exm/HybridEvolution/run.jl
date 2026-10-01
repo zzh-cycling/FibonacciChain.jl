@@ -22,6 +22,7 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
   --cutoff 1e-12        MPS truncation cutoff
   --mindim 1            Minimum MPS bond dimension
   --maxdim 256          Maximum MPS bond dimension
+  --entropy-cutoff 1e-14  SVD cutoff for final-state I3 site swaps (no maxdim cap)
   --truncate-every 1    MPS truncation interval in events (resets each layer)
   --enforce-constraint  Reproject MPS to legal Fibonacci paths after each layer
   --epsilon 0.05        Distance to either Y eigenvalue for sharpening
@@ -34,6 +35,7 @@ Workers receive the active Julia project and use one BLAS thread.
 Existing workers started with julia -p are also supported.
 Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
 Trajectory files include measurement_mask, outcomes, and unitary_angles for replay.
+They also include final S_subsystem_final at lengths 1:L-1 and four-block I3_final.
 After a full (L,p) group finishes, ensemble summaries are written in the same directory.
 After the scan, averaged.jld2 contains only the point summaries and run configuration.
 """)
@@ -56,7 +58,7 @@ function options(args)
         "periods" => "0", "stride" => "1", "workers" => "0",
         "epsilon" => "0.05", "fraction" => "0.9", "output" => "",
         "backend" => "exact", "cutoff" => "1e-12", "mindim" => "1",
-        "maxdim" => "256", "truncate-every" => "1")
+        "maxdim" => "256", "truncate-every" => "1", "entropy-cutoff" => "1e-14")
     save_schedule = true
     enforce_constraint = false
     shared_seeds = false
@@ -94,9 +96,11 @@ function options(args)
     cutoff = parse(Float64, defaults["cutoff"])
     mindim = parse(Int, defaults["mindim"])
     maxdim = parse(Int, defaults["maxdim"])
+    entropy_cutoff = parse(Float64, defaults["entropy-cutoff"])
     truncate_every = parse(Int, defaults["truncate-every"])
     isfinite(cutoff) && cutoff >= 0 && 1 <= mindim <= maxdim && truncate_every >= 1 ||
         error("Invalid MPS truncation settings")
+    isfinite(entropy_cutoff) && entropy_cutoff >= 0 || error("Invalid entropy cutoff")
     all(L -> L >= 4 && iseven(L), sizes) && !isempty(sizes) || error("Invalid sizes")
     all(p -> isfinite(p) && 0 <= p <= 1, rates) && !isempty(rates) || error("Invalid rates")
     length(unique(sizes)) == length(sizes) && length(unique(rates)) == length(rates) ||
@@ -111,7 +115,7 @@ function options(args)
     ispath(output) && error("Output already exists: $output")
     return (; sizes, rates, trajectories, seed, factor, periods, stride,
         workers, epsilon, fraction, output, save_schedule, shared_seeds,
-        backend, cutoff, mindim, maxdim, truncate_every, enforce_constraint)
+        backend, cutoff, mindim, maxdim, truncate_every, enforce_constraint, entropy_cutoff)
 end
 
 function main(args = ARGS)
@@ -157,7 +161,8 @@ function main(args = ARGS)
             if opt.backend == "mps"
                 settings = (; cutoff = opt.cutoff, mindim = opt.mindim, maxdim = opt.maxdim,
                     truncate_every_events = opt.truncate_every,
-                    enforce_fibonacci_constraint = opt.enforce_constraint)
+                    enforce_fibonacci_constraint = opt.enforce_constraint,
+                    entropy_cutoff = opt.entropy_cutoff)
                 tasks = [(task..., settings) for task in tasks]
                 processor = process_task_mps_and_save
             end

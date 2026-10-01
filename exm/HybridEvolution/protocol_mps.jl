@@ -3,17 +3,22 @@ using ITensors
 using ITensorMPS
 using Random
 
+include("final_entanglement.jl")
+
 """Generate a coherent-state MPS trajectory using hybrid bulk_evolution."""
 function samples_generate_mps(L::Int, p::Float64, periods::Int, seed::Int;
     stride::Int = 1, save_schedule::Bool = true,
     cutoff::Float64 = 1e-12, mindim::Int = 1, maxdim::Int = 256,
     truncate_every_events::Int = 1, enforce_fibonacci_constraint::Bool = false,
+    entropy_cutoff::Float64 = 1e-14,
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and >= 4"))
     periods >= 1 && stride >= 1 && seed >= 0 ||
         throw(ArgumentError("periods/stride must be positive; seed nonnegative"))
     isfinite(cutoff) && cutoff >= 0 && 1 <= mindim <= maxdim &&
         truncate_every_events >= 1 || throw(ArgumentError("Invalid MPS truncation settings"))
+    isfinite(entropy_cutoff) && entropy_cutoff >= 0 ||
+        throw(ArgumentError("entropy_cutoff must be finite and nonnegative"))
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     state, sites = initial_mps(L)
     Y = topological_charge_mpo(sites; pbc = true)
@@ -44,9 +49,10 @@ function samples_generate_mps(L::Int, p::Float64, periods::Int, seed::Int;
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
     final_bond_dimension = maxlinkdim(outcome.state)
+    final_observables = final_entanglement(model, outcome.state; entropy_cutoff)
     return (; L, p, periods, seed, times, entropy, y_expectation,
         initial_weight, measurement_count, reference_entropy_final,
-        schedule, final_bond_dimension)
+        schedule, final_bond_dimension, final_observables...)
 end
 
 function process_task_mps(task)

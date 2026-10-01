@@ -41,8 +41,10 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     reference_entropy_final = reference_entropy_from_y(last(y_expectation))
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
+    final_observables = final_entanglement(model, outcome.state)
     return (; L, p, periods, seed, times, entropy, y_expectation,
-        initial_weight, measurement_count, reference_entropy_final, schedule)
+        initial_weight, measurement_count, reference_entropy_final, schedule,
+        final_observables...)
 end
 
 function process_task(task)
@@ -100,6 +102,12 @@ function save_trajectory(directory, result)
             file["initial_weight"] = result.initial_weight
             file["measurement_count"] = result.measurement_count
             file["reference_entropy_final"] = result.reference_entropy_final
+            file["subsystem_sizes"] = result.subsystem_sizes
+            file["S_subsystem_final"] = result.S_subsystem_final
+            file["I3_partition"] = result.I3_partition
+            file["I3_entropy_labels"] = ["A", "B", "C", "AB", "AC", "BC", "ABC"]
+            file["I3_entropies"] = result.I3_entropies
+            file["I3_final"] = result.I3_final
             if result.schedule !== nothing
                 file["measurement_mask"] = result.schedule.measurement_mask
                 file["outcomes"] = result.schedule.outcomes
@@ -107,6 +115,7 @@ function save_trajectory(directory, result)
             end
             if hasproperty(result, :final_bond_dimension)
                 file["final_bond_dimension"] = result.final_bond_dimension
+                file["entropy_swap_cutoff"] = result.entropy_swap_cutoff
             end
         end
         mv(temporary, path)
@@ -123,17 +132,25 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     L, p, time = first_result.L, first_result.p, first_result.times
     all(r -> r.L == L && r.p == p && r.times == time, results) ||
         error("Ensemble parameters and observation times must agree")
+    subsystem_sizes, I3_partition = first_result.subsystem_sizes, first_result.I3_partition
+    all(r -> r.subsystem_sizes == subsystem_sizes && r.I3_partition == I3_partition,
+        results) || error("Ensemble final-state partitions must agree")
     seeds = [r.seed for r in results]
     length(unique(seeds)) == n || error("Duplicate trajectory seeds")
     S_half = reduce(vcat, [permutedims(r.entropy) for r in results])
     Y_expectation = reduce(vcat, [permutedims(r.y_expectation) for r in results])
     reference_entropy_final = [r.reference_entropy_final for r in results]
+    S_subsystem_final = reduce(vcat, [permutedims(r.S_subsystem_final) for r in results])
+    I3_entropies = reduce(vcat, [permutedims(r.I3_entropies) for r in results])
+    I3_final = [r.I3_final for r in results]
+    I3_entropy_labels = ["A", "B", "C", "AB", "AC", "BC", "ABC"]
     is_sharp = sharp.(Y_expectation, epsilon)
     jldsave(joinpath(directory, "trajectories.jld2");
         L, p, time, trajectory_seed = seeds, S_half, Y_expectation, is_sharp,
         epsilon_Y = epsilon, initial_weight = [r.initial_weight for r in results],
         measurement_count = [r.measurement_count for r in results],
-        reference_entropy_final)
+        reference_entropy_final, subsystem_sizes, S_subsystem_final,
+        I3_partition, I3_entropy_labels, I3_entropies, I3_final)
 
     S_mean = vec(mean(S_half; dims = 1))
     fractions = vec(mean(is_sharp; dims = 1))
@@ -151,6 +168,13 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         Y_sem = [standard_error(column) for column in eachcol(Y_expectation)],
         reference_entropy_mean = mean(reference_entropy_final),
         reference_entropy_sem = standard_error(reference_entropy_final),
+        subsystem_sizes,
+        S_subsystem_final_mean = vec(mean(S_subsystem_final; dims = 1)),
+        S_subsystem_final_sem = [standard_error(column) for column in eachcol(S_subsystem_final)],
+        I3_partition, I3_entropy_labels,
+        I3_entropies_mean = vec(mean(I3_entropies; dims = 1)),
+        I3_entropies_sem = [standard_error(column) for column in eachcol(I3_entropies)],
+        I3_final_mean = mean(I3_final), I3_final_sem = standard_error(I3_final),
         sharp_fraction = fractions,
         sharp_sem = [standard_error(column) for column in eachcol(is_sharp)],
         epsilon_Y = epsilon,
@@ -175,7 +199,8 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     if hasproperty(first_result, :final_bond_dimension)
         jldsave(joinpath(directory, "mps_diagnostics.jld2");
             L, p, trajectory_seed = seeds,
-            final_bond_dimension = [r.final_bond_dimension for r in results])
+            final_bond_dimension = [r.final_bond_dimension for r in results],
+            entropy_swap_cutoff = [r.entropy_swap_cutoff for r in results])
     end
     return directory
 end
