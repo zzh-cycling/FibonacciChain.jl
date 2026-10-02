@@ -187,15 +187,6 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         L, p, epsilon_Y = epsilon, target_fraction = fraction,
         t_sharp = isnothing(index) ? NaN : time[index],
         censored = isnothing(index), last_time = last(time))
-    for r in results
-        if r.schedule !== nothing
-            jldsave(joinpath(directory, "schedule_seed$(r.seed).jld2");
-                L = r.L, p = r.p, seed = r.seed,
-                measurement_mask = r.schedule.measurement_mask,
-                outcomes = r.schedule.outcomes,
-                unitary_angles = r.schedule.unitary_angles)
-        end
-    end
     if hasproperty(first_result, :final_bond_dimension)
         jldsave(joinpath(directory, "mps_diagnostics.jld2");
             L, p, trajectory_seed = seeds,
