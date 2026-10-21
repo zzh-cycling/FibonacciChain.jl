@@ -154,6 +154,114 @@ using ITensorMPS
     end
 
 
+    @testset "Ancilla purification entropy and exact evolution" begin
+        @test purification_entropy([1.0, 0], [0.0, 1]) ≈ log(2) atol = 1e-14
+        @test purification_entropy([1.0, 0], [im, 0]) ≈ 0 atol = 1e-14
+        @test purification_entropy([1.0, 0], zeros(2)) == 0
+        @test purification_entropy([sqrt(0.8), 0], [0.0, sqrt(0.2)]) ≈
+            -0.8log(0.8) - 0.2log(0.2) atol = 1e-14
+        @test_throws ArgumentError purification_entropy(zeros(2), zeros(2))
+        @test_throws DimensionMismatch purification_entropy(zeros(2), zeros(3))
+
+        P, Y, _, y = FibonacciChain._hybrid_sector_projector(model, :trivial)
+        states = ComplexF64.(Matrix(qr(P[:, 1:2]).Q)[:, 1:2]) / sqrt(2)
+        state0, state1 = states[:, 1], states[:, 2]
+        @test Y * states ≈ y * states atol = 1e-12
+        for (p, τ) in ((0.0, Inf), (0.5, 0.7), (1.0, Inf))
+            config = HybridConfig(
+                τ = τ, t₂ = 3, mode = :Born, rng = MersenneTwister(51),
+                enable_τ_eff = false, p = p, random_angles = true,
+            )
+            result = hybrid_purification_evolution(model, state0, state1, config)
+            @test sum(abs2, result.state0) + sum(abs2, result.state1) ≈ 1 atol = 1e-12
+            @test Y * result.state0 ≈ y * result.state0 atol = 1e-12
+            @test Y * result.state1 ≈ y * result.state1 atol = 1e-12
+            @test all(S -> 0 <= S <= log(2) + 1e-12, result.purification_entropys)
+            if p == 0
+                @test result.purification_entropys ≈ fill(log(2), 3) atol = 1e-12
+            end
+
+            replay_config = HybridConfig(
+                τ = τ, t₂ = 3, mode = :sample, enable_τ_eff = false,
+            )
+            replay = hybrid_purification_evolution(
+                model, state0, state1, replay_config, result.schedule,
+            )
+            @test replay.state0 ≈ result.state0 atol = 1e-13
+            @test replay.state1 ≈ result.state1 atol = 1e-13
+            @test replay.purification_entropys ≈ result.purification_entropys atol = 1e-13
+
+            rng_before = copy(config.measurement.rng)
+            replay_born = hybrid_purification_evolution(
+                model, state0, state1, config, result.schedule,
+            )
+            @test replay_born.state0 ≈ result.state0 atol = 1e-13
+            @test replay_born.state1 ≈ result.state1 atol = 1e-13
+            @test replay_born.purification_entropys ≈ result.purification_entropys atol = 1e-13
+            @test rand(copy(config.measurement.rng)) == rand(rng_before)
+
+            # Independent ED on ancilla ⊗ system, retaining the full ancilla RDM.
+            joint = vcat(state0, state1)
+            d = length(state0)
+            rng = MersenneTwister(51)
+            for layer in 1:6
+                F = 0.0
+                sites = isodd(layer) ? collect(2:2:N) : collect(1:2:N)
+                for (column, site) in enumerate(sites)
+                    is_measurement = p == 1 ? true : p == 0 ? false : rand(rng) < p
+                    @test is_measurement == result.schedule.measurement_mask[layer, column]
+                    if result.schedule.measurement_mask[layer, column]
+                        outcome = result.schedule.outcomes[layer, column]
+                        K0 = FibonacciChain.measure_matrix(model, τ, site, false)
+                        probe = kron(Matrix{Float64}(I, 2, 2), K0) * joint
+                        @test (rand(rng) >= clamp(sum(abs2, probe), 0.0, 1.0)) == outcome
+                        K = FibonacciChain.measure_matrix(model, τ, site, outcome)
+                        joint = kron(Matrix{Float64}(I, 2, 2), K) * joint
+                        probability = sum(abs2, joint)
+                        F -= log(probability)
+                        joint ./= sqrt(probability)
+                    else
+                        angle = result.schedule.unitary_angles[layer, column]
+                        @test angle == 2π * rand(rng)
+                        Q = FibonacciChain.measure_matrix(model, Inf, site, false)
+                        U = I + (cis(angle) - 1) * Q
+                        joint = kron(Matrix{Float64}(I, 2, 2), U) * joint
+                    end
+                end
+                @test F ≈ result.free_energys[layer] atol = 1e-12
+                if iseven(layer)
+                    amplitudes = reshape(joint, d, 2)
+                    rho = Matrix(Hermitian(transpose(amplitudes) * conj(amplitudes)))
+                    spectrum = eigvals(Hermitian(rho))
+                    entropy = -sum(v * log(v) for v in spectrum if v > 0)
+                    @test entropy ≈ result.purification_entropys[layer ÷ 2] atol = 1e-12
+                end
+            end
+            @test joint ≈ vcat(result.state0, result.state1) atol = 1e-12
+        end
+        @test states[:, 1] == state0
+        @test states[:, 2] == state1
+        K = FibonacciChain.measure_matrix(model, Inf, 2, true)
+        zero_column = findfirst(j -> iszero(norm(K[:, j])), axes(K, 2))
+        @test zero_column !== nothing
+        killed = zeros(size(K, 1))
+        killed[zero_column] = 1
+        mask = falses(4, N ÷ 2)
+        mask[1, 1] = true
+        outcomes = falses(4, N ÷ 2)
+        outcomes[1, 1] = true
+        impossible = hybrid_purification_evolution(
+            model, killed, zeros(length(killed)),
+            HybridConfig(τ = Inf, t₂ = 2, mode = :Born, enable_τ_eff = false),
+            HybridGateSchedule(mask, outcomes, zeros(4, N ÷ 2)),
+        )
+        @test all(isnan, impossible.purification_entropys)
+        @test all(==(Inf), impossible.free_energys)
+        @test_throws DimensionMismatch hybrid_purification_evolution(
+            model, [1.0], state1, HybridConfig(τ = Inf, t₂ = 1, mode = :Born),
+        )
+    end
+
     @testset "Bayesian common-record diagnostics" begin
         Y = topological_charge_operator(model)
         ϕ = (1 + √5) / 2

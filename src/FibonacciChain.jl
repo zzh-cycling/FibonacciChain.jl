@@ -59,6 +59,8 @@ export measure_basismap,
     transfer_matrix_dynamics,
     boundary_evolution,
     bulk_evolution,
+    purification_entropy,
+    hybrid_purification_evolution,
     hybrid_bayesian_evolution,
     hybrid_lyapunov_spectrum
 export anyon_ham_sparse

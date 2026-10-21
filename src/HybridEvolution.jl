@@ -106,11 +106,12 @@ HybridMeasurementOutcome(state, schedule, free_energys, entanglement_entropys) =
 function _validate_hybrid_run(
     model::AnyonModel{FibonacciAnyon},
     config::HybridConfig,
-    schedule::Union{Nothing,HybridGateSchedule},
+    schedule::Union{Nothing,HybridGateSchedule};
+    allow_born_replay::Bool = false,
 )
     mc = config.measurement
     mc.mode ∈ (:sample, :Born) || error("mode must be one of :sample, :Born")
-    mc.mode == :Born && schedule !== nothing &&
+    mc.mode == :Born && schedule !== nothing && !allow_born_replay &&
         error("do not provide a HybridGateSchedule in mode=:Born")
     mc.mode == :sample && schedule === nothing &&
         error("mode=:sample requires a HybridGateSchedule")
@@ -279,6 +280,159 @@ function bulk_evolution(
         free_energys,
         entropies,
         y_expectation_values,
+    )
+end
+
+raw"""
+    purification_entropy(state0, state1)
+
+Ancilla von Neumann entropy in nats for the joint pure state
+`|0⟩A |state0⟩ + |1⟩A |state1⟩`, normalized by its total norm. The two
+system branches need not be normalized or orthogonal. In particular,
+
+```math
+(\rho_A)_{ab}=\frac{\langle v_b|v_a\rangle}
+                        {\langle v_0|v_0\rangle+\langle v_1|v_1\rangle}.
+```
+
+The off-diagonal overlap is essential for purification within one symmetry
+sector; branch probabilities alone measure a different entropy.
+"""
+function purification_entropy(state0::AbstractVector, state1::AbstractVector)
+    length(state0) == length(state1) || throw(
+        DimensionMismatch("The two reference branches must have the same length"),
+    )
+    weight0, weight1 = sum(abs2, state0), sum(abs2, state1)
+    norm2 = weight0 + weight1
+    isfinite(norm2) && norm2 > 0 || throw(
+        ArgumentError("The joint reference state must have finite nonzero norm"),
+    )
+    overlap = dot(state1, state0)
+    rho = Hermitian([weight0 overlap; conj(overlap) weight1] / norm2)
+    weight = clamp(first(eigvals(rho)), 0.0, 0.5)
+    return _binary_entropy(Float64(weight))
+end
+
+raw"""
+    hybrid_purification_evolution(model, state0, state1, config, [schedule])
+
+Evolve an inert ancilla entangled with two exact system-state branches through
+the hybrid Fibonacci circuit. The input represents
+`|0⟩A |state0⟩ + |1⟩A |state1⟩` and is normalized jointly. Both branches
+receive the same gates and measurement outcomes. In `:Born` mode, the outcome
+probability is the sum of the two unnormalized post-measurement norms; neither
+branch is normalized separately. Supplying `schedule` replays it, including
+when reusing a `:Born` config from another evolution; no RNG draws are made.
+If a replayed record has zero probability for the joint state, subsequent
+entropies are `NaN` and layer-wise free energies are `Inf`.
+
+For the ancilla diagnostic of arXiv:2305.13356, Sec. III A, prepare two
+orthogonal, equally weighted states in the same symmetry sector. Different
+sectors instead probe charge sharpening. Initial-state preparation is left
+to the caller.
+
+Return the jointly normalized `state0`, `state1`, the replayable `schedule`,
+layer-wise `free_energys`, and `purification_entropys` after every complete
+period. Time zero is not included. For records sampled from the joint initial
+state, infer the purification time from the decay of the ensemble-averaged
+entropy. Replaying another initial state's Born ensemble changes this average.
+"""
+function hybrid_purification_evolution(
+    model::AnyonModel{FibonacciAnyon},
+    state0::Vector,
+    state1::Vector,
+    config::HybridConfig,
+    schedule::Union{Nothing,HybridGateSchedule} = nothing,
+)
+    Δt, (D, ncols) = _validate_hybrid_run(model, config, schedule; allow_born_replay = true)
+    length(state0) == length(state1) == length(anyon_basis(model)) || throw(
+        DimensionMismatch("Reference branches must match the anyon basis dimension"),
+    )
+    norm2 = sum(abs2, state0) + sum(abs2, state1)
+    isfinite(norm2) && norm2 > 0 || throw(
+        ArgumentError("The joint reference state must have finite nonzero norm"),
+    )
+    current0 = ComplexF64.(state0) / sqrt(norm2)
+    current1 = ComplexF64.(state1) / sqrt(norm2)
+    buffer0, buffer1 = similar(current0), similar(current1)
+    mc = config.measurement
+    born = mc.mode == :Born && schedule === nothing
+    masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
+    outcomes = born ? falses(D, ncols) : copy(schedule.outcomes)
+    angles = born ? fill(NaN, D, ncols) : copy(schedule.unitary_angles)
+    free_energys = zeros(Float64, D)
+    entropies = zeros(Float64, Δt)
+    n_layers = layers_per_period(model)
+    alive = true
+
+    for period in 1:Δt
+        for layer in 1:n_layers
+            glayer = (period - 1) * n_layers + layer
+            τ_current =
+                (period == Δt && layer == n_layers && mc.enable_τ_eff) ? mc.τ / 2 : mc.τ
+            event_sites, measure_model, strength =
+                _obtain_measurement_config(model, glayer, τ_current)
+            basis = anyon_basis(measure_model)
+            cols = _get_sample_column_indices(model, glayer)
+            F = 0.0
+
+            for (k, site) in enumerate(event_sites)
+                alive || continue
+                col = cols[k]
+                is_measurement = born ? _draw_hybrid_gate(mc.rng, config.p) : masks[glayer, col]
+                masks[glayer, col] = is_measurement
+                if is_measurement
+                    # Probe outcome=false on the full ancilla-system state.
+                    outcome = if born
+                        fill!(buffer0, 0)
+                        fill!(buffer1, 0)
+                        _measuremap_impl!(buffer0, basis, measure_model, strength, current0, site, false)
+                        _measuremap_impl!(buffer1, basis, measure_model, strength, current1, site, false)
+                        p0 = clamp(sum(abs2, buffer0) + sum(abs2, buffer1), 0.0, 1.0)
+                        rand(mc.rng) >= p0
+                    else
+                        outcomes[glayer, col]
+                    end
+                    outcomes[glayer, col] = outcome
+                    _hybrid_measure_event_exact!(
+                        buffer0, basis, measure_model, current0, site, strength, outcome;
+                        normalized = false,
+                    )
+                    _hybrid_measure_event_exact!(
+                        buffer1, basis, measure_model, current1, site, strength, outcome;
+                        normalized = false,
+                    )
+                    probability = sum(abs2, buffer0) + sum(abs2, buffer1)
+                    if probability > 0
+                        buffer0 .*= inv(sqrt(probability))
+                        buffer1 .*= inv(sqrt(probability))
+                        F -= log(probability)
+                    else
+                        born && error("sampled a zero-probability measurement outcome")
+                        alive = false
+                    end
+                else
+                    θ_event = born ?
+                              _draw_hybrid_angle(mc.rng, config) :
+                              _scheduled_hybrid_angle(schedule, glayer, col, config)
+                    angles[glayer, col] = θ_event
+                    _apply_fibonacci_unitary_exact!(buffer0, basis, measure_model, current0, site, θ_event)
+                    _apply_fibonacci_unitary_exact!(buffer1, basis, measure_model, current1, site, θ_event)
+                end
+                current0, buffer0 = buffer0, current0
+                current1, buffer1 = buffer1, current1
+            end
+            free_energys[glayer] = alive ? F : Inf
+        end
+        entropies[period] = alive ? purification_entropy(current0, current1) : NaN
+    end
+
+    return (
+        state0 = current0,
+        state1 = current1,
+        schedule = HybridGateSchedule(masks, outcomes, angles),
+        free_energys = free_energys,
+        purification_entropys = entropies,
     )
 end
 

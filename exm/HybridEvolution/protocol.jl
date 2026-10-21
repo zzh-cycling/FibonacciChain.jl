@@ -6,7 +6,15 @@ using JLD2
 
 include("protocol_mps.jl")
 
-"""Generate a coherent-state trajectory using the package hybrid evolution."""
+"""Generate coherent-state observables and same-sector purification entropy.
+
+The purification ancilla is equally entangled with two orthogonal states in
+the trivial topological sector, with no preliminary scrambling. Replay the
+coherent-state measurement record on both branches. Thus `purification_entropy`
+and its ensemble mean use the coherent-state record distribution, rather than
+the Born distribution of the ancilla-entangled initial state. Zero-probability
+records for the latter state have undefined conditional entropy (`NaN`).
+"""
 function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     stride::Int = 1, save_schedule::Bool = true,
 )
@@ -39,11 +47,26 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
         Float64.(outcome.entanglement_entropys)][times .+ 1]
     y_expectation = [initial_y; Float64.(outcome.y_expectation_values)][times .+ 1]
     reference_entropy_final = reference_entropy_from_y(last(y_expectation))
+    reference_entropy = reference_entropy_from_y.(y_expectation)
+
+    purification_sector = :trivial
+    P, _, dimension, _ = FibonacciChain._hybrid_sector_projector(model, purification_sector)
+    dimension >= 2 || error("Purification requires two states in the selected sector")
+    factor = qr(P[:, 1:2])
+    minimum(abs.(diag(factor.R))) > 1e-12 ||
+        error("Initial reference branches are linearly dependent in sector $purification_sector")
+    states = ComplexF64.(Matrix(factor.Q)[:, 1:2]) / sqrt(2)
+    purified = hybrid_purification_evolution(
+        model, states[:, 1], states[:, 2], config, outcome.schedule,
+    )
+    purification_entropy = [FibonacciChain.purification_entropy(states[:, 1], states[:, 2]);
+        purified.purification_entropys][times .+ 1]
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
     final_observables = final_entanglement(model, outcome.state)
     return (; L, p, periods, seed, times, entropy, y_expectation,
-        initial_weight, measurement_count, reference_entropy_final, schedule,
+        initial_weight, measurement_count, reference_entropy, reference_entropy_final,
+        purification_entropy, purification_sector, schedule,
         final_observables...)
 end
 
@@ -56,6 +79,7 @@ function process_task_and_save(job)
     task, directory = job
     result = process_task(task)
     save_trajectory(directory, result)
+    GC.gc()
     return result
 end
 
@@ -101,7 +125,12 @@ function save_trajectory(directory, result)
             file["Y_expectation"] = result.y_expectation
             file["initial_weight"] = result.initial_weight
             file["measurement_count"] = result.measurement_count
+            file["S_R"] = reference_entropy_from_y.(result.y_expectation)
             file["reference_entropy_final"] = result.reference_entropy_final
+            if hasproperty(result, :purification_entropy)
+                file["S_P"] = result.purification_entropy
+                file["purification_sector"] = result.purification_sector
+            end
             file["subsystem_sizes"] = result.subsystem_sizes
             file["S_subsystem_final"] = result.S_subsystem_final
             file["I3_partition"] = result.I3_partition
@@ -139,6 +168,21 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     length(unique(seeds)) == n || error("Duplicate trajectory seeds")
     S_half = reduce(vcat, [permutedims(r.entropy) for r in results])
     Y_expectation = reduce(vcat, [permutedims(r.y_expectation) for r in results])
+    S_R = reference_entropy_from_y.(Y_expectation)
+    has_purification = hasproperty(first_result, :purification_entropy)
+    all(r -> hasproperty(r, :purification_entropy) == has_purification, results) ||
+        error("Ensemble purification observables must agree")
+    if has_purification
+        all(r -> r.purification_sector == first_result.purification_sector, results) ||
+            error("Ensemble purification sectors must agree")
+    end
+    purification_data = has_purification ?
+        (; S_P = reduce(vcat, [permutedims(r.purification_entropy) for r in results]),
+            purification_sector = first_result.purification_sector) : (;)
+    purification_stats = has_purification ?
+        (; S_P_mean = vec(mean(purification_data.S_P; dims = 1)),
+            S_P_sem = [standard_error(column) for column in eachcol(purification_data.S_P)],
+            purification_sector = first_result.purification_sector) : (;)
     reference_entropy_final = [r.reference_entropy_final for r in results]
     S_subsystem_final = reduce(vcat, [permutedims(r.S_subsystem_final) for r in results])
     I3_entropies = reduce(vcat, [permutedims(r.I3_entropies) for r in results])
@@ -149,8 +193,8 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         L, p, time, trajectory_seed = seeds, S_half, Y_expectation, is_sharp,
         epsilon_Y = epsilon, initial_weight = [r.initial_weight for r in results],
         measurement_count = [r.measurement_count for r in results],
-        reference_entropy_final, subsystem_sizes, S_subsystem_final,
-        I3_partition, I3_entropy_labels, I3_entropies, I3_final)
+        S_R, reference_entropy_final, subsystem_sizes, S_subsystem_final,
+        I3_partition, I3_entropy_labels, I3_entropies, I3_final, purification_data...)
 
     S_mean = vec(mean(S_half; dims = 1))
     fractions = vec(mean(is_sharp; dims = 1))
@@ -166,6 +210,8 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         S_density = S_mean / L,
         Y_mean = vec(mean(Y_expectation; dims = 1)),
         Y_sem = [standard_error(column) for column in eachcol(Y_expectation)],
+        S_R_mean = vec(mean(S_R; dims = 1)),
+        S_R_sem = [standard_error(column) for column in eachcol(S_R)],
         reference_entropy_mean = mean(reference_entropy_final),
         reference_entropy_sem = standard_error(reference_entropy_final),
         subsystem_sizes,
@@ -181,7 +227,8 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         sector_rule = "sector 1 if final-time m_Y > (phi - 1/phi)/2 = 0.5, else sector tau",
         n_sector1 = count(sector1), n_sectortau = count(.!sector1),
         S_mean_sector1, S_sem_sector1, S_mean_sectortau, S_sem_sectortau,
-        Y_mean_sector1, Y_sem_sector1, Y_mean_sectortau, Y_sem_sectortau)
+        Y_mean_sector1, Y_sem_sector1, Y_mean_sectortau, Y_sem_sectortau,
+        purification_stats...)
     index = findfirst(>=(fraction), fractions)
     jldsave(joinpath(directory, "sharpening.jld2");
         L, p, epsilon_Y = epsilon, target_fraction = fraction,
@@ -197,8 +244,10 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
 end
 
 """Collect only per-point averages into one portable JLD2 file."""
-function save_averaged(output, sizes, rates, trajectories_per_point)
-    path = joinpath(output, "averaged.jld2")
+function save_averaged(output, sizes, rates, trajectories_per_point;
+    filename = "averaged.jld2",
+)
+    path = joinpath(output, filename)
     ispath(path) && error("Averaged file already exists: $path")
     temporary = tempname(output)
     try
