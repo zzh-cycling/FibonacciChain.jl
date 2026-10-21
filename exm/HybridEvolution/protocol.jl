@@ -6,15 +6,7 @@ using JLD2
 
 include("protocol_mps.jl")
 
-"""Generate coherent-state observables and same-sector purification entropy.
-
-The purification ancilla is equally entangled with two orthogonal states in
-the trivial topological sector, with no preliminary scrambling. Replay the
-coherent-state measurement record on both branches. Thus `purification_entropy`
-and its ensemble mean use the coherent-state record distribution, rather than
-the Born distribution of the ancilla-entangled initial state. Zero-probability
-records for the latter state have undefined conditional entropy (`NaN`).
-"""
+"""Generate a coherent-state trajectory using the package hybrid evolution."""
 function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     stride::Int = 1, save_schedule::Bool = true,
 )
@@ -49,25 +41,65 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     reference_entropy_final = reference_entropy_from_y(last(y_expectation))
     reference_entropy = reference_entropy_from_y.(y_expectation)
 
-    purification_sector = :trivial
-    P, _, dimension, _ = FibonacciChain._hybrid_sector_projector(model, purification_sector)
-    dimension >= 2 || error("Purification requires two states in the selected sector")
-    factor = qr(P[:, 1:2])
-    minimum(abs.(diag(factor.R))) > 1e-12 ||
-        error("Initial reference branches are linearly dependent in sector $purification_sector")
-    states = ComplexF64.(Matrix(factor.Q)[:, 1:2]) / sqrt(2)
-    purified = hybrid_purification_evolution(
-        model, states[:, 1], states[:, 2], config, outcome.schedule,
-    )
-    purification_entropy = [FibonacciChain.purification_entropy(states[:, 1], states[:, 2]);
-        purified.purification_entropys][times .+ 1]
     measurement_count = count(outcome.schedule.measurement_mask)
     schedule = save_schedule ? outcome.schedule : nothing
     final_observables = final_entanglement(model, outcome.state)
     return (; L, p, periods, seed, times, entropy, y_expectation,
         initial_weight, measurement_count, reference_entropy, reference_entropy_final,
-        purification_entropy, purification_sector, schedule,
-        final_observables...)
+        schedule, final_observables...)
+end
+
+"""Orthonormal trivial-sector purification branches `|v0⟩, |v1⟩`, each with
+norm `1/√2` so the joint ancilla-system state is normalized."""
+function purification_initial_states(model, sector = :trivial)
+    P, _, dimension, _ = FibonacciChain._hybrid_sector_projector(model, sector)
+    dimension >= 2 || error("Purification requires two states in the selected sector")
+    factor = qr(P[:, 1:2])
+    minimum(abs.(diag(factor.R))) > 1e-12 ||
+        error("Initial reference branches are linearly dependent in sector $sector")
+    return ComplexF64.(Matrix(factor.Q)[:, 1:2]) / sqrt(2)
+end
+
+"""Generate same-sector purification entropy dynamics with a record Born-sampled
+from the joint ancilla-system state.
+
+The purification ancilla is equally entangled with two orthogonal states in
+the trivial topological sector, with no preliminary scrambling. Unlike the
+coherent trajectories of `samples_generate`, the measurement record is drawn
+from the Born distribution of the ancilla-entangled initial state itself, so
+the decay of the ensemble-averaged `purification_entropy` gives the
+purification time; it is not comparable to a coherent-record replay. The
+independent ensemble shares only the `(L, p, periods, seed)` grid with the
+coherent scan.
+"""
+function purification_samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
+    stride::Int = 1, save_schedule::Bool = true,
+)
+    L >= 4 && iseven(L) || throw(ArgumentError("L must be even and >= 4"))
+    periods >= 1 && stride >= 1 && seed >= 0 ||
+        throw(ArgumentError("periods/stride must be positive; seed nonnegative"))
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    purification_sector = :trivial
+    states = purification_initial_states(model, purification_sector)
+    config = HybridConfig(
+        τ = Inf,
+        t₂ = periods,
+        mode = :Born,
+        rng = MersenneTwister(seed),
+        enable_τ_eff = false,
+        p = p,
+        random_angles = true,
+    )
+    purified = hybrid_purification_evolution(
+        model, states[:, 1], states[:, 2], config,
+    )
+    times = sort!(unique!([0; collect(stride:stride:periods); periods]))
+    purification_entropy = [FibonacciChain.purification_entropy(states[:, 1], states[:, 2]);
+        Float64.(purified.purification_entropys)][times .+ 1]
+    measurement_count = count(purified.schedule.measurement_mask)
+    schedule = save_schedule ? purified.schedule : nothing
+    return (; L, p, periods, seed, times, purification_entropy, purification_sector,
+        measurement_count, schedule)
 end
 
 function process_task(task)
