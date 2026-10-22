@@ -64,13 +64,13 @@ end
 from the joint ancilla-system state.
 
 The purification ancilla is equally entangled with two orthogonal states in
-the trivial topological sector, with no preliminary scrambling. Unlike the
-coherent trajectories of `samples_generate`, the measurement record is drawn
-from the Born distribution of the ancilla-entangled initial state itself, so
-the decay of the ensemble-averaged `purification_entropy` gives the
-purification time; it is not comparable to a coherent-record replay. The
-independent ensemble shares only the `(L, p, periods, seed)` grid with the
-coherent scan.
+the trivial topological sector. First evolve both branches through a common
+unitary-only circuit for L^2 complete periods. Monitored dynamics then start
+at t=0, with the measurement record drawn from the joint state's Born
+distribution. The same RNG is continued across scrambling and monitoring.
+The decay of the ensemble-averaged `purification_entropy` gives the
+purification time. When `save_schedule=true`, return both `scramble_schedule`
+and the monitored `schedule` for full replay.
 """
 function purification_samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     stride::Int = 1, save_schedule::Bool = true,
@@ -78,28 +78,44 @@ function purification_samples_generate(L::Int, p::Float64, periods::Int, seed::I
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and >= 4"))
     periods >= 1 && stride >= 1 && seed >= 0 ||
         throw(ArgumentError("periods/stride must be positive; seed nonnegative"))
+    0 <= p <= 1 || throw(ArgumentError("p must satisfy 0 ≤ p ≤ 1, got $p"))
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     purification_sector = :trivial
     states = purification_initial_states(model, purification_sector)
+    rng = MersenneTwister(seed)
+    scramble_periods = L^2
+    scramble_config = HybridConfig(
+        τ = Inf,
+        t₂ = scramble_periods,
+        mode = :Born,
+        rng = rng,
+        enable_τ_eff = false,
+        p = 0.0,
+        random_angles = true,
+    )
+    scrambled = hybrid_purification_evolution(
+        model, states[:, 1], states[:, 2], scramble_config,
+    )
     config = HybridConfig(
         τ = Inf,
         t₂ = periods,
         mode = :Born,
-        rng = MersenneTwister(seed),
+        rng = rng,
         enable_τ_eff = false,
         p = p,
         random_angles = true,
     )
     purified = hybrid_purification_evolution(
-        model, states[:, 1], states[:, 2], config,
+        model, scrambled.state0, scrambled.state1, config,
     )
     times = sort!(unique!([0; collect(stride:stride:periods); periods]))
-    purification_entropy = [FibonacciChain.purification_entropy(states[:, 1], states[:, 2]);
+    purification_entropy = [FibonacciChain.purification_entropy(scrambled.state0, scrambled.state1);
         Float64.(purified.purification_entropys)][times .+ 1]
     measurement_count = count(purified.schedule.measurement_mask)
     schedule = save_schedule ? purified.schedule : nothing
+    scramble_schedule = save_schedule ? scrambled.schedule : nothing
     return (; L, p, periods, seed, times, purification_entropy, purification_sector,
-        measurement_count, schedule)
+        scramble_periods, measurement_count, schedule, scramble_schedule)
 end
 
 function process_task(task)
