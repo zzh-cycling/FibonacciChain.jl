@@ -2,6 +2,7 @@ module FibonacciChain
 
 using BitBasis, LinearAlgebra, SparseArrays, Arpack, Random
 using ITensorMPS, ITensors
+import MPSKit, TensorKit
 
 #  Exported types and structs
 export FibonacciAnyon,
@@ -66,6 +67,10 @@ export measure_basismap,
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,
+    mpskit_state,
+    mpskit_sites,
+    mps_statevector,
+    fibonacci_category_projectors,
     fibonacci_constraint_violation,
     measurement_operator_mps,
     apply_measurement_mps,
@@ -99,5 +104,6 @@ include("MPSMeasurement.jl")
 include("HybridEvolution.jl")
 include("ReferenceProbe.jl")
 include("IsingAnyon.jl")
+include("MPSKitBackend.jl")
 
 end

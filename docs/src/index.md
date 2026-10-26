@@ -21,7 +21,7 @@ The package currently supports three types of anyonic systems:
 ### Key Features
 
 - **Exact Diagonalization**: Full quantum many-body calculations for small systems
-- **Matrix Product States (MPS)**: Efficient simulation of larger systems using ITensors.jl
+- **Matrix Product States (MPS)**: MPSKit/TensorKit by default, with the legacy ITensor backend available through `backend=:itensor`
 - **Measurement Protocols**: Quantum measurement and post-selection dynamics
 - **Topological Properties**: Utilizing topological symmetry sector.
 - **Anyon Operations**: Implementation of anyonic braiding and exchange statistics, fusion operation.

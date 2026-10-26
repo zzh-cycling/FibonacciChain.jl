@@ -32,7 +32,7 @@ end
 L=10
 rng = MersenneTwister(1)
 model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-ψ, sites = initial_mps(L)
+ψ, sites = initial_mps(L; backend=:itensor)
 config = MeasureConfig(
     τ = log(1+√2),
     mode = :Born,

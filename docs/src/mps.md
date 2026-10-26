@@ -1,6 +1,87 @@
 # Matrix Product State Methods
 
-This section covers the efficient Matrix Product State (MPS) implementations for simulating larger anyon systems using the ITensors.jl library.
+The default MPS backend is MPSKit/TensorKit. The ITensor implementation remains
+available with `backend=:itensor`, including its original regression tests.
+
+## Selecting a backend
+
+```julia
+using FibonacciChain, Random
+
+model = AnyonModel(FibonacciAnyon(), 8; pbc=true)
+ψ, sites = initial_mps(8) # MPSKit.FiniteMPS and TensorKit.ComplexSpace sites
+config = MeasureConfig(τ=0.8, t₂=2, mode=:Born, rng=MersenneTwister(36))
+result = bulk_evolution(model, sites, ψ, config)
+
+ψ_old, sites_old = initial_mps(8; backend=:itensor)
+replay = MeasureConfig(τ=0.8, t₂=2, mode=:sample)
+old_result = bulk_evolution(model, sites_old, ψ_old, replay, result.samples)
+
+ψ_gs, E0 = anyon_mps_gst(model; backend=:mpskit, maxdim=64)
+H = anyon_ham(model, mpskit_sites(model.N))
+```
+
+This migration deliberately retains the **fusion-label/qubit encoding**, the
+closed-path PBC Hilbert space, and ordinary encoded entropy in nats. It does not
+replace the physical sites by categorical τ objects. The Fibonacci constraint
+penalty/projection is consequently still required. `fibonacci_category_projectors()`
+provides separate native TensorKit projectors on τ ⊗ τ for category foundations;
+these are not interchangeable with the encoded PBC operators.
+
+MPSKit implements Fibonacci, Ising and OBF Hamiltonians; measurements and
+Born/fixed-record bulk and boundary evolution; Fibonacci hybrid evolution;
+encoded entropy; constraint and topological-charge MPOs; Lyapunov frames;
+measurement enumeration; controlled-copy reference insertion; and Fibonacci
+charge sharpening with an ancilla. The older reset-reference and spacetime
+reference-correlation workflows still require `backend=:itensor`. Historical
+research scripts explicitly select ITensor to preserve their diagnostics and
+stored state types. Native anyonic PBC dynamics are not implemented here.
+
+All MPSKit evolution, compression, DMRG and overlaps use MPSKit/TensorKit. No
+trajectory is converted through ITensor or an exponentially large dense vector.
+`mpskit_state(old_mps)` converts an existing qubit ITensor MPS tensor by tensor.
+For small-system validation only, `mpskit_state(vector, N)` and
+`mps_statevector(state)` use full 2^N amplitudes in BitBasis order (site 1 is the
+most significant bit).
+
+The truncation cutoff is interpreted as relative discarded squared weight;
+the TensorKit discarded-norm tolerance is therefore `sqrt(cutoff)`. A hard
+`maxdim` and a `mindim` floor are also applied. Compression order differs
+between libraries, so finite-bond states and seeded trajectories need not be
+bitwise identical. Compare fixed records and converged observables. The legacy
+Born policy (compressed outcome-0 norm, complemented for outcome 1) is retained;
+fixed-record replay instead records the selected branch norm. Unnormalized
+replay retains the Kraus prefactors and does not renormalize after compression.
+Rank-deficient Lyapunov frames raise an explicit error instead of inserting an
+arbitrary replacement direction.
+
+Run the independent cross-backend tests and a compilation-warmed benchmark:
+
+```sh
+julia --project=. test/test_MPSKitBackend.jl
+julia --project=. exm/benchmark_mps_backends.jl 8 32 4
+```
+
+The benchmark uses one fixed record, reports wall time and cumulative allocated
+bytes (not peak memory), and computes the final overlap without dense conversion.
+The generic MPO-per-event implementation is a correctness baseline; it does not
+yet exploit categorical block sparsity or promise a speedup over local ITensor
+gates. The OBF OBC dense Hamiltonian currently has an independent boundary-index
+bug; that case is checked against the full ITensor MPO matrix instead of ED.
+
+A local warmed run on 2026-10-26 (Julia 1.12.2, MPSKit 0.13.13,
+TensorKit 0.17.0, one BLAS thread; L=8, maxdim=32, four periods) gave:
+
+| Backend | Time (s) | Allocated bytes | Final bond dimension |
+|:--|--:|--:|--:|
+| ITensor | 0.0243 | 37,433,024 | 8 |
+| MPSKit | 0.162 | 224,007,760 | 8 |
+
+The final fidelity was 0.9999999999999973 and the recorded Float32 free
+energies agreed exactly. This small-system result establishes equivalence,
+not a performance gain: the generic MPSKit MPO application was about 6.7 times
+slower in this run. Larger-system scaling and native category block sparsity
+require separate benchmarks.
 
 ## Ground State Calculations
 
@@ -23,7 +104,7 @@ The MPS Hamiltonian is constructed as a Matrix Product Operator (MPO) with three
 
 ```julia
 # Create sites and Hamiltonian MPO
-sites = siteinds("Qubit", N)
+sites = mpskit_sites(N)
 H = anyon_ham(model, sites)
 ```
 
@@ -70,7 +151,7 @@ ee_profile = anyon_eelis(model, ψ)
 ## Usage Example: Large System Simulation
 
 ```julia
-using FibonacciChain, ITensors
+using FibonacciChain
 
 N = 80  # Much larger than exact diagonalization allows
 maxdim = 200
@@ -93,7 +174,7 @@ println("Central entanglement entropy: $central_ee")
 # Apply measurement and evolve
 τ = 0.5
 measurement_site = N÷2
-sites = siteinds("Qubit", N)
+sites = mpskit_sites(N)
 ψ_measured, prob = measuremap(model, ψ_gs, sites, measurement_site, τ, false)
 
 println("Measurement probability: $prob")

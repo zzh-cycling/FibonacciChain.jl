@@ -138,7 +138,7 @@ using ITensorMPS
             maxdim = 100,
         )
         exact = bulk_evolution(model, state, config, schedule)
-        ψ, sites = initial_mps(N)
+        ψ, sites = initial_mps(N; backend=:itensor)
         mps = bulk_evolution(model, sites, ψ, config, schedule)
 
         dense = vec(Array(reduce(*, mps.state).tensor))

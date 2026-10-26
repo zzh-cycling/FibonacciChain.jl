@@ -32,7 +32,7 @@ function mps_example(cutoff = 1e-10, maxdim = 50)
     τ = atanh(0.9)  # Measurement parameter
     pbc = true  # Periodic boundary conditions
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
 
     # Perform bulk measurements with alternating pattern
     D = 8N  # Number of layers
@@ -148,7 +148,7 @@ function run_mps_benchmark(
         end
 
         # 生成初始MPS
-        ψ, sites = initial_mps(N)
+        ψ, sites = initial_mps(N; backend=:itensor)
 
         # 测量执行时间和内存使用
         result = @timed begin

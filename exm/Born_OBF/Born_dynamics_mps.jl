@@ -28,7 +28,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
             rng = MersenneTwister(index)
 
             model = obf_model(L, λ)
-            ψ, sites = evenparity_mps(L)
+            ψ, sites = evenparity_mps(L; backend=:itensor)
             config = MeasureConfig(
                 τ = τ,
                 mode = :Born,

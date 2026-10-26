@@ -64,6 +64,10 @@ bulk_evolution
 measurement_operator_mps
 initial_mps
 mps_measurement_enumeration
+mpskit_sites
+mpskit_state
+mps_statevector
+fibonacci_category_projectors
 ```
 
 ## Reference Qubit Functions

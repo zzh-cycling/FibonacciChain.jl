@@ -116,7 +116,7 @@ end
     )
     for model in models, stride in (1, 2), half_layer in (false, true)
         @testset "$(typeof(model)), stride=$stride, half_layer=$half_layer" begin
-            ψ, sites = initial_mps(model.N)
+            ψ, sites = initial_mps(model.N; backend=:itensor)
             original = deepcopy(ψ)
             # Spin boundary MPOs avoid the old intermediate SWAP truncations.
             # Compare their trajectories in the exact six-site limit; compressed
@@ -168,7 +168,7 @@ end
 @testset "Compressed spin trajectories converge to dense evolution" begin
     for kind in (:Ising, :OBF)
         model = AnyonModel(SpinHalf(), 6; model_type=kind, pbc=true, λ=0.3)
-        initial, sites = initial_mps(6)
+        initial, sites = initial_mps(6; backend=:itensor)
         config = MeasureConfig(τ=0.8, t₂=3, mode=:Born, rng=MersenneTwister(36),
             maxdim=8, cutoff=1e-12)
         samples = bulk_evolution(model, sites, initial, config).samples

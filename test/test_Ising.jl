@@ -196,6 +196,7 @@ end
     model = AnyonModel(SpinHalf(), L; model_type = :Ising, pbc = true)
     ψ, energy = anyon_mps_gst(
         model;
+        backend = :itensor,
         sweep_times = 10,
         maxdim = 64,
         cutoff = 1e-11,
@@ -689,7 +690,7 @@ end
     EE = anyon_eelis(model, final_st)
     @test fitCCEntEntScal(EE, mincut = 2, pbc = true)[1][1] ≈ 0.5 atol=1e-2
 
-    ψ0, sites = initial_mps(N)
+    ψ0, sites = initial_mps(N; backend=:itensor)
     measure_outcome_mps = bulk_evolution(model, sites, ψ0, config, samples)
     F = measure_outcome_mps.free_energys
     final_mps = measure_outcome_mps.state

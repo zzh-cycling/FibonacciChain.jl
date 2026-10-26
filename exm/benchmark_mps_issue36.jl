@@ -12,7 +12,7 @@ function benchmark_mps_issue36(repeats=3, stride=1, model_type=:Fibonacci)
     function run_case(L, chi, seed; periods=fibonacci ? (L == 8 ? 80 : 2L) : 12)
         model = fibonacci ? AnyonModel(FibonacciAnyon(), L; pbc=true) :
             AnyonModel(SpinHalf(), L; model_type, pbc=true, λ=0.3)
-        ψ, sites = initial_mps(L)
+        ψ, sites = initial_mps(L; backend=:itensor)
         τ = fibonacci ? (L == 8 ? atanh(1/sqrt(2)) : atanh(0.95)) : 0.8
         config = MeasureConfig(τ=τ,
             mode=:Born, t₂=periods, rng=MersenneTwister(seed), cutoff=1e-12,

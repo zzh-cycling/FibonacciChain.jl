@@ -23,6 +23,10 @@ end
     include("./test_MPSPerformance.jl")
 end
 
+@testset "MPSKit backend and ITensor comparison" begin
+    include("./test_MPSKitBackend.jl")
+end
+
 @testset "HybridEvolution.jl" begin
     include("./test_HybridEvolution.jl")
     include("./test_HybridProtocol.jl")

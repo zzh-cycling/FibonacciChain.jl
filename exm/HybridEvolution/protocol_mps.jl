@@ -20,7 +20,7 @@ function samples_generate_mps(L::Int, p::Float64, periods::Int, seed::Int;
     isfinite(entropy_cutoff) && entropy_cutoff >= 0 ||
         throw(ArgumentError("entropy_cutoff must be finite and nonnegative"))
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
-    state, sites = initial_mps(L)
+    state, sites = initial_mps(L; backend=:itensor)
     Y = topological_charge_mpo(sites; pbc = true)
     initial_y = real(inner(prime(state), Y, state)) / real(inner(state, state))
     phi = (1 + sqrt(5.0)) / 2

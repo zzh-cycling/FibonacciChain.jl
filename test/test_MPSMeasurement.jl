@@ -9,7 +9,7 @@ using BitBasis
 @testset "initial_mps" begin
     N = 6
     # Test initial MPS generation
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
 
     @test ψ isa MPS
     @test length(ψ) == N
@@ -24,6 +24,7 @@ end
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     ψ, energy = anyon_mps_gst(
         model;
+        backend = :itensor,
         sweep_times = 20,
         maxdim = 128,
         cutoff = 1e-12,
@@ -117,7 +118,7 @@ end
     N = 6
     τ = 1.0
     model = AnyonModel(FibonacciAnyon(), N; pbc = true)
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
 
     # The MPO boundary path must reproduce the former noncontiguous-gate path
     # without moving the boundary sites through the MPS with SWAP gates.
@@ -379,6 +380,7 @@ end
     # rebuilt on `siteinds(ψ)`.
     ψ, _ = anyon_mps_gst(
         model;
+        backend = :itensor,
         sweep_times = 20,
         maxdim = 128,
         cutoff = 1e-12,
@@ -428,6 +430,7 @@ end
     # indices, so the Y MPO must be rebuilt on `siteinds(ψ)`.
     ψ, _ = anyon_mps_gst(
         model;
+        backend = :itensor,
         sweep_times = 20,
         maxdim = 128,
         cutoff = 1e-12,
@@ -459,7 +462,7 @@ end
         samples,
     )
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     mps = bulk_evolution(
         model,
         sites,
@@ -552,7 +555,7 @@ end
     model = AnyonModel(FibonacciAnyon(), N; pbc = true)
     τ = 1.0
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
 
     seed=10
     # Perform sampling
@@ -603,7 +606,7 @@ end
 
     measure_config =
         MeasureConfig(τ = 1000.0, t₂ = t, rng = MersenneTwister(42), mode = :Born)
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     measure_outcome_mps = FibonacciChain._born_measure_mps(model, sites, ψ, measure_config)
     samples_mps, sample_free_energy_mps =
         measure_outcome_mps.samples, measure_outcome_mps.free_energys
@@ -639,7 +642,7 @@ end
     @test size(samples) == (20, 3)
     @test sample_free_energy[end] ≈ 0.5385529416309107 atol=1e-6
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     measure_outcome_mps =
         FibonacciChain._sample_measure_mps(model, sites, ψ, samples, measure_config)
     samples_mps, sample_free_energy_mps =
@@ -654,7 +657,7 @@ end
     τ = 1.0
     D = 2  # Small number of layers for testing 
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
 
     seed=10
     # Perform sampling
@@ -681,7 +684,7 @@ end
     model = AnyonModel(FibonacciAnyon(), N; pbc = true)
     τ = 1.0
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     st = zeros(length(anyon_basis(model)));
     st[1] = 1.0
 
@@ -720,7 +723,7 @@ end
     N = 6
     model = AnyonModel(FibonacciAnyon(), N; pbc = true)
 
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     st = zeros(length(anyon_basis(model)));
     st[1] = 1.0
 
@@ -763,7 +766,7 @@ end
 function samples_generate_mps(L::Int64, τ::Float64, seed::Int64, D::Int64 = 5L)
     rng = MersenneTwister(seed)
 
-    ψ, sites = initial_mps(L)
+    ψ, sites = initial_mps(L; backend=:itensor)
 
     model = AnyonModel(FibonacciAnyon(), L; pbc = true)
     measure_config = MeasureConfig(τ = τ, t₂ = D, rng = rng, mode = :Born)
@@ -1041,7 +1044,7 @@ end
     t₂ = 4
     seed = 1234
 
-    ψ, sites = initial_mps(N)  # vacuum product state
+    ψ, sites = initial_mps(N; backend=:itensor)  # vacuum product state
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
 

@@ -169,7 +169,7 @@ end
     τ = atanh(1/√2) # critical point for IsingX
 
     model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.001, pbc = true)
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     t = 4N
@@ -199,7 +199,7 @@ end
     τ = 0.1 # small τ have more accurate c
 
     model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.856, pbc = true)
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     t = 100N
@@ -230,7 +230,7 @@ end
     τ = atanh(1/√2)
 
     model = AnyonModel(SpinHalf(), N; model_type=:OBF, λ = 0.65, pbc = true)
-    ψ, sites = initial_mps(N)
+    ψ, sites = initial_mps(N; backend=:itensor)
     st = zeros(length(anyon_basis(model)))
     st[1] = 1.0
     t = 7N

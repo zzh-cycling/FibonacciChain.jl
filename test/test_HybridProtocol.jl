@@ -24,7 +24,8 @@ include("../exm/HybridEvolution/protocol.jl")
         @test summary["S_mean"] ≈ vec(mean(data["S_half"]; dims = 1))
         @test load(joinpath(directory, "sharpening.jld2"), "censored")
         @test isnan(load(joinpath(directory, "sharpening.jld2"), "t_sharp"))
-        record = load(joinpath(directory, "schedule_seed1.jld2"))
+        # Replay records are stored in the per-trajectory file.
+        record = load(joinpath(directory, "trajectory_seed1.jld2"))
         schedule = HybridGateSchedule(record["measurement_mask"], record["outcomes"],
             record["unitary_angles"])
         @test isequal(schedule.unitary_angles, results[1].schedule.unitary_angles)
@@ -37,7 +38,7 @@ include("../exm/HybridEvolution/protocol.jl")
         @test all(endswith(".jld2"), readdir(directory))
     end
     mktempdir() do directory
-        mps = samples_generate_mps(6, 0.0, 1, 1)
+        mps = samples_generate_mps(6, 0.0, 1, 1; save_schedule=false)
         save_trajectory(directory, mps)
         individual = load(joinpath(directory, "trajectory_seed1.jld2"))
         @test individual["final_bond_dimension"] == mps.final_bond_dimension
@@ -120,7 +121,7 @@ end
     model = AnyonModel(FibonacciAnyon(), 6; pbc = true)
     record = samples_generate(6, 0.5, 2, 19; save_schedule = true)
     for interval in (1, 2), enforce in (false, true)
-        state, sites = initial_mps(6)
+        state, sites = initial_mps(6; backend=:itensor)
         config = HybridConfig(τ = Inf, t₂ = 2, mode = :sample,
             enable_τ_eff = false, track_y_expectation = true,
             cutoff = 1e-14, maxdim = 64, truncate_every_events = interval,

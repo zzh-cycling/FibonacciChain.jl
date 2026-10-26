@@ -41,7 +41,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
         model = fib_model(L)
         t, _, _ = get_mps_ps(τ, L, sign)
         average_EElis=zeros(L-1)
-        ψ, sites = initial_mps(L)
+        ψ, sites = initial_mps(L; backend=:itensor)
             
         sample =
             sign ? BitMatrix(ones(Bool, 2t, length(2:2:L))) :

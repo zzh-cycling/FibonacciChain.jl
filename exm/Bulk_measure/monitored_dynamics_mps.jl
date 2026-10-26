@@ -32,7 +32,7 @@ const BULK_MEASURE_CONFIG = joinpath(@__DIR__, "config.jl")
             rng = MersenneTwister(index)
 
             model = fib_model(L)
-            ψ, sites = initial_mps(L)
+            ψ, sites = initial_mps(L; backend=:itensor)
             config = MeasureConfig(
                 τ = τ,
                 mode = :Born,

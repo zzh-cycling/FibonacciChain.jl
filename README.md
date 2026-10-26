@@ -50,7 +50,7 @@ For more examples and API details, see the [documentation](https://zzh-cycling.g
 ## Features
 
 - **Exact Diagonalization**: Full quantum many-body calculations for small systems utilizing constraint Hilbert space.
-- **Matrix Product States (MPS)**: Efficient simulation of larger systems using [ITensors.jl](https://itensor.github.io/ITensors.jl/stable/).
+- **Matrix Product States (MPS)**: MPSKit/TensorKit is the default backend, preserving the fusion-label encoding. The ITensor backend remains available with `backend=:itensor`, with cross-backend regression tests.
 - **Measurement dynamics**: Both for Born random sampling and post selection clean trajectory.
 - **Anyon Operations**: Anyonic braiding, exchange statistics, and fusion operations.
 - **Topological symmetry**: Topological symmetry sector analysis.

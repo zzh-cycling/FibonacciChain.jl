@@ -58,7 +58,7 @@ const BORN_OBF_CONFIG = joinpath(@__DIR__, "config.jl")
         try
             τ = τlis[ind]
             model = obf_model(N, λ)
-            ψ, sites = initial_mps(N)
+            ψ, sites = initial_mps(N; backend=:itensor)
             t = get_dynamics_params(ind, λ)[1]
             measure_config = MeasureConfig(
                 τ = τ,

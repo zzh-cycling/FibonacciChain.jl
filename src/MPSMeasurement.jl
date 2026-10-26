@@ -1,16 +1,20 @@
 """
-MPS-based implementation for anyon chain measurements using ITensor.
+Legacy ITensor implementation for anyon chain measurements.
 
 This module provides Matrix Product State (MPS) implementations for efficient
 simulation of large anyon chains with measurement protocols.
 """
 
 """
-    anyon_mps_gst(model::AnyonModel; sweep_times, maxdim, cutoff, outputlevel, seed)
+    initial_mps(N; backend=:mpskit)
+    anyon_mps_gst(model::AnyonModel; backend=:mpskit, sweep_times, maxdim, cutoff, outputlevel, seed)
 
 Find the ground state of an anyon-chain Hamiltonian using DMRG. For Fibonacci
 models, the variational state is projected into the fusion-path Hilbert space
 and a penalty for forbidden adjacent `11` labels is included during DMRG.
+`initial_mps` instead returns the all-zero product state and its physical sites.
+Select `backend=:itensor` for the legacy implementation; the default is
+MPSKit/TensorKit with the same fusion-label/qubit encoding.
 
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
@@ -31,7 +35,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> model = AnyonModel(FibonacciAnyon(), 8; pbc=true);
 
-julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=32, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(model; backend=:itensor, maxdim=32, outputlevel=0);
 
 julia> ψ_gs isa MPS
 true
@@ -40,7 +44,9 @@ julia> E0 < 0 && imag(E0) ≈ 0
 true
 ```
 """
-function initial_mps(N::Int)
+function initial_mps(N::Int; backend::Symbol = :mpskit)
+    backend == :mpskit && return _initial_mpskit(N, false)
+    backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
     # Create sites for Fibonacci anyons
     sites = siteinds("Qubit", N)
 
@@ -362,7 +368,7 @@ function _project_fibonacci_constraint(
 end
 
 """
-    evenparity_mps(N::Int)
+    evenparity_mps(N::Int; backend=:mpskit)
 
 Create an MPS for the even-parity state in the Z basis, i.e. the equal-weight
 superposition of all bitstrings with an even number of |1⟩.
@@ -371,7 +377,9 @@ superposition of all bitstrings with an even number of |1⟩.
 - `MPS`: normalized even-parity MPS
 - `Vector{Index}`: site indices
 """
-function evenparity_mps(N::Int)
+function evenparity_mps(N::Int; backend::Symbol = :mpskit)
+    backend == :mpskit && return _initial_mpskit(N, true)
+    backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
     # Create sites for Fibonacci anyons
     sites = siteinds("Qubit", N)
 
@@ -397,6 +405,7 @@ end
 
 function anyon_mps_gst(
     model::AnyonModel{AT};
+    backend::Symbol = :mpskit,
     sweep_times::Int = 10,
     maxdim::Int = 100,
     cutoff::Float64 = 1e-10,
@@ -404,6 +413,9 @@ function anyon_mps_gst(
     seed::Int = 1234,
     initial_linkdim::Int = min(8, maxdim),
 ) where {AT<:AbstractAnyonBasis}
+    backend == :mpskit && return _mpskit_groundstate(model; sweep_times, maxdim,
+        cutoff, outputlevel, seed, initial_linkdim)
+    backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
     1 <= initial_linkdim <= maxdim ||
         error("initial_linkdim must lie between 1 and maxdim")
     sites = siteinds("Qubit", model.N)
@@ -422,6 +434,7 @@ end
 
 function anyon_mps_gst(
     model::AnyonModel{FibonacciAnyon};
+    backend::Symbol = :mpskit,
     sweep_times::Int = 20,
     maxdim::Int = 100,
     cutoff::Float64 = 1e-10,
@@ -431,6 +444,9 @@ function anyon_mps_gst(
     constraint_penalty::Float64 = 20.0,
     constraint_tolerance::Float64 = 1e-6,
 )
+    backend == :mpskit && return _mpskit_groundstate(model; sweep_times, maxdim,
+        cutoff, outputlevel, seed, initial_linkdim, constraint_penalty, constraint_tolerance)
+    backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
     constraint_penalty > 0 || error("constraint_penalty must be positive")
     1 <= initial_linkdim <= maxdim ||
         error("initial_linkdim must lie between 1 and maxdim")
@@ -1839,7 +1855,8 @@ For reset method (measure system qubit first, then create Bell pair), use
 # Example
 ```julia
 model = AnyonModel(FibonacciAnyon(), 6)
-ψ, sites = anyon_mps_gst(model)
+ψ, energy = anyon_mps_gst(model; backend=:itensor)
+sites = siteinds(ψ)
 ψ_ref, sites_ref = add_reference_qubits(model, ψ, sites, 3)  # Add ref qubit at site 3
 ```
 
@@ -1980,7 +1997,8 @@ adding the reference qubit.
 # Example
 ```julia
 model = AnyonModel(FibonacciAnyon(), 6)
-ψ, sites = anyon_mps_gst(model)
+ψ, energy = anyon_mps_gst(model; backend=:itensor)
+sites = siteinds(ψ)
 prob0, prob1, ψ0, ψ1, sites_ref = add_reference_qubits_reset(model, ψ, sites, 3)
 # Use ψ0 with probability prob0, or ψ1 with probability prob1
 ```
@@ -2449,8 +2467,8 @@ function _sample_measure_mps(
     )
 end
 
-struct Measurement_outcome_mps_bulk
-    state::MPS
+struct Measurement_outcome_mps_bulk{S}
+    state::S
     samples::BitMatrix
     free_energys::Vector{Float32}
     entanglement_entropys::Vector{Float32}
@@ -2468,8 +2486,8 @@ Measurement_outcome_mps_bulk(state, samples, free_energys, entanglement_entropys
         Float32[],
     )
 
-struct Measurement_outcome_mps_boundary
-    state::MPS
+struct Measurement_outcome_mps_boundary{S}
+    state::S
     sample::BitVector
     free_energy::Float32
 end
@@ -2715,7 +2733,7 @@ julia> using FibonacciChain, ITensorMPS, ITensors
 
 julia> model = AnyonModel(FibonacciAnyon(), 6; pbc=true);
 
-julia> ψ_gs, E0 = anyon_mps_gst(model, maxdim=32, outputlevel=0);
+julia> ψ_gs, E0 = anyon_mps_gst(model; backend=:itensor, maxdim=32, outputlevel=0);
 
 julia> ee_profile = anyon_eelis(model, ψ_gs);
 
