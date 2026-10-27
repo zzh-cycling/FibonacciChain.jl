@@ -60,6 +60,9 @@ bulk_evolution
 
 ## MPS Functions
 
+Native PBC states and lattices use [`NativeFibonacciPBC`](@ref) and
+[`NativePBCSites`](@ref).
+
 ```@docs
 measurement_operator_mps
 initial_mps
@@ -68,6 +71,12 @@ mpskit_sites
 mpskit_state
 mps_statevector
 fibonacci_category_projectors
+native_pbc_state
+native_pbc_amplitudes
+native_pbc_sites
+native_pbc_dense
+native_schmidt_entropy
+native_pbc_energy
 ```
 
 ## Reference Qubit Functions

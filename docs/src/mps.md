@@ -35,9 +35,9 @@ measurement enumeration; controlled-copy reference insertion; and Fibonacci
 charge sharpening with an ancilla. The older reset-reference and spacetime
 reference-correlation workflows still require `backend=:itensor`. Historical
 research scripts explicitly select ITensor to preserve their diagnostics and
-stored state types. Native anyonic PBC dynamics are not implemented here.
+stored state types. A separate experimental native PBC backend is described below.
 
-All MPSKit evolution, compression, DMRG and overlaps use MPSKit/TensorKit. No
+All encoded MPSKit evolution, compression, DMRG and overlaps use MPSKit/TensorKit. No
 trajectory is converted through ITensor or an exponentially large dense vector.
 `mpskit_state(old_mps)` converts an existing qubit ITensor MPS tensor by tensor.
 For small-system validation only, `mpskit_state(vector, N)` and
@@ -82,6 +82,88 @@ energies agreed exactly. This small-system result establishes equivalence,
 not a performance gain: the generic MPSKit MPO application was about 6.7 times
 slower in this run. Larger-system scaling and native category block sparsity
 require separate benchmarks.
+
+## Native PBC with canonical fusion trees and flux legs
+
+The opt-in `backend=:native_pbc` follows the TensorKit/MPSKit maintainer's
+canonical-fusion-tree construction. It does not treat closed-loop diagrams as
+an independent TensorKit basis, and it does not change the default encoded backend.
+
+```julia
+model = AnyonModel(FibonacciAnyon(), 4; pbc=true)
+ψ1, E1 = anyon_mps_gst(model; backend=:native_pbc, flux=:trivial,
+    maxdim=32, sweep_times=12, outputlevel=0)
+ψτ, Eτ = anyon_mps_gst(model; backend=:native_pbc, flux=:tau,
+    maxdim=32, sweep_times=12, outputlevel=0)
+# E1 ≈ -3.2360679775; Eτ ≈ -3.0
+Hτ = anyon_ham(model, native_pbc_sites(4; flux=:tau))
+```
+
+In trivial flux there are N physical τ sites and vacuum MPS boundaries.
+The boundary interaction is the long-range local term on `(1, N)`.
+In τ flux the canonical lattice contains N physical τ sites plus a final
+auxiliary τ leg W; the left boundary is vacuum and the right boundary is τ.
+The auxiliary leg is not counted in `model.N`. The seam term acts on
+`(1, N, N+1)` and is `M' * (h ⊗ id(W)) * M`, where the two explicit braids
+in M wind the interaction around W. Simply omitting this winding gives a
+different spectrum. All production Hamiltonian, DMRG, and measurement operations
+use native category tensors and MPOs, without full-state expansion.
+
+`native_pbc_dense(model; flux, construction=:braid)` reproduces the supplied
+full-ring ED braiding prescription. `construction=:mpo` contracts the production
+local-term MPO. At N=4 and N=6 the two prescriptions are identical matrices in
+trivial flux and complex-conjugate matrices in τ flux, with identical spectra.
+Use `:mpo` when comparing against `native_pbc_amplitudes`; do not mix the amplitude
+conventions. Their combined spectra and individual sector dimensions/spectra
+are checked against the encoded ED Hamiltonian resolved by Y.
+
+`native_pbc_state(N; flux, bond_dim=4, seed=1234)` constructs a normalized random
+MPS using a local RNG. `bond_dim` specifies the multiplicity of each virtual
+sector, not an encoded bond dimension. `initial_mps(N; backend=:native_pbc, flux)`
+uses this seeded random initializer; it is not the encoded all-zero fusion path.
+`native_pbc_state(vector, N; flux)` and `native_pbc_amplitudes` are small-system
+reference conversions in TensorKit's canonical block order. Their sqrt(d_flux)
+normalization makes the vector's Euclidean norm equal the categorical MPS norm.
+The conversions are exponentially sized and default to N ≤ 16; the production
+algorithms have no such reference-size cutoff.
+
+Local measurements and Born/fixed-record bulk trajectories include the same
+braided seam term. The two-layer protocol requires even N. The dense Fibonacci
+measurement routine fixes AFM outcome labels even for `:Ferro`; native measurements
+follow the existing MPS convention, which flips those labels for `:Ferro`.
+
+```julia
+ψ, sites = initial_mps(6; backend=:native_pbc, flux=:tau)
+config = MeasureConfig(τ=0.8, t₂=2, mode=:Born, rng=MersenneTwister(36),
+    track_y_expectation=true)
+model = AnyonModel(FibonacciAnyon(), 6)
+result = bulk_evolution(model, sites, ψ, config)
+```
+
+For a fixed flux, Y tracking returns its eigenvalue (φ or -1/φ); it is not a
+numerical contraction of an independently constructed native Y MPO.
+`enforce_fibonacci_constraint` needs no extra projector because fusion admissibility
+is built into the tensor spaces. Deferred compression and unnormalized fixed-record
+replay are supported.
+
+**Entropy and basis boundary:** native canonical amplitudes are not the encoded
+fusion-label amplitudes. An explicit isometry to the encoded basis is not yet
+provided. Consequently `mps_statevector` and `ee_mps` reject native states rather
+than silently changing their physical meaning. `native_schmidt_entropy(ψ, bond)`
+exposes MPSKit's categorical Schmidt entropy of the canonical state, including
+the auxiliary-leg representation; this does not establish equivalence to the
+encoded PBC interval entropy or a physical annular interval RDM. Bulk evolution
+defaults to `compute_entropy=false`; request `compute_entropy=true,
+entropy=:native_schmidt` explicitly to record this observable.
+
+Native hybrid, Lyapunov-frame, and reference-qubit workflows, coherent superpositions
+of different flux sectors, and an encoded/native basis isometry remain future work.
+Use the encoded backend for those workflows. Native category block sparsity is
+active, but no speedup over the encoded backend is claimed without a benchmark.
+
+```sh
+julia --project test/test_NativeFibonacciPBC.jl
+```
 
 ## Ground State Calculations
 

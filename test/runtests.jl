@@ -25,6 +25,7 @@ end
 
 @testset "MPSKit backend and ITensor comparison" begin
     include("./test_MPSKitBackend.jl")
+    include("./test_NativeFibonacciPBC.jl")
 end
 
 @testset "HybridEvolution.jl" begin

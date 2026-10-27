@@ -67,6 +67,14 @@ export measure_basismap,
 export anyon_ham_sparse
 # MPS-based functions
 export anyon_mps_gst,
+    NativeFibonacciPBC,
+    NativePBCSites,
+    native_pbc_state,
+    native_pbc_sites,
+    native_pbc_amplitudes,
+    native_pbc_dense,
+    native_pbc_energy,
+    native_schmidt_entropy,
     mpskit_state,
     mpskit_sites,
     mps_statevector,
@@ -105,5 +113,6 @@ include("HybridEvolution.jl")
 include("ReferenceProbe.jl")
 include("IsingAnyon.jl")
 include("MPSKitBackend.jl")
+include("NativeFibonacciPBC.jl")
 
 end

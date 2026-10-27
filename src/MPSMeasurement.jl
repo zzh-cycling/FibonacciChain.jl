@@ -16,6 +16,12 @@ and a penalty for forbidden adjacent `11` labels is included during DMRG.
 Select `backend=:itensor` for the legacy implementation; the default is
 MPSKit/TensorKit with the same fusion-label/qubit encoding.
 
+For Fibonacci PBC, `backend=:native_pbc, flux=:trivial` (or `:tau`) uses
+canonical fusion trees with an auxiliary flux leg when needed. This backend
+enforces fusion rules in its tensor spaces, without a constraint penalty.
+Its `initial_mps` returns a seeded random state in the selected flux sector;
+its amplitudes and Schmidt entropy differ from the encoded representation.
+
 # Arguments
 - `model::AnyonModel`: Anyon model containing system parameters (N, pbc, basis)
 - `sweep_times`: Number of DMRG sweeps (10 for spin models, 20 for Fibonacci)
@@ -44,7 +50,9 @@ julia> E0 < 0 && imag(E0) ≈ 0
 true
 ```
 """
-function initial_mps(N::Int; backend::Symbol = :mpskit)
+function initial_mps(N::Int; backend::Symbol = :mpskit, flux::Symbol = :trivial)
+    backend == :native_pbc && return _initial_native_pbc(N;flux)
+    flux == :trivial || throw(ArgumentError("flux applies only to backend=:native_pbc"))
     backend == :mpskit && return _initial_mpskit(N, false)
     backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
     # Create sites for Fibonacci anyons
@@ -435,6 +443,7 @@ end
 function anyon_mps_gst(
     model::AnyonModel{FibonacciAnyon};
     backend::Symbol = :mpskit,
+    flux::Symbol = :trivial,
     sweep_times::Int = 20,
     maxdim::Int = 100,
     cutoff::Float64 = 1e-10,
@@ -444,6 +453,9 @@ function anyon_mps_gst(
     constraint_penalty::Float64 = 20.0,
     constraint_tolerance::Float64 = 1e-6,
 )
+    backend == :native_pbc && return _native_groundstate(model;flux,sweep_times,
+        maxdim,cutoff,outputlevel,seed,initial_linkdim)
+    flux == :trivial || throw(ArgumentError("flux applies only to backend=:native_pbc"))
     backend == :mpskit && return _mpskit_groundstate(model; sweep_times, maxdim,
         cutoff, outputlevel, seed, initial_linkdim, constraint_penalty, constraint_tolerance)
     backend == :itensor || throw(ArgumentError("unknown MPS backend: $backend"))
