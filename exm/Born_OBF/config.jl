@@ -30,7 +30,7 @@ function get_born_dynamics_params(ind, L, λ)
             cfg = Dict(11.0 => (18, 14, 2))
             t, step, start = get(cfg, λ, (18, 14, 2))
         end
-    elseif 18 <= L <=64
+    elseif 18 <= L <= 128
         if ind == 1
             cfg = Dict(11.0 => (250, 14, 40))
             t, step, start = get(cfg, λ, (150, 14, 20))
@@ -42,14 +42,6 @@ function get_born_dynamics_params(ind, L, λ)
             t, step, start = get(cfg, λ, (8, 14, 1))
         end
         # Default parameters for MPS
-    elseif L >=128
-        if ind == 1
-            cfg = Dict(11.0 => (400, 14, 50))
-            t, step, start = get(cfg, λ, (200, 14, 30))
-        elseif ind == 7
-            cfg = Dict(11.0 => (18, 14, 2))
-            t, step, start = get(cfg, λ, (4, 14, 1))
-        end
     end
     inds = collect(1:step:t*L)
     return t, inds, start
