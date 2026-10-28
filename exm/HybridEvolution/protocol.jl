@@ -38,6 +38,7 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     entropy = [ee(anyon_rdm(model, collect(1:(L ÷ 2)), state));
         Float64.(outcome.entanglement_entropys)][times .+ 1]
     y_expectation = [initial_y; Float64.(outcome.y_expectation_values)][times .+ 1]
+    free_energys, free_energy = free_energy_dynamics(outcome.free_energys, times, periods)
     reference_entropy_final = reference_entropy_from_y(last(y_expectation))
     reference_entropy = reference_entropy_from_y.(y_expectation)
 
@@ -46,7 +47,7 @@ function samples_generate(L::Int, p::Float64, periods::Int, seed::Int;
     final_observables = final_entanglement(model, outcome.state)
     return (; L, p, periods, seed, times, entropy, y_expectation,
         initial_weight, measurement_count, reference_entropy, reference_entropy_final,
-        schedule, final_observables...)
+        schedule, free_energys, free_energy, final_observables...)
 end
 
 """Orthonormal trivial-sector purification branches `|v0⟩, |v1⟩`, each with
@@ -111,11 +112,13 @@ function purification_samples_generate(L::Int, p::Float64, periods::Int, seed::I
     times = sort!(unique!([0; collect(stride:stride:periods); periods]))
     purification_entropy = [FibonacciChain.purification_entropy(scrambled.state0, scrambled.state1);
         Float64.(purified.purification_entropys)][times .+ 1]
+    free_energys, free_energy = free_energy_dynamics(purified.free_energys, times, periods)
     measurement_count = count(purified.schedule.measurement_mask)
     schedule = save_schedule ? purified.schedule : nothing
     scramble_schedule = save_schedule ? scrambled.schedule : nothing
     return (; L, p, periods, seed, times, purification_entropy, purification_sector,
-        scramble_periods, measurement_count, schedule, scramble_schedule)
+        scramble_periods, measurement_count, schedule, scramble_schedule,
+        free_energys, free_energy)
 end
 
 function process_task(task)
@@ -149,6 +152,21 @@ end
 
 standard_error(x) = length(x) > 1 ? std(x) / sqrt(length(x)) : NaN
 
+"""Layer record surprisal and cumulative F(t)=-log P(record through t).
+
+Times count complete even-then-odd periods; gate-choice and angle sampling
+probabilities are excluded, exactly as in `bulk_evolution.free_energys`.
+"""
+function free_energy_dynamics(layer_values, times, periods)
+    length(layer_values) == 2periods || error("Expected two free-energy layers per period")
+    values = Float64.(layer_values)
+    all(isfinite, values) || error("Nonfinite record free energy")
+    cumulative = [0.0; cumsum(values)]
+    return values, cumulative[2 .* times .+ 1]
+end
+
+const FREE_ENERGY_DEFINITION = "free_energys stores per-layer -log Born outcome probabilities; free_energy(t) sums the first 2t layers, with F(0)=0; gate-choice and angle sampling probabilities are excluded"
+
 """Mean and SEM time series of an observable matrix restricted to `mask` rows."""
 function sector_stats(matrix, mask)
     subset = matrix[mask, :]
@@ -170,6 +188,9 @@ function save_trajectory(directory, result)
             file["seed"] = result.seed
             file["time"] = result.times
             file["S_half"] = result.entropy
+            file["free_energys"] = result.free_energys
+            file["free_energy"] = result.free_energy
+            file["free_energy_definition"] = FREE_ENERGY_DEFINITION
             file["Y_expectation"] = result.y_expectation
             file["initial_weight"] = result.initial_weight
             file["measurement_count"] = result.measurement_count
@@ -217,6 +238,10 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     S_half = reduce(vcat, [permutedims(r.entropy) for r in results])
     Y_expectation = reduce(vcat, [permutedims(r.y_expectation) for r in results])
     S_R = reference_entropy_from_y.(Y_expectation)
+    free_energys = reduce(vcat, [permutedims(r.free_energys) for r in results])
+    free_energy = reduce(vcat, [permutedims(r.free_energy) for r in results])
+    size(free_energys) == (n, 2first_result.periods) || error("Free-energy layer grid mismatch")
+    size(free_energy) == size(S_half) || error("Free-energy observation grid mismatch")
     has_purification = hasproperty(first_result, :purification_entropy)
     all(r -> hasproperty(r, :purification_entropy) == has_purification, results) ||
         error("Ensemble purification observables must agree")
@@ -242,7 +267,9 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
         epsilon_Y = epsilon, initial_weight = [r.initial_weight for r in results],
         measurement_count = [r.measurement_count for r in results],
         S_R, reference_entropy_final, subsystem_sizes, S_subsystem_final,
-        I3_partition, I3_entropy_labels, I3_entropies, I3_final, purification_data...)
+        I3_partition, I3_entropy_labels, I3_entropies, I3_final,
+        free_energys, free_energy, free_energy_definition = FREE_ENERGY_DEFINITION,
+        purification_data...)
 
     S_mean = vec(mean(S_half; dims = 1))
     fractions = vec(mean(is_sharp; dims = 1))
@@ -254,6 +281,11 @@ function save_ensemble(directory, results; epsilon = 0.05, fraction = 0.9)
     Y_mean_sectortau, Y_sem_sectortau = sector_stats(Y_expectation, .!sector1)
     jldsave(joinpath(directory, "summary.jld2");
         L, p, time, n, S_mean,
+        free_energy_mean = vec(mean(free_energy; dims = 1)),
+        free_energy_sem = [standard_error(column) for column in eachcol(free_energy)],
+        free_energys_mean = vec(mean(free_energys; dims = 1)),
+        free_energys_sem = [standard_error(column) for column in eachcol(free_energys)],
+        free_energy_definition = FREE_ENERGY_DEFINITION,
         S_sem = [standard_error(column) for column in eachcol(S_half)],
         S_density = S_mean / L,
         Y_mean = vec(mean(Y_expectation; dims = 1)),
