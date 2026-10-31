@@ -36,6 +36,8 @@ Existing workers started with julia -p are also supported.
 Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
 Trajectory files include measurement_mask, outcomes, and unitary_angles for replay.
 They also include final S_subsystem_final at lengths 1:L-1 and four-block I3_final.
+free_energys stores per-layer record free energy; free_energy stores cumulative
+F(t)=-log P(record) at the observation times, including F(0)=0.
 After a full (L,p) group finishes, ensemble summaries are written in the same directory.
 After the scan, averaged.jld2 contains only the point summaries and run configuration.
 """)
