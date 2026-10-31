@@ -69,7 +69,7 @@ function replay_projected_occupation_correlation(model, sample, τ, times;
     return (; correlations, weight_tau, state)
 end
 
-"""Read original .jld samples, replay, and save per-seed C[x,y,time,seed] plus means/SEMs."""
+"""Read original .jld samples; save raw C[x,y,time,seed], mean(abs(C)), and its SEM."""
 function collect_projected_occupation_correlation(L, τ, times, sample_files, output)
     ispath(output) && error("Output already exists: $output")
     isempty(sample_files) && throw(ArgumentError("Provide at least one saved trajectory"))
@@ -102,15 +102,15 @@ function collect_projected_occupation_correlation(L, τ, times, sample_files, ou
         println("Replayed seed $seed ($index/$(length(files)))")
     end
     n = length(files)
-    mean_correlation = dropdims(mean(correlations; dims=4); dims=4)
-    stderr_real = n > 1 ? dropdims(std(real.(correlations); dims=4); dims=4) ./ sqrt(n) :
-        fill(NaN, size(mean_correlation))
-    stderr_imag = n > 1 ? dropdims(std(imag.(correlations); dims=4); dims=4) ./ sqrt(n) :
+    absolute_correlations = abs.(correlations)
+    mean_correlation = dropdims(mean(absolute_correlations; dims=4); dims=4)
+    stderr_correlation = n > 1 ? dropdims(std(absolute_correlations; dims=4); dims=4) ./ sqrt(n) :
         fill(NaN, size(mean_correlation))
     mkpath(dirname(abspath(output)))
     JLD2.jldsave(output; L, τ, times=collect(times), sites, seeds, source_periods,
         source_sample_files=files, correlations, weight_tau, mean_correlation,
-        stderr_real, stderr_imag, samples_num=n, time_unit="complete_two_layer_period",
+        stderr_correlation, samples_num=n, time_unit="complete_two_layer_period",
+        ensemble_observable="mean(abs(C)); absolute value taken per trajectory before averaging",
         operator="O_i = Pi_tau n_i Pi_1; n_i = fusion-path bit 1 occupation",
         ordering="C[x,y,t,seed] = <psi(t)|O_x O_y^dagger|psi(t)>",
         initial_state="first_fusion_path_basis_vector", enable_τ_eff=true)
