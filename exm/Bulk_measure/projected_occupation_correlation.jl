@@ -4,16 +4,19 @@ using JLD2
 using LinearAlgebra
 using Statistics
 
-"""Equal-time C[x,y] = <O_x O_y†>, O_i = Πτ n_i Π1, with n_i the fusion-path bit."""
-function projected_occupation_correlation(state, Y, occupations)
+"""Equal-time <O_x O_y†> for O_i = Πsector n_i Πother; sector is :tau (default) or :one."""
+function projected_occupation_correlation(state, Y, occupations; sector::Symbol=:tau)
+    sector in (:tau,:one) || throw(ArgumentError("sector must be :tau or :one"))
     norm_squared = sum(abs2, state)
     isfinite(norm_squared) && norm_squared > 0 || error("Invalid trajectory state")
     ϕ = (1 + sqrt(5)) / 2
     denominator = ϕ + inv(ϕ)
     tau_state = (ϕ .* state .- Y * state) ./ denominator
-    # Columns are O_i†|ψ> = Π1 n_i Πτ|ψ>, so their Gram matrix has the requested order.
-    frame = occupations .* tau_state
-    frame = (Y * frame .+ inv(ϕ) .* frame) ./ denominator
+    # Columns are O_i†|ψ>, so their Gram matrix has the requested order.
+    sector_state = sector == :tau ? tau_state : state .- tau_state
+    frame = occupations .* sector_state
+    frame = sector == :tau ? (Y * frame .+ inv(ϕ) .* frame) ./ denominator :
+        (ϕ .* frame .- Y * frame) ./ denominator
     return (; correlation=frame' * frame / norm_squared,
         weight_tau=sum(abs2, tau_state) / norm_squared)
 end
@@ -25,7 +28,7 @@ has half strength; intermediate time slices do not acquire a new endpoint layer.
 """
 function replay_projected_occupation_correlation(model, sample, τ, times;
     sites=collect(1:model.N), Y=topological_charge_operator(model),
-    initial_state=nothing,
+    initial_state=nothing, sector::Symbol=:tau,
 )
     model isa AnyonModel{FibonacciAnyon} && model.pbc && iseven(model.N) ||
         throw(ArgumentError("Use an even periodic Fibonacci chain"))
@@ -52,7 +55,7 @@ function replay_projected_occupation_correlation(model, sample, τ, times;
     output_index = 1
     for period in 0:last(times)
         if period == times[output_index]
-            result = projected_occupation_correlation(state, Y, occupations)
+            result = projected_occupation_correlation(state, Y, occupations; sector)
             correlations[:,:,output_index] = result.correlation
             weight_tau[output_index] = result.weight_tau
             output_index += 1
@@ -70,7 +73,7 @@ function replay_projected_occupation_correlation(model, sample, τ, times;
 end
 
 """Read original .jld samples; save raw C[x,y,time,seed], mean(abs(C)), and its SEM."""
-function collect_projected_occupation_correlation(L, τ, times, sample_files, output)
+function collect_projected_occupation_correlation(L, τ, times, sample_files, output; sector::Symbol=:tau)
     ispath(output) && error("Output already exists: $output")
     isempty(sample_files) && throw(ArgumentError("Provide at least one saved trajectory"))
     files = abspath.(sample_files)
@@ -95,7 +98,7 @@ function collect_projected_occupation_correlation(L, τ, times, sample_files, ou
         else
             periods == source_periods || error("Source durations differ; endpoint conventions differ")
         end
-        result = replay_projected_occupation_correlation(model, sample, τ, times; sites, Y)
+        result = replay_projected_occupation_correlation(model, sample, τ, times; sites, Y, sector)
         correlations[:,:,:,index] = result.correlations
         weight_tau[:,index] = result.weight_tau
         push!(seeds, seed)
@@ -111,7 +114,8 @@ function collect_projected_occupation_correlation(L, τ, times, sample_files, ou
         source_sample_files=files, correlations, weight_tau, mean_correlation,
         stderr_correlation, samples_num=n, time_unit="complete_two_layer_period",
         ensemble_observable="mean(abs(C)); absolute value taken per trajectory before averaging",
-        operator="O_i = Pi_tau n_i Pi_1; n_i = fusion-path bit 1 occupation",
+        sector, operator=sector == :tau ? "O_i = Pi_tau n_i Pi_1; n_i = fusion-path bit 1 occupation" :
+            "O_i = Pi_1 n_i Pi_tau; n_i = fusion-path bit 1 occupation",
         ordering="C[x,y,t,seed] = <psi(t)|O_x O_y^dagger|psi(t)>",
         initial_state="first_fusion_path_basis_vector", enable_τ_eff=true)
     return output
