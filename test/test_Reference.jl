@@ -1052,3 +1052,47 @@ end
     _, temporal_corr = ref_correlation(model, ref2st, temporal = true)
     @test temporal_corr/spatial_corr ≈ 0.032083643572095644 atol = 1e-10
 end
+
+@testset "Staggered SSB reference entropy" begin
+    include(joinpath(@__DIR__, "../exm/Bulk_measure/staggered_ssb.jl"))
+    model = AnyonModel(FibonacciAnyon(), 4; pbc = true)
+    dimension = length(anyon_basis(model))
+    initial_state = zeros(dimension)
+    initial_state[1] = 1
+    ϕ = (1 + √5) / 2
+    P₁ = (topological_charge_operator(model) + inv(ϕ) * I) / (ϕ + inv(ϕ))
+    initial_joint = vcat(P₁ * initial_state, (I - P₁) * initial_state)
+    λ_even, λ_odd = 0.7, 0.2
+
+    for sign in (true, false)
+        result = simulate_staggered_ssb(4, λ_even, λ_odd, 3; mode = :sample, sign)
+        generator_even = sum(FibonacciChain.measure_matrix(model, 1000.0, i, sign) for i in 2:2:4)
+        generator_odd = sum(FibonacciChain.measure_matrix(model, 1000.0, i, sign) for i in 1:2:4)
+        period = exp(-λ_even * generator_even) * exp(-λ_odd * generator_odd)
+        expected = kron(Matrix{Float64}(I, 2, 2), period^3) * initial_joint
+        expected ./= norm(expected)
+        @test result.state ≈ expected atol = 1e-12
+        @test result.samples == fill(sign, 6, 2)
+        @test result.measurement_sites_even == [2, 4]
+        @test result.measurement_sites_odd == [1, 3]
+        @test result.sector_probabilities[1, :] ≈ [norm(P₁ * initial_state)^2, norm((I - P₁) * initial_state)^2]
+        even_only = simulate_staggered_ssb(4, λ_even, 0.0, 3; mode = :sample, sign)
+        expected_even = kron(Matrix{Float64}(I, 2, 2), exp(-3λ_even * generator_even)) * initial_joint
+        expected_even ./= norm(expected_even)
+        @test even_only.state ≈ expected_even atol = 1e-12
+    end
+
+    born = simulate_staggered_ssb(4, λ_even, λ_odd, 8; seed = 123)
+    replay = simulate_staggered_ssb(4, λ_even, λ_odd, 8; mode = :sample, samples = born.samples)
+    @test born.state ≈ replay.state atol = 1e-12
+    @test born.reference_entropy ≈ replay.reference_entropy atol = 1e-12
+    @test born.times == collect(0:8)
+    @test size(born.samples) == (16, 2)
+    @test length(born.sample_free_energy) == 16
+    @test all(abs.(sum(born.sector_probabilities; dims = 2) .- 1) .< 1e-12)
+    zero_strength = simulate_staggered_ssb(4, 0.0, 0.0, 5; seed = 2)
+    @test zero_strength.reference_entropy ≈ fill(first(zero_strength.reference_entropy), 6) atol = 1e-12
+    @test born.layer_order == "odd_then_even"
+    @test_throws ArgumentError simulate_staggered_ssb(5, λ_even, λ_odd, 8)
+    @test_throws ArgumentError simulate_staggered_ssb(4, λ_even, -0.1, 8)
+end
