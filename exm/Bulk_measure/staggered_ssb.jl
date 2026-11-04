@@ -104,7 +104,7 @@ function simulate_staggered_ssb(
 end
 
 """
-    staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples; n_states=10, sector=:all)
+    staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples; n_states=10, sector=:all, seed=0)
 
 Finite-time Lyapunov spectrum of the staggered transfer-matrix product along a
 measurement record `samples` produced by [`simulate_staggered_ssb`](@ref). The
@@ -130,6 +130,13 @@ zero modes of the corresponding projector Hamiltonian: suppressing the vacuum
 channel on even bonds only (λ_even=Inf, λ_odd=0, all-`true` record) gives
 `Lucas(L/2)` flat exponents (triplet manifold), while suppressing the τ
 channel (all-`false` record) gives 2 flat exponents (singlet SSB doublet).
+When both layers are projective the period transfer matrix `Π_even Π_odd` is
+strictly rank deficient; the number of finite exponents equals its rank (2 in
+the suppress-τ case — the two SSB vacua, one per `Y` sector — and `rank
+Π^τ_even Π^τ_odd < Lucas(L/2)` in the suppress-vacuum case), and the finite
+exponents converge to the log magnitudes of its nonzero eigenvalues. The
+initial frame is a seeded random orthonormal set (`seed`); with a sector
+projection it is re-projected after every period.
 """
 function staggered_lyapunov_spectrum(
     L::Integer,
@@ -138,6 +145,7 @@ function staggered_lyapunov_spectrum(
     samples::BitMatrix;
     n_states::Int = 10,
     sector::Symbol = :all,
+    seed::Integer = 0,
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
     sector ∈ (:all, :trivial, :tau) ||
@@ -172,14 +180,14 @@ function staggered_lyapunov_spectrum(
     )
     k = n_states
 
-    # Initial frame: first k basis vectors, projected and orthonormalized
-    states = zeros(Float64, l, k)
-    for i in 1:k
-        states[i, i] = 1.0
-    end
+    # Initial frame: random orthonormal vectors (coordinate basis vectors can be
+    # accidentally orthogonal to zero modes in the projective limits, which
+    # would truncate live directions), projected and orthonormalized.
+    rng = MersenneTwister(seed)
+    states = randn(rng, Float64, l, k)
     factor = qr(P === nothing ? states : P * states)
     minimum(abs.(diag(factor.R)[1:k])) > 1e-12 || error(
-        "the first $k basis vectors are linearly dependent after $sector projection",
+        "the random frame is rank deficient after $sector projection; try another seed",
     )
     states = Matrix(factor.Q)[:, 1:k]
 
@@ -235,14 +243,16 @@ function staggered_lyapunov_spectrum(
 end
 
 """
-    staggered_lyapunov_spectrum(result; n_states=10, sector=:all)
+    staggered_lyapunov_spectrum(result; n_states=10, sector=:all, seed=0)
 
 Convenience wrapper taking the named tuple returned by
 [`simulate_staggered_ssb`](@ref).
 """
-staggered_lyapunov_spectrum(result::NamedTuple; n_states::Int = 10, sector::Symbol = :all) =
+staggered_lyapunov_spectrum(
+    result::NamedTuple; n_states::Int = 10, sector::Symbol = :all, seed::Integer = 0,
+) =
     staggered_lyapunov_spectrum(
-        result.L, result.λ_even, result.λ_odd, result.samples; n_states, sector,
+        result.L, result.λ_even, result.λ_odd, result.samples; n_states, sector, seed,
     )
 
 if abspath(PROGRAM_FILE) == @__FILE__
