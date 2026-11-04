@@ -1107,6 +1107,9 @@ end
     mixed_replay = simulate_staggered_ssb(4, Inf, atanh(0.8), 8; mode = :sample, samples = mixed.samples)
     @test mixed.state ≈ mixed_replay.state atol = 1e-12
     @test all(isfinite, mixed.reference_entropy)
+    roundoff = simulate_staggered_ssb(12, Inf, atanh(0.8), 48; seed = 316)
+    @test minimum(roundoff.reference_entropy) >= -1e-14
+    @test maximum(abs.(sum(roundoff.sector_probabilities; dims = 2) .- 1)) < 1e-14
     @test_throws ArgumentError simulate_staggered_ssb(5, λ_even, λ_odd, 8)
     @test_throws ArgumentError simulate_staggered_ssb(4, λ_even, -0.1, 8)
 end

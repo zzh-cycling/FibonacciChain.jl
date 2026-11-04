@@ -64,6 +64,7 @@ function simulate_staggered_ssb(
     reference_entropy = zeros(t+1)
     sector_probabilities = zeros(t+1, 2)
     ρ = reference_rdm(model, [1], joint_state)
+    ρ ./= real(tr(ρ))
     reference_entropy[1] = ee(ρ)
     sector_probabilities[1, :] = real.(diag(ρ))
 
@@ -82,6 +83,7 @@ function simulate_staggered_ssb(
             sample_free_energy[index] = outcome.free_energy
         end
         ρ = reference_rdm(model, [1], joint_state)
+        ρ ./= real(tr(ρ))
         reference_entropy[step+1] = ee(ρ)
         sector_probabilities[step+1, :] = real.(diag(ρ))
     end
