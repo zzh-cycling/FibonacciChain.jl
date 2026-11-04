@@ -104,6 +104,70 @@ function simulate_staggered_ssb(
 end
 
 """
+    staggered_projected_occupation_correlation(L, state; sites=collect(1:L), sector=:tau, Y=nothing)
+    staggered_projected_occupation_correlation(result; kwargs...)
+
+Equal-time C[i,j] = <O_i O_j†> with O_i = Πτ n_i Π1, where n_i is the
+fusion-path bit-1 occupation. Set sector=:one for O_i = Π1 n_i Πτ.
+Accepts a physical state or the joint state with one reference qubit returned
+by simulate_staggered_ssb. The reference is traced out; sector weights are
+retained without conditioning. A supplied Y can be reused across trajectories.
+
+Returns the complex correlation matrix, τ-sector weight, sites and operator
+metadata. For an ensemble, average abs.(correlation) per trajectory, not the
+absolute value of the ensemble-averaged complex matrix. The result wrapper
+evaluates the saved final state without replaying its measurement record.
+"""
+function staggered_projected_occupation_correlation(
+    L::Integer,
+    state::AbstractVector;
+    sites = collect(1:L),
+    sector::Symbol = :tau,
+    Y = nothing,
+)
+    L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
+    sector ∈ (:tau, :one) || throw(ArgumentError("sector must be :tau or :one"))
+    !isempty(sites) && allunique(sites) &&
+        all(i -> i isa Integer && 1 <= i <= L, sites) ||
+        throw(ArgumentError("sites must be distinct integers in 1:L"))
+    model = AnyonModel(FibonacciAnyon(), Int(L); pbc = true)
+    basis = anyon_basis(model)
+    dimension = length(basis)
+    length(state) ∈ (dimension, 2dimension) ||
+        throw(DimensionMismatch("Expected a physical state or a state with one reference qubit"))
+    norm_squared = sum(abs2, state)
+    all(isfinite, state) && isfinite(norm_squared) && norm_squared > 0 ||
+        throw(ArgumentError("Invalid trajectory state"))
+    Y = isnothing(Y) ? topological_charge_operator(model) : Y
+    size(Y) == (dimension, dimension) || throw(DimensionMismatch("Invalid Y matrix"))
+    occupations = [Float64(path[L-site+1]) for path in basis, site in sites]
+    states = reshape(state, dimension, :)
+    ϕ = (1 + √5) / 2
+    denominator = ϕ + inv(ϕ)
+    tau_states = (ϕ .* states .- Y * states) ./ denominator
+    sector_states = sector == :tau ? tau_states : states .- tau_states
+    frame = zeros(promote_type(eltype(state), eltype(Y), Float64), length(state), length(sites))
+    for reference in axes(states, 2)
+        # Each block contains O_i†|ψ_reference>; the Gram matrix traces the reference.
+        block = occupations .* sector_states[:, reference]
+        block = sector == :tau ? (Y * block .+ inv(ϕ) .* block) ./ denominator :
+            (ϕ .* block .- Y * block) ./ denominator
+        frame[(reference-1)*dimension+1:reference*dimension, :] = block
+    end
+    return (;
+        correlation = frame' * frame / norm_squared,
+        weight_tau = sum(abs2, tau_states) / norm_squared,
+        sites = collect(sites), sector,
+        operator = sector == :tau ? "O_i = Pi_tau n_i Pi_1; n_i = fusion-path bit 1 occupation" :
+            "O_i = Pi_1 n_i Pi_tau; n_i = fusion-path bit 1 occupation",
+        ordering = "C[i,j] = <O_sites[i] O_sites[j]^dagger>; reference traced without sector conditioning",
+    )
+end
+
+staggered_projected_occupation_correlation(result::NamedTuple; kwargs...) =
+    staggered_projected_occupation_correlation(result.L, result.state; kwargs...)
+
+"""
     staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples; n_states=10, sector=:all, seed=0)
 
 Finite-time Lyapunov spectrum of the staggered transfer-matrix product along a

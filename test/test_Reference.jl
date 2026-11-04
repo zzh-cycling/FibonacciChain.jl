@@ -1113,3 +1113,48 @@ end
     @test_throws ArgumentError simulate_staggered_ssb(5, λ_even, λ_odd, 8)
     @test_throws ArgumentError simulate_staggered_ssb(4, λ_even, -0.1, 8)
 end
+
+@testset "Staggered projected occupation correlations" begin
+    model = AnyonModel(FibonacciAnyon(), 4; pbc = true)
+    basis = anyon_basis(model)
+    dimension = length(basis)
+    Y = topological_charge_operator(model)
+    ϕ = (1 + √5) / 2
+    P₁ = (Y + inv(ϕ) * I) / (ϕ + inv(ϕ))
+    Pτ = I - P₁
+    sites = [4, 1, 3]
+    occupations = [Diagonal([Float64(path[5-site]) for path in basis]) for site in sites]
+    rng = MersenneTwister(723)
+
+    for reference_dimension in (1, 2), sector in (:tau, :one)
+        state = randn(rng, ComplexF64, dimension * reference_dimension)
+        branches = reshape(state, dimension, reference_dimension)
+        density_matrix = branches * branches' / sum(abs2, state)
+        operators = [sector == :tau ? Pτ * n * P₁ : P₁ * n * Pτ for n in occupations]
+        expected = [tr(density_matrix * Oᵢ * Oⱼ') for Oᵢ in operators, Oⱼ in operators]
+        result = staggered_projected_occupation_correlation(4, state; sites, sector, Y)
+        @test result.correlation ≈ expected atol = 1e-12
+        @test result.weight_tau ≈ real(tr(density_matrix * Pτ)) atol = 1e-12
+        @test result.sites == sites && result.sector == sector
+        @test result.correlation ≈ result.correlation' atol = 1e-12
+        @test minimum(eigvals(Hermitian(result.correlation))) >= -1e-12
+        scaled = staggered_projected_occupation_correlation(4, (2 + im) * state; sites, sector, Y)
+        @test scaled.correlation ≈ result.correlation atol = 1e-12
+        if reference_dimension == 2
+            rotation = Matrix(qr(randn(rng, ComplexF64, 2, 2)).Q)
+            rotated = staggered_projected_occupation_correlation(4, vec(branches * rotation); sites, sector, Y)
+            @test rotated.correlation ≈ result.correlation atol = 1e-12
+        end
+    end
+
+    trajectory = simulate_staggered_ssb(4, Inf, atanh(0.9), 3; seed = 123)
+    result = staggered_projected_occupation_correlation(trajectory; sites)
+    branches = reshape(trajectory.state, dimension, 2)
+    physical = staggered_projected_occupation_correlation(4, vec(sum(branches; dims = 2)); sites)
+    @test result.correlation ≈ physical.correlation atol = 1e-12
+    @test result.weight_tau ≈ trajectory.sector_probabilities[end, 2] atol = 1e-12
+    @test_throws ArgumentError staggered_projected_occupation_correlation(4, zeros(dimension))
+    @test_throws ArgumentError staggered_projected_occupation_correlation(trajectory; sites = [1, 1])
+    @test_throws ArgumentError staggered_projected_occupation_correlation(trajectory; sector = :all)
+    @test_throws DimensionMismatch staggered_projected_occupation_correlation(4, ones(dimension + 1))
+end
