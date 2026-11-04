@@ -14,7 +14,7 @@ Here sign=true labels the suppressed vacuum channel, and false the τ channel.
 Use mode=:Born to sample K_s, or :sample for a fixed record (default: all sign).
 Time counts complete odd-then-even periods; no endpoint half-strength layer is added.
 Fixed samples have size (2t,L÷2), with odd/even rows for odd/even bonds respectively.
-Reference entropy is in nats and includes t=0.
+Reference entropy is in nats and includes t=0. λ=Inf gives the exact projective limit.
 """
 function simulate_staggered_ssb(
     L::Integer,
@@ -27,8 +27,8 @@ function simulate_staggered_ssb(
     samples::Union{Nothing,BitMatrix} = nothing,
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
-    all(λ -> isfinite(λ) && λ >= 0, (λ_even, λ_odd)) ||
-        throw(ArgumentError("λ_even and λ_odd must be finite and nonnegative"))
+    all(λ -> !isnan(λ) && λ >= 0, (λ_even, λ_odd)) ||
+        throw(ArgumentError("λ_even and λ_odd must be nonnegative (Inf is the projective limit)"))
     t >= 0 || throw(ArgumentError("t must be nonnegative"))
     mode ∈ (:Born, :sample) || throw(ArgumentError("mode must be :Born or :sample"))
     mode == :Born && samples !== nothing &&
@@ -52,7 +52,7 @@ function simulate_staggered_ssb(
     rng = MersenneTwister(seed)
     configs = map((λ_odd, λ_even)) do λ
         MeasureConfig(
-            τ = Float64(λ),
+            τ = isinf(λ) ? 1000.0 : Float64(λ),
             t₂ = Int(t),
             mode = mode,
             rng = rng,
@@ -88,6 +88,7 @@ function simulate_staggered_ssb(
 
     return (;
         L=Int(L), λ_even=Float64(λ_even), λ_odd=Float64(λ_odd),
+        γ_even=tanh(Float64(λ_even)), γ_odd=tanh(Float64(λ_odd)),
         t=Int(t), times=collect(0:t), mode, seed=Int(seed), sign,
         measurement_sites_even=collect(2:2:L), measurement_sites_odd=collect(1:2:L),
         samples=record, sample_free_energy,

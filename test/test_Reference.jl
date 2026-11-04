@@ -1093,6 +1093,20 @@ end
     zero_strength = simulate_staggered_ssb(4, 0.0, 0.0, 5; seed = 2)
     @test zero_strength.reference_entropy ≈ fill(first(zero_strength.reference_entropy), 6) atol = 1e-12
     @test born.layer_order == "odd_then_even"
+    projective = simulate_staggered_ssb(4, Inf, 0.0, 4; mode = :sample)
+    generator = [FibonacciChain.measure_matrix(model, 1000.0, i, true) for i in 2:2:4]
+    expected = initial_joint
+    for P in generator
+        expected = kron(Matrix{Float64}(I, 2, 2), I - P) * expected
+    end
+    expected ./= norm(expected)
+    @test projective.state ≈ expected atol = 1e-12
+    @test projective.reference_entropy[2:end] ≈ fill(projective.reference_entropy[2], 4) atol = 1e-12
+    @test projective.γ_even == 1 && projective.γ_odd == 0
+    mixed = simulate_staggered_ssb(4, Inf, atanh(0.8), 8; seed = 123)
+    mixed_replay = simulate_staggered_ssb(4, Inf, atanh(0.8), 8; mode = :sample, samples = mixed.samples)
+    @test mixed.state ≈ mixed_replay.state atol = 1e-12
+    @test all(isfinite, mixed.reference_entropy)
     @test_throws ArgumentError simulate_staggered_ssb(5, λ_even, λ_odd, 8)
     @test_throws ArgumentError simulate_staggered_ssb(4, λ_even, -0.1, 8)
 end
