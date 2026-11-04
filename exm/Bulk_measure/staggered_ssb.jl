@@ -103,6 +103,148 @@ function simulate_staggered_ssb(
     )
 end
 
+"""
+    staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples; n_states=10, sector=:all)
+
+Finite-time Lyapunov spectrum of the staggered transfer-matrix product along a
+measurement record `samples` produced by [`simulate_staggered_ssb`](@ref). The
+frame is propagated with the unnormalized Kraus map: each period first applies
+the odd-site layer with `λ_odd`, then the even-site layer with `λ_even`, using
+the complemented record bits `.!samples[row, :]`, exactly reproducing the
+Kraus operators of the trajectory. After every period the frame is
+QR-orthogonalized, `T_t Q_{t-1} = Q_t R_t`, the local logarithmic stretches are
+`log(abs(diag(R_t)))` (no per-step sorting, to avoid mixing Oseledec
+directions), and the finite-time exponents are their running averages.
+
+With `sector=:trivial` (`y=1`, eigenvalue `ϕ`) or `:tau` (`y=τ`, eigenvalue
+`-1/ϕ`) the frame is projected into that topological charge sector initially
+and after every period; this is exact because every Fibonacci Kraus layer
+commutes with `Y`. `λ=Inf` gives the projective limit (τ=1000).
+
+Returns a named tuple with `local_log_stretches`, `lyapunov_exponents`,
+`free_energy_spectrum` (= `-lyapunov_exponents`, the `ln Z` convention of
+`lyapunov_spectrum`), `sector_dimension`, `sector_leakage` and `final_frame`.
+
+In the projective postselected limits the leading flat exponents count the
+zero modes of the corresponding projector Hamiltonian: suppressing the vacuum
+channel on even bonds only (λ_even=Inf, λ_odd=0, all-`true` record) gives
+`Lucas(L/2)` flat exponents (triplet manifold), while suppressing the τ
+channel (all-`false` record) gives 2 flat exponents (singlet SSB doublet).
+"""
+function staggered_lyapunov_spectrum(
+    L::Integer,
+    λ_even::Real,
+    λ_odd::Real,
+    samples::BitMatrix;
+    n_states::Int = 10,
+    sector::Symbol = :all,
+)
+    L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
+    sector ∈ (:all, :trivial, :tau) ||
+        throw(ArgumentError("sector must be :all, :trivial (y=1) or :tau (y=τ)"))
+    D, n_cols = size(samples)
+    iseven(D) || throw(ArgumentError("samples must have an even number of rows (odd+even layers)"))
+    periods = D ÷ 2
+    n_cols == L ÷ 2 || throw(DimensionMismatch("samples must have $(L÷2) columns, got $n_cols"))
+    τ_even = isinf(λ_even) ? 1000.0 : Float64(λ_even)
+    τ_odd = isinf(λ_odd) ? 1000.0 : Float64(λ_odd)
+
+    model = AnyonModel(FibonacciAnyon(), Int(L); pbc = true)
+    basis = anyon_basis(model)
+    l = length(basis)
+
+    # Optional topological sector projector P = (Y - ȳI)/(y - ȳ)
+    P = nothing
+    Y = nothing
+    y_eigenvalue = NaN
+    sector_dimension = l
+    if sector != :all
+        ϕ = (1 + √5) / 2
+        y_eigenvalue = sector == :trivial ? ϕ : -inv(ϕ)
+        y_other = sector == :trivial ? -inv(ϕ) : ϕ
+        Y = topological_charge_operator(model)
+        P = Symmetric((Y - y_other * I(l)) / (y_eigenvalue - y_other))
+        sector_dimension = round(Int, tr(P))
+    end
+    n_states >= 1 || throw(ArgumentError("n_states must be positive"))
+    n_states <= sector_dimension || error(
+        "requested n_states=$n_states, but the $sector sector dimension is $sector_dimension",
+    )
+    k = n_states
+
+    # Initial frame: first k basis vectors, projected and orthonormalized
+    states = zeros(Float64, l, k)
+    for i in 1:k
+        states[i, i] = 1.0
+    end
+    factor = qr(P === nothing ? states : P * states)
+    minimum(abs.(diag(factor.R)[1:k])) > 1e-12 || error(
+        "the first $k basis vectors are linearly dependent after $sector projection",
+    )
+    states = Matrix(factor.Q)[:, 1:k]
+
+    # In the projective limit (λ=Inf) the transfer matrix is rank-deficient:
+    # directions outside the zero-mode manifold are killed exactly. The frame
+    # is truncated adaptively; collapsed directions keep NaN stretches (their
+    # Lyapunov exponents are -∞), so the surviving flat exponents directly
+    # count the zero modes of the corresponding projector Hamiltonian.
+    local_log_stretches = fill(NaN, k, periods)
+    active = collect(1:k)
+    sector_leakage = sector == :all ? Float64[] : zeros(Float64, periods)
+
+    for step in 1:periods
+        k_now = length(active)
+        propagated = similar(states)
+        for i in 1:k_now
+            # Odd-site layer with λ_odd: record row 2step-1; even library
+            # layer_idx addresses odd sites (cf. simulate_staggered_ssb, which
+            # uses layer_idx = index + 1 and complemented record bits).
+            outcome = FibonacciChain._apply_measurement_layer(
+                model, τ_odd, states[:, i],
+                BitVector(.!samples[2step-1, :]); layer_idx = 2, normalized = false,
+            )
+            # Even-site layer with λ_even: record row 2step; odd layer_idx.
+            outcome = FibonacciChain._apply_measurement_layer(
+                model, τ_even, outcome.state,
+                BitVector(.!samples[2step, :]); layer_idx = 3, normalized = false,
+            )
+            propagated[:, i] = outcome.state
+        end
+
+        factor = qr(propagated)
+        stretches = abs.(diag(factor.R)[1:k_now])
+        alive = stretches .> 1e-12 * max(maximum(stretches), 1.0)
+        local_log_stretches[active[alive], step] = log.(stretches[alive])
+        active = active[alive]
+        isempty(active) && error("Lyapunov frame collapsed entirely at period $step")
+        states = Matrix(factor.Q)[:, alive]
+        if P !== nothing
+            states = Matrix(qr(P * states).Q)[:, 1:length(active)]
+            sector_leakage[step] = norm(Y * states - y_eigenvalue * states) / norm(states)
+        end
+    end
+
+    cumulative = cumsum(local_log_stretches; dims = 2)
+    lyapunov_exponents = cumulative ./ reshape(collect(1:periods), 1, :)
+
+    return (;
+        local_log_stretches, lyapunov_exponents,
+        free_energy_spectrum = -lyapunov_exponents,
+        sector, sector_dimension, sector_leakage, final_frame = states,
+    )
+end
+
+"""
+    staggered_lyapunov_spectrum(result; n_states=10, sector=:all)
+
+Convenience wrapper taking the named tuple returned by
+[`simulate_staggered_ssb`](@ref).
+"""
+staggered_lyapunov_spectrum(result::NamedTuple; n_states::Int = 10, sector::Symbol = :all) =
+    staggered_lyapunov_spectrum(
+        result.L, result.λ_even, result.λ_odd, result.samples; n_states, sector,
+    )
+
 if abspath(PROGRAM_FILE) == @__FILE__
     length(ARGS) >= 5 || error(
         "Usage: julia --project exm/Bulk_measure/staggered_ssb.jl L lambda_even lambda_odd t Born|sample [seed] [sign] [output.jld2]",
@@ -121,8 +263,17 @@ if abspath(PROGRAM_FILE) == @__FILE__
     )
     ispath(output) && error("Output already exists: $output")
     result = simulate_staggered_ssb(L, λ_even, λ_odd, t; mode, seed, sign)
+    n_states = min(10, length(anyon_basis(AnyonModel(FibonacciAnyon(), L; pbc = true))))
+    spectrum = staggered_lyapunov_spectrum(result; n_states = n_states)
+    result = (; result...,
+        n_states,
+        local_log_stretches = spectrum.local_log_stretches,
+        lyapunov_exponents = spectrum.lyapunov_exponents,
+        free_energy_spectrum = spectrum.free_energy_spectrum,
+    )
     mkpath(dirname(abspath(output)))
     JLD2.jldsave(output; result...)
     println("Saved $output")
     println("S_R(0)=$(first(result.reference_entropy)), S_R(t)=$(last(result.reference_entropy))")
+    println("final Lyapunov exponents: $(spectrum.lyapunov_exponents[:, end])")
 end
