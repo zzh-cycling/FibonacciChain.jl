@@ -15,6 +15,11 @@ Use mode=:Born to sample K_s, or :sample for a fixed record (default: all sign).
 Time counts complete odd-then-even periods; no endpoint half-strength layer is added.
 Fixed samples have size (2t,L÷2), with odd/even rows for odd/even bonds respectively.
 Reference entropy is in nats and includes t=0. λ=Inf gives the exact projective limit.
+The return value additionally carries final-state observables from
+[`_staggered_final_observables`](@ref): per-reference-block subsystem entropy
+scaling `final_subsystem_entropy`, Y expectations (`y_expectation`,
+`y_expectation_by_reference`, `reference_weights`) and the τ-sector projected
+occupation correlation `occupation_correlation_tau`.
 """
 function simulate_staggered_ssb(
     L::Integer,
@@ -43,7 +48,8 @@ function simulate_staggered_ssb(
     initial_state = zeros(length(basis))
     initial_state[1] = 1
     ϕ = (1 + √5) / 2
-    Ystate = topological_charge_operator(model) * initial_state
+    Y = topological_charge_operator(model)
+    Ystate = Y * initial_state
     state_y₁ = (Ystate .+ inv(ϕ) .* initial_state) ./ (ϕ + inv(ϕ))
     state_yτ = initial_state .- state_y₁
     joint_state = vcat(state_y₁, state_yτ)
@@ -88,6 +94,8 @@ function simulate_staggered_ssb(
         sector_probabilities[step+1, :] = real.(diag(ρ))
     end
 
+    final_observables = _staggered_final_observables(model, joint_state, Y)
+
     return (;
         L=Int(L), λ_even=Float64(λ_even), λ_odd=Float64(λ_odd),
         γ_even=tanh(Float64(λ_even)), γ_odd=tanh(Float64(λ_odd)),
@@ -100,6 +108,57 @@ function simulate_staggered_ssb(
         kraus_operator="exp(-lambda*Pi_i^s)/sqrt(1+exp(-2lambda))",
         sample_convention="true: suppressed vacuum channel; false: suppressed tau channel",
         time_unit="complete_odd_then_even_period", layer_order="odd_then_even", enable_τ_eff=false,
+        final_observables...,
+    )
+end
+
+"""
+    _staggered_final_observables(model, joint_state, Y)
+
+Final-state observables of a `simulate_staggered_ssb` joint state (system ⊗ one
+reference qubit, blocks ordered 0:y=1, 1:y=τ):
+
+- `final_subsystem_entropy[x, r]`: von Neumann entropy of the normalized
+  reference block `r` restricted to sites `1:x`, for `x = 1:L-1` (subsystem
+  scaling of each sector's conditional pure state; NaN for zero-weight blocks);
+- `y_expectation_by_reference[r]`: `<Y>` within block `r`;
+- `reference_weights[r]`: squared norms of the blocks (match the final
+  `sector_probabilities` row);
+- `y_expectation`: weight-averaged `<Y>` of the physical state;
+- `occupation_correlation_tau`, `occupation_weight_tau`: the
+  `staggered_projected_occupation_correlation` result in the τ sector.
+"""
+function _staggered_final_observables(model, joint_state, Y)
+    L = model.N
+    blocks = reshape(joint_state, :, 2)
+    subsystem_sizes = collect(1:L-1)
+    final_subsystem_entropy = fill(NaN, L - 1, 2)
+    y_expectation_by_reference = fill(NaN, 2)
+    reference_weights = zeros(2)
+    for reference in 1:2
+        ψ = blocks[:, reference]
+        w = sum(abs2, ψ)
+        reference_weights[reference] = w
+        w > 0 || continue
+        y_expectation_by_reference[reference] = real(dot(ψ, Y * ψ)) / w
+        ψ_normalized = ψ ./ sqrt(w)
+        for (index, x) in enumerate(subsystem_sizes)
+            final_subsystem_entropy[index, reference] =
+                ee(anyon_rdm(model, collect(1:x), ψ_normalized))
+        end
+    end
+    y_expectation = sum(
+        w * y for (w, y) in zip(reference_weights, y_expectation_by_reference) if !isnan(y)
+    ) / sum(reference_weights)
+    occupation = staggered_projected_occupation_correlation(L, joint_state; Y = Y)
+    return (;
+        subsystem_sizes, final_subsystem_entropy,
+        y_expectation_by_reference, reference_weights, y_expectation,
+        occupation_correlation_tau = occupation.correlation,
+        occupation_weight_tau = occupation.weight_tau,
+        occupation_operator = occupation.operator,
+        occupation_ordering = occupation.ordering,
+        final_observables_note = "blocks of the final joint state, ordered 0:y=1, 1:y=tau; entropies in nats",
     )
 end
 
@@ -176,16 +235,13 @@ Each period applies the odd layer, then the even layer, with the physical Kraus
 normalization exp(-λ Π_i^s)/sqrt(1+exp(-2λ)). The record labels the suppressed
 channel, so its bits are complemented when calling the native measurement map.
 
-QR is performed without sorting the frame. Finite strengths
+QR is performed after each local map, without sorting the frame. Finite strengths
 are split into factors of strength at most one, with the normalization corrected
-in the logarithmic stretches, and QR follows each factor. Small nonzero
-directions are retained even when a whole period is very ill-conditioned.
-Time still counts complete periods.
+in the logarithmic stretches. Thus small nonzero directions are retained even
+when a whole period is very ill-conditioned. Time still counts complete periods.
 These are running QR estimates, not finite-time singular-value exponents.
 
-For a projective layer, all commuting projectors are applied before QR: intermediate
-orthogonalization can amplify roundoff outside earlier projector images.
-Only `λ=Inf` permits rank loss. The layer's numerical rank is determined from the singular
+Only `λ=Inf` permits rank loss. Its numerical rank is determined from the singular
 values of the projected orthonormal frame, using `rank_rtol` relative to the unit
 operator norm of an orthogonal projector. The leading independent QR columns are
 retained; annihilated trailing directions have absorbing `-Inf` stretches and
@@ -283,10 +339,6 @@ function staggered_lyapunov_spectrum(
                     propagated, basis, model, δ, states, site,
                     !samples[2(step-1)+layer, column],
                 )
-                if isinf(λ) && column < L÷2
-                    states = propagated
-                    continue
-                end
                 if isinf(λ)
                     # SVD determines rank only; rotating/sorting the QR flag
                     # would invalidate accumulated directional stretches.
@@ -328,7 +380,7 @@ function staggered_lyapunov_spectrum(
         free_energy_spectrum = -lyapunov_exponents,
         numerical_rank, rank_rtol = Float64(rank_rtol),
         frame_seed = Int(seed),
-        method = "running_QR_estimates_stabilized_factors_and_projective_layers",
+        method = "running_QR_estimates_per_local_factor",
         missing_value_convention = "-Inf: projective numerical rank loss; NaN is not a collapsed direction",
         sector, sector_dimension, sector_leakage, final_frame = states,
     )
