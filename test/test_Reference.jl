@@ -1253,6 +1253,27 @@ end
     @test !any(isnan, replay.lyapunov_exponents)
     @test all(diff(replay.numerical_rank) .<= 0)
     @test replay.numerical_rank[end] == size(replay.final_frame, 2)
+    # QR between commuting projectors amplifies nullspace roundoff in these
+    # records. The complete even layer has exact rank Lucas(number of τ outcomes).
+    lucas = [2, 1, 3, 4, 7, 11, 18]
+    for seed in (327, 1163)
+        trajectory = simulate_staggered_ssb(12, Inf, atanh(0.9), 48; seed)
+        spectrum = staggered_lyapunov_spectrum(trajectory; n_states = 5, seed = 10_000_000 + seed)
+        τ_counts = vec(sum(trajectory.samples[2:2:end, :]; dims = 2))
+        capacity = accumulate(min, lucas[τ_counts .+ 1])
+        @test all(spectrum.numerical_rank .<= min.(5, capacity))
+        @test !any(isnan, spectrum.lyapunov_exponents)
+        model12 = AnyonModel(FibonacciAnyon(), 12; pbc = true)
+        basis12 = anyon_basis(model12)
+        for (column, site) in enumerate(2:2:12)
+            projected_frame = similar(spectrum.final_frame)
+            FibonacciChain._measuremap_frame_impl!(
+                projected_frame, basis12, model12, 1000.0, spectrum.final_frame,
+                site, !trajectory.samples[end, column],
+            )
+            @test projected_frame ≈ spectrum.final_frame atol = 1e-12
+        end
+    end
     empty = staggered_lyapunov_spectrum(L, Inf, 0.0, falses(0, L÷2); n_states = dimension)
     @test size(empty.lyapunov_exponents) == (dimension, 0)
     @test isempty(empty.numerical_rank)

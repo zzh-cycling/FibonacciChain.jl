@@ -176,13 +176,16 @@ Each period applies the odd layer, then the even layer, with the physical Kraus
 normalization exp(-λ Π_i^s)/sqrt(1+exp(-2λ)). The record labels the suppressed
 channel, so its bits are complemented when calling the native measurement map.
 
-QR is performed after each local map, without sorting the frame. Finite strengths
+QR is performed without sorting the frame. Finite strengths
 are split into factors of strength at most one, with the normalization corrected
-in the logarithmic stretches. Thus small nonzero directions are retained even
-when a whole period is very ill-conditioned. Time still counts complete periods.
+in the logarithmic stretches, and QR follows each factor. Small nonzero
+directions are retained even when a whole period is very ill-conditioned.
+Time still counts complete periods.
 These are running QR estimates, not finite-time singular-value exponents.
 
-Only `λ=Inf` permits rank loss. Its numerical rank is determined from the singular
+For a projective layer, all commuting projectors are applied before QR: intermediate
+orthogonalization can amplify roundoff outside earlier projector images.
+Only `λ=Inf` permits rank loss. The layer's numerical rank is determined from the singular
 values of the projected orthonormal frame, using `rank_rtol` relative to the unit
 operator norm of an orthogonal projector. The leading independent QR columns are
 retained; annihilated trailing directions have absorbing `-Inf` stretches and
@@ -280,6 +283,10 @@ function staggered_lyapunov_spectrum(
                     propagated, basis, model, δ, states, site,
                     !samples[2(step-1)+layer, column],
                 )
+                if isinf(λ) && column < L÷2
+                    states = propagated
+                    continue
+                end
                 if isinf(λ)
                     # SVD determines rank only; rotating/sorting the QR flag
                     # would invalidate accumulated directional stretches.
@@ -321,7 +328,7 @@ function staggered_lyapunov_spectrum(
         free_energy_spectrum = -lyapunov_exponents,
         numerical_rank, rank_rtol = Float64(rank_rtol),
         frame_seed = Int(seed),
-        method = "running_QR_estimates_per_local_factor",
+        method = "running_QR_estimates_stabilized_factors_and_projective_layers",
         missing_value_convention = "-Inf: projective numerical rank loss; NaN is not a collapsed direction",
         sector, sector_dimension, sector_leakage, final_frame = states,
     )
