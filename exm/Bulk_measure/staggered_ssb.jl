@@ -168,39 +168,40 @@ staggered_projected_occupation_correlation(result::NamedTuple; kwargs...) =
     staggered_projected_occupation_correlation(result.L, result.state; kwargs...)
 
 """
-    staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples; n_states=10, sector=:all, seed=0)
+    staggered_lyapunov_spectrum(L, λ_even, λ_odd, samples;
+                               n_states=10, sector=:all, seed=0, rank_rtol=100eps(Float64))
 
-Finite-time Lyapunov spectrum of the staggered transfer-matrix product along a
-measurement record `samples` produced by [`simulate_staggered_ssb`](@ref). The
-frame is propagated with the unnormalized Kraus map: each period first applies
-the odd-site layer with `λ_odd`, then the even-site layer with `λ_even`, using
-the complemented record bits `.!samples[row, :]`, exactly reproducing the
-Kraus operators of the trajectory. After every period the frame is
-QR-orthogonalized, `T_t Q_{t-1} = Q_t R_t`, the local logarithmic stretches are
-`log(abs(diag(R_t)))` (no per-step sorting, to avoid mixing Oseledec
-directions), and the finite-time exponents are their running averages.
+Running QR estimates along a measurement record from [`simulate_staggered_ssb`](@ref).
+Each period applies the odd layer, then the even layer, with the physical Kraus
+normalization exp(-λ Π_i^s)/sqrt(1+exp(-2λ)). The record labels the suppressed
+channel, so its bits are complemented when calling the native measurement map.
 
-With `sector=:trivial` (`y=1`, eigenvalue `ϕ`) or `:tau` (`y=τ`, eigenvalue
-`-1/ϕ`) the frame is projected into that topological charge sector initially
-and after every period; this is exact because every Fibonacci Kraus layer
-commutes with `Y`. `λ=Inf` gives the projective limit (τ=1000).
+QR is performed after each local map, without sorting the frame. Finite strengths
+are split into factors of strength at most one, with the normalization corrected
+in the logarithmic stretches. Thus small nonzero directions are retained even
+when a whole period is very ill-conditioned. Time still counts complete periods.
+These are running QR estimates, not finite-time singular-value exponents.
 
-Returns a named tuple with `local_log_stretches`, `lyapunov_exponents`,
-`free_energy_spectrum` (= `-lyapunov_exponents`, the `ln Z` convention of
-`lyapunov_spectrum`), `sector_dimension`, `sector_leakage` and `final_frame`.
+Only `λ=Inf` permits rank loss. Its numerical rank is determined from the singular
+values of the projected orthonormal frame, using `rank_rtol` relative to the unit
+operator norm of an orthogonal projector. The leading independent QR columns are
+retained; annihilated trailing directions have absorbing `-Inf` stretches and
+exponents. `numerical_rank` records the retained frame size after each period,
+capped by `n_states`. Rank decisions near the tolerance require a precision or
+`rank_rtol` convergence check; they are not exact algebraic rank certificates.
+An unresolved leading QR flag raises an error instead of propagating a spurious
+frame. A zero product returns an empty frame and `-Inf` exponents.
 
-In the projective postselected limits the leading flat exponents count the
-zero modes of the corresponding projector Hamiltonian: suppressing the vacuum
-channel on even bonds only (λ_even=Inf, λ_odd=0, all-`true` record) gives
-`Lucas(L/2)` flat exponents (triplet manifold), while suppressing the τ
-channel (all-`false` record) gives 2 flat exponents (singlet SSB doublet).
-When both layers are projective the period transfer matrix `Π_even Π_odd` is
-strictly rank deficient; the number of finite exponents equals its rank (2 in
-the suppress-τ case — the two SSB vacua, one per `Y` sector — and `rank
-Π^τ_even Π^τ_odd < Lucas(L/2)` in the suppress-vacuum case), and the finite
-exponents converge to the log magnitudes of its nonzero eigenvalues. The
-initial frame is a seeded random orthonormal set (`seed`); with a sector
-projection it is re-projected after every period.
+`sector=:trivial` selects y=1 (Y eigenvalue ϕ); `:tau` selects y=τ (-1/ϕ).
+The frame is projected into that sector initially and after each period. The
+latter QR correction is included in the stretches; `sector_leakage` measures
+leakage before correction. Every exact Fibonacci Kraus map commutes with Y.
+
+`free_energy_spectrum` is `-lyapunov_exponents`. In the even-only projective,
+fixed-record limits (λ_even=Inf, λ_odd=0), surviving rates approach -L*log(2)/4,
+including the scalar odd-layer Kraus normalization. Random-record product ranks
+are not zero-mode counts of a fixed projector Hamiltonian. Ensemble averages
+must retain `-Inf`; finite-only conditional means describe a different ensemble.
 """
 function staggered_lyapunov_spectrum(
     L::Integer,
@@ -210,22 +211,24 @@ function staggered_lyapunov_spectrum(
     n_states::Int = 10,
     sector::Symbol = :all,
     seed::Integer = 0,
+    rank_rtol::Real = 100eps(Float64),
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
+    all(λ -> !isnan(λ) && λ >= 0, (λ_even, λ_odd)) ||
+        throw(ArgumentError("λ_even and λ_odd must be nonnegative (Inf is the projective limit)"))
+    isfinite(rank_rtol) && 0 < rank_rtol < 1 ||
+        throw(ArgumentError("rank_rtol must lie strictly between zero and one"))
     sector ∈ (:all, :trivial, :tau) ||
         throw(ArgumentError("sector must be :all, :trivial (y=1) or :tau (y=τ)"))
     D, n_cols = size(samples)
     iseven(D) || throw(ArgumentError("samples must have an even number of rows (odd+even layers)"))
     periods = D ÷ 2
     n_cols == L ÷ 2 || throw(DimensionMismatch("samples must have $(L÷2) columns, got $n_cols"))
-    τ_even = isinf(λ_even) ? 1000.0 : Float64(λ_even)
-    τ_odd = isinf(λ_odd) ? 1000.0 : Float64(λ_odd)
 
     model = AnyonModel(FibonacciAnyon(), Int(L); pbc = true)
     basis = anyon_basis(model)
     l = length(basis)
 
-    # Optional topological sector projector P = (Y - ȳI)/(y - ȳ)
     P = nothing
     Y = nothing
     y_eigenvalue = NaN
@@ -238,61 +241,75 @@ function staggered_lyapunov_spectrum(
         P = Symmetric((Y - y_other * I(l)) / (y_eigenvalue - y_other))
         sector_dimension = round(Int, tr(P))
     end
-    n_states >= 1 || throw(ArgumentError("n_states must be positive"))
-    n_states <= sector_dimension || error(
-        "requested n_states=$n_states, but the $sector sector dimension is $sector_dimension",
-    )
+    1 <= n_states <= sector_dimension || throw(ArgumentError(
+        "n_states must be between 1 and the $sector sector dimension $sector_dimension",
+    ))
     k = n_states
 
-    # Initial frame: random orthonormal vectors (coordinate basis vectors can be
-    # accidentally orthogonal to zero modes in the projective limits, which
-    # would truncate live directions), projected and orthonormalized.
+    # A generic frame avoids the missing support of coordinate basis vectors.
     rng = MersenneTwister(seed)
     states = randn(rng, Float64, l, k)
     factor = qr(P === nothing ? states : P * states)
-    minimum(abs.(diag(factor.R)[1:k])) > 1e-12 || error(
+    minimum(abs.(diag(factor.R))) > 100eps(Float64) || error(
         "the random frame is rank deficient after $sector projection; try another seed",
     )
     states = Matrix(factor.Q)[:, 1:k]
-
-    # In the projective limit (λ=Inf) the transfer matrix is rank-deficient:
-    # directions outside the zero-mode manifold are killed exactly. The frame
-    # is truncated adaptively; collapsed directions keep NaN stretches (their
-    # Lyapunov exponents are -∞), so the surviving flat exponents directly
-    # count the zero modes of the corresponding projector Hamiltonian.
-    local_log_stretches = fill(NaN, k, periods)
-    active = collect(1:k)
-    sector_leakage = sector == :all ? Float64[] : zeros(Float64, periods)
+    local_log_stretches = fill(-Inf, k, periods)
+    numerical_rank = zeros(Int, periods)
+    sector_leakage = sector == :all ? Float64[] : fill(NaN, periods)
 
     for step in 1:periods
-        k_now = length(active)
-        propagated = similar(states)
-        for i in 1:k_now
-            # Odd-site layer with λ_odd: record row 2step-1; even library
-            # layer_idx addresses odd sites (cf. simulate_staggered_ssb, which
-            # uses layer_idx = index + 1 and complemented record bits).
-            outcome = FibonacciChain._apply_measurement_layer(
-                model, τ_odd, states[:, i],
-                BitVector(.!samples[2step-1, :]); layer_idx = 2, normalized = false,
-            )
-            # Even-site layer with λ_even: record row 2step; odd layer_idx.
-            outcome = FibonacciChain._apply_measurement_layer(
-                model, τ_even, outcome.state,
-                BitVector(.!samples[2step, :]); layer_idx = 3, normalized = false,
-            )
-            propagated[:, i] = outcome.state
+        k_now = size(states, 2)
+        k_now == 0 && break
+        local_log_stretches[1:k_now, step] .= 0
+        for (layer, λ) in enumerate((λ_odd, λ_even))
+            if λ == 0
+                local_log_stretches[1:k_now, step] .-= L * log(2) / 4
+                continue
+            end
+            # Subdivision keeps every finite local factor well-conditioned and
+            # avoids the native τ >= 100 projective sentinel for finite λ.
+            n_substeps = isinf(λ) ? 1 : max(1, ceil(Int, λ))
+            δ = isinf(λ) ? 1000.0 : Float64(λ / n_substeps)
+            correction = isinf(λ) ? 0.0 :
+                (log1p(exp(-2δ)) - log1p(exp(-2λ)) / n_substeps) / 2
+            sites = layer == 1 ? (1:2:L) : (2:2:L)
+            for (column, site) in enumerate(sites), _ in 1:n_substeps
+                propagated = similar(states)
+                FibonacciChain._measuremap_frame_impl!(
+                    propagated, basis, model, δ, states, site,
+                    !samples[2(step-1)+layer, column],
+                )
+                if isinf(λ)
+                    # SVD determines rank only; rotating/sorting the QR flag
+                    # would invalidate accumulated directional stretches.
+                    retained = count(>(rank_rtol), svdvals(propagated))
+                    local_log_stretches[retained+1:k_now, step] .= -Inf
+                    k_now = retained
+                    states = propagated[:, 1:k_now]
+                    k_now == 0 && break
+                end
+                factor = qr(propagated[:, 1:k_now])
+                stretches = abs.(diag(factor.R))
+                all(isfinite, stretches) && minimum(stretches) > 0 ||
+                    error("Numerical QR breakdown at period $step, site $site")
+                if isinf(λ) && minimum(stretches) <= rank_rtol
+                    error("Unresolved leading QR flag at period $step, site $site; increase precision or check rank_rtol")
+                end
+                local_log_stretches[1:k_now, step] .+= log.(stretches) .+ correction
+                states = Matrix(factor.Q)[:, 1:k_now]
+            end
+            k_now == 0 && break
         end
-
-        factor = qr(propagated)
-        stretches = abs.(diag(factor.R)[1:k_now])
-        alive = stretches .> 1e-12 * max(maximum(stretches), 1.0)
-        local_log_stretches[active[alive], step] = log.(stretches[alive])
-        active = active[alive]
-        isempty(active) && error("Lyapunov frame collapsed entirely at period $step")
-        states = Matrix(factor.Q)[:, alive]
-        if P !== nothing
-            states = Matrix(qr(P * states).Q)[:, 1:length(active)]
+        numerical_rank[step] = k_now
+        if P !== nothing && k_now > 0
             sector_leakage[step] = norm(Y * states - y_eigenvalue * states) / norm(states)
+            factor = qr(P * states)
+            stretches = abs.(diag(factor.R))
+            minimum(stretches) > 100eps(Float64) ||
+                error("Numerical sector projection breakdown at period $step")
+            local_log_stretches[1:k_now, step] .+= log.(stretches)
+            states = Matrix(factor.Q)[:, 1:k_now]
         end
     end
 
@@ -302,21 +319,23 @@ function staggered_lyapunov_spectrum(
     return (;
         local_log_stretches, lyapunov_exponents,
         free_energy_spectrum = -lyapunov_exponents,
+        numerical_rank, rank_rtol = Float64(rank_rtol),
+        frame_seed = Int(seed),
+        method = "running_QR_estimates_per_local_factor",
+        missing_value_convention = "-Inf: projective numerical rank loss; NaN is not a collapsed direction",
         sector, sector_dimension, sector_leakage, final_frame = states,
     )
 end
 
 """
-    staggered_lyapunov_spectrum(result; n_states=10, sector=:all, seed=0)
+    staggered_lyapunov_spectrum(result; kwargs...)
 
 Convenience wrapper taking the named tuple returned by
 [`simulate_staggered_ssb`](@ref).
 """
-staggered_lyapunov_spectrum(
-    result::NamedTuple; n_states::Int = 10, sector::Symbol = :all, seed::Integer = 0,
-) =
+staggered_lyapunov_spectrum(result::NamedTuple; kwargs...) =
     staggered_lyapunov_spectrum(
-        result.L, result.λ_even, result.λ_odd, result.samples; n_states, sector, seed,
+        result.L, result.λ_even, result.λ_odd, result.samples; kwargs...,
     )
 
 if abspath(PROGRAM_FILE) == @__FILE__
@@ -344,10 +363,15 @@ if abspath(PROGRAM_FILE) == @__FILE__
         local_log_stretches = spectrum.local_log_stretches,
         lyapunov_exponents = spectrum.lyapunov_exponents,
         free_energy_spectrum = spectrum.free_energy_spectrum,
+        numerical_rank = spectrum.numerical_rank,
+        rank_rtol = spectrum.rank_rtol,
+        frame_seed = spectrum.frame_seed,
+        lyapunov_method = spectrum.method,
+        missing_value_convention = spectrum.missing_value_convention,
     )
     mkpath(dirname(abspath(output)))
     JLD2.jldsave(output; result...)
     println("Saved $output")
     println("S_R(0)=$(first(result.reference_entropy)), S_R(t)=$(last(result.reference_entropy))")
-    println("final Lyapunov exponents: $(spectrum.lyapunov_exponents[:, end])")
+    t > 0 && println("final running QR estimates: $(spectrum.lyapunov_exponents[:, end])")
 end

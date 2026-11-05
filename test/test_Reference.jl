@@ -1158,3 +1158,109 @@ end
     @test_throws ArgumentError staggered_projected_occupation_correlation(trajectory; sector = :all)
     @test_throws DimensionMismatch staggered_projected_occupation_correlation(4, ones(dimension + 1))
 end
+
+@testset "Staggered Lyapunov QR estimates" begin
+    L = 4
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    dimension = length(anyon_basis(model))
+    record = BitMatrix(rand(MersenneTwister(44), Bool, 6, L÷2))
+    λ_even, λ_odd = 0.7, 0.2
+    seed = 19
+    result = staggered_lyapunov_spectrum(L, λ_even, λ_odd, record; n_states = dimension, seed)
+
+    # Dense whole-period QR checks the order, record convention, normalization
+    # and accumulated stretches independently of the local-factor stabilization.
+    frame = Matrix(qr(randn(MersenneTwister(seed), dimension, dimension)).Q)
+    expected = zeros(dimension, 3)
+    for step in 1:3
+        for (layer, λ) in enumerate((λ_odd, λ_even))
+            sites = layer == 1 ? (1:2:L) : (2:2:L)
+            for (column, site) in enumerate(sites)
+                suppressed = FibonacciChain.measure_matrix(model, 1000.0, site, record[2(step-1)+layer, column])
+                frame = exp(-λ * suppressed) * frame / sqrt(1 + exp(-2λ))
+            end
+        end
+        factor = qr(frame)
+        expected[:, step] = log.(abs.(diag(factor.R)))
+        frame = Matrix(factor.Q)
+    end
+    @test result.local_log_stretches ≈ expected atol = 1e-12
+    @test result.lyapunov_exponents ≈ cumsum(expected; dims = 2) ./ reshape(1:3, 1, :) atol = 1e-12
+    @test result.final_frame' * result.final_frame ≈ I atol = 1e-12
+    @test result.numerical_rank == fill(dimension, 3)
+    @test result.free_energy_spectrum == -result.lyapunov_exponents
+
+    # A period can be numerically singular although every finite Kraus map is
+    # invertible. λ=100 also exercises the native projective sentinel boundary.
+    suppressed_rank = sum(rank(FibonacciChain.measure_matrix(model, 1000.0, site, true)) for site in 1:L)
+    for λ in (0.0, 8.0, 100.0)
+        finite = staggered_lyapunov_spectrum(L, λ, λ, trues(4, L÷2); n_states = dimension)
+        logdet = -λ * suppressed_rank - L * dimension * log1p(exp(-2λ)) / 2
+        @test all(isfinite, finite.lyapunov_exponents)
+        @test finite.numerical_rank == fill(dimension, 2)
+        @test vec(sum(finite.local_log_stretches; dims = 1)) ≈ fill(logdet, 2) atol = 1e-10
+    end
+
+    for sign in (true, false)
+        samples = BitMatrix(fill(sign, 12, L÷2))
+        transfer = Matrix{Float64}(I, dimension, dimension)
+        for site in 2:2:L
+            transfer = FibonacciChain.measure_matrix(model, 1000.0, site, !sign) * transfer
+        end
+        retained = rank(transfer)
+        projected = staggered_lyapunov_spectrum(L, Inf, 0.0, samples; n_states = dimension)
+        @test projected.numerical_rank == fill(retained, 6)
+        @test all(isfinite, projected.lyapunov_exponents[1:retained, :])
+        @test all(==(-Inf), projected.lyapunov_exponents[retained+1:end, :])
+        @test !any(isnan, projected.local_log_stretches)
+        @test projected.local_log_stretches[1:retained, 2:end] ≈ fill(-L * log(2) / 4, retained, 5) atol = 1e-12
+        @test transfer * projected.final_frame ≈ projected.final_frame atol = 1e-12
+        other_tolerance = staggered_lyapunov_spectrum(
+            L, Inf, 0.0, samples; n_states = dimension, rank_rtol = 10eps(Float64),
+        )
+        @test other_tolerance.numerical_rank == projected.numerical_rank
+    end
+
+    impossible_record = trues(6, L÷2)
+    impossible_record[4, :] .= false
+    zero_product = staggered_lyapunov_spectrum(L, Inf, 0.0, impossible_record; n_states = dimension)
+    @test zero_product.numerical_rank == [3, 0, 0]
+    @test all(==(-Inf), zero_product.lyapunov_exponents[:, 2:end])
+    @test size(zero_product.final_frame) == (dimension, 0)
+
+    # Check sector log-volumes against the determinant of the restricted map.
+    ϕ = (1 + √5) / 2
+    charges = eigen(Symmetric(topological_charge_operator(model)))
+    for sector in (:trivial, :tau)
+        y = sector == :trivial ? ϕ : -inv(ϕ)
+        U = charges.vectors[:, abs.(charges.values .- y) .< 1e-10]
+        transfer = Matrix{Float64}(I, dimension, dimension)
+        for (layer, λ) in enumerate((λ_odd, λ_even))
+            for (column, site) in enumerate(layer == 1 ? (1:2:L) : (2:2:L))
+                transfer = FibonacciChain.measure_matrix(model, λ, site, !record[layer, column]) * transfer
+            end
+        end
+        restricted = staggered_lyapunov_spectrum(
+            L, λ_even, λ_odd, record[1:2, :]; n_states = size(U, 2), sector,
+        )
+        @test sum(restricted.local_log_stretches) ≈ logabsdet(U' * transfer * U)[1] atol = 1e-12
+        @test maximum(restricted.sector_leakage) < 1e-12
+        @test restricted.final_frame' * restricted.final_frame ≈ I atol = 1e-12
+    end
+
+    trajectory = simulate_staggered_ssb(L, Inf, atanh(0.9), 8; seed = 123)
+    replay = staggered_lyapunov_spectrum(trajectory; n_states = dimension)
+    @test !any(isnan, replay.lyapunov_exponents)
+    @test all(diff(replay.numerical_rank) .<= 0)
+    @test replay.numerical_rank[end] == size(replay.final_frame, 2)
+    empty = staggered_lyapunov_spectrum(L, Inf, 0.0, falses(0, L÷2); n_states = dimension)
+    @test size(empty.lyapunov_exponents) == (dimension, 0)
+    @test isempty(empty.numerical_rank)
+    for invalid in (-0.1, -Inf, NaN)
+        @test_throws ArgumentError staggered_lyapunov_spectrum(L, invalid, 0.0, record)
+    end
+    @test_throws ArgumentError staggered_lyapunov_spectrum(L, 0.0, 0.0, record; rank_rtol = 0)
+    @test_throws ArgumentError staggered_lyapunov_spectrum(L, 0.0, 0.0, record; n_states = dimension + 1)
+    @test_throws DimensionMismatch staggered_lyapunov_spectrum(L, 0.0, 0.0, falses(2, 1))
+    @test_throws ArgumentError staggered_lyapunov_spectrum(L, 0.0, 0.0, falses(3, L÷2))
+end
