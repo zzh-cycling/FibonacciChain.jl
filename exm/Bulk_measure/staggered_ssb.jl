@@ -397,6 +397,101 @@ staggered_lyapunov_spectrum(result::NamedTuple; kwargs...) =
         result.L, result.λ_even, result.λ_odd, result.samples; kwargs...,
     )
 
+"""
+    simulate_staggered_sector_lyapunov(L, λ_even, λ_odd, t;
+        sector=:trivial, n_states=10, trajectory_seed=1, seed=0,
+        rank_rtol=100eps(Float64))
+
+Generate a Born trajectory from the normalized projection of the all-τ fusion
+path into one topological charge sector, then compute its sector-restricted
+running QR spectrum. `sector=:trivial` selects y=1 (Y=ϕ), while `:tau` selects
+y=τ (Y=-1/ϕ). Each period applies the odd layer followed by the even layer.
+
+Returns `(trajectory, spectrum)`. The trajectory contains the final physical
+state, samples in the same suppressed-channel convention as
+[`simulate_staggered_ssb`](@ref), layer free energies, and the normalized Y
+expectation after every period. `seed` controls the initial QR frame and
+`trajectory_seed` controls Born sampling independently.
+"""
+function simulate_staggered_sector_lyapunov(
+    L::Integer,
+    λ_even::Real,
+    λ_odd::Real,
+    t::Integer;
+    sector::Symbol = :trivial,
+    n_states::Int = 10,
+    trajectory_seed::Integer = 1,
+    seed::Integer = 0,
+    rank_rtol::Real = 100eps(Float64),
+)
+    L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
+    all(λ -> !isnan(λ) && λ >= 0, (λ_even, λ_odd)) ||
+        throw(ArgumentError("λ_even and λ_odd must be nonnegative (Inf is the projective limit)"))
+    t >= 1 || throw(ArgumentError("t must be positive"))
+    sector ∈ (:trivial, :tau) ||
+        throw(ArgumentError("sector must be :trivial (y=1) or :tau (y=τ)"))
+
+    model = AnyonModel(FibonacciAnyon(), Int(L); pbc = true)
+    basis = anyon_basis(model)
+    initial_state = zeros(Float64, length(basis))
+    initial_state[1] = 1
+    ϕ = (1 + √5) / 2
+    y_eigenvalue = sector == :trivial ? ϕ : -inv(ϕ)
+    y_other = sector == :trivial ? -inv(ϕ) : ϕ
+    Y = topological_charge_operator(model)
+    state = (Y * initial_state .- y_other .* initial_state) ./ (y_eigenvalue - y_other)
+    state_norm = norm(state)
+    state_norm > 1e-14 || error("The all-τ path has zero weight in the $sector sector")
+    state ./= state_norm
+
+    rng = MersenneTwister(trajectory_seed)
+    configs = map((λ_odd, λ_even)) do λ
+        MeasureConfig(
+            τ = isinf(λ) ? 1000.0 : Float64(λ),
+            t₂ = Int(t),
+            mode = :Born,
+            rng = rng,
+            enable_τ_eff = false,
+        )
+    end
+    samples = falses(2t, L÷2)
+    sample_free_energy = zeros(2t)
+    y_expectation_values = zeros(t)
+
+    for step in 1:t
+        for layer in 1:2
+            index = 2(step-1) + layer
+            outcome = reference_boundary_evolution(
+                model, state, configs[layer]; layer_idx = index + 1,
+            )
+            state = outcome.state
+            all(isfinite, state) || error("Invalid state at layer $index")
+            samples[index, :] = .!outcome.sample
+            sample_free_energy[index] = outcome.free_energy
+        end
+        y_expectation_values[step] = real(dot(state, Y * state)) / sum(abs2, state)
+    end
+
+    spectrum = staggered_lyapunov_spectrum(
+        L, λ_even, λ_odd, samples;
+        n_states, sector, seed, rank_rtol,
+    )
+    maximum(abs.(y_expectation_values .- y_eigenvalue)) < 1e-5 ||
+        error("the Born trajectory left the $sector sector")
+    all(leakage -> isnan(leakage) || leakage < 1e-9, spectrum.sector_leakage) ||
+        error("the Lyapunov frame left the $sector sector")
+
+    trajectory = (;
+        L = Int(L), λ_even = Float64(λ_even), λ_odd = Float64(λ_odd),
+        γ_even = tanh(Float64(λ_even)), γ_odd = tanh(Float64(λ_odd)),
+        t = Int(t), sector, y_eigenvalue, trajectory_seed = Int(trajectory_seed),
+        state, samples, sample_free_energy, y_expectation_values,
+        sample_convention = "true: suppressed vacuum channel; false: suppressed tau channel",
+        time_unit = "complete_odd_then_even_period", layer_order = "odd_then_even",
+    )
+    return trajectory, spectrum
+end
+
 if abspath(PROGRAM_FILE) == @__FILE__
     length(ARGS) >= 5 || error(
         "Usage: julia --project exm/Bulk_measure/staggered_ssb.jl L lambda_even lambda_odd t Born|sample [seed] [sign] [output.jld2]",

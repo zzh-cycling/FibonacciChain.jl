@@ -1285,3 +1285,60 @@ end
     @test_throws DimensionMismatch staggered_lyapunov_spectrum(L, 0.0, 0.0, falses(2, 1))
     @test_throws ArgumentError staggered_lyapunov_spectrum(L, 0.0, 0.0, falses(3, L÷2))
 end
+
+@testset "Staggered sector-resolved Born spectra" begin
+    L = 4
+    λ_even, λ_odd = 0.7, 0.2
+    model = AnyonModel(FibonacciAnyon(), L; pbc = true)
+    dimension = length(anyon_basis(model))
+    Y = topological_charge_operator(model)
+    charges = eigen(Symmetric(Y))
+    all_tau = zeros(dimension)
+    all_tau[1] = 1
+    ϕ = (1 + √5) / 2
+
+    for sector in (:trivial, :tau)
+        y = sector == :trivial ? ϕ : -inv(ϕ)
+        y_other = sector == :trivial ? -inv(ϕ) : ϕ
+        initial = (Y * all_tau .- y_other .* all_tau) ./ (y - y_other)
+        initial ./= norm(initial)
+        U = charges.vectors[:, abs.(charges.values .- y) .< 1e-10]
+        trajectory, spectrum = simulate_staggered_sector_lyapunov(
+            L, λ_even, λ_odd, 3;
+            sector, n_states = size(U, 2), trajectory_seed = 123, seed = 19,
+        )
+
+        @test real(dot(initial, Y * initial)) ≈ y atol = 1e-12
+        @test trajectory.sector == sector
+        @test trajectory.y_eigenvalue == y
+        @test size(trajectory.samples) == (6, L÷2)
+        @test length(trajectory.sample_free_energy) == 6
+        @test maximum(abs.(trajectory.y_expectation_values .- y)) < 1e-12
+        @test real(dot(trajectory.state, Y * trajectory.state)) ≈ y atol = 1e-12
+        @test spectrum.sector == sector
+        @test spectrum.sector_dimension == size(U, 2)
+        @test size(spectrum.lyapunov_exponents) == (size(U, 2), 3)
+        @test all(isfinite, spectrum.lyapunov_exponents)
+        @test maximum(spectrum.sector_leakage) < 1e-12
+        @test norm(Y * spectrum.final_frame - y * spectrum.final_frame) < 1e-12
+
+        expected = copy(initial)
+        for step in 1:3, layer in 1:2
+            λ = layer == 1 ? λ_odd : λ_even
+            sites = layer == 1 ? (1:2:L) : (2:2:L)
+            for (column, site) in enumerate(sites)
+                suppressed = FibonacciChain.measure_matrix(
+                    model, 1000.0, site, trajectory.samples[2(step-1)+layer, column],
+                )
+                expected = exp(-λ * suppressed) * expected / sqrt(1 + exp(-2λ))
+            end
+        end
+        expected ./= norm(expected)
+        @test trajectory.state ≈ expected atol = 1e-12
+    end
+
+    @test_throws ArgumentError simulate_staggered_sector_lyapunov(L, λ_even, λ_odd, 0)
+    @test_throws ArgumentError simulate_staggered_sector_lyapunov(
+        L, λ_even, λ_odd, 1; sector = :all,
+    )
+end
