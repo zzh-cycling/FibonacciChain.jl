@@ -28,6 +28,7 @@ using ITensorMPS
         @test size(born.schedule.measurement_mask) == (4, N ÷ 2)
         @test any(born.schedule.measurement_mask)
         @test any(.!born.schedule.measurement_mask)
+        @test born.schedule.unitary_angles isa Matrix{Float32}
         @test all(isnan, born.schedule.unitary_angles[born.schedule.measurement_mask])
         @test all(isfinite, born.schedule.unitary_angles[.!born.schedule.measurement_mask])
         @test norm(born.state) ≈ 1 atol = 1e-12
@@ -148,7 +149,7 @@ using ITensorMPS
         overlap = dot(exact.state, dense_legal)
         dense_legal .*= conj(overlap) / abs(overlap)
 
-        @test dense_legal ≈ exact.state atol = 1e-10
+        @test dense_legal ≈ exact.state atol = 1e-6
         @test mps.free_energys ≈ exact.free_energys atol = 1e-6
         @test real(inner(mps.state, mps.state)) ≈ 1 atol = 1e-11
     end
@@ -173,7 +174,7 @@ using ITensorMPS
                 enable_τ_eff = false, p = p, random_angles = true,
             )
             result = hybrid_purification_evolution(model, state0, state1, config)
-            @test sum(abs2, result.state0) + sum(abs2, result.state1) ≈ 1 atol = 1e-12
+            @test sum(abs2, result.state0) + sum(abs2, result.state1) ≈ 1 atol = 1e-6
             @test Y * result.state0 ≈ y * result.state0 atol = 1e-12
             @test Y * result.state1 ≈ y * result.state1 atol = 1e-12
             @test all(S -> 0 <= S <= log(2) + 1e-12, result.purification_entropys)
@@ -222,7 +223,7 @@ using ITensorMPS
                         joint ./= sqrt(probability)
                     else
                         angle = result.schedule.unitary_angles[layer, column]
-                        @test angle == 2π * rand(rng)
+                        @test angle == Float32(2π * rand(rng))
                         Q = FibonacciChain.measure_matrix(model, Inf, site, false)
                         U = I + (cis(angle) - 1) * Q
                         joint = kron(Matrix{Float64}(I, 2, 2), U) * joint
@@ -234,7 +235,7 @@ using ITensorMPS
                     rho = Matrix(Hermitian(transpose(amplitudes) * conj(amplitudes)))
                     spectrum = eigvals(Hermitian(rho))
                     entropy = -sum(v * log(v) for v in spectrum if v > 0)
-                    @test entropy ≈ result.purification_entropys[layer ÷ 2] atol = 1e-12
+                    @test entropy ≈ result.purification_entropys[layer ÷ 2] atol = 1e-6
                 end
             end
             @test joint ≈ vcat(result.state0, result.state1) atol = 1e-12
@@ -292,8 +293,8 @@ using ITensorMPS
         @test unitary_only.conditional_entropy_estimator ≈ fill(log(2), 3)
         @test iszero(unitary_only.mutual_information_estimator)
         @test unitary_only.bayes_error_estimator == fill(0.5, 3)
-        @test unitary_only.y_expectation_y1 ≈ fill(ϕ, 3) atol = 1e-10
-        @test unitary_only.y_expectation_ytau ≈ fill(-inv(ϕ), 3) atol = 1e-10
+        @test unitary_only.y_expectation_y1 ≈ fill(ϕ, 3) atol = 1e-6
+        @test unitary_only.y_expectation_ytau ≈ fill(-inv(ϕ), 3) atol = 1e-6
 
         replay_config = HybridConfig(
             τ = Inf,
@@ -373,7 +374,7 @@ using ITensorMPS
             sector = :trivial,
         )
         @test size(unitary_spectrum.lyapunov_exponents) == (3, periods)
-        @test maximum(abs, unitary_spectrum.lyapunov_exponents) < 1e-12
+        @test maximum(abs, unitary_spectrum.lyapunov_exponents) < 1e-6
         @test maximum(unitary_spectrum.sector_leakage) < 1e-10
 
         # At p=1 the hybrid routine reduces exactly to the existing

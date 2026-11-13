@@ -11,6 +11,7 @@ include("../exm/HybridEvolution/protocol.jl")
         @test single["time"] == results[2].times
         @test single["S_half"] == results[2].entropy
         @test single["Y_expectation"] == results[2].y_expectation
+        @test single["unitary_angles"] isa Matrix{Float32}
         @test isequal(single["unitary_angles"], results[2].schedule.unitary_angles)
         @test_throws ErrorException save_trajectory(directory, results[2])
         save_ensemble(directory, results)
@@ -24,7 +25,7 @@ include("../exm/HybridEvolution/protocol.jl")
         @test summary["S_mean"] ≈ vec(mean(data["S_half"]; dims = 1))
         @test load(joinpath(directory, "sharpening.jld2"), "censored")
         @test isnan(load(joinpath(directory, "sharpening.jld2"), "t_sharp"))
-        record = load(joinpath(directory, "schedule_seed1.jld2"))
+        record = load(joinpath(directory, "trajectory_seed1.jld2"))
         schedule = HybridGateSchedule(record["measurement_mask"], record["outcomes"],
             record["unitary_angles"])
         @test isequal(schedule.unitary_angles, results[1].schedule.unitary_angles)
@@ -37,7 +38,7 @@ include("../exm/HybridEvolution/protocol.jl")
         @test all(endswith(".jld2"), readdir(directory))
     end
     mktempdir() do directory
-        mps = samples_generate_mps(6, 0.0, 1, 1)
+        mps = samples_generate_mps(6, 0.0, 1, 1; save_schedule = false)
         save_trajectory(directory, mps)
         individual = load(joinpath(directory, "trajectory_seed1.jld2"))
         @test individual["final_bond_dimension"] == mps.final_bond_dimension

@@ -48,8 +48,9 @@ HybridConfig(; p::Real = 1.0, θ::Real = π, random_angles::Bool = false, kwargs
 
 A replayable spacetime realization. `measurement_mask[t,x] == true` denotes a
 measurement and `false` denotes `U(θ)`. `outcomes` is meaningful only where the
-mask is true. `unitary_angles[t,x]` stores the angle of a unitary brick and is
-`NaN` at measurement locations. All arrays use the same layer/column layout as
+mask is true. `unitary_angles[t,x]` stores the Float32 angle of a unitary brick
+and is `NaN` at measurement locations. Gate evaluation also uses Float32 angles.
+All arrays use the same layer/column layout as
 `Measurement_outcome_bulk.samples`. The two-argument constructor remains
 available for legacy fixed-angle schedules; its angle entries are `NaN` and
 are resolved from `HybridConfig.θ` during replay.
@@ -57,7 +58,7 @@ are resolved from `HybridConfig.θ` during replay.
 struct HybridGateSchedule
     measurement_mask::BitMatrix
     outcomes::BitMatrix
-    unitary_angles::Matrix{Float64}
+    unitary_angles::Matrix{Float32}
 
     function HybridGateSchedule(
         measurement_mask::AbstractMatrix{Bool},
@@ -79,7 +80,7 @@ struct HybridGateSchedule
         return new(
             BitMatrix(measurement_mask),
             BitMatrix(outcomes),
-            Matrix{Float64}(unitary_angles),
+            Matrix{Float32}(unitary_angles),
         )
     end
 end
@@ -88,7 +89,7 @@ HybridGateSchedule(measurement_mask::AbstractMatrix{Bool}, outcomes::AbstractMat
     HybridGateSchedule(
         measurement_mask,
         outcomes,
-        fill(NaN, size(measurement_mask)),
+        fill(Float32(NaN), size(measurement_mask)),
     )
 
 """Result of exact-state or MPS hybrid monitored evolution."""
@@ -131,7 +132,7 @@ function _apply_fibonacci_unitary_exact!(
     measure_model::AnyonModel{FibonacciAnyon},
     state::Vector{T},
     site::Int,
-    θ::Float64,
+    θ::Float32,
 ) where {T<:Complex}
     θ == 0 && return copyto!(dest, state)
     fill!(dest, zero(T))
@@ -171,7 +172,7 @@ function _draw_hybrid_gate(rng::MersenneTwister, p::Float64)
 end
 
 _draw_hybrid_angle(rng::MersenneTwister, config::HybridConfig) =
-    config.random_angles ? 2π * rand(rng) : config.θ
+    Float32(config.random_angles ? 2π * rand(rng) : config.θ)
 
 function _scheduled_hybrid_angle(
     schedule::HybridGateSchedule,
@@ -180,7 +181,7 @@ function _scheduled_hybrid_angle(
     config::HybridConfig,
 )
     θ = schedule.unitary_angles[layer, column]
-    return isfinite(θ) ? θ : config.θ
+    return isfinite(θ) ? θ : Float32(config.θ)
 end
 
 """
@@ -206,7 +207,7 @@ function bulk_evolution(
     born && !normalized && error("mode=:Born requires normalized=true")
     masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
     outcomes = born ? falses(D, ncols) : copy(schedule.outcomes)
-    angles = born ? fill(NaN, D, ncols) : copy(schedule.unitary_angles)
+    angles = born ? fill(Float32(NaN), D, ncols) : copy(schedule.unitary_angles)
     free_energys = zeros(Float32, D)
     entropies = zeros(Float32, Δt)
     current = ComplexF64.(state)
@@ -359,7 +360,7 @@ function hybrid_purification_evolution(
     born = mc.mode == :Born && schedule === nothing
     masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
     outcomes = born ? falses(D, ncols) : copy(schedule.outcomes)
-    angles = born ? fill(NaN, D, ncols) : copy(schedule.unitary_angles)
+    angles = born ? fill(Float32(NaN), D, ncols) : copy(schedule.unitary_angles)
     free_energys = zeros(Float64, D)
     entropies = zeros(Float64, Δt)
     n_layers = layers_per_period(model)
@@ -722,7 +723,7 @@ function hybrid_bayesian_evolution(
 
     masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
     outcomes = born ? falses(D, ncols) : copy(schedule.outcomes)
-    angles = born ? fill(NaN, D, ncols) : copy(schedule.unitary_angles)
+    angles = born ? fill(Float32(NaN), D, ncols) : copy(schedule.unitary_angles)
     logp_y1 = 0.0
     logp_ytau = 0.0
     log_record_y1 = zeros(Float64, Δt)
@@ -929,7 +930,7 @@ function bulk_evolution(
     born && !normalized && error("mode=:Born requires normalized=true")
     masks = born ? falses(D, ncols) : copy(schedule.measurement_mask)
     outcomes = born ? falses(D, ncols) : copy(schedule.outcomes)
-    angles = born ? fill(NaN, D, ncols) : copy(schedule.unitary_angles)
+    angles = born ? fill(Float32(NaN), D, ncols) : copy(schedule.unitary_angles)
     free_energys = zeros(Float32, D)
     entropies = zeros(Float32, Δt)
     current = copy(state)

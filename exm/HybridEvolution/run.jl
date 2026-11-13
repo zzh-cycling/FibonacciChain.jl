@@ -34,7 +34,7 @@ Usage: julia --project=. exm/HybridEvolution/run.jl [options]
 Workers receive the active Julia project and use one BLAS thread.
 Existing workers started with julia -p are also supported.
 Each completed trajectory is written to L{size}_p{rate}/trajectory_seed{seed}.jld2.
-Trajectory files include measurement_mask, outcomes, and unitary_angles for replay.
+Trajectory files include measurement_mask, outcomes, and Float32 unitary_angles for replay.
 They also include final S_subsystem_final at lengths 1:L-1 and four-block I3_final.
 free_energys stores per-layer record free energy; free_energy stores cumulative
 F(t)=-log P(record) at the observation times, including F(0)=0.
