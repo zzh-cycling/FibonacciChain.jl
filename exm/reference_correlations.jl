@@ -12,8 +12,10 @@ Exact two-reference copy protocol. Times count complete circuit periods. Insert
 R1 after `warmup`, R2 after `warmup + separation`, then evolve `final_periods`.
 For temporal correlations set x1=x2; spatial correlations use separation=0.
 All reference branches share one outcome sampled from their joint Born weight.
-`record` replays the returned mask/outcomes/angles without consuming the RNG.
-No half-strength final layer is used. References are passive after insertion.
+`record` replays the returned mask/outcomes and, for hybrid circuits, angles
+without consuming the RNG. Measurement-only records do not store a placeholder
+`unitary_angles` matrix. No half-strength final layer is used. References are
+passive after insertion.
 """
 function reference_correlation_sample(model, initial_state; τ::Real, seed::Int,
     warmup::Int, separation::Int, final_periods::Int, x1::Int = 1,
@@ -40,11 +42,13 @@ function reference_correlation_sample(model, initial_state; τ::Real, seed::Int,
     masks = falses(dims)
     active = falses(dims)
     outcomes = falses(dims)
-    angles = fill(NaN, dims)
+    angles = hybrid === nothing ? nothing : fill(Float32(NaN), dims)
     free_energys = zeros(Float64, dims[1])
     if record !== nothing
         all(size(getproperty(record, key)) == dims for key in
-            (:measurement_mask, :outcomes, :unitary_angles)) ||
+            (:measurement_mask, :outcomes)) ||
+            throw(DimensionMismatch("Record dimensions must be $dims"))
+        hybrid === nothing || size(record.unitary_angles) == dims ||
             throw(DimensionMismatch("Record dimensions must be $dims"))
     end
     # Cache one period of local maps; OBF has 14 layers, Fibonacci has 2.
@@ -86,14 +90,14 @@ function reference_correlation_sample(model, initial_state; τ::Real, seed::Int,
                     buffer ./= sqrt(probability)
                 else
                     hybrid === nothing && error("Measurement-only record contains an active unitary")
-                    θ = record === nothing ?
-                        (hybrid.random_angles ? 2π * rand(rng) : hybrid.θ) :
+                    stored_θ = record === nothing ?
+                        FibonacciChain._draw_hybrid_angle(rng, hybrid) :
                         record.unitary_angles[row, col]
-                    isfinite(θ) || error("Missing unitary angle at layer $row, site $site")
-                    angles[row, col] = θ
+                    isfinite(stored_θ) || error("Missing unitary angle at layer $row, site $site")
+                    angles[row, col] = stored_θ
                     FibonacciChain._measuremap_frame_impl!(
                         buffer, basis, measure_model, Inf, current, site, false)
-                    buffer .= current .+ (cis(θ) - 1) .* buffer
+                    buffer .= current .+ (cis(stored_θ) - 1) .* buffer
                 end
                 current, buffer = buffer, current
             end
@@ -103,12 +107,13 @@ function reference_correlation_sample(model, initial_state; τ::Real, seed::Int,
     s1 = ee(reference_rdm(model, [1], state))
     s2 = ee(reference_rdm(model, [2], state))
     s12 = ee(reference_rdm(model, [1, 2], state))
+    angle_record = hybrid === nothing ? (;) : (; unitary_angles = angles)
     return (; L = model.N, τ = Float64(τ), seed, warmup, separation, final_periods,
         x1, x2, layers_per_period = n_layers, time_unit = "complete_period",
         insertion = "copy", enable_τ_eff = false, correlation = s1 + s2 - s12,
         reference_entropies = [s1, s2, s12], state,
         active_mask = active, measurement_mask = masks, outcomes,
-        unitary_angles = angles, free_energys)
+        angle_record..., free_energys)
 end
 
 """Bracketed linear interpolation of C_temporal(t*) = C_spatial. No extrapolation."""

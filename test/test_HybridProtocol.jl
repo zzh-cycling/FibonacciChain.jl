@@ -1,6 +1,7 @@
 using FibonacciChain, LinearAlgebra, Test
 using JLD2
 include("../exm/HybridEvolution/protocol.jl")
+include("../exm/reference_correlations.jl")
 
 @testset "Hybrid JLD2 output round trip" begin
     mktempdir() do directory
@@ -137,4 +138,30 @@ end
     sparse = samples_generate_mps(6, 0.5, 3, 17; stride = 2)
     @test sparse.times == [0, 2, 3]
     @test_throws ArgumentError samples_generate_mps(6, 0.5, 1, 1; maxdim = 0)
+end
+
+
+@testset "Reference record angle schema" begin
+    obf = AnyonModel(SpinHalf(), 4; model_type = :OBF, λ = 0.3, pbc = true)
+    initial = zeros(ComplexF64, length(anyon_basis(obf)))
+    initial[1] = 1
+    measurement_only = reference_correlation_sample(
+        obf, initial; τ = Inf, seed = 11, warmup = 1, separation = 1, final_periods = 1)
+    @test !hasproperty(measurement_only, :unitary_angles)
+    replay = reference_correlation_sample(obf, initial; τ = Inf, seed = 11,
+        warmup = 1, separation = 1, final_periods = 1, record = measurement_only)
+    @test replay.correlation == measurement_only.correlation
+    @test replay.free_energys == measurement_only.free_energys
+
+    model = AnyonModel(FibonacciAnyon(), 4; pbc = true)
+    initial = zeros(ComplexF64, length(anyon_basis(model)))
+    initial[1] = 1
+    hybrid = HybridConfig(τ = Inf, t₂ = 3, mode = :Born, p = 0.5,
+        random_angles = true, enable_τ_eff = false)
+    with_angles = reference_correlation_sample(model, initial; τ = Inf, seed = 11,
+        warmup = 1, separation = 1, final_periods = 1, hybrid)
+    @test with_angles.unitary_angles isa Matrix{Float32}
+    replay = reference_correlation_sample(model, initial; τ = Inf, seed = 11,
+        warmup = 1, separation = 1, final_periods = 1, hybrid, record = with_angles)
+    @test replay.correlation ≈ with_angles.correlation atol = 1e-6
 end
