@@ -17,9 +17,10 @@ Fixed samples have size (2t,L÷2), with odd/even rows for odd/even bonds respect
 Reference entropy is in nats and includes t=0. λ=Inf gives the exact projective limit.
 The return value additionally carries final-state observables from
 [`_staggered_final_observables`](@ref): per-reference-block subsystem entropy
-scaling `final_subsystem_entropy`, Y expectations (`y_expectation`,
-`y_expectation_by_reference`, `reference_weights`) and the τ-sector projected
-occupation correlation `occupation_correlation_tau`.
+scaling `final_subsystem_entropy`, Y expectations (`y_expectation` and
+`y_expectation_by_reference`) and the τ-sector projected occupation correlation
+`occupation_correlation_tau`. The large joint state is returned only when
+`return_state=true`, such as for continuation.
 """
 function simulate_staggered_ssb(
     L::Integer,
@@ -30,6 +31,7 @@ function simulate_staggered_ssb(
     seed::Integer = 1,
     sign::Bool = true,
     samples::Union{Nothing,BitMatrix} = nothing,
+    return_state::Bool = false,
 )
     L >= 4 && iseven(L) || throw(ArgumentError("L must be even and at least 4"))
     all(λ -> !isnan(λ) && λ >= 0, (λ_even, λ_odd)) ||
@@ -95,6 +97,9 @@ function simulate_staggered_ssb(
     end
 
     final_observables = _staggered_final_observables(model, joint_state, Y)
+    final_observables = (;
+        (key => value for (key, value) in pairs(final_observables) if key != :reference_weights)...)
+    state_record = return_state ? (; state = joint_state) : (;)
 
     return (;
         L=Int(L), λ_even=Float64(λ_even), λ_odd=Float64(λ_odd),
@@ -103,12 +108,12 @@ function simulate_staggered_ssb(
         measurement_sites_even=collect(2:2:L), measurement_sites_odd=collect(1:2:L),
         samples=record, sample_free_energy,
         initial_reference_entropy=first(reference_entropy), reference_entropy,
-        sector_probabilities, reference_density_matrix=ρ, state=joint_state,
+        sector_probabilities,
         initial_state="all_zero_fusion_path", reference_assignment="0:y=1; 1:y=tau",
         kraus_operator="exp(-lambda*Pi_i^s)/sqrt(1+exp(-2lambda))",
         sample_convention="true: suppressed vacuum channel; false: suppressed tau channel",
         time_unit="complete_odd_then_even_period", layer_order="odd_then_even", enable_τ_eff=false,
-        final_observables...,
+        final_observables..., state_record...,
     )
 end
 
